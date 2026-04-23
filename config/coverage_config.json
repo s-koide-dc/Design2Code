@@ -1,0 +1,31 @@
+{
+  "csharp": {
+    "tool": "coverlet",
+    "command_template": "dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=json /p:CoverletOutput={output_path}",
+    "exclude_patterns": ["**/bin/**", "**/obj/**", "**/*.Tests/**"],
+    "thresholds": {
+      "line": 80,
+      "branch": 70,
+      "method": 90
+    }
+  },
+  "python": {
+    "tool": "coverage",
+    "command_template": "coverage run -m pytest {test_path} && coverage json -o {output_path}",
+    "exclude_patterns": ["**/venv/**", "**/__pycache__/**", "**/test_*.py"],
+    "thresholds": {
+      "line": 85,
+      "branch": 75
+    }
+  },
+  "javascript": {
+    "tool": "jest",
+    "command_template": "jest --coverage --coverageReporters=json --coverageDirectory={output_path}",
+    "exclude_patterns": ["**/node_modules/**", "**/dist/**", "**/*.test.js"],
+    "thresholds": {
+      "line": 80,
+      "branch": 70,
+      "function": 85
+    }
+  }
+}

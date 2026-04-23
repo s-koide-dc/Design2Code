@@ -1,0 +1,66 @@
+{
+  "naming_conventions": {
+    "modules": {
+      "case": "snake_case",
+      "description": "Module directory names must be in snake_case."
+    },
+    "files": {
+      "python": {
+        "case": "snake_case",
+        "test_prefix": "test_",
+        "extension": ".py"
+      },
+      "csharp": {
+        "case": "PascalCase",
+        "test_suffix": "Tests",
+        "extension": ".cs"
+      },
+      "javascript": {
+        "case": "camelCase",
+        "extension": ".js"
+      },
+      "design_doc": {
+        "suffix": ".design.md"
+      }
+    },
+    "classes": {
+      "python": "PascalCase",
+      "csharp": "PascalCase"
+    }
+  },
+  "directory_structure": {
+    "source_root": "src",
+    "test_root": "tests",
+    "tools_root": "tools",
+    "docs_root": "docs",
+    "logs_root": "logs",
+    "strict_mapping": {
+      "src/utils": "Helper functions and cross-cutting concerns only.",
+      "src/action_executor": "Must only depend on operations and specific tools.",
+      "src/pipeline_core": "Orchestrates the entire flow."
+    }
+  },
+  "structural_rules": [
+    {
+      "type": "dependency_constraint",
+      "source": "src/utils",
+      "cannot_depend_on": ["src/pipeline_core", "src/planner"],
+      "description": "Utils should be low-level and not depend on core logic."
+    },
+    {
+      "type": "mandatory_file",
+      "pattern": "src/{module}/{module}.design.md",
+      "description": "Each module must have a corresponding design document."
+    }
+  ],
+  "banned_patterns": [
+    {
+      "pattern": ".*\\.tmp$",
+      "description": "Temporary files should not be committed or explicitly created as permanent artifacts."
+    },
+    {
+      "pattern": "^temp_.*",
+      "description": "Avoid 'temp_' prefix for permanent files."
+    }
+  ]
+}

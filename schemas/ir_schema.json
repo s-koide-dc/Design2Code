@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Synthesis Intermediate Representation (IR)",
+  "description": "Abstract logical structure representing user intent before code generation.",
+  "type": "object",
+  "properties": {
+    "module_name": { "type": "string" },
+    "logic_tree": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/node" }
+    }
+  },
+  "definitions": {
+    "node": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": ["ACTION", "LOOP", "CONDITION", "WRAPPER", "TRANSFORM", "ELSE", "END"]
+        },
+        "id": { "type": "string" },
+        "intent": { "type": "string" },
+        "role": { "type": "string" },
+        "action_name": { "type": "string" },
+        "target_entity": { "type": "string" },
+        "cardinality": { "type": "string" },
+        "output_type": { "type": "string" },
+        "source_kind": { "type": "string" },
+        "source_ref": { "type": "string" },
+        "input_link": { "type": "string" },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "body": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/node" }
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/node" }
+        },
+        "else_children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/node" }
+        },
+        "condition_expression": { "type": "string" },
+        "metadata": { "type": "object" },
+        "semantic_map": { "type": "object" }
+      },
+      "required": ["type"]
+    }
+  }
+}

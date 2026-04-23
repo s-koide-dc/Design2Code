@@ -1,0 +1,40 @@
+{
+    "pipeline": {
+        "max_input_length": 200000
+    },
+    "clarification": {
+        "intent_threshold": 0.75,
+        "entity_threshold": 0.75,
+        "max_attempts": 3
+    },
+    "task_manager": {
+        "enable_persistence": false,
+        "persistence_dir": "cache/tasks",
+        "max_state_age_hours": 24,
+        "max_active_sessions": 100,
+        "session_timeout_minutes": 60,
+        "debug_mode": false,
+        "log_state_transitions": false,
+        "max_recovery_attempts": 3
+    },
+    "generation": {
+        "strict_semantics": false
+    },
+    "logging": {
+        "sensitive_fields": [
+            "filename",
+            "command",
+            "content",
+            "error_details"
+        ],
+        "sensitive_field_keywords": [
+            "token",
+            "secret",
+            "password",
+            "api_key",
+            "apikey",
+            "access_key",
+            "private_key"
+        ]
+    }
+}

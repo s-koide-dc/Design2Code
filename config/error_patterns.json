@@ -1,0 +1,94 @@
+{
+    "error_patterns": [
+        {
+            "type": "FileNotFoundError",
+            "regex": "No such file or directory",
+            "user_message": "指定されたファイルが見つかりません。ファイル名を確認してください。",
+            "suggested_action": "ファイル名またはパスを修正して再試行してください。"
+        },
+        {
+            "type": "PermissionError",
+            "regex": "Permission denied",
+            "user_message": "操作に必要な権限がありません。管理者権限で再試行するか、別の場所を指定してください。",
+            "suggested_action": "実行権限のあるユーザーで再試行するか、別のディレクトリを指定してください。"
+        },
+        {
+            "type": "PathTraversalError",
+            "regex": "無効なパスです。",
+            "user_message": "セキュリティポリシーにより、ワークスペース外のパスにはアクセスできません。",
+            "suggested_action": "ワークスペース内のファイルまたはディレクトリを指定してください。"
+        },
+        {
+            "type": "CommandNotAllowedError",
+            "regex": "許可されていません。",
+            "user_message": "指定されたコマンドはセキュリティポリシーにより実行が許可されていません。",
+            "suggested_action": "別のコマンドを試すか、許可されているコマンドリストを確認してください。"
+        },
+        {
+            "type": "TimeoutError",
+            "regex": "コマンドがタイムアウトしました。",
+            "user_message": "コマンドの実行に時間がかかりすぎたため、タイムアウトしました。",
+            "suggested_action": "コマンドが正しいか確認するか、よりシンプルな操作を試してください。"
+        },
+        {
+            "type": "GenericActionError",
+            "regex": "ファイルの作成に失敗しました:",
+            "user_message": "ファイルの作成中に予期せぬエラーが発生しました。",
+            "suggested_action": "別のファイル名や内容を試すか、システム管理者にお問い合わせください。"
+        },
+        {
+            "type": "GenericActionError",
+            "regex": "ファイルの読み込みに失敗しました:",
+            "user_message": "ファイルの読み込み中に予期せぬエラーが発生しました。",
+            "suggested_action": "ファイルが存在するか、アクセス権限があるか確認してください。"
+        },
+        {
+            "type": "GenericActionError",
+            "regex": "ファイルの追記に失敗しました:",
+            "user_message": "ファイルの追記中に予期せぬエラーが発生しました。",
+            "suggested_action": "ファイルが存在するか、アクセス権限があるか確認してください。"
+        },
+        {
+            "type": "GenericActionError",
+            "regex": "ファイルの削除に失敗しました:",
+            "user_message": "ファイルの削除中に予期せぬエラーが発生しました。",
+            "suggested_action": "ファイルが存在するか、アクセス権限があるか確認してください。"
+        },
+        {
+            "type": "GenericActionError",
+            "regex": "一覧の取得に失敗しました:",
+            "user_message": "ディレクトリの一覧取得中に予期せぬエラーが発生しました。",
+            "suggested_action": "ディレクトリが存在するか、アクセス権限があるか確認してください。"
+        },
+        {
+            "type": "OSError",
+            "regex": "No space left on device",
+            "user_message": "ディスク容量が不足しています。不要なファイルを削除するか、別の場所を指定してください。",
+            "suggested_action": "ディスクの使用状況を確認してください。"
+        },
+        {
+            "type": "OSError",
+            "regex": "Disk quota exceeded",
+            "user_message": "ディスククォータを超過しました。不要なファイルを削除してください。",
+            "suggested_action": "ディスクの使用量を確認し、不要なファイルを削除してください。"
+        },
+        {
+            "type": "MemoryError",
+            "regex": "Cannot allocate memory",
+            "user_message": "メモリが不足しています。より小さなファイルで試すか、システムを再起動してください。",
+            "suggested_action": "メモリ使用量を確認し、不要なプロセスを終了してください。"
+        },
+        {
+            "type": "InputTooLongError",
+            "regex": "入力が長すぎます",
+            "user_message": "入力テキストが制限を超えています。より短いテキストで試してください。",
+            "suggested_action": "入力を複数の小さな部分に分割して処理してください。"
+        },
+        {
+            "type": "FileTooLargeError",
+            "regex": "ファイルサイズが制限を超えています",
+            "user_message": "ファイルサイズが制限を超えています。より小さなファイルで試してください。",
+            "suggested_action": "ファイルを分割するか、より小さなファイルを使用してください。"
+        }
+    ]
+}

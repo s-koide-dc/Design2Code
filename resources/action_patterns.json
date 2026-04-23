@@ -1,0 +1,128 @@
+{
+  "patterns": [
+    {
+      "id": "pattern.http_get_json",
+      "name": "Fetch and Deserialize JSON",
+      "description": "URLからJSONを取得し、指定した型のオブジェクトに変換する定石パターン",
+      "intent": "HTTP_REQUEST",
+      "role": "READ",
+      "capabilities": ["HTTP_REQUEST", "JSON_DESERIALIZE", "TRANSFORM"],
+      "steps": [
+        {
+          "id": "http_get_string",
+          "target": "_httpClient",
+          "role": "READ"
+        },
+        {
+          "id": "json_deserialize",
+          "role": "TRANSFORM",
+          "input_from_previous": true
+        }
+      ],
+      "tags": ["http", "json", "api", "fetch"],
+      "tier": 1
+    },
+    {
+      "id": "pattern.dapper_query_list",
+      "name": "Database Query to List",
+      "description": "Dapperを使用してSQLを実行し、結果をリストとして取得する定石パターン",
+      "intent": "DATABASE_QUERY",
+      "role": "READ",
+      "capabilities": ["DATABASE_QUERY", "FETCH"],
+      "steps": [
+        {
+          "id": "dapper_query",
+          "target": "_dbConnection",
+          "role": "READ"
+        }
+      ],
+      "tags": ["sql", "database", "dapper", "query"],
+      "tier": 1
+    },
+    {
+      "id": "pattern.dapper_query_single",
+      "name": "Database Query Single",
+      "description": "Dapperを使用してSQLを実行し、単一の結果を取得する定石パターン",
+      "intent": "DATABASE_QUERY",
+      "role": "READ",
+      "capabilities": ["DATABASE_QUERY", "FETCH"],
+      "steps": [
+        {
+          "id": "dapper_query_first",
+          "target": "_dbConnection",
+          "role": "READ"
+        }
+      ],
+      "tags": ["sql", "database", "dapper", "query", "single"],
+      "tier": 1
+    },
+    {
+      "id": "pattern.http_post_json",
+      "name": "Post JSON to API",
+      "description": "オブジェクトをJSONに変換し、HTTP POSTで送信するパターン",
+      "intent": "HTTP_REQUEST",
+      "role": "WRITE",
+      "capabilities": ["HTTP_REQUEST", "JSON_SERIALIZE", "PERSIST"],
+      "steps": [
+        {
+          "id": "json_serialize",
+          "role": "TRANSFORM"
+        },
+        {
+          "id": "http_string_content",
+          "role": "TRANSFORM",
+          "input_from_previous": true
+        },
+        {
+          "id": "http_post",
+          "target": "_httpClient",
+          "role": "WRITE",
+          "input_from_previous": true
+        }
+      ],
+      "tags": ["http", "json", "post", "api", "register"],
+      "tier": 1
+    },
+    {
+      "id": "pattern.file_read_retry",
+      "name": "Resilient File Read",
+      "description": "ファイルの存在を確認し、安全に内容を読み込むパターン",
+      "intent": "FILE_IO",
+      "role": "READ",
+      "capabilities": ["FILE_IO", "READ", "EXISTS"],
+      "steps": [
+        {
+          "id": "file_exists",
+          "role": "CHECK"
+        },
+        {
+          "id": "file_readalltext",
+          "role": "READ"
+        }
+      ],
+      "tags": ["file", "io", "read", "exists", "safe"],
+      "tier": 1
+    },
+    {
+      "id": "pattern.file_get_json",
+      "name": "Read JSON File to List",
+      "description": "ファイルからJSONを読み込み、オブジェクトのリストに変換するパターン",
+      "intent": "FETCH",
+      "role": "READ",
+      "capabilities": ["FETCH", "JSON_DESERIALIZE", "FILE_IO"],
+      "steps": [
+        {
+          "id": "file_readalltext",
+          "role": "READ"
+        },
+        {
+          "id": "json_deserialize",
+          "role": "TRANSFORM",
+          "input_from_previous": true
+        }
+      ],
+      "tags": ["file", "json", "fetch"],
+      "tier": 1
+    }
+  ]
+}

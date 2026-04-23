@@ -1,0 +1,125 @@
+{
+    "destructive_intents": [
+        "FILE_DELETE",
+        "FILE_MOVE",
+        "BACKUP_AND_DELETE",
+        "APPLY_CODE_FIX",
+        "APPLY_REFACTORING",
+        "FILE_APPEND",
+        "CMD_RUN"
+    ],
+    "cautionary_intents": [
+        "FILE_CREATE"
+    ],
+    "safe_commands": [
+        "git",
+        "ls",
+        "dir",
+        "type",
+        "cat",
+        "echo",
+        "date",
+        "time",
+        "dotnet",
+        "npm",
+        "py",
+        "python"
+    ],
+    "simple_whitelist": [
+        "dir",
+        "ls",
+        "echo",
+        "type",
+        "cat",
+        "date",
+        "time"
+    ],
+    "allowed_subcommands": {
+        "git": [
+            "status",
+            "log",
+            "diff",
+            "show",
+            "branch",
+            "rev-parse",
+            "ls-files"
+        ],
+        "dotnet": [
+            "test",
+            "build",
+            "restore",
+            "clean",
+            "list"
+        ],
+        "npm": [
+            "test",
+            "list"
+        ]
+    },
+    "disallowed_args": {
+        "python": [
+            "-c",
+            "-m"
+        ],
+        "py": [
+            "-c",
+            "-m"
+        ]
+    },
+    "python_allowed_dirs": [
+        "scripts"
+    ],
+    "python_allowed_scripts": [
+        "scripts/sync_project_map.py",
+        "scripts/validate_project_consistency.py",
+        "scripts/data/build_knowledge_base.py",
+        "scripts/data/convert_vectors.py",
+        "scripts/data/fetch_jmdict.py",
+        "scripts/data/fetch_vectors.py",
+        "scripts/data/parse_jmdict.py",
+        "scripts/generate/demo_synthesis.py",
+        "scripts/generate/generate_from_design.py",
+        "scripts/sync/sync_method_store.py",
+        "scripts/sync/sync_project_dependencies.py",
+        "scripts/tools/manage_vector_db.py",
+        "scripts/tools/prune_backups.py",
+        "scripts/tools/suggest_method_capabilities.py",
+        "scripts/validate/run_tdd.py",
+        "scripts/validate/run_unit_smoke.py",
+        "scripts/validate/validate_method_store.py"
+    ],
+    "blocked_metacharacters": [
+        "&",
+        "|",
+        ";",
+        ">",
+        "<",
+        "`",
+        "$"
+    ],
+    "read_commands": [
+        "cat",
+        "type"
+    ],
+    "list_commands": [
+        "ls",
+        "dir"
+    ],
+    "read_allowed_dirs": [
+        "AIFiles",
+        "config",
+        "docs",
+        "scripts",
+        "src",
+        "tests"
+    ],
+    "read_blocked_rules": [
+        { "pattern": ".env", "match": "basename_exact" },
+        { "pattern": "private_key", "match": "segment" },
+        { "pattern": "api_key", "match": "segment" },
+        { "pattern": "apikey", "match": "segment" },
+        { "pattern": "secrets", "match": "segment" },
+        { "pattern": "secret", "match": "segment" },
+        { "pattern": "token", "match": "segment" }
+    ]
+}

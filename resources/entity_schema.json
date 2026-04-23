@@ -1,0 +1,91 @@
+{
+    "entities": [
+        {
+            "name": "User",
+            "keywords": [
+                "ユーザー",
+                "user"
+            ],
+            "properties": {
+                "Id": "int",
+                "Name": "string",
+                "Age": "int",
+                "Email": "string",
+                "Points": "int",
+                "Price": "decimal",
+                "LastLoginAt": "DateTime"
+            }
+        },
+        {
+            "name": "Product",
+            "keywords": [
+                "商品",
+                "製品",
+                "product",
+                "inventory"
+            ],
+            "properties": {
+                "Id": "int",
+                "Name": "string",
+                "Price": "int",
+                "Quantity": "int",
+                "Stock": "int",
+                "Category": "string",
+                "DiscountPrice": "decimal"
+            }
+        },
+        {
+            "name": "Inventory",
+            "keywords": [
+                "在庫",
+                "inventory"
+            ],
+            "properties": {
+                "Id": "int",
+                "Stock": "int"
+            }
+        },
+        {
+            "name": "Item",
+            "keywords": [
+                "item",
+                "データ",
+                "data"
+            ],
+            "properties": {
+                "Id": "int",
+                "Name": "string"
+            }
+        },
+        {
+            "name": "Order",
+            "keywords": [
+                "注文",
+                "オーダー",
+                "Order"
+            ],
+            "properties": {
+                "Id": "int",
+                "Total": "decimal",
+                "CustomerType": "string",
+                "Status": "string",
+                "Discount": "decimal",
+                "Points": "int"
+            }
+        },
+        {
+            "name": "Discount",
+            "keywords": [
+                "割引",
+                "特典",
+                "Discount"
+            ],
+            "properties": {
+                "Id": "int",
+                "OrderId": "int",
+                "Amount": "decimal",
+                "Reason": "string"
+            }
+        }
+    ]
+}

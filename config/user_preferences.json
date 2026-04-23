@@ -1,0 +1,12 @@
+{
+    "coding_style": {
+        "use_var": true,
+        "prefer_async": true,
+        "naming_convention": "camelCase",
+        "indent_size": 4
+    },
+    "preferred_libraries": {
+        "serialization": "System.Text.Json",
+        "async": "UniTask"
+    }
+}

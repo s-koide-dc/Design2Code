@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nlp.local/schemas/structured_spec.schema.json",
+  "title": "StructuredSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "module_name",
+    "purpose",
+    "inputs",
+    "outputs",
+    "steps",
+    "constraints",
+    "test_cases",
+    "data_sources"
+  ],
+  "properties": {
+    "module_name": {"type": "string", "minLength": 1},
+    "purpose": {"type": "string", "minLength": 1},
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "description", "type_format", "example"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "description": {"type": "string"},
+          "type_format": {"type": "string"},
+          "example": {"type": "string"}
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "description", "type_format", "example"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "description": {"type": "string"},
+          "type_format": {"type": "string"},
+          "example": {"type": "string"}
+        }
+      }
+    },
+    "data_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^source_[a-zA-Z0-9_]+$"},
+          "kind": {"type": "string", "enum": ["db", "http", "file", "memory"]},
+          "description": {"type": "string"}
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "intent",
+          "target_entity",
+          "input_refs",
+          "output_type",
+          "side_effect",
+          "text"
+        ],
+        "properties": {
+          "id": {"type": "string", "pattern": "^step_[0-9]+$"},
+          "kind": {
+            "type": "string",
+            "enum": ["ACTION", "CONDITION", "LOOP", "ELSE", "END"]
+          },
+          "intent": {"type": "string", "minLength": 1},
+          "target_entity": {"type": "string", "minLength": 1},
+          "input_refs": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "output_type": {"type": "string", "minLength": 1},
+          "side_effect": {
+            "type": "string",
+            "enum": ["NONE", "IO", "NETWORK", "DB"]
+          },
+          "text": {"type": "string", "minLength": 1},
+          "semantic_roles": {
+            "type": "object",
+            "additionalProperties": {"type": "string"}
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "source_ref": {"type": "string", "pattern": "^source_[a-zA-Z0-9_]+$"},
+          "source_kind": {
+            "type": "string",
+            "enum": ["db", "http", "file", "memory"]
+          }
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"intent": {"const": "FETCH"}}},
+            "then": {"required": ["source_ref", "source_kind"]}
+          },
+          {
+            "if": {"properties": {"intent": {"const": "DATABASE_QUERY"}}},
+            "then": {
+              "required": ["source_ref", "source_kind", "semantic_roles"],
+              "properties": {
+                "semantic_roles": {"type": "object", "required": ["sql"]}
+              }
+            }
+          }
+        ]
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "description"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^constraint_[0-9]+$"},
+          "type": {"type": "string", "minLength": 1},
+          "description": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "test_cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "scenario", "input", "expected"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^tc_[0-9]+$"},
+          "type": {"type": "string", "minLength": 1},
+          "scenario": {"type": "string", "minLength": 1},
+          "input": {"type": "string"},
+          "expected": {"type": "string"}
+        }
+      }
+    }
+  }
+}

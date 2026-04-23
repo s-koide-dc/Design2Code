@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "methods": {
+    "System.Console.WriteLine": {
+      "intent": "DISPLAY",
+      "capabilities": [
+        "DISPLAY"
+      ],
+      "param_roles": {
+        "format": "format",
+        "args": "args"
+      }
+    },
+    "System.Environment.GetEnvironmentVariable": {
+      "intent": "FETCH",
+      "capabilities": [
+        "FETCH"
+      ],
+      "param_roles": {
+        "variable": "name"
+      }
+    },
+    "System.IO.File.Exists": {
+      "intent": "EXISTS",
+      "capabilities": [
+        "FILE_IO",
+        "EXISTS"
+      ],
+      "param_roles": {
+        "path": "path"
+      }
+    },
+    "System.IO.File.ReadAllLines": {
+      "intent": "FETCH",
+      "capabilities": [
+        "FILE_IO",
+        "READ"
+      ],
+      "param_roles": {
+        "path": "path"
+      }
+    },
+    "System.IO.File.ReadAllText": {
+      "intent": "FETCH",
+      "capabilities": [
+        "FILE_IO",
+        "READ"
+      ],
+      "param_roles": {
+        "path": "path"
+      }
+    },
+    "System.IO.File.ReadAllTextAsync": {
+      "intent": "FETCH",
+      "capabilities": [
+        "FILE_IO",
+        "READ"
+      ],
+      "param_roles": {
+        "path": "path"
+      }
+    },
+    "System.IO.File.WriteAllLines": {
+      "intent": "PERSIST",
+      "capabilities": [
+        "FILE_IO",
+        "WRITE"
+      ],
+      "param_roles": {
+        "path": "path"
+      }
+    },
+    "System.IO.File.WriteAllText": {
+      "intent": "PERSIST",
+      "capabilities": [
+        "FILE_IO",
+        "WRITE"
+      ],
+      "param_roles": {
+        "path": "path",
+        "contents": "content"
+      }
+    },
+    "System.IO.File.WriteAllTextAsync": {
+      "intent": "PERSIST",
+      "capabilities": [
+        "FILE_IO",
+        "WRITE"
+      ],
+      "param_roles": {
+        "path": "path",
+        "contents": "content"
+      }
+    },
+    "System.Linq.Enumerable.Any": {
+      "intent": "LINQ",
+      "capabilities": [
+        "LINQ",
+        "TRANSFORM"
+      ]
+    },
+    "System.Linq.Enumerable.Select": {
+      "intent": "LINQ",
+      "capabilities": [
+        "LINQ",
+        "TRANSFORM"
+      ]
+    },
+    "System.Linq.Enumerable.ToList": {
+      "intent": "LINQ",
+      "capabilities": [
+        "LINQ",
+        "TRANSFORM"
+      ]
+    },
+    "System.Linq.Enumerable.Where": {
+      "intent": "LINQ",
+      "capabilities": [
+        "LINQ",
+        "TRANSFORM"
+      ]
+    },
+    "System.Net.Http.HttpClient.GetStringAsync": {
+      "intent": "HTTP_REQUEST",
+      "capabilities": [
+        "HTTP_REQUEST",
+        "FETCH"
+      ],
+      "param_roles": {
+        "requestUri": "url",
+        "request": "url"
+      }
+    },
+    "System.Net.Http.HttpClient.PostAsync": {
+      "intent": "HTTP_REQUEST",
+      "capabilities": [
+        "HTTP_REQUEST",
+        "PERSIST"
+      ],
+      "param_roles": {
+        "requestUri": "url",
+        "content": "content"
+      }
+    },
+    "System.Text.Json.JsonSerializer.Deserialize": {
+      "intent": "TRANSFORM",
+      "capabilities": [
+        "TRANSFORM",
+        "JSON_DESERIALIZE"
+      ]
+    },
+    "System.Text.Json.JsonSerializer.Serialize": {
+      "intent": "TRANSFORM",
+      "capabilities": [
+        "TRANSFORM",
+        "JSON_SERIALIZE"
+      ]
+    },
+    "System.String.Join": {
+      "intent": "TRANSFORM",
+      "capabilities": [
+        "TRANSFORM"
+      ],
+      "param_roles": {
+        "separator": "separator",
+        "values": "values"
+      }
+    }
+  }
+}

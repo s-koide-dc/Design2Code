@@ -1,0 +1,26 @@
+{
+  "rules": [
+    {
+      "id": "rule.display_literal_mismatch",
+      "name": "Display Literal Mismatch",
+      "description": "DISPLAY intent bound to a descriptive literal instead of a typed variable when a target entity is specified.",
+      "condition": {
+        "intent": "DISPLAY",
+        "has_target_entity": true,
+        "bound_to_descriptive_literal": true
+      },
+      "patch": {
+        "type": "FORCE_VARIABLE_BINDING",
+        "priority": "variable"
+      }
+    }
+  ],
+  "patterns": [
+    {
+      "id": "idx_0",
+      "root_cause": "missing_test_data",
+      "error_message_regex": "NullReferenceException",
+      "fix_direction": "fix_test_arrange"
+    }
+  ]
+}

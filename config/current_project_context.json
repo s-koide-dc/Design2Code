@@ -1,0 +1,36 @@
+{
+  "packages": [
+    "Microsoft.Build.Locator",
+    "Microsoft.CodeAnalysis.Analyzers",
+    "Microsoft.CodeAnalysis.CSharp",
+    "Microsoft.CodeAnalysis.CSharp.Workspaces",
+    "Microsoft.CodeAnalysis.Workspaces.MSBuild",
+    "Microsoft.NET.Test.Sdk",
+    "NSubstitute",
+    "System",
+    "System.IO",
+    "System.Linq",
+    "System.Text.Json",
+    "System.Threading.Tasks",
+    "coverlet.collector",
+    "Dapper",
+    "xunit",
+    "xunit.runner.visualstudio"
+  ],
+  "assemblies": [],
+  "projects": [
+    "tests\\archive\\generated\\GeneratedTests.csproj",
+    "tests\\archive\\repro_autonomous\\Repro.csproj",
+    "tests\\archive\\repro_autonomous_2\\Repro.csproj",
+    "tests\\fixtures\\GeneralityCheck\\GeneralityCheck.csproj",
+    "tests\\fixtures\\GenericTestProject\\GenericTestProject.csproj",
+    "tests\\test_projects\\AutonomousTDDDemo\\TDDProject.csproj",
+    "tests\\test_projects\\csharp_project\\csharp_project.csproj",
+    "tests\\test_projects\\PrecisionHealingDemo\\PrecisionHealingDemo\\PrecisionHealingDemo.csproj",
+    "tests\\test_projects\\PrecisionHealingDemo\\PrecisionHealingDemo.Tests\\PrecisionHealingDemo.Tests.csproj",
+    "tests\\test_projects\\ScenarioTests\\ScenarioTests.csproj",
+    "tests\\tools\\MyRoslynAnalyzer.Tests\\MyRoslynAnalyzer.Tests.csproj",
+    "tools\\csharp\\MyRoslynAnalyzer\\MyRoslynAnalyzer.csproj",
+    "tools\\MethodHarvesterCLI\\MethodHarvesterCLI.csproj"
+  ]
+}

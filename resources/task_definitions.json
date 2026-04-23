@@ -1,0 +1,1136 @@
+{
+    "RUN_LEARNING_CYCLE": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": { "type": "always_true" },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "action_methods": {
+            "EXECUTE_LEARNING": "_run_learning_cycle"
+        }
+    },
+    "FILE_CREATE": {
+        "states": [
+            "INIT",
+            "AWAITING_FILENAME",
+            "AWAITING_CONTENT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "filename",
+            "content"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "filename"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "content"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                },
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "filename"
+                    },
+                    "next_state": "AWAITING_CONTENT"
+                }
+            ],
+            "AWAITING_CONTENT": [
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "content"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "filename": "ファイル名を教えていただけますか？",
+            "content": "ファイルの内容を教えていただけますか？"
+        }
+    },
+    "FILE_APPEND": {
+        "states": [
+            "INIT",
+            "AWAITING_FILENAME",
+            "AWAITING_CONTENT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "filename",
+            "content"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "filename"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "content"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                },
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "filename"
+                    },
+                    "next_state": "AWAITING_CONTENT"
+                }
+            ],
+            "AWAITING_CONTENT": [
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "content"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "filename": "追記するファイル名を教えていただけますか？",
+            "content": "追記する内容を教えていただけますか？"
+        }
+    },
+    "FILE_DELETE": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "filename"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "filename"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "filename": "削除するファイル名を教えていただけますか？"
+        }
+    },
+    "FILE_READ": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "filename"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "filename"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "filename": "読み込むファイル名を教えていただけますか？"
+        }
+    },
+    "LIST_DIR": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "always_true"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        }
+    },
+    "CMD_RUN": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "command"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "command"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "command": "実行するコマンドを教えていただけますか？"
+        }
+    },
+            "FILE_MOVE": {
+                "states": [
+                    "INIT",
+                    "READY_FOR_EXECUTION",
+                    "COMPLETED",
+                    "FAILED"
+                ],
+                "required_entities": [
+                    "source_filename",
+                    "destination_filename"
+                ],
+                "transitions": {
+                    "INIT": [
+                        {
+                            "condition": {
+                                "type": "all_of",
+                                "predicates": [
+                                    { "type": "entity_exists", "key": "source_filename" },
+                                    { "type": "entity_exists", "key": "destination_filename" }
+                                ]
+                            },
+                            "next_state": "READY_FOR_EXECUTION"
+                        }
+                    ]
+                },
+                "clarification_messages": {
+                    "source_filename": "移動元のファイル名を教えていただけますか？",
+                    "destination_filename": "移動先のファイル名（またはパス）を教えていただけますか？"
+                }
+            },
+            
+    "FILE_COPY": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "source_filename",
+            "destination_filename"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "source_filename"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "destination_filename"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "source_filename": "コピー元のファイル名を教えていただけますか？",
+            "destination_filename": "コピー先のファイル名（またはパス）を教えていただけますか？"
+        }
+    },
+    "GET_CWD": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "always_true"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        }
+    },
+    "CS_ANALYZE": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "filename"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "filename"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "filename": "解析するC#ファイル名を教えていただけますか？"
+        }
+    },
+    "CS_TEST_RUN": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "project_path"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "project_path"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "project_path": "テストを実行するプロジェクトのパスを教えていただけますか？"
+        }
+    },
+    "CS_QUERY_ANALYSIS": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "output_path",
+            "query_type",
+            "target_name"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "output_path"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "query_type"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "target_name"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "output_path": "解析結果の出力パスが見つかりません。先にプロジェクトを解析してください。",
+            "target_name": "詳細を確認したいクラス名またはメソッド名を教えていただけますか？"
+        }
+    },
+    "CS_IMPACT_SCOPE": {
+        "states": [
+            "INIT",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "output_path",
+            "target_name"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "output_path"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "target_name"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "output_path": "解析結果の出力パスが見つかりません。先にプロジェクトを解析してください。",
+            "target_name": "影響範囲を調べたいクラス名またはメソッド名を教えていただけますか？"
+        }
+    },
+    "BACKUP_AND_DELETE": {
+      "type": "COMPOUND_TASK",
+      "require_overall_approval": true,
+      "subtasks": [
+        {
+          "name": "FILE_COPY",
+          "parameter_mapping": {
+            "source_filename": "source_filename",
+            "destination_filename": "destination_filename"
+          }
+        },
+        {
+          "name": "FILE_DELETE",
+          "parameter_mapping": {
+            "filename": "source_filename"
+          }
+        }
+      ],
+      "required_entities": ["source_filename", "destination_filename"],
+      "templates": {
+        "overall_approval": "ファイル '{source_filename}' を '{destination_filename}' にバックアップして削除します。よろしいですか？"
+      }
+    },
+    "READ_AND_CREATE": {
+      "type": "COMPOUND_TASK",
+      "subtasks": [
+        {
+          "name": "FILE_READ",
+          "parameter_mapping": {
+            "filename": "source_filename"
+          }
+        },
+        {
+          "name": "FILE_CREATE",
+          "parameter_mapping": {
+            "filename": "destination_filename",
+            "content": "content"
+          }
+        }
+      ],
+      "required_entities": ["source_filename", "destination_filename", "content"]
+    },
+    "CLARIFICATION_RESPONSE": {
+        "states": ["INIT", "AGREED", "DISAGREED", "COMPLETED"],
+        "required_entities": ["user_response"],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": { "type": "entity_value_is", "key": "user_response", "value": "AGREE" },
+                    "next_state": "AGREED"
+                },
+                {
+                    "condition": { "type": "entity_value_is", "key": "user_response", "value": "DISAGREE" },
+                    "next_state": "DISAGREED"
+                }
+            ]
+        }
+    },
+    "GENERATE_TESTS": {
+        "states": [
+            "INIT",
+            "AWAITING_FILENAME",
+            "AWAITING_LANGUAGE",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "filename"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "filename"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "filename": "テスト生成対象のファイル名を教えていただけますか？",
+            "language": "プログラミング言語を指定してください（csharp, python, javascript）。省略時はcsharpになります。"
+        }
+    },
+    "MEASURE_COVERAGE": {
+        "states": [
+            "INIT",
+            "AWAITING_PROJECT_PATH",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "project_path",
+            "language"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "project_path"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "language"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                },
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "project_path"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "project_path": "カバレッジ測定対象のプロジェクトパスを教えていただけますか？",
+            "language": "プログラミング言語を指定してください（csharp, python, javascript）。省略時はcsharpになります。"
+        }
+    },
+    "ANALYZE_COVERAGE_GAPS": {
+        "states": [
+            "INIT",
+            "AWAITING_PROJECT_PATH",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "project_path",
+            "language"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "project_path"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "language"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                },
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "project_path"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "project_path": "ギャップ分析対象のプロジェクトパスを教えていただけますか？",
+            "language": "プログラミング言語を指定してください（csharp, python, javascript）。省略時はcsharpになります。"
+        }
+    },
+    "GENERATE_COVERAGE_REPORT": {
+        "states": [
+            "INIT",
+            "AWAITING_PROJECT_PATH",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "project_path",
+            "language"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "project_path"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "language"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                },
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "project_path"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "project_path": "レポート生成対象のプロジェクトパスを教えていただけますか？",
+            "language": "プログラミング言語を指定してください（csharp, python, javascript）。省略時はcsharpになります。"
+        }
+    },
+    "ANALYZE_REFACTORING": {
+        "states": [
+            "INIT",
+            "AWAITING_PROJECT_PATH",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "project_path",
+            "language"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "project_path"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "language"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                },
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "project_path"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "project_path": "リファクタリング分析対象のプロジェクトパスを教えていただけますか？",
+            "language": "プログラミング言語を指定してください（csharp, python, javascript）。省略時はcsharpになります。"
+        }
+    },
+    "SUGGEST_REFACTORING": {
+        "states": [
+            "INIT",
+            "AWAITING_PROJECT_PATH",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "project_path",
+            "language"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "project_path"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "language"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                },
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "project_path"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "project_path": "リファクタリング提案対象のプロジェクトパスを教えていただけますか？",
+            "language": "プログラミング言語を指定してください（csharp, python, javascript）。省略時はcsharpになります。"
+        }
+    },
+    "APPLY_REFACTORING": {
+        "states": [
+            "INIT",
+            "AWAITING_PROJECT_PATH",
+            "AWAITING_SUGGESTION_ID",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [
+            "project_path",
+            "suggestion_id"
+        ],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            {
+                                "type": "entity_exists",
+                                "key": "project_path"
+                            },
+                            {
+                                "type": "entity_exists",
+                                "key": "suggestion_id"
+                            }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                },
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "project_path"
+                    },
+                    "next_state": "AWAITING_SUGGESTION_ID"
+                }
+            ],
+            "AWAITING_SUGGESTION_ID": [
+                {
+                    "condition": {
+                        "type": "entity_exists",
+                        "key": "suggestion_id"
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "project_path": "リファクタリング適用対象のプロジェクトパスを教えていただけますか？",
+            "suggestion_id": "適用するリファクタリング提案のIDを教えていただけますか？"
+        }
+    },
+    "SETUP_CICD": {
+        "states": [
+            "INIT",
+            "COLLECT_PROJECT_INFO",
+            "CONFIGURE_PIPELINE",
+            "SETUP_QUALITY_GATES",
+            "GENERATE_CONFIG",
+            "COMPLETE"
+        ],
+        "transitions": {
+            "INIT": {
+                "conditions": [
+                    {"type": "entity_check", "entities": ["project_name"], "action": "COLLECT_PROJECT_INFO"},
+                    {"type": "default", "action": "COLLECT_PROJECT_INFO"}
+                ]
+            },
+            "COLLECT_PROJECT_INFO": {
+                "conditions": [
+                    {"type": "entity_check", "entities": ["project_name", "language"], "action": "CONFIGURE_PIPELINE"},
+                    {"type": "clarification_needed", "missing_entities": ["project_name"], "action": "COLLECT_PROJECT_INFO"}
+                ]
+            },
+            "CONFIGURE_PIPELINE": {
+                "conditions": [
+                    {"type": "always", "action": "SETUP_QUALITY_GATES"}
+                ]
+            },
+            "SETUP_QUALITY_GATES": {
+                "conditions": [
+                    {"type": "always", "action": "GENERATE_CONFIG"}
+                ]
+            },
+            "GENERATE_CONFIG": {
+                "conditions": [
+                    {"type": "always", "action": "COMPLETE"}
+                ]
+            },
+            "COMPLETE": {
+                "conditions": [
+                    {"type": "always", "action": "COMPLETE"}
+                ]
+            }
+        },
+        "action_mappings": {
+            "CONFIGURE_PIPELINE": "_setup_cicd_pipeline",
+            "SETUP_QUALITY_GATES": "_setup_cicd_pipeline",
+            "GENERATE_CONFIG": "_setup_cicd_pipeline"
+        },
+        "required_entities": ["project_name"],
+        "optional_entities": ["language", "ci_platform", "framework", "test_framework", "quality_gates"],
+        "clarification_messages": {
+            "project_name": "CI/CDを設定するプロジェクト名を教えていただけますか？",
+            "language": "プロジェクトの言語を教えていただけますか？（csharp/python/javascript）"
+        }
+    },
+    "CONFIGURE_QUALITY_GATES": {
+        "states": [
+            "INIT",
+            "COLLECT_REQUIREMENTS",
+            "SETUP_GATES",
+            "COMPLETE"
+        ],
+        "transitions": {
+            "INIT": {
+                "conditions": [
+                    {"type": "entity_check", "entities": ["language"], "action": "COLLECT_REQUIREMENTS"},
+                    {"type": "default", "action": "COLLECT_REQUIREMENTS"}
+                ]
+            },
+            "COLLECT_REQUIREMENTS": {
+                "conditions": [
+                    {"type": "entity_check", "entities": ["language"], "action": "SETUP_GATES"},
+                    {"type": "clarification_needed", "missing_entities": ["language"], "action": "COLLECT_REQUIREMENTS"}
+                ]
+            },
+            "SETUP_GATES": {
+                "conditions": [
+                    {"type": "always", "action": "COMPLETE"}
+                ]
+            },
+            "COMPLETE": {
+                "conditions": [
+                    {"type": "always", "action": "COMPLETE"}
+                ]
+            }
+        },
+        "action_mappings": {
+            "SETUP_GATES": "_configure_quality_gates"
+        },
+        "required_entities": ["language"],
+        "optional_entities": ["coverage_threshold", "quality_score_threshold", "max_high_priority_smells", "max_medium_priority_smells"],
+        "clarification_messages": {
+            "language": "品質ゲートを設定する言語を教えていただけますか？（csharp/python/javascript）"
+        }
+    },
+    "GENERATE_PIPELINE_CONFIG": {
+        "states": [
+            "INIT",
+            "COLLECT_PROJECT_INFO",
+            "INTEGRATE_REPORTS",
+            "GENERATE_CONFIG",
+            "COMPLETE"
+        ],
+        "transitions": {
+            "INIT": {
+                "conditions": [
+                    {"type": "entity_check", "entities": ["project_name"], "action": "COLLECT_PROJECT_INFO"},
+                    {"type": "default", "action": "COLLECT_PROJECT_INFO"}
+                ]
+            },
+            "COLLECT_PROJECT_INFO": {
+                "conditions": [
+                    {"type": "entity_check", "entities": ["project_name"], "action": "INTEGRATE_REPORTS"},
+                    {"type": "clarification_needed", "missing_entities": ["project_name"], "action": "COLLECT_PROJECT_INFO"}
+                ]
+            },
+            "INTEGRATE_REPORTS": {
+                "conditions": [
+                    {"type": "always", "action": "GENERATE_CONFIG"}
+                ]
+            },
+            "GENERATE_CONFIG": {
+                "conditions": [
+                    {"type": "always", "action": "COMPLETE"}
+                ]
+            },
+            "COMPLETE": {
+                "conditions": [
+                    {"type": "always", "action": "COMPLETE"}
+                ]
+            }
+        },
+        "action_mappings": {
+            "INTEGRATE_REPORTS": "_generate_cicd_config",
+            "GENERATE_CONFIG": "_generate_cicd_config"
+        },
+        "required_entities": ["project_name"],
+        "optional_entities": ["language", "ci_platform", "framework", "test_framework"],
+        "clarification_messages": {
+            "project_name": "設定ファイルを生成するプロジェクト名を教えていただけますか？"
+        }
+    },
+    "ANALYZE_TEST_FAILURE": {
+        "states": [
+            "INIT",
+            "AWAITING_TEST_INFO",
+            "AWAITING_ERROR_INFO",
+            "AWAITING_TARGET_CODE",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": { "type": "always_true" },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "action_methods": {
+            "ANALYZE_FAILURE": "_analyze_test_failure"
+        },
+        "optional_entities": ["test_file", "test_method", "error_message", "error_type", "stack_trace", "line_number", "target_file", "target_method", "current_implementation"],
+        "clarification_messages": {
+            "test_file": "失敗したテストファイル名を教えていただけますか？",
+            "test_method": "失敗したテストメソッド名を教えていただけますか？",
+            "error_message": "エラーメッセージの内容を教えていただけますか？"
+        }
+    },
+    "EXECUTE_GOAL_DRIVEN_TDD": {
+        "states": [
+            "INIT",
+            "AWAITING_GOAL",
+            "AWAITING_CRITERIA",
+            "AWAITING_CONSTRAINTS",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "action_methods": {
+            "EXECUTE_TDD": "_execute_goal_driven_tdd"
+        },
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": {
+                        "type": "all_of",
+                        "predicates": [
+                            { "type": "entity_exists", "key": "goal_description" },
+                            { "type": "entity_exists", "key": "acceptance_criteria" }
+                        ]
+                    },
+                    "next_state": "READY_FOR_EXECUTION"
+                },
+                {
+                    "condition": { "type": "entity_exists", "key": "goal_description" },
+                    "next_state": "AWAITING_CRITERIA"
+                }
+            ],
+            "AWAITING_CRITERIA": [
+                {
+                    "condition": { "type": "entity_exists", "key": "acceptance_criteria" },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "required_entities": ["goal_description", "acceptance_criteria"],
+        "optional_entities": ["priority", "estimated_effort", "language", "test_framework", "coverage_target", "max_complexity", "existing_code", "existing_tests"],
+        "clarification_messages": {
+            "goal_description": "実装したい機能の目標を教えていただけますか？",
+            "acceptance_criteria": "受け入れ条件を教えていただけますか？（複数可）"
+        }
+    },
+    "APPLY_CODE_FIX": {
+        "states": [
+            "INIT",
+            "AWAITING_FIX_ID",
+            "AWAITING_TARGET_FILE",
+            "AWAITING_CODE",
+            "READY_FOR_EXECUTION",
+            "COMPLETED",
+            "FAILED"
+        ],
+        "required_entities": [],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": { "type": "always_true" },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "action_methods": {
+            "APPLY_FIX": "_apply_code_fix"
+        },
+        "optional_entities": ["fix_id", "target_file", "suggested_code", "backup_enabled"],
+        "clarification_messages": {
+            "fix_id": "適用する修正提案のIDを教えていただけますか？",
+            "target_file": "修正対象のファイル名を教えていただけますか？",
+            "suggested_code": "適用するコードの内容を教えていただけますか？"
+        }
+    },
+    "MANAGE_KNOWLEDGE": {
+        "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+        "required_entities": ["operation"],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": { "type": "entity_exists", "key": "operation" },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "operation": "どのような管理操作を行いますか？（list: 一覧, search_code: コード検索）"
+        }
+    },
+    "REVERSE_DICTIONARY_SEARCH": {
+        "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+        "required_entities": ["query"],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": { "type": "entity_exists", "key": "query" },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "query": "どのような意味の言葉を探しますか？"
+        }
+    },
+    "DOC_GEN": {
+        "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+        "required_entities": ["target_file"],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": { "type": "entity_exists", "key": "target_file" },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "target_file": "設計書を生成する対象のソースファイル名を教えていただけますか？"
+        }
+    },
+    "DOC_REFINE": {
+        "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+        "required_entities": ["filename"],
+        "transitions": {
+            "INIT": [
+                {
+                    "condition": { "type": "entity_exists", "key": "filename" },
+                    "next_state": "READY_FOR_EXECUTION"
+                }
+            ]
+        },
+        "clarification_messages": {
+            "target_file": "補完する対象の設計書ファイル名（.design.md）を教えていただけますか？"
+        }
+    },
+    "RECOVERY_FROM_TEST_FAILURE": {
+        "type": "COMPOUND_TASK",
+        "require_overall_approval": true,
+        "subtasks": [
+            {
+                "name": "ANALYZE_TEST_FAILURE",
+                "parameter_mapping": {
+                    "test_file": "test_file",
+                    "error_message": "error_message"
+                }
+            },
+            {
+                "name": "APPLY_CODE_FIX",
+                "parameter_mapping": {
+                    "fix_id": "fix_id",
+                    "target_file": "target_file"
+                }
+            },
+            {
+                "name": "CS_TEST_RUN",
+                "parameter_mapping": {
+                    "project_path": "project_path"
+                }
+            }
+        ],
+        "required_entities": ["test_file"],
+        "templates": {
+            "overall_approval": "テスト '{test_file}' が失敗しました。原因の分析と修正、および再検証を自動的に実行しますか？"
+        }
+    }
+}

@@ -1,0 +1,16 @@
+# pre-commit フック設定
+# 使用方法: pre-commit install
+# コミット前に sync_project_map と validate_project_consistency を実行
+repos:
+  - repo: local
+    hooks:
+      - id: sync-project-map
+        name: Sync Project Map
+        entry: python scripts/sync_project_map.py
+        language: system
+        pass_filenames: false
+      - id: validate-project-consistency
+        name: Validate Project Consistency
+        entry: python scripts/validate_project_consistency.py
+        language: system
+        pass_filenames: false

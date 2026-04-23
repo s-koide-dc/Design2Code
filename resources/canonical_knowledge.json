@@ -1,0 +1,547 @@
+{
+    "templates": [
+        {
+            "id": "dapper_query",
+            "name": "Query",
+            "class": "Dapper.SqlMapper",
+            "target": "_dbConnection",
+            "is_extension": true,
+            "return_type": "IEnumerable<T>",
+            "intent": "DATABASE_QUERY",
+            "capabilities": ["DATABASE_QUERY", "FETCH", "READ"],
+            "role": "READ",
+            "requires_generic": true,
+            "params": [
+                {"name": "sql", "type": "string", "role": "sql", "constraints": ["literal_only"]},
+                {"name": "param", "type": "object", "role": "item"}
+            ],
+            "usings": ["Dapper", "System.Data"],
+            "tags": ["取得", "一覧", "検索", "query", "select"]
+        },
+        {
+            "id": "dapper_execute",
+            "name": "Execute",
+            "class": "Dapper.SqlMapper",
+            "target": "_dbConnection",
+            "is_extension": true,
+            "return_type": "int",
+            "intent": "PERSIST",
+            "capabilities": ["PERSIST", "WRITE", "DATABASE_QUERY"],
+            "role": "WRITE",
+            "params": [
+                {"name": "sql", "type": "string", "role": "sql", "constraints": ["literal_only"]},
+                {"name": "param", "type": "object", "role": "item"}
+            ],
+            "usings": ["Dapper", "System.Data"],
+            "tags": ["更新", "登録", "保存", "execute", "update", "insert", "delete"]
+        },
+        {
+            "id": "file_readalltext",
+            "name": "ReadAllText",
+            "class": "File",
+            "return_type": "string",
+            "intent": "FETCH",
+            "capabilities": ["FETCH", "READ", "FILE_IO"],
+            "role": "READ",
+            "source_kind": "file",
+            "params": [{"name": "path", "type": "string", "role": "path"}],
+            "usings": ["System.IO"],
+            "tags": ["読み込み", "取得", "ファイル", "read", "load"]
+        },
+        {
+            "id": "env_get_variable",
+            "name": "GetEnvironmentVariable",
+            "class": "Environment",
+            "return_type": "string",
+            "intent": "FETCH",
+            "capabilities": ["FETCH", "READ"],
+            "role": "READ",
+            "source_kind": "env",
+            "params": [{"name": "variable", "type": "string", "role": "name"}],
+            "usings": ["System"],
+            "tags": ["環境変数", "env", "get"]
+        },
+        {
+            "id": "console_readline",
+            "name": "ReadLine",
+            "class": "Console",
+            "return_type": "string",
+            "intent": "FETCH",
+            "capabilities": ["FETCH", "READ"],
+            "role": "READ",
+            "source_kind": "stdin",
+            "params": [],
+            "usings": ["System"],
+            "tags": ["入力", "標準入力", "read"]
+        },
+        {
+            "id": "file_writealltext",
+            "name": "WriteAllText",
+            "class": "File",
+            "return_type": "void",
+            "intent": "PERSIST",
+            "capabilities": ["PERSIST", "WRITE", "FILE_IO"],
+            "role": "WRITE",
+            "params": [
+                {"name": "path", "type": "string", "role": "path"},
+                {"name": "contents", "type": "string", "role": "content"}
+            ],
+            "usings": ["System.IO"],
+            "tags": ["書き込み", "保存", "ファイル", "write", "save"]
+        },
+        {
+            "id": "http_get_string",
+            "name": "GetStringAsync",
+            "class": "HttpClient",
+            "target": "_httpClient",
+            "return_type": "Task<string>",
+            "intent": "HTTP_REQUEST",
+            "capabilities": ["HTTP_REQUEST", "READ", "FETCH"],
+            "role": "READ",
+            "params": [{"name": "requestUri", "type": "string", "role": "url"}],
+            "usings": ["System.Net.Http", "System.Threading.Tasks"],
+            "tags": ["http", "取得", "api", "get"]
+        },
+        {
+            "id": "http_post",
+            "name": "PostAsync",
+            "class": "System.Net.Http.HttpClient",
+            "target": "_httpClient",
+            "return_type": "Task<HttpResponseMessage>",
+            "intent": "HTTP_REQUEST",
+            "capabilities": ["HTTP_REQUEST", "WRITE", "PERSIST"],
+            "role": "WRITE",
+            "params": [
+                {"name": "requestUri", "type": "string", "role": "url"},
+                {"name": "content", "type": "HttpContent", "role": "content"}
+            ],
+            "usings": ["System.Net.Http", "System.Threading.Tasks"],
+            "tags": ["http", "送信", "api", "post"]
+        },
+        {
+            "id": "json_deserialize",
+            "name": "Deserialize",
+            "class": "JsonSerializer",
+            "return_type": "T",
+            "intent": "JSON_DESERIALIZE",
+            "capabilities": ["JSON_DESERIALIZE", "TRANSFORM"],
+            "role": "TRANSFORM",
+            "requires_generic": true,
+            "params": [{"name": "json", "type": "string", "role": "content", "constraints": ["variable_only"]}],
+            "usings": ["System.Text.Json"],
+            "tags": ["json", "デシリアライズ", "parse", "deserialize"]
+        },
+        {
+            "id": "json_serialize",
+            "name": "Serialize",
+            "class": "JsonSerializer",
+            "return_type": "string",
+            "intent": "TRANSFORM",
+            "capabilities": ["TRANSFORM", "JSON_SERIALIZE"],
+            "role": "TRANSFORM",
+            "params": [{"name": "value", "type": "object", "role": "data"}],
+            "usings": ["System.Text.Json"],
+            "tags": ["json", "シリアライズ", "serialize", "変換"]
+        },
+        {
+            "id": "http_string_content",
+            "name": "StringContent",
+            "class": "StringContent",
+            "is_constructor": true,
+            "return_type": "HttpContent",
+            "intent": "TRANSFORM",
+            "capabilities": ["TRANSFORM"],
+            "role": "content",
+            "params": [{"name": "content", "type": "string", "role": "content"}],
+            "usings": ["System.Net.Http"],
+            "tags": ["content", "http", "body"]
+        },
+        {
+            "id": "console_writeline",
+            "name": "WriteLine",
+            "class": "Console",
+            "return_type": "void",
+            "intent": "DISPLAY",
+            "capabilities": ["DISPLAY"],
+            "role": "DISPLAY",
+            "params": [{"name": "value", "type": "object", "role": "content"}],
+            "usings": ["System"],
+            "tags": ["表示", "出力", "ログ", "console"]
+        },
+        {
+            "id": "file_exists",
+            "name": "Exists",
+            "class": "File",
+            "return_type": "bool",
+            "intent": "EXISTS",
+            "capabilities": ["EXISTS", "CHECK"],
+            "role": "CHECK",
+            "params": [{"name": "path", "type": "string", "role": "path"}],
+            "usings": ["System.IO"],
+            "tags": ["存在確認", "file", "exists"]
+        },
+        {
+            "id": "return_true",
+            "name": "return true",
+            "class": "Primitive",
+            "return_type": "bool",
+            "intent": "RETURN",
+            "capabilities": ["RETURN"],
+            "role": "RETURN",
+            "code": "return true;",
+            "params": []
+        },
+        {
+            "id": "linq_where",
+            "name": "Where",
+            "class": "System.Linq.Enumerable",
+            "is_extension": true,
+            "return_type": "IEnumerable<T>",
+            "intent": "LINQ",
+            "capabilities": ["LINQ", "TRANSFORM", "FILTER"],
+            "role": "TRANSFORM",
+            "requires_generic": true,
+            "params": [
+                {"name": "source", "type": "IEnumerable<T>", "role": "data"},
+                {"name": "predicate", "type": "Func<T, bool>", "role": "logic"}
+            ],
+            "usings": ["System.Linq"]
+        },
+        {
+            "id": "linq_tolist",
+            "name": "ToList",
+            "class": "System.Linq.Enumerable",
+            "is_extension": true,
+            "return_type": "List<T>",
+            "intent": "TRANSFORM",
+            "capabilities": ["TRANSFORM"],
+            "role": "TRANSFORM",
+            "requires_generic": true,
+            "params": [
+                {"name": "source", "type": "IEnumerable<T>", "role": "data"}
+            ],
+            "usings": ["System.Linq"]
+        },
+        {
+            "id": "ops_to_entity",
+            "name": "ToEntity",
+            "class": "Dto",
+            "return_type": "T",
+            "intent": "TRANSFORM",
+            "capabilities": ["TRANSFORM"],
+            "role": "TRANSFORM",
+            "requires_generic": true,
+            "params": [{"name": "dto", "type": "T", "role": "data"}],
+            "tags": ["to_entity", "dto", "変換", "ops:to_entity"]
+        },
+        {
+            "id": "ops_to_response",
+            "name": "FromEntity",
+            "class": "Dto",
+            "return_type": "T",
+            "intent": "TRANSFORM",
+            "capabilities": ["TRANSFORM"],
+            "role": "TRANSFORM",
+            "requires_generic": true,
+            "params": [{"name": "entity", "type": "T", "role": "data"}],
+            "tags": ["to_response", "from_entity", "変換", "ops:to_response"]
+        },
+        {
+            "id": "ops_update_fields",
+            "name": "UpdateFields",
+            "class": "Mapper",
+            "return_type": "void",
+            "intent": "TRANSFORM",
+            "capabilities": ["TRANSFORM"],
+            "role": "TRANSFORM",
+            "params": [
+                {"name": "target", "type": "T", "role": "data"},
+                {"name": "source", "type": "T", "role": "data"}
+            ],
+            "tags": ["update_fields", "apply", "ops:update_fields"]
+        },
+        {
+            "id": "ops_repo_insert",
+            "name": "Insert",
+            "class": "Repository",
+            "return_type": "T",
+            "intent": "PERSIST",
+            "capabilities": ["PERSIST", "WRITE"],
+            "role": "WRITE",
+            "requires_generic": true,
+            "params": [{"name": "entity", "type": "T", "role": "data"}],
+            "tags": ["repo_insert", "insert", "ops:repo_insert"]
+        },
+        {
+            "id": "ops_repo_update",
+            "name": "Update",
+            "class": "Repository",
+            "return_type": "T",
+            "intent": "PERSIST",
+            "capabilities": ["PERSIST", "WRITE"],
+            "role": "WRITE",
+            "requires_generic": true,
+            "params": [{"name": "entity", "type": "T", "role": "data"}],
+            "tags": ["repo_update", "update", "ops:repo_update"]
+        }
+    ],
+    "domain_mappings": {
+        "名前": ["Name"],
+        "氏名": ["Name", "FullName"],
+        "価格": ["Price", "UnitPrice", "Cost"],
+        "合計": ["Total", "Amount", "Sum"],
+        "在庫": ["Stock", "Quantity", "Inventory"],
+        "顧客タイプ": ["CustomerType", "UserType", "Rank", "MemberType", "Type", "Category"],
+        "顧客種別": ["CustomerType", "Type", "Rank"],
+        "状態": ["Status", "State"],
+        "日付": ["Date", "CreatedAt", "DateTime"],
+        "有効": ["IsActive", "IsEnabled", "Valid"],
+        "削除": ["IsDeleted", "Deleted"]
+    },
+    "role_synonyms": {
+        "content": ["data", "result", "READ", "FETCH", "TRANSFORM"],
+        "data": ["content", "result", "item", "READ", "FETCH", "TRANSFORM"],
+        "path": ["url", "source"]
+    },
+    "role_scoring": {
+        "exact_match": 10,
+        "synonym_match": 5,
+        "fallback": 1,
+        "transform_penalty": -2
+    },
+    "transform_ops": {
+        "trim_upper": {
+            "input_role": "content",
+            "output_type": "string",
+            "output_name": "text",
+            "code": "{out} = {src}.Trim().ToUpperInvariant();"
+        },
+        "split_lines": {
+            "input_role": "content",
+            "output_type": "List<string>",
+            "output_name": "lines",
+            "usings": ["System", "System.Linq"],
+            "code": "{out} = {src}.Split(new[] {{ \"\\r\\n\", \"\\n\" }}, StringSplitOptions.RemoveEmptyEntries).ToList();"
+        },
+        "format_kv": {
+            "input_role": "content",
+            "output_type": "string",
+            "output_name": "formatted",
+            "code": "{out} = $\"MODE={{{{v0}}}}, REGION={{{{v1}}}}\";"
+        },
+        "csv_serialize": {
+            "input_role": "content",
+            "output_type": "string",
+            "output_name": "csv",
+            "usings": ["System", "System.Linq"],
+            "code": "{out} = string.Join(Environment.NewLine, {src}.Select(kv => $\"{{kv.Key}},{{kv.Value}}\"));"
+        }
+    },
+    "structural_keywords": {
+        "structural_kws": {
+            "ならば": "CONDITION",
+            "であれば": "CONDITION",
+            "の場合": "CONDITION",
+            "に対して": "LOOP",
+            "について": "LOOP",
+            "に対し": "LOOP"
+        },
+        "action_connectors": ["を実行して", "を行い", "により"],
+        "end_markers": ["を終えて", "終了", "終える", "end"],
+        "else_markers": ["そうでなければ", "でなければ", "それ以外", "それ以外の場合"],
+        "split_exclusions": ["以下の処理", "処理を繰り返す", "処理を実行する"]
+    },
+    "intent_keywords": {
+        "FETCH": ["取得", "取得する", "読み込む", "読む", "参照", "入手"],
+        "PERSIST": ["保存", "書き込む", "書き出す", "出力", "格納"],
+        "DISPLAY": ["表示", "印刷", "出力する"]
+    },
+    "intent_role_keywords": {
+        "HTTP_REQUEST": {
+            "write": ["登録", "送信", "作成", "POST"],
+            "read": ["取得", "GET", "ダウンロード"]
+        },
+        "FILE_IO": {
+            "write": ["保存", "書き込", "出力", "作成", "save", "write", "output"],
+            "read": ["読み込", "取得", "fetch", "read", "load"]
+        }
+    },
+    "common_patterns": {
+        "FETCH": ["取得", "読み込", "ロード", "fetch", "get", "read", "load"],
+        "PERSIST": ["保存", "書き込", "永続化", "save", "write", "persist", "実行して保存"],
+        "DATABASE_QUERY": ["データベース", "DB", "SQLを実行", "database", "sql", "情報を取得する"],
+        "HTTP_REQUEST": ["URLから取得", "APIを呼び出す", "リクエスト", "http", "api", "download", "登録を行う"],
+        "JSON_DESERIALIZE": ["JSONを解析", "オブジェクトに変換", "デシリアライズ", "json", "parse", "deserialize"],
+        "LINQ": ["絞り込", "フィルタ", "より大き", "未満", "以上", "以下", "抽出", "where", "filter"],
+        "DISPLAY": ["表示", "コンソール", "ログ出力", "display", "print", "console"],
+        "EXISTS": ["存在するか", "チェック", "確認", "exists", "check"],
+        "CALC": ["計算", "算出", "合計", "金額", "calculate", "compute", "割引"],
+        "RETURN": ["返す", "戻す", "結果とする", "return"]
+    },
+    "resolution_rules": {
+        "static_classes": ["System.IO.File", "System.Console", "System.Math", "System.Linq.Enumerable", "System.Text.Json.JsonSerializer", "System.Environment", "File", "Console", "Math", "JsonSerializer", "Environment"],
+        "intent_metadata": {
+            "FETCH": { "role": "READ", "cardinality": "SINGLE" },
+            "PERSIST": { "role": "WRITE", "cardinality": "SINGLE" },
+            "DATABASE_QUERY": { "role": "READ", "cardinality": "COLLECTION" },
+            "HTTP_REQUEST": { "role": "READ", "cardinality": "SINGLE" },
+            "JSON_DESERIALIZE": { "role": "TRANSFORM", "cardinality": "COLLECTION" },
+            "LINQ": { "role": "FILTER", "cardinality": "COLLECTION" },
+            "EXISTS": { "role": "CHECK", "cardinality": "SINGLE" },
+            "DISPLAY": { "role": "DISPLAY", "cardinality": "SINGLE" },
+            "RETURN": { "role": "RETURN", "cardinality": "SINGLE" },
+            "CALC": { "role": "CALC", "cardinality": "SINGLE" }
+        },
+        "scoring": {
+            "type_match_bonus": 50,
+            "role_match_bonus": 40,
+            "keyword_match_bonus": 30,
+            "substring_match_bonus": 20,
+            "future_hint_bonus": 500,
+            "future_hint_penalty": -500
+        },
+        "role_keywords": {
+            "numeric": {
+                "jp_general": ["価格", "金額", "合計", "値", "ポイント", "割引額"],
+                "en_general": ["total", "amount", "price", "subtotal", "cost", "value", "points", "discount"]
+            },
+            "string": {
+                "jp_general": ["名前", "種別", "タイプ", "状態"],
+                "en_general": ["name", "type", "status", "category"]
+            }
+        }
+    },
+    "logic_audit": {
+        "operator_anchors": {
+            "GreaterEqual": ["以上", "下回らない", "最低"],
+            "LessEqual": ["以下", "超えない", "上限"],
+            "Greater": ["より大きい", "超える", "上回る", "超過", "より多い"],
+            "Less": ["より小さい", "未満", "下回る", "不足", "より少ない"],
+            "NotEqual": ["以外", "異なり", "不一致", "除外"],
+            "Equal": ["等しい", "一致", "同じ", "である", "タイプが"],
+            "Contains": ["包含", "含む", "含める", "contains"],
+            "StartsWith": ["始まり", "始まる", "前方一致", "starts"]
+        },
+        "operator_direct_map": {
+            "以上": "GreaterEqual",
+            "下回らない": "GreaterEqual",
+            "以下": "LessEqual",
+            "超えない": "LessEqual",
+            "より大きい": "Greater",
+            "超える": "Greater",
+            "大きく": "Greater",
+            "上回る": "Greater",
+            "より小さい": "Less",
+            "未満": "Less",
+            "小さく": "Less",
+            "下回る": "Less",
+            "以外": "NotEqual",
+            "異なる": "NotEqual",
+            "不一致": "NotEqual",
+            "含む": "Contains",
+            "包含": "Contains",
+            "始まり": "StartsWith",
+            "始まる": "StartsWith",
+            "一致": "Equal",
+            "等しい": "Equal",
+            "同じ": "Equal",
+            "である": "Equal"
+        },
+        "conjunction_markers": {
+            "or": ["いずれか", "または", "もしくは", "OR", "|"],
+            "and": ["かつ", "AND", "&"]
+        },
+        "equal_markers": ["等しい", "一致", "同じ", "である", "タイプが"],
+        "comparison_markers": ["含む", "包含", "含める", "始まり", "始まる", "である", "一致", "等しい", "タイプが", "ならば"],
+        "starts_with_markers": ["始まり", "始まる"],
+        "persist_markers": ["保存", "記録", "persist", "save"],
+        "calc_map": {
+            "Percent_Discount": ["割", "割引"],
+            "Percent": ["%", "％", "パーセント"],
+            "Multiply": ["倍", "掛ける", "乗算"],
+            "Add": ["足す", "加算", "プラス"],
+            "Subtract": ["引く", "減算", "マイナス"],
+            "Divide": ["割る", "除算"]
+        },
+        "role_markers": ["として", "に", "へ"]
+    },
+    "spec_audit": {
+        "notification_roles": ["notification"],
+        "side_effects": {
+            "DB": {
+                "intents": ["DATABASE_QUERY", "PERSIST"],
+                "source_kinds": ["db"]
+            },
+            "IO": {
+                "intents": ["FETCH", "PERSIST", "FILE_IO", "WRITE"],
+                "source_kinds": ["file", "env", "stdin"]
+            },
+            "NETWORK": {
+                "intents": ["HTTP_REQUEST"],
+                "source_kinds": ["http"]
+            }
+        },
+        "async_markers": ["async", "非同期", "task"],
+        "async_side_effects": ["IO", "NETWORK", "DB"],
+        "async_intents": ["DATABASE_QUERY", "HTTP_REQUEST", "FETCH", "PERSIST", "FILE_IO"]
+    },
+    "design_doc_parser": {
+        "section_aliases": {
+            "purpose": ["Purpose", "1. Purpose"],
+            "input": ["Input", "### Input"],
+            "output": ["Output", "### Output"],
+            "core_logic": ["Core Logic", "### Core Logic"],
+            "test_cases": ["Test Cases", "### Test Cases"]
+        },
+        "io_labels": {
+            "description": ["Description"],
+            "type_format": ["Type/Format"],
+            "example": ["Example"]
+        },
+        "test_case_types": {
+            "happy_path": ["Happy Path"],
+            "edge_case": ["Edge Case"]
+        },
+        "test_case_labels": {
+            "scenario": ["Scenario"],
+            "input": ["Input"],
+            "expected": ["Expected"],
+            "reserved_titles": ["input", "expected", "scenario"]
+        }
+    },
+    "design_doc_refiner": {
+        "input_header_pattern": "(###?\\s*Input\\s*)",
+        "output_header_pattern": "(###?\\s*Output\\s*)",
+        "description_label": "Description",
+        "input_description_template": "{params} を入力として受け取ります。",
+        "output_description_template": "`{return_type}` 型の値を返します。",
+        "logic_placeholder_pattern": "\\(ロジックの詳細をここに記述してください。.*?\\)",
+        "logic_placeholder_max_methods": 5,
+        "logic_placeholder_line_template": "{index}. `{method}` メソッドを呼び出し、必要な処理を実行します。",
+        "logic_placeholder_fallback": "1. モジュール内の定義済み関数を呼び出し、処理を実行します。"
+    },
+    "design_sync_util": {
+        "input_metadata_pattern": "(Input:.*?\\n\\s*- description: ).*",
+        "input_metadata_template": "Arguments: {params} (Synced from code)",
+        "core_logic_markers": ["core_logic:", "core logic"],
+        "step_pattern": "^\\s*-\\s+",
+        "section_end_pattern": null,
+        "update_suffix": " (Synced from code)"
+    },
+    "test_generator": {
+        "default_scenarios": [
+            {"type": "happy_path", "condition": "Default", "expected_behavior": "Success"},
+            {"type": "boundary", "condition": "Boundary", "expected_behavior": "Success"},
+            {"type": "null_empty", "condition": "NullOrEmpty", "expected_behavior": "Success"},
+            {"type": "exception", "condition": "ErrorCase", "expected_behavior": "Exception"}
+        ],
+        "fallback_scenario": {"type": "happy_path", "condition": "Default", "expected_behavior": "Success"},
+        "property_scenario": {"type": "property_access", "condition": "Getter", "expected_behavior": "NotNull"},
+        "logic_driven_prefix": {"condition_prefix": "Branch", "expected_prefix": "Expected"},
+        "default_original_condition": "デフォルト動作または外部呼び出し",
+        "length_markers": ["Length", "Count"],
+        "string_null_or_empty_markers": ["string.IsNullOrEmpty"],
+        "non_empty_markers": [">", "!=", "!"],
+        "empty_markers": ["==", "string.IsNullOrEmpty"]
+    }
+}

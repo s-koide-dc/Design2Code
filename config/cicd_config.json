@@ -1,0 +1,118 @@
+{
+  "platforms": {
+    "github_actions": {
+      "enabled": true,
+      "workflow_path": ".github/workflows",
+      "default_runner": "ubuntu-latest",
+      "supported_runners": ["ubuntu-latest", "windows-latest", "macos-latest"]
+    },
+    "azure_devops": {
+      "enabled": false,
+      "pipeline_path": "azure-pipelines.yml",
+      "default_pool": "ubuntu-latest"
+    },
+    "jenkins": {
+      "enabled": false,
+      "pipeline_path": "Jenkinsfile",
+      "default_agent": "any"
+    }
+  },
+  "quality_gates": {
+    "test_coverage_threshold": 80,
+    "quality_score_threshold": 7.0,
+    "max_high_priority_smells": 0,
+    "max_medium_priority_smells": 5,
+    "max_low_priority_smells": 20,
+    "timeout_seconds": 300,
+    "retry_attempts": 2
+  },
+  "notifications": {
+    "pr_comments": true,
+    "slack_enabled": false,
+    "slack_webhook": "",
+    "email_enabled": false,
+    "email_recipients": [],
+    "teams_enabled": false,
+    "teams_webhook": ""
+  },
+  "language_configs": {
+    "csharp": {
+      "build_command": "dotnet build --configuration Release",
+      "test_command": "dotnet test --configuration Release --logger trx --collect:'XPlat Code Coverage'",
+      "coverage_tool": "coverlet",
+      "package_restore": "dotnet restore",
+      "quality_tools": ["dotnet-format", "roslynator"],
+      "supported_frameworks": ["net6.0", "net7.0", "net8.0"],
+      "test_frameworks": ["xunit", "nunit", "mstest"]
+    },
+    "python": {
+      "build_command": "python -m pip install -r requirements.txt",
+      "test_command": "python -m pytest --junitxml=test-results.xml --cov=src --cov-report=xml",
+      "coverage_tool": "coverage",
+      "package_restore": "pip install -r requirements.txt",
+      "quality_tools": ["pylint", "flake8", "black", "mypy"],
+      "supported_versions": ["3.8", "3.9", "3.10", "3.11"],
+      "test_frameworks": ["pytest", "unittest"]
+    },
+    "javascript": {
+      "build_command": "npm run build",
+      "test_command": "npm test -- --coverage --watchAll=false --reporters=default --reporters=jest-junit",
+      "coverage_tool": "jest",
+      "package_restore": "npm ci",
+      "quality_tools": ["eslint", "prettier", "typescript"],
+      "supported_versions": ["16", "18", "20"],
+      "test_frameworks": ["jest", "mocha", "jasmine"]
+    }
+  },
+  "project_profiles": {
+    "startup": {
+      "description": "スタートアップ向けの迅速な開発設定",
+      "quality_gates": {
+        "test_coverage_threshold": 60,
+        "quality_score_threshold": 6.0,
+        "max_high_priority_smells": 2,
+        "max_medium_priority_smells": 10
+      }
+    },
+    "enterprise": {
+      "description": "エンタープライズ向けの厳格な品質設定",
+      "quality_gates": {
+        "test_coverage_threshold": 90,
+        "quality_score_threshold": 8.0,
+        "max_high_priority_smells": 0,
+        "max_medium_priority_smells": 2
+      }
+    },
+    "open_source": {
+      "description": "オープンソースプロジェクト向け設定",
+      "quality_gates": {
+        "test_coverage_threshold": 85,
+        "quality_score_threshold": 7.5,
+        "max_high_priority_smells": 0,
+        "max_medium_priority_smells": 3
+      },
+      "notifications": {
+        "pr_comments": true,
+        "public_reports": true
+      }
+    }
+  },
+  "security": {
+    "dependency_scanning": true,
+    "secret_scanning": true,
+    "code_scanning": true,
+    "vulnerability_alerts": true
+  },
+  "performance": {
+    "parallel_jobs": true,
+    "cache_dependencies": true,
+    "artifact_retention_days": 30,
+    "timeout_minutes": 30
+  },
+  "reporting": {
+    "formats": ["json", "html", "junit", "cobertura"],
+    "upload_artifacts": true,
+    "generate_badges": true,
+    "trend_analysis": true
+  }
+}

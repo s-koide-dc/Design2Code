@@ -1,0 +1,2742 @@
+{
+  "_comment": "This map is primarily managed by AI. For detailed update rules and project conventions, please see /AIFiles/CONVENTIONS.md.",
+  "project_name": "AI Driven Project Preset",
+  "version": "1.0.0",
+  "project_goal_document": "AIFiles/PROJECT_CHARTER.md",
+  "active_task": "Ready: コレクション表示の合成安定化（method store/能力マップ/設計更新）を完了。次の改善テーマ待ち。",
+  "next_steps": [
+    "【P1継続】QueryAsync 系の method store 拡充と capability 付与を進める。",
+    "【検証】既存シナリオの再合成で DISPLAY/集合出力の改善効果を確認する。",
+    "【整合】code_synthesis 設計書の内容差分を段階的に精査して詳細更新する。"
+  ],
+  "concerns": [],
+  "last_updated_by_ai": "2026-04-14T14:16:38.720579",
+  "modules": [
+    {
+      "name": "action_executor",
+      "summary": "AIの「手」として機能する実行エンジン。意図に基づきファイル操作、コマンド実行、C#解析、逆引き検索等の具体的副作用を各オペレーションモジュールへ委譲します。",
+      "status": "active",
+      "dependencies": [
+        "semantic_analyzer"
+      ],
+      "source_file": {
+        "path": "src\\action_executor\\action_executor.py",
+        "last_modified": "2026-04-14T13:35:49.054433",
+        "hash": "b2ed400368d69d2c61a2eca81165eb57ebf00c6ef67fafd71f43f644b0f0e12a"
+      },
+      "design_document": {
+        "path": "src\\action_executor\\action_executor.design.md",
+        "last_modified": "2026-04-14T13:38:14.656901",
+        "hash": "19f90db3434bf1fe5418d3b393e216f09686ca3494d6c9293026a75c7e3c1cce"
+      },
+      "test_file": "tests\\unit\\test_action_executor.py"
+    },
+    {
+      "name": "action_synthesizer",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_synthesizer.py",
+        "last_modified": "2026-04-09T10:46:18.347630",
+        "hash": "47581cb89449efec681803a5bedc83858deb42f5f269d864d66dcea0eaf44035"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_synthesizer.design.md",
+        "last_modified": "2026-03-31T11:51:07.457686",
+        "hash": "60887621d30c36f77cf260c1fe3365cc075c80a3d97f4ccbbf9a3b4b66a14a29"
+      },
+      "test_file": null
+    },
+    {
+      "name": "action_utils",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\action_utils.py",
+        "last_modified": "2026-03-25T13:31:26.221662",
+        "hash": "13bd426880c3b46ac49b23dad7cbb0e3d7bca85247b0b661e14228afe1ecc1e8"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\action_utils.design.md",
+        "last_modified": "2026-03-30T14:12:10.072489",
+        "hash": "7867a3ba12e13cc7861084e1afba5c605a78d3ca1db756e4f15c91ba4e05dd32"
+      },
+      "test_file": null
+    },
+    {
+      "name": "advanced_tdd",
+      "summary": "テスト失敗の自動分析、修正案の合成、およびコードの自動修復サイクルを統括する高度支援モジュール。",
+      "status": "active",
+      "dependencies": [
+        "autonomous_synthesizer"
+      ],
+      "source_file": null,
+      "design_document": {
+        "path": "src\\advanced_tdd\\advanced_tdd.design.md",
+        "last_modified": "2026-03-31T09:14:23.212751",
+        "hash": "e05d0c3fd38d0bb6be6c0c012f4573d96c35cc8dfcfc143f860f62e2e1ca8647"
+      },
+      "test_file": null
+    },
+    {
+      "name": "approval_messages",
+      "summary": "ユーザー承認フローで使用される標準メッセージ・テンプレートの管理。アクション実行前の確認ダイアログの内容を制御します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\task_manager\\approval_messages.py",
+        "last_modified": "2026-01-23T12:56:42.117148",
+        "hash": "ca163ff97be664fd94a85e33b7ac7ad3a17a92f2e06116a3a0fa6f51c82dbedc"
+      },
+      "design_document": {
+        "path": "src\\task_manager\\approval_messages.design.md",
+        "last_modified": "2026-01-29T13:54:45.471364",
+        "hash": "fbcecac4bf65ab4cec4968875b05b6877dc56ef57340f529b20a48db6cef926b"
+      },
+      "test_file": null
+    },
+    {
+      "name": "ast_analyzer",
+      "summary": "Python ASTおよび正規表現を用いたコード構造解析器。クラス、メソッド、関数の抽出、循環複雑度の算出、スタックトレースの解析を担当します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\advanced_tdd\\ast_analyzer.py",
+        "last_modified": "2026-03-02T13:51:19.930356",
+        "hash": "1884b2df1d1154f9fb4015e662b6649bb4e8d80842b3a91a649d5b09966ee651"
+      },
+      "design_document": {
+        "path": "src\\advanced_tdd\\ast_analyzer.design.md",
+        "last_modified": "2026-02-09T09:38:26.848325",
+        "hash": "73271545e7455d66df4cfaed5dac24228d7378f86a648e6428e994be31244b03"
+      },
+      "test_file": null
+    },
+    {
+      "name": "audit_helpers",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\audit_helpers.py",
+        "last_modified": "2026-04-02T16:00:10.176672",
+        "hash": "5efd937c6a57d0fcd7b492f1bc225c8cd4f388b52c36a512b43ab42940861085"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\audit_helpers.design.md",
+        "last_modified": "2026-04-02T16:30:39.826558",
+        "hash": "200f6fb926b805b5fb1bb9c3355c6786bf0b659165ceb2f7ae4827ec4a4534f8"
+      },
+      "test_file": null
+    },
+    {
+      "name": "autonomous_aligner",
+      "summary": "設計書と実装の不整合を自律的に検出し、FixEngineを用いてスタブ生成やコード修正を行うモジュール。Audit-Fixループによる継続的な整合性維持を実現。",
+      "status": "active",
+      "dependencies": [
+        "fix_engine"
+      ],
+      "source_file": {
+        "path": "src\\autonomous_aligner\\autonomous_aligner.py",
+        "last_modified": "2026-04-07T14:11:16.309578",
+        "hash": "9a56b66aba4c7fcb11a0b3feb15a58259539453a17a2777d356f19bd6998fa08"
+      },
+      "design_document": {
+        "path": "src\\autonomous_aligner\\autonomous_aligner.design.md",
+        "last_modified": "2026-04-08T14:16:04.729076",
+        "hash": "9100b888f4bb5df792c8f74bedeb73cb1c8803496e86234e4ccec212b2fcc175"
+      },
+      "test_file": "tests\\unit\\test_autonomous_aligner.py"
+    },
+    {
+      "name": "autonomous_learning",
+      "summary": "システムの自律進化を制御する中核。対話ログから成功/失敗パターンを抽出し、意図ルールやリトライ戦略を動的に学習・適用します。",
+      "status": "active",
+      "dependencies": [
+        "vector_engine"
+      ],
+      "source_file": {
+        "path": "src\\autonomous_learning\\autonomous_learning.py",
+        "last_modified": "2026-04-07T14:09:09.515102",
+        "hash": "e6702d36c7b7a2942124680a0513cafd0af00b7c1070d9f3a72df00bf5c09fcb"
+      },
+      "design_document": {
+        "path": "src\\autonomous_learning\\autonomous_learning.design.md",
+        "last_modified": "2026-04-08T14:15:57.554899",
+        "hash": "c674456bf420f7960481e30b26105539e4c56b44f625fc7236631595e8b185a3"
+      },
+      "test_file": "tests\\unit\\test_autonomous_learning.py"
+    },
+    {
+      "name": "autonomous_synthesizer",
+      "summary": "ゴール駆動型の自律コード合成エンジン。高レベル目標の分解、既存コードの再利用チェック、ビルドフィードバックを用いた自己修復合成ループを統括します。",
+      "status": "active",
+      "dependencies": [
+        "code_synthesizer",
+        "compilation_verifier",
+        "execution_verifier",
+        "failure_analyzer",
+        "structural_memory"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\autonomous_synthesizer.py",
+        "last_modified": "2026-03-26T11:33:36.239806",
+        "hash": "25310f05159c0b7a77cc4d77edf1653e0750f187e14a783fcf45a7c633d37962"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\autonomous_synthesizer.design.md",
+        "last_modified": "2026-03-31T11:51:07.459686",
+        "hash": "f7a17d2d289941009a1d83d7b530ce9364b5b2cb1ec9c4a40e1bdc115c806585"
+      },
+      "test_file": null
+    },
+    {
+      "name": "base_analyzer",
+      "summary": "リファクタリング分析器の基底クラス。ファイルサイズ制限、エンコーディング自動判定、除外ルール適用など、各言語共通の解析基盤を提供します。",
+      "status": "active",
+      "dependencies": [
+        "long_method",
+        "duplicate_code",
+        "complex_condition",
+        "god_class"
+      ],
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\analyzers\\base_analyzer.py",
+        "last_modified": "2026-02-06T17:36:59.381117",
+        "hash": "2cebc9e6c0b5375c26088eac8ebfad165c2efff5d234da86a67e08581ae2b5b2"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\analyzers\\base_analyzer.design.md",
+        "last_modified": "2026-02-09T11:06:48.430916",
+        "hash": "1e9ca936739660b2598830c40085aaa57edfc693e348bdfecc60a5ae1c098fe6"
+      },
+      "test_file": null
+    },
+    {
+      "name": "base_detector",
+      "summary": "コードスメル検出器の基底インターフェース。ソースコードの直接走査およびRoslyn解析結果（AST）からのスメル検出メソッドを定義します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\detectors\\base_detector.py",
+        "last_modified": "2026-01-22T16:17:49.722222",
+        "hash": "8b90d83f7ed4d69fff3596193da8ffcc0ba938cda588de9ddca2ceb3e1826dbf"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\detectors\\base_detector.design.md",
+        "last_modified": "2026-03-31T09:19:48.746184",
+        "hash": "89bd2d3d01a665ffb14e9dce5a65a235bb5a46c26bbf592b2823cff3f7b879ca"
+      },
+      "test_file": null
+    },
+    {
+      "name": "blueprint_assembler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_synthesis\\blueprint_assembler.py",
+        "last_modified": "2026-04-09T11:35:56.280235",
+        "hash": "51d528c4637b6948f17be03f5cd102b897140bafef9d08463e04573b3cd28fc5"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\blueprint_assembler.design.md",
+        "last_modified": "2026-03-31T11:51:07.459686",
+        "hash": "2d109eb40938b5a7b10b0215d166d133ffb7684858da774e5249664e17639db6"
+      },
+      "test_file": null
+    },
+    {
+      "name": "calc_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\calc_handler.py",
+        "last_modified": "2026-03-30T14:11:58.354847",
+        "hash": "206cc1a2bb50be672d378383d85dc9719d813336822a718307815d90ae168189"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\calc_handler.design.md",
+        "last_modified": "2026-03-31T11:51:07.466884",
+        "hash": "9068a982634b9970ed4c7aa9cc4ac98a8850bdda8628c694c5b5a0ac65628aac"
+      },
+      "test_file": null
+    },
+    {
+      "name": "calc_ops",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis",
+        "action_utils",
+        "text_parser"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\calc_ops.py",
+        "last_modified": "2026-04-09T14:55:13.647850",
+        "hash": "58821a28816e772ea8cb39c63c3103185589b86b3d0006ca5b448a28e7696433"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\calc_ops.design.md",
+        "last_modified": "2026-03-30T14:13:11.549665",
+        "hash": "dae79159ecdeb6703385268360e759502891bd337b9cbb222c7895347a2ca70c"
+      },
+      "test_file": null
+    },
+    {
+      "name": "candidate_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\candidate_handler.py",
+        "last_modified": "2026-03-25T13:18:30.132370",
+        "hash": "5037145715bccf3f6a38a4a610068725a28b84e706a2dadfe996793a7f798838"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\candidate_handler.design.md",
+        "last_modified": "2026-03-30T14:03:33.502748",
+        "hash": "c8071ac513743ac4a653035a7d1552988db74450a681ceb0b2875351a22f71ed"
+      },
+      "test_file": null
+    },
+    {
+      "name": "cicd_integrator",
+      "summary": "CI/CDパイプライン生成と品質レポートの統合器。GitHub Actions等の設定ファイル生成と、複数ツールの検査結果を集約した品質ダッシュボードデータを作成します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\cicd_integrator\\cicd_integrator.py",
+        "last_modified": "2026-04-07T14:47:43.685280",
+        "hash": "6ef132c32670362d55ca01bcc0c341bd93fcc47a8eb2931dcd1a1b442bc9a556"
+      },
+      "design_document": {
+        "path": "src\\cicd_integrator\\cicd_integrator.design.md",
+        "last_modified": "2026-02-06T14:58:10.173075",
+        "hash": "5a9dfb82681f0b4eba1aa1e9b4ddb940d96ca1c0e193bac65b1974033fc244af"
+      },
+      "test_file": "tests\\unit\\test_cicd_integrator.py"
+    },
+    {
+      "name": "cicd_operations",
+      "summary": "ActionExecutorから呼び出されるCI/CD実務モジュール。パイプライン設定の保存、品質ゲートの検証、およびAutonomousAlignerによる整合性監査を実行します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\cicd_operations\\cicd_operations.py",
+        "last_modified": "2026-02-06T17:19:05.062908",
+        "hash": "1b48de355aaa9d65b77583321f669aaa650d5599474b47c33770d7d6ad1d59de"
+      },
+      "design_document": {
+        "path": "src\\cicd_operations\\cicd_operations.design.md",
+        "last_modified": "2026-02-09T09:46:10.884605",
+        "hash": "14008c6c0330795412d737ecdcd629bc5a4d33090392726227f9ae35f8db50a5"
+      },
+      "dependencies": [
+        "ActionExecutor",
+        "AutonomousAligner"
+      ],
+      "test_file": null
+    },
+    {
+      "name": "clarification_manager",
+      "summary": "ユーザーへの「聞き返し（明確化）」を制御するモジュール。不足している情報や信頼度の低い意図に対し、適切な質問を生成して文脈を補完します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\clarification_manager\\clarification_manager.py",
+        "last_modified": "2026-04-07T11:18:14.907365",
+        "hash": "9ee56d10806c60edc9d333f703d7d4a9bcf057cfaecbc170059ffa85f98c48f8"
+      },
+      "design_document": {
+        "path": "src\\clarification_manager\\clarification_manager.design.md",
+        "last_modified": "2026-04-08T14:05:51.415514",
+        "hash": "0d970388b9c6aa17e5c02dba63e31b495851135aecb1f048cb98dacfbf39181d"
+      },
+      "test_file": "tests\\unit\\test_clarification_manager.py",
+      "dependencies": [
+        "log_manager"
+      ]
+    },
+    {
+      "name": "code_builder_client",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\utils\\code_builder_client.py",
+        "last_modified": "2026-04-07T13:32:00.214921",
+        "hash": "78652a7c46b403bc25b73b6537be644d184ed40fbcc3c4956327d17efb62a92d"
+      },
+      "design_document": {
+        "path": "src\\utils\\code_builder_client.design.md",
+        "last_modified": "2026-03-17T14:20:44.792925",
+        "hash": "54dca6b00dc5e3b16155ddaab2b66e00bb06528774a4fbb0741968610c848377"
+      },
+      "test_file": null
+    },
+    {
+      "name": "code_generation",
+      "summary": "Project SpecからC#の多ファイル構成を生成するプロジェクト生成基盤。",
+      "status": "active",
+      "dependencies": [
+        "code_synthesis",
+        "test_generator",
+        "config_manager",
+        "logic_auditor",
+        "design_doc_refiner",
+        "vector_engine"
+      ],
+      "source_file": null,
+      "design_document": {
+        "path": "src\\code_generation\\code_generation.design.md",
+        "last_modified": "2026-03-30T13:45:44.859540",
+        "hash": "9d045a68e60d8baf139b5fa581e4d25b4ae40ca728c2ae5829ac41d94128f62d"
+      },
+      "test_file": null
+    },
+    {
+      "name": "code_synthesis",
+      "summary": "設計仕様やゴール定義から実行可能なソースコードを自動的に生成・合成する責任を持つモジュール群。",
+      "status": "active",
+      "dependencies": [
+        "action_utils"
+      ],
+      "source_file": null,
+      "design_document": {
+        "path": "src\\code_synthesis\\code_synthesis.design.md",
+        "last_modified": "2026-04-08T14:13:59.007700",
+        "hash": "56d3385f3edea9f6ceb6b855269c19f86f35935a921d1aff34175cd4b809e836"
+      },
+      "test_file": null
+    },
+    {
+      "name": "code_synthesizer",
+      "summary": "Beam Searchアルゴリズムを用いたC#コード生成 engine。設計ステップをC#の文法木に変換し、MethodStoreの知識を活用して実行可能なコードを出力します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\code_synthesis\\code_synthesizer.py",
+        "last_modified": "2026-04-09T10:26:56.139482",
+        "hash": "f49ef4b176cc4c47f5f95f0323b9dcc9bd58b1dfded3f154b228d6feddab8e06"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\code_synthesizer.design.md",
+        "last_modified": "2026-03-31T16:33:57.853708",
+        "hash": "d9790c6ed7d54fcf205258eb93eafb3d9bab6951dc6ddf463ce26dbd657198fc"
+      },
+      "test_file": null
+    },
+    {
+      "name": "code_verification",
+      "summary": "生成または修正されたコードの正当性を多角的に検証するための基盤モジュール。",
+      "status": "active",
+      "dependencies": [
+        "execution_verifier"
+      ],
+      "source_file": null,
+      "design_document": {
+        "path": "src\\code_verification\\code_verification.design.md",
+        "last_modified": "2026-04-08T14:14:03.749265",
+        "hash": "2bbd7148e2a58df68d674c5c049b369a111efe4979bb8d02d39b1b6e364a92a1"
+      },
+      "test_file": null
+    },
+    {
+      "name": "compilation_verifier",
+      "summary": "生成されたコードのビルド検証器。MSBuild（dotnet build）を用いて、シンタックスエラーや型不一致を検出し、修復ループへのフィードバックを提供します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\code_verification\\compilation_verifier.py",
+        "last_modified": "2026-04-07T11:45:21.252283",
+        "hash": "d8d45c652957d3d5da59efc4a480a7b7c81b7c0351844bb6721259f32adc2870"
+      },
+      "design_document": {
+        "path": "src\\code_verification\\compilation_verifier.design.md",
+        "last_modified": "2026-04-08T14:14:11.733071",
+        "hash": "d583e23d4a35d2b007dff5a500e29e6a5b1a249e74963ef6fdbc13ab8cf63b29"
+      },
+      "test_file": null
+    },
+    {
+      "name": "complex_condition",
+      "summary": "複雑な条件分岐の検出器。if文や論理演算子のネスト度合いを評価し、可読性の低い論理構造を特定します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\detectors\\complex_condition.py",
+        "last_modified": "2026-01-29T17:00:54.458923",
+        "hash": "57aa4625eddf9bf82f0bdaea6284539cbcf81fe30cac2fed2d6960ea93fbf118"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\detectors\\complex_condition.design.md",
+        "last_modified": "2026-02-09T11:07:05.675833",
+        "hash": "6972ecf1b057ba71ac3c56b68ca854acd6c7339438abd4939396ed50a06cdd20"
+      },
+      "test_file": null
+    },
+    {
+      "name": "compliance_auditor",
+      "summary": "プロジェクト規約の自動監査。コード内の命名規則やディレクトリ構造、重複機能の有無をStructuralMemoryと連携してチェックします。",
+      "status": "active",
+      "dependencies": [
+        "StructuralMemory"
+      ],
+      "source_file": {
+        "path": "src\\autonomous_learning\\compliance_auditor.py",
+        "last_modified": "2026-02-20T15:43:52.701410",
+        "hash": "b3598e013716770a97c5c2792a48659b9828076ce7bd741554e6234b3a4e9d47"
+      },
+      "design_document": {
+        "path": "src\\autonomous_learning\\compliance_auditor.design.md",
+        "last_modified": "2026-02-09T11:12:23.354984",
+        "hash": "78d51cf4f7df920e54ba8b4da989211be7d535e9c4ea74bcf0bcd08bb4a3bfde"
+      },
+      "test_file": null
+    },
+    {
+      "name": "condition_evaluator",
+      "summary": "タスクの状態遷移における条件評価器。前提条件（pre-conditions）が満たされているかをBooleanロジックで判定します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\task_manager\\condition_evaluator.py",
+        "last_modified": "2026-02-10T13:43:49.820489",
+        "hash": "8c0ff439c26531169071b0875c8c08810fca7c34a0e7250feee6aad34570be90"
+      },
+      "design_document": {
+        "path": "src\\task_manager\\condition_evaluator.design.md",
+        "last_modified": "2026-02-09T11:10:00.772860",
+        "hash": "2704158bd9f4fa8a4dfef2a8965dc8ecfcb57e51b973b2c241439a15cb91117e"
+      },
+      "test_file": null
+    },
+    {
+      "name": "condition_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\condition_handler.py",
+        "last_modified": "2026-03-25T13:06:41.890846",
+        "hash": "b1b7a600886a9beeccdae891211aca4e9cf5db116f63c1f95152edfd621e77cf"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\condition_handler.design.md",
+        "last_modified": "2026-03-30T14:03:41.382513",
+        "hash": "ae7b3a1128ca4cc8faa2869fab5e638145fb26bea79223e8d022e39c57ae1233"
+      },
+      "test_file": null
+    },
+    {
+      "name": "config",
+      "summary": "システム全体の設定（ディレクトリパス、しきい値、外部API設定等）を一元的に管理するモジュール。",
+      "status": "active",
+      "dependencies": [
+        "config_manager"
+      ],
+      "source_file": null,
+      "design_document": {
+        "path": "src\\config\\config.design.md",
+        "last_modified": "2026-03-31T09:19:11.667645",
+        "hash": "a32ab16793b660cdec51f5182103f5018483b5ec8a1d9570f5a242c291325aef"
+      },
+      "test_file": null
+    },
+    {
+      "name": "config_manager",
+      "summary": "外部設定ファイル（config.json等）の一元管理モジュール。ワークスペースルートの解決や各種ポリシーの読み込みを担当します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\config\\config_manager.py",
+        "last_modified": "2026-04-06T13:12:16.877008",
+        "hash": "e3e7e2bb48c066dbcb509124c3e1cce67566ad7d34ddd26c5734d549ad55b763"
+      },
+      "design_document": {
+        "path": "src\\config\\config_manager.design.md",
+        "last_modified": "2026-04-06T13:13:04.031506",
+        "hash": "2cf5df2eaaf9a58529d079772955fd7f6759802ffbd6919b32db775e2eb02fc8"
+      },
+      "test_file": "tests\\unit\\test_config_manager.py"
+    },
+    {
+      "name": "context_manager",
+      "summary": "対話の継続性を維持するための文脈管理。過去のターン情報、抽出されたエンティティ、および指示語（照応）解決を行います。",
+      "status": "active",
+      "dependencies": [
+        "pipeline_core"
+      ],
+      "source_file": {
+        "path": "src\\context_manager\\context_manager.py",
+        "last_modified": "2026-01-30T10:10:23.154355",
+        "hash": "4d6065af9ff414df52db9dc0068915f7b02c610e2d48edb678f58eed67496431"
+      },
+      "design_document": {
+        "path": "src\\context_manager\\context_manager.design.md",
+        "last_modified": "2026-01-30T10:39:13.847595",
+        "hash": "15745e9c1923d5f34ba7b9e4c8876233204bb4f1b58ca21ecebc497c246414a5"
+      },
+      "test_file": "tests\\unit\\test_context_manager.py"
+    },
+    {
+      "name": "context_utils",
+      "summary": "パイプラインコンテキスト操作のユーティリティ。辞書の深いマージや履歴のフィルタリングなどの共通処理を提供します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\utils\\context_utils.py",
+        "last_modified": "2026-03-24T15:25:10.078670",
+        "hash": "03598de4a6966e8ece50557e2f1e44d3dff3ca68447da5914441aceefbbd44a5"
+      },
+      "design_document": {
+        "path": "src\\utils\\context_utils.design.md",
+        "last_modified": "2026-03-31T09:19:23.744984",
+        "hash": "d4402bf2116e253e81c67dfc8c65c04603e78ed8a2b29f0efe24b211cf9f26b2"
+      },
+      "test_file": null
+    },
+    {
+      "name": "controller_generation",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\controller_generation.py",
+        "last_modified": "2026-04-02T16:04:43.679112",
+        "hash": "46d74b194d4e5c77c192e2277bad49bbd81141b52283b8b53aaaea4c0f86e13c"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\controller_generation.design.md",
+        "last_modified": "2026-04-02T16:30:39.842185",
+        "hash": "bd14ea7a0f9365fe4977323d50fc4a18e2b688074262428cd2585e0f14a9414c"
+      },
+      "test_file": null
+    },
+    {
+      "name": "controller_renderer",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\renderers\\controller_renderer.py",
+        "last_modified": "2026-03-25T10:11:43.992746",
+        "hash": "081a1adb327f090c03bf02378d3fcb094e46596c45169af87356e3a20c8626bd"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\renderers\\controller_renderer.design.md",
+        "last_modified": "2026-03-30T13:58:48.668173",
+        "hash": "510f0212aaa9a614fc46745d0d4413570a9936c1a5ff8599c0a7cb96c3bef187"
+      },
+      "test_file": null
+    },
+    {
+      "name": "coverage_analyzer",
+      "summary": "テストの網羅性を測定・分析するツール。ライン/ブランチカバレッジの算出、未テスト領域（ギャップ）の特定、および品質スコアの算出を担当します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\coverage_analyzer\\coverage_analyzer.py",
+        "last_modified": "2026-02-02T14:45:28.472401",
+        "hash": "5f17466ef5a4de28cbcc33f26c9e99c0500f93afaa3a033241dd28da79dab6ac"
+      },
+      "design_document": {
+        "path": "src\\coverage_analyzer\\coverage_analyzer.design.md",
+        "last_modified": "2026-02-06T15:10:31.618682",
+        "hash": "a109d16330788899a101cc017849a9f98ee8ef7bd0b4c9b5bded7490580453a9"
+      },
+      "test_file": "tests\\unit\\test_coverage_analyzer.py"
+    },
+    {
+      "name": "csharp_analyzer",
+      "summary": "C#に特化したリファクタリング分析器。Roslynの解析データを用いて、C#固有のコードスメル（LINQの乱用、async/awaitの不備等）を検出します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\analyzers\\csharp_analyzer.py",
+        "last_modified": "2026-02-06T17:37:21.140719",
+        "hash": "21ce20d00f6cc7c3c3cd4e73f1248b06878bd0c69c31b02333883656343d32eb"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\analyzers\\csharp_analyzer.design.md",
+        "last_modified": "2026-02-09T11:15:57.875860",
+        "hash": "69f2f174c5d90b788e445fed4dd1f7a981e21f6ca71fb5f184c44442dc559bad"
+      },
+      "dependencies": [
+        "action_executor"
+      ],
+      "test_file": null
+    },
+    {
+      "name": "csharp_operations",
+      "summary": "C#に特化した実務モジュール。MyRoslynAnalyzerを用いた静的解析、dotnetコマンドによるビルド・テスト実行、および知識グラフへのクエリを担当します。",
+      "status": "active",
+      "dependencies": [
+        "ActionExecutor",
+        "MyRoslynAnalyzer"
+      ],
+      "source_file": {
+        "path": "src\\csharp_operations\\csharp_operations.py",
+        "last_modified": "2026-02-09T14:28:16.973572",
+        "hash": "a8fd9a99d0958de48da36ea73f4dd9d2d2f61ada1678ad193283cfb4f53870c4"
+      },
+      "design_document": {
+        "path": "src\\csharp_operations\\csharp_operations.design.md",
+        "last_modified": "2026-02-10T09:33:17.215913",
+        "hash": "e7632508bf7f02f22ad6a3167f2958dbdd3cec94e80f043f47dfba8e66bc779f"
+      },
+      "test_file": null
+    },
+    {
+      "name": "dependency_resolver",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "nuget_client"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\dependency_resolver.py",
+        "last_modified": "2026-02-10T10:58:02.832462",
+        "hash": "9489369e37960c63510af420b7190ec8798721d989365a8e8fdcdca70badc64f"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\dependency_resolver.design.md",
+        "last_modified": "2026-03-31T11:51:07.461673",
+        "hash": "d94f4052066c4b92306a738e6d76f943b029f129f4a392ef36eb087e353e4a9f"
+      },
+      "test_file": "tests\\unit\\test_dependency_resolver.py"
+    },
+    {
+      "name": "design_doc_parser",
+      "summary": "Markdown形式の設計書を解析し、構造化データに変換するモジュール。目的、仕様、テストケースを抽出してAIの行動指針とします。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\utils\\design_doc_parser.py",
+        "last_modified": "2026-03-24T15:15:47.646482",
+        "hash": "aecf424f9fab6a3e4148a43c6f453124e315daad1935f9a507cd6d1e9dda15c3"
+      },
+      "design_document": {
+        "path": "src\\utils\\design_doc_parser.design.md",
+        "last_modified": "2026-02-10T09:34:31.121082",
+        "hash": "a46223ea2b2ff3f95a51b4bef8e7f8b428cf3031ae7e54ee27e4e104ebb60fed"
+      },
+      "test_file": "tests\\unit\\test_design_doc_parser.py"
+    },
+    {
+      "name": "design_doc_refiner",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\utils\\design_doc_refiner.py",
+        "last_modified": "2026-03-24T15:19:16.815498",
+        "hash": "da10843e60c2a2c49156b04ce2cb16867d0288fc3bdd5cd16f7b4f32f8f57aa8"
+      },
+      "design_document": {
+        "path": "src\\utils\\design_doc_refiner.design.md",
+        "last_modified": "2026-03-17T14:19:27.718339",
+        "hash": "743318f39ac0573713a3d81d02e3a2bb54cf05e9097ce1cf80c37f4830c2927a"
+      },
+      "test_file": null
+    },
+    {
+      "name": "design_ops_resolver",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "config_manager",
+        "morph_analyzer",
+        "syntactic_analyzer",
+        "semantic_analyzer",
+        "method_store",
+        "unified_knowledge_base",
+        "structural_memory",
+        "vector_engine"
+      ],
+      "source_file": {
+        "path": "src\\code_generation\\design_ops_resolver.py",
+        "last_modified": "2026-04-09T14:59:38.538791",
+        "hash": "4e9734beba7db77f7b834d41b4eb8cd1e5afa03df236d1790360c6bc0c321ffe"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\design_ops_resolver.design.md",
+        "last_modified": "2026-03-30T13:58:27.820667",
+        "hash": "2b4c57cbaaed96274d5d72e1f30139f216cdcdee0c8c362d64131ccbf7b307fa"
+      },
+      "test_file": null
+    },
+    {
+      "name": "design_parser",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "design_doc_parser"
+      ],
+      "source_file": null,
+      "design_document": {
+        "path": "src\\design_parser\\design_parser.design.md",
+        "last_modified": "2026-04-09T09:57:27.503726",
+        "hash": "6f3f65062da33ad4c87dc08e4553f3e2c800ac837ad0b5a4d405caf28fcefb7c"
+      },
+      "test_file": null
+    },
+    {
+      "name": "design_sync_util",
+      "summary": "実装と設計書の同期支援ユーティリティ。コード構造の変更を検出し、設計書の「Core Logic」セクションへの反映を自動化します。",
+      "status": "active",
+      "dependencies": [
+        "fix_engine"
+      ],
+      "source_file": {
+        "path": "src\\utils\\design_sync_util.py",
+        "last_modified": "2026-03-24T15:19:01.274234",
+        "hash": "a88d0c97381bdf0cdea035126a827e3bc909326d82df3f64e67c8f321600ebb6"
+      },
+      "design_document": {
+        "path": "src\\utils\\design_sync_util.design.md",
+        "last_modified": "2026-02-10T09:34:13.043121",
+        "hash": "5ead233de164ba3426a2aa18a23c4951ed4a1c6ca20d8342a5fc729802717af3"
+      },
+      "test_file": null
+    },
+    {
+      "name": "display_transform_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\display_transform_handler.py",
+        "last_modified": "2026-03-25T13:49:54.323170",
+        "hash": "cb5a0022e524c7c08f2a1c3af6d7cfedf3b43fc31c613ea2c272c40ef214a7b4"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\display_transform_handler.design.md",
+        "last_modified": "2026-03-31T11:57:50.651839",
+        "hash": "6c59b4c0271a108de8d3b5d587e71b082112cb29413c1fa0e0d496b189e4fdcb"
+      },
+      "test_file": null
+    },
+    {
+      "name": "display_transform_ops",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis",
+        "action_utils",
+        "text_parser"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\display_transform_ops.py",
+        "last_modified": "2026-04-09T15:51:37.396336",
+        "hash": "3c1e98ad497c8d654fa0f1c801deb7fa0b53085b1a40f92f57795b963491af74"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\display_transform_ops.design.md",
+        "last_modified": "2026-03-31T16:33:50.030256",
+        "hash": "b9ad8d1a5ba35034a2ac3256584c0dd066a72058eea472af2eecdbbf8a3891a8"
+      },
+      "test_file": null
+    },
+    {
+      "name": "dummy_factory",
+      "summary": "テスト実行用のダミーデータ・ファクトリ。実行検証（ExecutionVerifier）において、引数や戻り値のプロキシオブジェクトを動的に生成します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\advanced_tdd\\dummy_factory.py",
+        "last_modified": "2026-02-09T14:23:10.702325",
+        "hash": "390d374fc0c785dc6a1e3eb41ea190b1c27f8338d8495941cb720fc36040697e"
+      },
+      "design_document": {
+        "path": "src\\advanced_tdd\\dummy_factory.design.md",
+        "last_modified": "2026-02-09T10:54:52.526014",
+        "hash": "37d85aef42be3b7a9fa774d2c1f4a3f735098789680486f6abd9ababdade7c23"
+      },
+      "test_file": null
+    },
+    {
+      "name": "dummy_service",
+      "summary": "疎結合なテスト用のモックサービス基盤。外部APIやデータベースとの通信をエミュレートし、単体テストの実行を容易にします。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\utils\\dummy_service.py",
+        "last_modified": "2026-01-29T16:17:11.019176",
+        "hash": "3b219cae24a5ac2e8a56fe1dd0b492acd63b9297c487c8af55df69a886013bbf"
+      },
+      "design_document": {
+        "path": "src\\utils\\dummy_service.design.md",
+        "last_modified": "2026-01-29T16:17:12.988636",
+        "hash": "3ecb3d5ddcba76a7c0434a5ec1cbf3cfe79918ced2ed28b7fc7601023ce91652"
+      },
+      "test_file": null
+    },
+    {
+      "name": "duplicate_code",
+      "summary": "重複コードブロックの検出器。トークンベースまたはハッシュベースの比較により、プロジェクト内のコピー＆ペースト箇所を特定します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\detectors\\duplicate_code.py",
+        "last_modified": "2026-01-29T17:00:54.477365",
+        "hash": "8f4af33c7c3221564d913e7983d50593adfe31315aec830a460022d89238b8c1"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\detectors\\duplicate_code.design.md",
+        "last_modified": "2026-02-09T11:07:14.023059",
+        "hash": "8a0f88b96c9c47ad654436d71974a675415982ff0ca25747d996afe5db7334d2"
+      },
+      "test_file": null
+    },
+    {
+      "name": "dynamic_harvester",
+      "summary": "オンデマンドのメソッド収集器。合成中に不足しているシグネチャがある場合、プロジェクト内を即座にスキャンして定義を補完します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\code_synthesis\\dynamic_harvester.py",
+        "last_modified": "2026-04-07T11:36:41.806859",
+        "hash": "0a26453ef4711c42ed147e5abef93f5b33d4278e800c399958ff2f32229ed6c6"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\dynamic_harvester.design.md",
+        "last_modified": "2026-03-31T11:51:07.462546",
+        "hash": "064b712d394005d6a73d9d99e1c928770e3515b36e14379f43c66b6fbb5fb680"
+      },
+      "dependencies": [
+        "config_manager"
+      ],
+      "test_file": null
+    },
+    {
+      "name": "event_processor",
+      "summary": "リアルタイムのイベント駆動学習（Fast Path）を担当。セッション完了時の即時学習や、ユーザーフィードバックからの用語マッピング抽出を非同期で行います。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\autonomous_learning\\event_processor.py",
+        "last_modified": "2026-02-06T17:39:35.900029",
+        "hash": "8c3b4aa67a81821a64283448abc0e4e9876c272eee9ca5ebb9c32780ec308fe8"
+      },
+      "design_document": {
+        "path": "src\\autonomous_learning\\event_processor.design.md",
+        "last_modified": "2026-02-09T09:43:49.839173",
+        "hash": "b6ec8afeef161c0dc1bcea1bf369542fe8c2871c6b8d36733786662f12359a60"
+      },
+      "test_file": null
+    },
+    {
+      "name": "execution_verifier",
+      "summary": "コードの動的実行検証。生成されたC#コードをメモリ内で実行（または簡易プロジェクトとして実行）し、論理的な正しさを確認します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\code_verification\\execution_verifier.py",
+        "last_modified": "2026-04-07T11:23:12.591034",
+        "hash": "ae2ffdd45a4c8ffc61e8c4fd11c5a1554e930082f79d3e390e7857da4e317b5b"
+      },
+      "design_document": {
+        "path": "src\\code_verification\\execution_verifier.design.md",
+        "last_modified": "2026-04-08T14:14:17.665347",
+        "hash": "175858b9f9aaf9c1a375b16daff3c787f1c766ba2f2506a53837bba64a827f8b"
+      },
+      "test_file": null
+    },
+    {
+      "name": "failure_analyzer",
+      "summary": "テスト失敗の専門分析器。スタックトレースとRoslyn解析データを突き合わせ、分岐条件の不一致（Deep Stack Analysis）から失敗の根本原因を特定します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\advanced_tdd\\failure_analyzer.py",
+        "last_modified": "2026-02-10T13:49:35.670984",
+        "hash": "7eee99ea9a0a13268bdeee7f8863f5b3a9c707a382650c9db0e8a7d73f6de914"
+      },
+      "design_document": {
+        "path": "src\\advanced_tdd\\failure_analyzer.design.md",
+        "last_modified": "2026-02-10T16:09:58.462233",
+        "hash": "ee5d589e8a51e90f4192f427ae5ab2abef86697be6517c295878de47fb5e5fbc"
+      },
+      "test_file": null
+    },
+    {
+      "name": "fallbacks",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\fallbacks.py",
+        "last_modified": "2026-03-25T11:49:09.836020",
+        "hash": "14968dbe4563586b31c60a19df4f80b6072f2e15634da07ea228cb9833be445d"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\fallbacks.design.md",
+        "last_modified": "2026-03-30T14:04:13.631584",
+        "hash": "ebdae107590f47ab7fc9df36a2ab5e09b0f4f338a3c41392208fe1d63bf9a4e6"
+      },
+      "test_file": null
+    },
+    {
+      "name": "fetch_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\fetch_handler.py",
+        "last_modified": "2026-04-07T14:15:11.605372",
+        "hash": "6f4674e83cdbe3180045b8c38b18a9361db83f816c4ff7ce192bfacea6150dbb"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\fetch_handler.design.md",
+        "last_modified": "2026-03-30T14:04:21.791727",
+        "hash": "cbc5eae4de6f0d3a5ebb643109120028aac347884c8ea0331e2e29354725d16e"
+      },
+      "test_file": null
+    },
+    {
+      "name": "file_operations",
+      "summary": "安全なファイル・ディレクトリ操作モジュール。パスの正規化（Workspace Lock）、サイズ制限、UTF-8強制、およびリトライ機構を備えたI/Oを提供します。",
+      "status": "active",
+      "dependencies": [
+        "ActionExecutor",
+        "retry_with_backoff"
+      ],
+      "source_file": {
+        "path": "src\\file_operations\\file_operations.py",
+        "last_modified": "2026-02-06T16:49:36.490407",
+        "hash": "0b3f35ac5a42f2ee273c0e5411c4842d13abcb9605abee5745967e399921fe6c"
+      },
+      "design_document": {
+        "path": "src\\file_operations\\file_operations.design.md",
+        "last_modified": "2026-02-09T09:44:25.609485",
+        "hash": "e126c4ebfcca1b5b32d1f681279147f67a1eab4fd1deab1786c6266cc55f4bbe"
+      },
+      "test_file": null
+    },
+    {
+      "name": "fix_engine",
+      "summary": "自動修正の実行コア。FailureAnalyzerの提案に基づき、実際にソースコードの該当箇所を書き換える低レベルロジックを保持します。",
+      "status": "active",
+      "dependencies": [
+        "dummy_factory"
+      ],
+      "source_file": {
+        "path": "src\\advanced_tdd\\fix_engine.py",
+        "last_modified": "2026-03-04T11:39:35.992486",
+        "hash": "4e9d2014cedc487138787e42e85a3ef6ee6549ca8aae2c48fe70ebe41132b564"
+      },
+      "design_document": {
+        "path": "src\\advanced_tdd\\fix_engine.design.md",
+        "last_modified": "2026-02-04T15:42:20.756309",
+        "hash": "232f299a20e0265d08cc11f369ddebb96778345d6283249420c2fc7551be20ad"
+      },
+      "test_file": null
+    },
+    {
+      "name": "god_class",
+      "summary": "巨大クラス（God Class）の検出器。メソッド数、フィールド数、責務の集中度を測定し、単一責任原則に反する設計を特定します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\detectors\\god_class.py",
+        "last_modified": "2026-01-29T17:00:54.508655",
+        "hash": "225291514b7ef4c45ee7215e9ea8778ccadf666a5b6319e3d0000d01ca7539b2"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\detectors\\god_class.design.md",
+        "last_modified": "2026-02-09T11:07:21.064104",
+        "hash": "37cda7d978fdd1d2dae4089f8435ab9082cb7f2e2b1844797bd0a13c2f09fab7"
+      },
+      "test_file": null
+    },
+    {
+      "name": "htn_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\htn_handler.py",
+        "last_modified": "2026-03-25T13:18:21.789767",
+        "hash": "7a649b2f14e5a460e29a437fd5a7fc535d56e7bd0815666efd328b350a6f8537"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\htn_handler.design.md",
+        "last_modified": "2026-03-30T14:04:29.623470",
+        "hash": "79337cfe9720decc9e7a31810ba78c654dba427ec6c2e3c5f3edf9edd7bec62b"
+      },
+      "test_file": null
+    },
+    {
+      "name": "htn_planner",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\planner\\htn_planner.py",
+        "last_modified": "2026-03-10T10:43:17.997435",
+        "hash": "66688781df4c46e986561a882a55ea88f37d27b4d73ce725fce55625f1b998b4"
+      },
+      "design_document": {
+        "path": "src\\planner\\htn_planner.design.md",
+        "last_modified": "2026-03-17T14:11:46.166073",
+        "hash": "5f11435eb6e5ec5b7389d556c770e34ba1ba291ff14911f9379c6c01cfb40577"
+      },
+      "test_file": "tests\\unit\\test_htn_planner.py"
+    },
+    {
+      "name": "impact_analyzer",
+      "summary": "変更影響範囲の分析器。特定のクラスやメソッドを修正した際に、どの依存モジュールに影響が及ぶかをグラフ構造から算出します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\metrics\\impact_analyzer.py",
+        "last_modified": "2026-01-29T17:00:53.617257",
+        "hash": "970361a3e7ec74d6fa1d5296312240dcd4a3aac7a4cc88a3f96412234f3a4c27"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\metrics\\impact_analyzer.design.md",
+        "last_modified": "2026-02-09T11:08:05.437354",
+        "hash": "1fa30f437ca4d84003980b3c55c99f52618293894a0f1ed901f73d3fc11664d6"
+      },
+      "test_file": null
+    },
+    {
+      "name": "intent_detector",
+      "summary": "自然言語入力からユーザーの意図を分類するエンジン。キーワード、正規表現、およびセマンティック類似度（VectorEngine）を組み合わせたハイブリッド検知を行います。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\intent_detector\\intent_detector.py",
+        "last_modified": "2026-04-07T11:25:27.923974",
+        "hash": "f51173c38f12c38a3fd748f8e6f2623049d65f046d6899565458994d54c86beb"
+      },
+      "design_document": {
+        "path": "src\\intent_detector\\intent_detector.design.md",
+        "last_modified": "2026-04-08T14:02:53.345891",
+        "hash": "eee3bc34c4f1c96dd7659933c68d6f772c8949910c803ad59e7400d54a6377e2"
+      },
+      "test_file": null,
+      "dependencies": [
+        "config_manager"
+      ]
+    },
+    {
+      "name": "io_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\io_handler.py",
+        "last_modified": "2026-04-07T14:15:22.487830",
+        "hash": "acbea3b9f2d8751f546942f454b35e86d9348a1b403286634d6f2ea92bda60b9"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\io_handler.design.md",
+        "last_modified": "2026-03-30T14:04:38.451965",
+        "hash": "0d72ce1c24d07cd70cd5c5b30383df701994bec1779b2697b7d5b89ff9cd98ae"
+      },
+      "test_file": null
+    },
+    {
+      "name": "ir_emitter",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_synthesis\\ir_emitter.py",
+        "last_modified": "2026-03-16T11:52:28.802387",
+        "hash": "fbd9743c07e072da91c96889db9e79e608a75ce117f7295a249321fd9c66f9b2"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\ir_emitter.design.md",
+        "last_modified": "2026-03-31T11:51:07.463321",
+        "hash": "37567012400bbd972734e2eaddb932d60ea4a222b69cb4dba9ab52970ac8c7e0"
+      },
+      "test_file": null
+    },
+    {
+      "name": "ir_generator",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "type_system"
+      ],
+      "source_file": {
+        "path": "src\\ir_generator\\ir_generator.py",
+        "last_modified": "2026-04-09T15:02:00.662561",
+        "hash": "46813dbbd4fd688e62e7d41820bf4c8c4c95f947fc03df37bc5c33d8c1e67714"
+      },
+      "design_document": {
+        "path": "src\\ir_generator\\ir_generator.design.md",
+        "last_modified": "2026-03-31T09:15:05.277489",
+        "hash": "4daefaa3ee420549b179ffe2d12b68a8b4eee650e0bf7c06865b32a469779455"
+      },
+      "test_file": "tests\\unit\\test_ir_generator.py"
+    },
+    {
+      "name": "ir_patcher",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\replanner\\ir_patcher.py",
+        "last_modified": "2026-03-17T16:41:01.718786",
+        "hash": "fc875cde73d309af32d792f4c7b3ec0d41e32fe979f7aeb0ed0e0406173e7470"
+      },
+      "design_document": {
+        "path": "src\\replanner\\ir_patcher.design.md",
+        "last_modified": "2026-03-17T14:12:21.151188",
+        "hash": "7c681453139772d29b4675c0d0bea6945539b1380e2659bbee7e251b6c577733"
+      },
+      "test_file": null
+    },
+    {
+      "name": "ir_validator",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\ir_generator\\ir_validator.py",
+        "last_modified": "2026-04-07T15:10:02.991370",
+        "hash": "3857189193edc93ea3abffb1eaf67e40dfcba341c0da837af12b1ca5e3907134"
+      },
+      "design_document": {
+        "path": "src\\ir_generator\\ir_validator.design.md",
+        "last_modified": "2026-02-16T09:10:39.253594",
+        "hash": "95fe3e4c47471d637e5caa652f75d212936b6ed8cf6709bff6c65a9ad501df21"
+      },
+      "test_file": null
+    },
+    {
+      "name": "javascript_analyzer",
+      "summary": "JavaScript/TypeScript用のリファクタリング分析器。ESLint等のツールと連携し、JS固有のコードスメルを検出します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\analyzers\\javascript_analyzer.py",
+        "last_modified": "2026-02-06T17:37:26.060863",
+        "hash": "2bbfbb87a0faad54e1cc9b654aeb609cc9ea97f798aa1d307faac6cce9d236c3"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\analyzers\\javascript_analyzer.design.md",
+        "last_modified": "2026-02-09T11:16:03.305305",
+        "hash": "de4969cacb492fbcbcbccad2cb079fe39492760746ba9fd94df186f18bbf1fb5"
+      },
+      "dependencies": [
+        "base_analyzer",
+        "long_method",
+        "complex_condition"
+      ],
+      "test_file": null
+    },
+    {
+      "name": "json_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\json_handler.py",
+        "last_modified": "2026-04-09T15:01:23.175680",
+        "hash": "9be557c7ee586b9cb7a9670ea6149d845fd101e889583676c35da8c136e7b6a7"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\json_handler.design.md",
+        "last_modified": "2026-03-30T14:04:53.224781",
+        "hash": "6d7525efa21c7155092f8b792ecd962036312f754a04a13a93668445706504aa"
+      },
+      "test_file": null
+    },
+    {
+      "name": "knowledge_base",
+      "summary": "修復パターンの知識リポジトリ。過去のエラーに対する成功修正をベクトル空間で保持し、未知のエラーに対しても類似事例から修正方針をレコメンドします。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\advanced_tdd\\knowledge_base.py",
+        "last_modified": "2026-04-06T13:12:19.937578",
+        "hash": "34edd99065282f94ee515fc9538bfddd09f2c5508d761f6dbe523a07508937af"
+      },
+      "design_document": {
+        "path": "src\\advanced_tdd\\knowledge_base.design.md",
+        "last_modified": "2026-02-10T10:54:02.978682",
+        "hash": "a4528d4ab77f5479c3692b6e49e75932e26266563c626864359b29844718c0e6"
+      },
+      "test_file": null
+    },
+    {
+      "name": "knowledge_extractor",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_synthesis\\knowledge_extractor.py",
+        "last_modified": "2026-03-09T14:42:14.955468",
+        "hash": "665126130129018ba10266932c1e5cd5fb7688357df129928241498e5626cfb8"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\knowledge_extractor.design.md",
+        "last_modified": "2026-03-17T14:06:44.038501",
+        "hash": "2bf84957b03ad6bef83dfd53d36799ddcca9dbe5bf66349effef124689ebf966"
+      },
+      "test_file": null
+    },
+    {
+      "name": "light_vector_db",
+      "summary": "軽量な文章ベクトルデータベースの実装。chiVeモデルを用いて、テキストの意味的な類似度検索を高速に実行します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\semantic_search\\light_vector_db.py",
+        "last_modified": "2026-04-07T11:14:32.940809",
+        "hash": "380d508ea0449e960efe4b52ab24921313334800d23dc66244904c79105d859b"
+      },
+      "design_document": {
+        "path": "src\\semantic_search\\light_vector_db.design.md",
+        "last_modified": "2026-04-08T14:11:18.318435",
+        "hash": "c4ffd2be2bfcfb5aad60def653653dae1077dfe5a02807d2e82569fb8efa345e"
+      },
+      "test_file": null
+    },
+    {
+      "name": "linq_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\linq_handler.py",
+        "last_modified": "2026-03-25T13:18:15.282590",
+        "hash": "b5420b669b4ec20110d65f0fc22b3c5a7058636cedd6224e7679036b06837d8a"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\linq_handler.design.md",
+        "last_modified": "2026-03-30T14:05:01.147533",
+        "hash": "378e6a19d261642c5e961d2e36de3a17b0c34bfcb1620e9e5d4ea4df5c62c609"
+      },
+      "test_file": null
+    },
+    {
+      "name": "log_analyzer",
+      "summary": "定期的なログ分析（Batch Path）を担当。大量 hostの対話イベントをトランザクション単位で集約し、頻出する成功・失敗パターンの統計的抽出を行います。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\autonomous_learning\\log_analyzer.py",
+        "last_modified": "2026-02-06T17:32:02.530549",
+        "hash": "c5f104837b8ce386b48206eae8e2d2be58a9f6527014337312010871469041bf"
+      },
+      "design_document": {
+        "path": "src\\autonomous_learning\\log_analyzer.design.md",
+        "last_modified": "2026-02-09T09:43:51.090204",
+        "hash": "e23f5660fdd4b139165f731f07f54b4d5bb4108931c605146ce66da04ab41b8f"
+      },
+      "test_file": null
+    },
+    {
+      "name": "log_manager",
+      "summary": "パイプライン全行程のイベント記録とサニタイズ。機密情報のマスキング、セッションごとのJSONログ出力、および自律学習用の生データ蓄積を行います。",
+      "status": "active",
+      "dependencies": [
+        "pipeline_core"
+      ],
+      "source_file": {
+        "path": "src\\log_manager\\log_manager.py",
+        "last_modified": "2026-04-13T13:25:41.824983",
+        "hash": "edfa1b5aedffc977b217732c2d3749ae74763d3e36a675a9626ca0a9de2159e4"
+      },
+      "design_document": {
+        "path": "src\\log_manager\\log_manager.design.md",
+        "last_modified": "2026-04-13T13:44:25.358089",
+        "hash": "2036e621019091715b377c0c27b951d8c456d9af89b1d66ebd619dc6b5de1e8d"
+      },
+      "test_file": "tests\\unit\\test_log_manager.py"
+    },
+    {
+      "name": "logic_auditor",
+      "summary": "論理整合性の監査ツール。設計書に記載されたステップと、実際に生成されたコードの論理的な対応関係をセマンティックに検証します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\utils\\logic_auditor.py",
+        "last_modified": "2026-04-07T14:11:29.697500",
+        "hash": "e3aa75f8e92590232b040dcbc7bfa1b90dd87d68e12835cb79632f0922d85f71"
+      },
+      "design_document": {
+        "path": "src\\utils\\logic_auditor.design.md",
+        "last_modified": "2026-03-31T16:35:39.903999",
+        "hash": "75bd376e8d494d170f92c284aa3e48f5052c4b65b074c89648ebb3bffa1b37f3"
+      },
+      "dependencies": [
+        "json"
+      ],
+      "test_file": "tests\\unit\\test_logic_auditor.py"
+    },
+    {
+      "name": "long_method",
+      "summary": "長すぎるメソッドの検出器。行数およびステートメント数をカウントし、保守性の低い長大な関数を特定します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\detectors\\long_method.py",
+        "last_modified": "2026-01-29T17:00:54.540519",
+        "hash": "6d6e7aef4b73a730a6354a4ec5812f53534ef689ccfdb7a2b3dbb1d3a9abac5f"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\detectors\\long_method.design.md",
+        "last_modified": "2026-02-09T11:07:31.471231",
+        "hash": "9ee1204585b0e4cfa7e79ced76711e2d6b9e953312a44a51a6417db299a5b94a"
+      },
+      "test_file": null
+    },
+    {
+      "name": "loop_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\loop_handler.py",
+        "last_modified": "2026-03-25T13:06:48.575433",
+        "hash": "44cf8c7b5f7138679615fba33d21fa808c727cd9ceb0b30117ecc2e9fc79817e"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\loop_handler.design.md",
+        "last_modified": "2026-03-30T14:05:09.820219",
+        "hash": "d22feef6ccb91f7020c4f45fc084a59fa32b84f4b0142706a01b4d21a4010a8b"
+      },
+      "test_file": null
+    },
+    {
+      "name": "main",
+      "summary": "高度なTDD支援システムのメインエントリ。FailureAnalyzerやFixEngineを統合し、テスト失敗からの回復プロセスを制御します。",
+      "status": "active",
+      "dependencies": [
+        "autonomous_synthesizer"
+      ],
+      "source_file": {
+        "path": "src\\advanced_tdd\\main.py",
+        "last_modified": "2026-04-06T11:23:23.418160",
+        "hash": "9269f81506497affa20d0b3b3b0b88dc342bf72d6566272420482220024e36e8"
+      },
+      "design_document": {
+        "path": "src\\advanced_tdd\\main.design.md",
+        "last_modified": "2026-03-31T09:14:27.679867",
+        "hash": "cb02e5dd576f2df50d0086b5156b4470e92939814cdd40a20de5fb79c72b595c"
+      },
+      "test_file": null
+    },
+    {
+      "name": "method_harvester",
+      "summary": "既存コードのシグネチャ収集器。MethodStoreを構築するために、プロジェクト内の全メソッドの型情報、引数、サマリーを抽出・永続化します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\code_synthesis\\method_harvester.py",
+        "last_modified": "2026-03-26T09:53:08.226192",
+        "hash": "e5a744f5e3aa4ccbc1327a7d9acec17da9763217159bc208db4b98c76a77eac7"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\method_harvester.design.md",
+        "last_modified": "2026-03-31T11:51:07.464346",
+        "hash": "3f16547bf81e0ef77b94acff16d2dfc57e53e691c8b92a946343ad3b93720f8c"
+      },
+      "test_file": "tests\\unit\\test_method_harvester.py"
+    },
+    {
+      "name": "method_store",
+      "summary": "メソッド情報のストレージ。収集された全メソッドのメタデータを保持し、コード合成時に最適な呼び出し候補を高速に提供します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\code_synthesis\\method_store.py",
+        "last_modified": "2026-04-07T14:35:29.194778",
+        "hash": "41ae1526eb5efad30d08356293e517cbc7c3bc66bb0af149fa556d98fe188136"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\method_store.design.md",
+        "last_modified": "2026-03-31T11:51:07.464828",
+        "hash": "c10c5bf134eec4d739bfac930dc2e6bab7ae678addf793cef5c19261a226506c"
+      },
+      "test_file": "tests\\unit\\test_method_store.py"
+    },
+    {
+      "name": "metrics",
+      "summary": "タスク管理におけるメトリクス定義。タスクの成功率、処理時間、明確化の頻度などの統計データを保持する構造を提供します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\task_manager\\metrics.py",
+        "last_modified": "2026-01-29T17:00:53.747270",
+        "hash": "f35f2b2e5b25f1895259300e3805f971e279e8a4e655197bff255c49c78a5f7f"
+      },
+      "design_document": {
+        "path": "src\\task_manager\\metrics.design.md",
+        "last_modified": "2026-02-09T11:10:08.676754",
+        "hash": "d9ab6d3c8f4101cc0e176523ab5473c04e18cf3c1049c4ac970e8edb9ea8e044"
+      },
+      "test_file": null
+    },
+    {
+      "name": "metrics_calculator",
+      "summary": "プロジェクトの品質メトリクス算出。総合スコア（10点満点）、保守性指数、推定技術的負債時間などを定量的に算出します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\metrics\\metrics_calculator.py",
+        "last_modified": "2026-04-07T11:45:16.250998",
+        "hash": "5ffab1f4e70ec62b4db1eaa88124cae3dbbd74fa64e12d1562067d736f9d34ed"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\metrics\\metrics_calculator.design.md",
+        "last_modified": "2026-02-09T11:08:11.816935",
+        "hash": "77ab67ed1f1be74d23a36d8dc7dd0bbc187a885fc09925a9aa187e1dcbd83557"
+      },
+      "test_file": null
+    },
+    {
+      "name": "model_renderer",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\renderers\\model_renderer.py",
+        "last_modified": "2026-03-25T10:16:23.651082",
+        "hash": "cf7255e5473a62ea4ef0f3fb29721e42f79a349bb68153cea29e07ae57fcaa64"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\renderers\\model_renderer.design.md",
+        "last_modified": "2026-03-30T13:59:20.870237",
+        "hash": "642ed0ecff84f9743997cd20243d7608fac0bcef1ae0551ac760aceec5baa4ae"
+      },
+      "test_file": null
+    },
+    {
+      "name": "models",
+      "summary": "高度なTDDサイクルで使用される標準データクラス群。TestFailure, CodeFixSuggestion, TDDGoal などの共有モデルを定義します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\advanced_tdd\\models.py",
+        "last_modified": "2026-02-04T14:39:59.794014",
+        "hash": "a0b91d864d71a87460e320cdf74c1d2494625d9431bf51c93e154e7c8413c9b1"
+      },
+      "design_document": {
+        "path": "src\\advanced_tdd\\models.design.md",
+        "last_modified": "2026-02-09T09:49:34.302512",
+        "hash": "7dd399a9abee7ccfd1c075e58a651fe48b7ac986e177c37e1d7f656404cae871"
+      },
+      "test_file": null
+    },
+    {
+      "name": "morph_analyzer",
+      "summary": "Janomeを用いた日本語形態素解析。単語の分割、品詞推定、およびベクトル化や意図検出のためのキーワード抽出（正規化）を行います。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\morph_analyzer\\morph_analyzer.py",
+        "last_modified": "2026-04-06T11:23:27.237332",
+        "hash": "c84128b80929212fafb1fc0c34b9456a9806b90ab5241c322ea6a1a1eead40c3"
+      },
+      "design_document": {
+        "path": "src\\morph_analyzer\\morph_analyzer.design.md",
+        "last_modified": "2026-04-06T11:24:56.441793",
+        "hash": "5fc4ec1b9943eb0a2ee650b093c07f9bd8e7fac8e45130af992685d767d24e1f"
+      },
+      "test_file": "tests\\unit\\test_morph_analyzer.py"
+    },
+    {
+      "name": "naming_helpers",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\naming_helpers.py",
+        "last_modified": "2026-04-02T16:06:23.022642",
+        "hash": "d796cdfb6ada58b190cb627f6253ca3dfd6f76c1fd4ce5f5a52cacbb524706da"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\naming_helpers.design.md",
+        "last_modified": "2026-04-02T16:30:39.850747",
+        "hash": "407ca87325f8c4f4e882d59bd647d614f3f2fb2f560144e28db06c4b43c363d5"
+      },
+      "test_file": null
+    },
+    {
+      "name": "nuget_client",
+      "summary": "C#のパッケージ管理クライアント。コード合成時に必要な外部ライブラリがある場合、NuGetギャラリーから適切なパッケージを検索します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\utils\\nuget_client.py",
+        "last_modified": "2026-03-18T10:40:32.094414",
+        "hash": "4344601f7f34b67a8916dac17d755801eea12aae80b2cc322dd357527f155c85"
+      },
+      "design_document": {
+        "path": "src\\utils\\nuget_client.design.md",
+        "last_modified": "2026-02-10T09:34:33.957806",
+        "hash": "8db4b568606c82ac46c34e130a38b61893512d3985184fe59343c29f5fc754e7"
+      },
+      "test_file": "tests\\unit\\test_nuget_client.py"
+    },
+    {
+      "name": "pattern_learner",
+      "summary": "抽出パターンからシステムルールへの変換器。成功パターンからの意図追加ルール、エラーパターンからのリトライルール、明確化メッセージ改善案を生成します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\autonomous_learning\\pattern_learner.py",
+        "last_modified": "2026-02-06T17:32:22.802349",
+        "hash": "429ec6b12542b5c7b343e349929cc5970bfb4702902e7cae4c373f71ba4ce9ec"
+      },
+      "design_document": {
+        "path": "src\\autonomous_learning\\pattern_learner.design.md",
+        "last_modified": "2026-02-09T09:44:54.501415",
+        "hash": "4d89b4b0664e8e93753041fd428fd856e464e29496bbf5f071fc8eacc763b425"
+      },
+      "test_file": null
+    },
+    {
+      "name": "pipeline_core",
+      "summary": "AIシステムのメインオーケストレーター。形態素解析から意図検出、計画立案、アクション実行、応答生成までの一連のフロー（Pipeline）を制御します。",
+      "status": "active",
+      "dependencies": [
+        "context_manager"
+      ],
+      "source_file": {
+        "path": "src\\pipeline_core\\pipeline_core.py",
+        "last_modified": "2026-04-07T10:32:59.151266",
+        "hash": "697e3d705a8a2ada5ccd304f0a93164725df84bdfb91c43cf787ea2127b62c35"
+      },
+      "design_document": {
+        "path": "src\\pipeline_core\\pipeline_core.design.md",
+        "last_modified": "2026-04-08T14:02:25.081333",
+        "hash": "f7584a7a385c924abea5cf5690ea495307d4dd68046456f8d3ffcbaec6e84ed3"
+      },
+      "test_file": null
+    },
+    {
+      "name": "planner",
+      "summary": "意図に基づいたアクション実行プランの策定。必要なエンティティの存在確認、安全性チェックの状態管理、および実行順序の決定を行います。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\planner\\planner.py",
+        "last_modified": "2026-04-13T14:02:03.012854",
+        "hash": "275ac02f89237335af588c96c76756acbde28609b6167f64a65f83d4e17eaa65"
+      },
+      "design_document": {
+        "path": "src\\planner\\planner.design.md",
+        "last_modified": "2026-03-03T14:55:03.034553",
+        "hash": "f4b1c88d2f27034c421fd0e271f84e75c4a424b06da4ca3552b112dd6cb2845d"
+      },
+      "test_file": "tests\\unit\\test_planner.py"
+    },
+    {
+      "name": "project_generator",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "template_engine",
+        "design_ops_resolver",
+        "code_synthesis",
+        "test_generator",
+        "logic_auditor",
+        "design_doc_refiner",
+        "config_manager",
+        "vector_engine"
+      ],
+      "source_file": {
+        "path": "src\\code_generation\\project_generator.py",
+        "last_modified": "2026-04-02T16:20:11.562655",
+        "hash": "2feb351da1f0510cfbc0ff7463e5b21739f26e7e99e0bbb224ae37ee97955881"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\project_generator.design.md",
+        "last_modified": "2026-04-01T10:56:07.282067",
+        "hash": "4d0b92d06fac34d5652f32385ab0580ee1d0d2f0412b69cbc06169ec87c65518"
+      },
+      "test_file": null
+    },
+    {
+      "name": "project_renderer",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\renderers\\project_renderer.py",
+        "last_modified": "2026-03-25T10:16:45.707230",
+        "hash": "bd8c033e339d78e0e587aa6b85eb654edcd3e2b440eae4e4b1989a18a5b0d92b"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\renderers\\project_renderer.design.md",
+        "last_modified": "2026-03-30T13:59:35.198343",
+        "hash": "1af54196d596b619bba5fe4ffb8f4ae5b4b94f2d07c557a2c341581ce631bf7a"
+      },
+      "test_file": null
+    },
+    {
+      "name": "project_spec_parser",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\design_parser\\project_spec_parser.py",
+        "last_modified": "2026-04-02T14:20:41.614134",
+        "hash": "c858cc16912f90ae32612a9ea4001f7a8a9ddfbb2e9bda9d784ff8abed086fd8"
+      },
+      "design_document": {
+        "path": "src\\design_parser\\project_spec_parser.design.md",
+        "last_modified": "2026-03-31T17:06:19.971361",
+        "hash": "695e43c953894f75fee911f997ba9a6888a6e01853673df90875f3df4904ead1"
+      },
+      "test_file": "tests\\unit\\test_project_spec_parser.py"
+    },
+    {
+      "name": "python_analyzer",
+      "summary": "Python用のリファクタリング分析器。PEP 8準拠チェックや、Python固有のコードスメル（ミュータブルなデフォルト引数等）を検出します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\analyzers\\python_analyzer.py",
+        "last_modified": "2026-02-06T17:37:24.633357",
+        "hash": "d214a4cffb6d5cdd4c4fb69250456bced1debd9f3a2100464d80ea0c9f42950d"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\analyzers\\python_analyzer.design.md",
+        "last_modified": "2026-02-09T11:16:04.689279",
+        "hash": "32343bb12e24518e870e1428ab580a3c64d6a52fb5d5914bdc5bb0acbc69a6fc"
+      },
+      "dependencies": [
+        "base_analyzer",
+        "long_method",
+        "duplicate_code",
+        "complex_condition"
+      ],
+      "test_file": null
+    },
+    {
+      "name": "quality_gate_checker",
+      "summary": "品質ゲートの適合性検証器。定義されたしきい値（カバレッジ、品質スコア等）と現状のメトリクスを照合し、合格/不合格を判定します。",
+      "status": "active",
+      "dependencies": [
+        "cicd_integrator"
+      ],
+      "source_file": {
+        "path": "src\\cicd_integrator\\quality_gate_checker.py",
+        "last_modified": "2026-01-23T10:38:11.010882",
+        "hash": "51bf7de71363d3c02dd83a4cf2e0393e90f8307113ef0667cdb0f8c99fee4879"
+      },
+      "design_document": {
+        "path": "src\\cicd_integrator\\quality_gate_checker.design.md",
+        "last_modified": "2026-01-29T13:54:44.773351",
+        "hash": "da2883b152b96d08be084cd1db8c7fc4fe3be8d8584789e10c97b25380d0743f"
+      },
+      "test_file": "tests\\unit\\test_quality_gate_checker.py"
+    },
+    {
+      "name": "reason_analyzer",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\replanner\\reason_analyzer.py",
+        "last_modified": "2026-03-19T13:35:43.487265",
+        "hash": "911498222dd82be446aa17bede373fc1b3951c2978770861d733926de1677b04"
+      },
+      "design_document": {
+        "path": "src\\replanner\\reason_analyzer.design.md",
+        "last_modified": "2026-03-17T14:13:10.988573",
+        "hash": "5cc314297aaa39a5a15920efdac59c77c6cd1dc208d2d40af7f86f320cdc0fc4"
+      },
+      "test_file": null
+    },
+    {
+      "name": "recommendation_engine",
+      "summary": "リファクタリング推奨エンジン。検出されたスメルの深刻度と影響範囲を評価し、最も優先順位の高い改善アクションをレコメンドします。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\metrics\\recommendation_engine.py",
+        "last_modified": "2026-01-29T17:00:53.645391",
+        "hash": "8f08c99761727546067172520ff7c8d074cd567624255ed4402f8ced371a2f62"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\metrics\\recommendation_engine.design.md",
+        "last_modified": "2026-02-09T11:08:22.524710",
+        "hash": "2403a36bf3649a2ba5bcc80453ecd24cd1212223e001e0dc151fa83df91acde0"
+      },
+      "test_file": null
+    },
+    {
+      "name": "refactoring_analyzer",
+      "summary": "コードスメル検出とリファクタリング提案の統括。多言語対応の各種チェッカーを用いて、複雑度、重複、巨大クラス等の品質問題を自動特定します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\refactoring_analyzer.py",
+        "last_modified": "2026-04-07T11:40:06.070084",
+        "hash": "e16f9844d104ce814eaaf0eb80deee70ed1e4f3b52baec14c6cb6c1e146b2cc5"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\refactoring_analyzer.design.md",
+        "last_modified": "2026-02-06T17:42:02.926920",
+        "hash": "af4dbdf0ba25d48b2acb0b553daa7240bedb7c058b2853b586477ba08da129a5"
+      },
+      "test_file": "tests\\unit\\test_refactoring_analyzer.py"
+    },
+    {
+      "name": "refactoring_operations",
+      "summary": "ActionExecutorから呼び出されるリファクタリング実務モジュール。分析の実行、提案の保存、およびリファクタリングの適用フローを管理します。",
+      "status": "active",
+      "dependencies": [
+        "ActionExecutor",
+        "RefactoringAnalyzer"
+      ],
+      "source_file": {
+        "path": "src\\refactoring_operations\\refactoring_operations.py",
+        "last_modified": "2026-02-06T17:18:04.756698",
+        "hash": "6a736cfdc18a2dcaf642c03f647d8d0cb72a6c5bb2f3c0f03b3821df804c12a9"
+      },
+      "design_document": {
+        "path": "src\\refactoring_operations\\refactoring_operations.design.md",
+        "last_modified": "2026-02-09T11:09:01.462458",
+        "hash": "1daff1912a5fa75d1f50d574969635b5d50878806071c9e7610f9a6543db4739"
+      },
+      "test_file": null
+    },
+    {
+      "name": "repair_memory",
+      "summary": "セッションを跨いだ修復履歴の記憶。過去に行った修正が効果的だったかを永続的に追跡し、RepairKnowledgeBaseの学習を支援します。",
+      "status": "active",
+      "design_document": {
+        "path": "src\\advanced_tdd\\repair_memory.design.md",
+        "last_modified": "2026-02-02T10:11:58.526588",
+        "hash": "62ccb57389ff2ffc5b3a9f81c970303eacdf2395b4c46a546f2564078bf5deda"
+      },
+      "source_file": null,
+      "test_file": null
+    },
+    {
+      "name": "replanner",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "ir_patcher"
+      ],
+      "source_file": {
+        "path": "src\\replanner\\replanner.py",
+        "last_modified": "2026-03-18T13:22:01.835134",
+        "hash": "2ca499b87da8930d4ce5a9bb3f70e0e47c1779682eb48e50442d5c3245d53c54"
+      },
+      "design_document": {
+        "path": "src\\replanner\\replanner.design.md",
+        "last_modified": "2026-03-31T09:15:14.172573",
+        "hash": "b4f918103bc12f92c6d8c796e46802ea630dade2a17f6d1f5806a4b479ce9daf"
+      },
+      "test_file": "tests\\unit\\test_replanner.py"
+    },
+    {
+      "name": "repo_generation",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\repo_generation.py",
+        "last_modified": "2026-04-02T15:58:29.118155",
+        "hash": "8cb7d9f6bc77c4c6892041836a22b54368c6d7c595f15b06fdfabf76860c6236"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\repo_generation.design.md",
+        "last_modified": "2026-04-02T16:30:39.857428",
+        "hash": "b6324e8616da7edfc5f2fea4062ff5c7ffc1367693d3aba20570de6605be1a9b"
+      },
+      "test_file": null
+    },
+    {
+      "name": "report_generators",
+      "summary": "各種レポートのフォーマット生成。解析結果をJSON, HTML, テキスト等の形式に変換し、ユーザーや外部システムへ提供します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\metrics\\report_generators.py",
+        "last_modified": "2026-01-27T08:58:38.067635",
+        "hash": "4bf3f9c0ba0faa772d314811482d517780415c65e75cface85eb903bddf7df77"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\metrics\\report_generators.design.md",
+        "last_modified": "2026-01-29T13:53:20.351241",
+        "hash": "f979df9d2a030a2452e900104e9d260d3346a7289a0e349f115ebbfbd75b75c4"
+      },
+      "test_file": null
+    },
+    {
+      "name": "repository_renderer",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\renderers\\repository_renderer.py",
+        "last_modified": "2026-03-25T10:12:06.687198",
+        "hash": "8a66cf33199184ac5dbbe31c9c1188adaa1454311b82a368c962f5d5b5e3ecb3"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\renderers\\repository_renderer.design.md",
+        "last_modified": "2026-03-30T13:59:09.579695",
+        "hash": "865a84eaf0fc66d6c2017939afc3b4f5b4b7b8cead6f1c714a3fc62e2cecdda2"
+      },
+      "test_file": null
+    },
+    {
+      "name": "response_generator",
+      "summary": "最終的な応答文の生成。実行結果、学習レポート、およびプロジェクトの状態に基づき、ユーザーに対して分かりやすく自然な日本語で情報を提供します。",
+      "status": "active",
+      "dependencies": [
+        "log_manager"
+      ],
+      "source_file": {
+        "path": "src\\response_generator\\response_generator.py",
+        "last_modified": "2026-04-07T10:55:47.027587",
+        "hash": "80138ce4ab467279a642f712b6f84ba770f2d6f525e374f7d50538933f49cdc9"
+      },
+      "design_document": {
+        "path": "src\\response_generator\\response_generator.design.md",
+        "last_modified": "2026-04-08T14:06:09.029709",
+        "hash": "0720f74b5fc37122b15d1ae3fea620c9066209312fca8d2412761b370324c8d1"
+      },
+      "test_file": "tests\\unit\\test_response_generator.py"
+    },
+    {
+      "name": "retry_utils",
+      "summary": "指数バックオフ等を含む再試行ユーティリティ。ネットワークエラーや一時的なファイルロックが発生した際の堅牢な実行リトライを提供します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\utils\\retry_utils.py",
+        "last_modified": "2026-02-02T14:23:56.012949",
+        "hash": "0d7d36bcd94137c798e295590fb54efd8ac27285534c9fa28f11a7212093afe9"
+      },
+      "design_document": {
+        "path": "src\\utils\\retry_utils.design.md",
+        "last_modified": "2026-02-04T09:41:19.308049",
+        "hash": "29a851d633fd2862a5db70d845b73b3339625272964cc933416c953148e25ac5"
+      },
+      "test_file": null
+    },
+    {
+      "name": "return_handler",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\return_handler.py",
+        "last_modified": "2026-03-25T13:06:34.368159",
+        "hash": "bad17faf6a5875ed36e4b220292b5f44cf751315269687c64bdc353e988b8215"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\return_handler.design.md",
+        "last_modified": "2026-03-30T14:05:17.900942",
+        "hash": "b3c2078095d32decf09e739ef10c321424f377756d06a6bf660f39f1998b2433"
+      },
+      "test_file": null
+    },
+    {
+      "name": "safety",
+      "summary": "システムの実行時安全性を確保するための門番。外部コマンドのポリシー検証や破壊的操作のブロックを担当します。",
+      "status": "active",
+      "dependencies": [
+        "config_manager"
+      ],
+      "source_file": null,
+      "design_document": {
+        "path": "src\\safety\\safety.design.md",
+        "last_modified": "2026-03-31T09:19:37.384901",
+        "hash": "633eee4882a76a341d4da2ffe63a6b786f6597a0a12bad99fee2be98911bde07"
+      },
+      "test_file": "tests\\unit\\test_safety.py"
+    },
+    {
+      "name": "safety_evaluator",
+      "summary": "学習ルールの安全性門番。PatternLearnerが生成した改善提案のリスクレベルを算出し、危険なキーワードや破壊的な設定変更を自動的にブロックします。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\autonomous_learning\\safety_evaluator.py",
+        "last_modified": "2026-02-06T17:33:00.760052",
+        "hash": "a920336389a2d5bba758bc5be07db1a6d5b5eb29ffa0c8ef296f770938b6e329"
+      },
+      "design_document": {
+        "path": "src\\autonomous_learning\\safety_evaluator.design.md",
+        "last_modified": "2026-02-09T09:44:55.328798",
+        "hash": "a38e960b4a55a3c72423521f9e3d01dc5d911f57d85cc2680e13ec3d2026ba39"
+      },
+      "test_file": null
+    },
+    {
+      "name": "safety_policy_validator",
+      "summary": "実行時コマンドのポリシー検証。ActionExecutorが実行しようとしているコマンドが、ホワイトリストや安全制約に反していないかを動的にチェックします。",
+      "status": "active",
+      "dependencies": [
+        "action_executor"
+      ],
+      "source_file": {
+        "path": "src\\safety\\safety_policy_validator.py",
+        "last_modified": "2026-04-13T14:02:27.799309",
+        "hash": "8c36de6fa6f5c56d8f8fedc6128aa2826180a309ace7342e9a5daf39aa645340"
+      },
+      "design_document": {
+        "path": "src\\safety\\safety_policy_validator.design.md",
+        "last_modified": "2026-04-13T14:02:48.142523",
+        "hash": "de12ae24bfe9dec05e69409248273d393a05e3c9825994210f9962762b6f27be"
+      },
+      "test_file": null
+    },
+    {
+      "name": "safety_validator",
+      "summary": "高度なTDDサイクルにおける安全性検証。提案された修正がプロジェクトの整合性や基本アーキテクチャを損なわないかを、セマンティックに判定します。",
+      "status": "active",
+      "dependencies": [
+        "semantic_analyzer"
+      ],
+      "source_file": {
+        "path": "src\\advanced_tdd\\safety_validator.py",
+        "last_modified": "2026-01-29T13:17:31.944004",
+        "hash": "70baefcea71b8ebfdefcbc622007824af524a077f757992884d1e7a5bead1a6d"
+      },
+      "design_document": {
+        "path": "src\\advanced_tdd\\safety_validator.design.md",
+        "last_modified": "2026-02-09T10:55:11.786494",
+        "hash": "ce98eddca2a2a3ccb45a6da2a0fe0fb989ae065a230704661d7886b1394ff0e9"
+      },
+      "test_file": null
+    },
+    {
+      "name": "sandbox_provisioner",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "config_manager"
+      ],
+      "source_file": {
+        "path": "src\\code_verification\\sandbox_provisioner.py",
+        "last_modified": "2026-03-09T16:15:56.715717",
+        "hash": "eccd6774d2fb4f6dafb5904934d3efacb464b0c2aec52b662cdf5b49b2e38c1a"
+      },
+      "design_document": {
+        "path": "src\\code_verification\\sandbox_provisioner.design.md",
+        "last_modified": "2026-03-30T14:07:21.727058",
+        "hash": "751ce4d66e660ba133ea821b9f5b3fa17a6afadfc305afc61611885f315a83d8"
+      },
+      "test_file": null
+    },
+    {
+      "name": "semantic_analyzer",
+      "summary": "文の意味的な深掘りを担当。トピック抽出、知識ベース（JMDict等）への照会、および日本語の意味からの逆引き検索機能を提供します。",
+      "status": "active",
+      "dependencies": [
+        "context_utils"
+      ],
+      "source_file": {
+        "path": "src\\semantic_analyzer\\semantic_analyzer.py",
+        "last_modified": "2026-03-19T11:32:23.587873",
+        "hash": "a08e036abca1c465444f13636ba2fc73ee076e2ad28895c5ad76e6fb821e111e"
+      },
+      "design_document": {
+        "path": "src\\semantic_analyzer\\semantic_analyzer.design.md",
+        "last_modified": "2026-03-31T09:15:22.646250",
+        "hash": "525d44a9f7a713e151f133bc650bcb005a5500ed65efe195ec399edbc50995ad"
+      },
+      "test_file": "tests\\unit\\test_semantic_analyzer.py"
+    },
+    {
+      "name": "semantic_assertions",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_verification\\semantic_assertions.py",
+        "last_modified": "2026-03-06T15:35:37.953344",
+        "hash": "c26f9c22215c20760ebf8840e711914cc4759cf14d457be63bd3ef7ba641cca7"
+      },
+      "design_document": {
+        "path": "src\\code_verification\\semantic_assertions.design.md",
+        "last_modified": "2026-03-17T14:17:19.443658",
+        "hash": "067ff03ae04d1cbc9b0340fadb2a56c1ece69ee430178e790562ea9c571728cf"
+      },
+      "test_file": "tests\\unit\\test_semantic_assertions.py"
+    },
+    {
+      "name": "semantic_binder",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_synthesis\\semantic_binder.py",
+        "last_modified": "2026-04-07T13:45:48.908678",
+        "hash": "b0f20c89a63ba6f3fffad3f27e36186c3be7997652695032a28dc524847a73e1"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\semantic_binder.design.md",
+        "last_modified": "2026-03-31T13:44:53.142359",
+        "hash": "cc8fa16d8bbccc1c8344c4eb7a56457ae6e5dcc218ccd1a85e7f460fd8944cdf"
+      },
+      "test_file": null
+    },
+    {
+      "name": "semantic_roles",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "code_synthesis"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\semantic_roles.py",
+        "last_modified": "2026-03-25T13:22:48.732738",
+        "hash": "7f96599c5ca0885d3662eaa8a6ab9a9e5adc58ad4b20b4e4395d601fc144aaeb"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\semantic_roles.design.md",
+        "last_modified": "2026-03-30T14:05:28.057743",
+        "hash": "6263c69a99b9dcf8807a6277e8e81965c99a8a085d7da5616810a62ebcd7f70d"
+      },
+      "test_file": null
+    },
+    {
+      "name": "semantic_search",
+      "summary": "文章ベクトルを用いた高度な意味検索基盤。ハイブリッド検索（セマンティック＋キーワード）機能を提供します。",
+      "status": "active",
+      "dependencies": [
+        "light_vector_db"
+      ],
+      "source_file": null,
+      "design_document": {
+        "path": "src\\semantic_search\\semantic_search.design.md",
+        "last_modified": "2026-04-08T14:10:58.909255",
+        "hash": "e0fed98749333d719baeb36a16d3087186e3af40c92a94685566ee6f744ef282"
+      },
+      "test_file": null
+    },
+    {
+      "name": "semantic_search_base",
+      "summary": "セマンティック検索の基底クラス。ベクトルエンジンを用いた類似度計算と、キーワード検索を統合したハイブリッド検索の抽象ロジックを提供します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\semantic_search\\semantic_search_base.py",
+        "last_modified": "2026-04-07T10:23:37.088663",
+        "hash": "60e3c723582491aba9f059a0aaa8bbc3965b0d99b5fc82ad533a696087febf21"
+      },
+      "design_document": {
+        "path": "src\\semantic_search\\semantic_search_base.design.md",
+        "last_modified": "2026-04-08T14:11:08.349523",
+        "hash": "4f4f612b6ddaf0a83b21773507ac00ee16ad58afaab78964555c73b446c0ff16"
+      },
+      "test_file": null,
+      "dependencies": [
+        "light_vector_db"
+      ]
+    },
+    {
+      "name": "semantic_tags",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "config_manager",
+        "morph_analyzer"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\action_handlers\\semantic_tags.py",
+        "last_modified": "2026-03-25T13:23:04.529199",
+        "hash": "3d249f5354c6d4871379fc5486e5887fa608d2da89d4deee997dc2662fb5bea3"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\action_handlers\\semantic_tags.design.md",
+        "last_modified": "2026-03-30T14:05:38.664287",
+        "hash": "420508dcf1a69b158f5a5b00b1cd1287ca9ff14b7cb56da53287d4832b44de27"
+      },
+      "test_file": null
+    },
+    {
+      "name": "service_generation",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\service_generation.py",
+        "last_modified": "2026-04-02T15:55:02.390775",
+        "hash": "35102d108c0f80bfab004da8fa8e718b36102d3311a5f0540661e94029e3e8d2"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\service_generation.design.md",
+        "last_modified": "2026-04-02T16:30:39.860110",
+        "hash": "46e222e0a8b28992243448b68e27e5a827c346ba134d337f3c545252717b7ae5"
+      },
+      "test_file": null
+    },
+    {
+      "name": "service_renderer",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\renderers\\service_renderer.py",
+        "last_modified": "2026-03-25T10:11:55.720649",
+        "hash": "58cdd14712bdef927b6f57ce0cfbb607a48018d1fe2303df77aa5d3266f6e360"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\renderers\\service_renderer.design.md",
+        "last_modified": "2026-03-30T13:58:58.303647",
+        "hash": "6d100035271e83794331c5e28dba29452b7652a53d4393de6006e12df6e368b3"
+      },
+      "test_file": null
+    },
+    {
+      "name": "service_test_builder",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "test_generator"
+      ],
+      "source_file": {
+        "path": "src\\test_generator\\service_test_builder.py",
+        "last_modified": "2026-04-02T14:21:36.674011",
+        "hash": "53a7bf08e2c0323cf3141816f01d88f67b9945e0395aad5390503a6d56de6178"
+      },
+      "design_document": {
+        "path": "src\\test_generator\\service_test_builder.design.md",
+        "last_modified": "2026-03-31T17:05:54.115404",
+        "hash": "702cb123f1d19f16cfc6bf817b24637faa0e63491ab9dee4636cca358daa0872"
+      },
+      "test_file": null
+    },
+    {
+      "name": "service_test_generator",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "test_generator"
+      ],
+      "source_file": {
+        "path": "src\\test_generator\\service_test_generator.py",
+        "last_modified": "2026-04-02T14:20:57.610584",
+        "hash": "e8f075f789decea56ad856e3039c1e2100e0000c3d46d3279831f0cf180a2147"
+      },
+      "design_document": {
+        "path": "src\\test_generator\\service_test_generator.design.md",
+        "last_modified": "2026-03-31T17:06:04.049181",
+        "hash": "97a8d8302b4eacf623a4f7f31c944418a8387898100b10ba8413435ba99b8fda"
+      },
+      "test_file": null
+    },
+    {
+      "name": "session_manager",
+      "summary": "ユーザーセッションの一意性管理。複数の並列する対話を識別し、それぞれの状態や一時データを分離して保持します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\task_manager\\session_manager.py",
+        "last_modified": "2026-03-24T15:27:41.449673",
+        "hash": "e69672cd4079e28351858cd4a0fbd55c4c862b58a87eb55d211603a90895f981"
+      },
+      "design_document": {
+        "path": "src\\task_manager\\session_manager.design.md",
+        "last_modified": "2026-03-31T09:20:05.798044",
+        "hash": "6bf48a934039c28f00715f567fcb7e3dde691065feb9053facb5e7c69271d6c8"
+      },
+      "test_file": null,
+      "dependencies": [
+        "config_manager"
+      ]
+    },
+    {
+      "name": "spec_auditor",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\utils\\spec_auditor.py",
+        "last_modified": "2026-04-09T11:40:16.225459",
+        "hash": "5048983841c9e7d70587dc52a33290a253e16b0bdb55323759e6affc96b17650"
+      },
+      "design_document": {
+        "path": "src\\utils\\spec_auditor.design.md",
+        "last_modified": "2026-03-17T14:16:07.956940",
+        "hash": "a0b58f0e134195442eb7f07ed8966797cc007378ec43c4a8cc6f8df1cd2f790b"
+      },
+      "test_file": null
+    },
+    {
+      "name": "spec_completion",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\spec_completion.py",
+        "last_modified": "2026-04-03T10:59:13.626214",
+        "hash": "48ec91c9e69562ccf985c33e67e3f3332222e87dbc70fb2a18954ea34bfbebeb"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\spec_completion.design.md",
+        "last_modified": "2026-04-02T16:30:39.867856",
+        "hash": "bb34984707d99c6e69f532d24f58cb09173efd53a869eb77c57de28e279164da"
+      },
+      "test_file": null
+    },
+    {
+      "name": "spec_helpers",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\spec_helpers.py",
+        "last_modified": "2026-04-02T15:58:07.662393",
+        "hash": "2eb3e81a8e2aa0dc71d7c306063ca69b75e7c9a77740b03b9946179b51afbf9e"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\spec_helpers.design.md",
+        "last_modified": "2026-04-02T16:30:39.867856",
+        "hash": "4493290937ac39d74a1363b9caf0cb968b4417dd7ac5040ff2e40b812a579f1e"
+      },
+      "test_file": null
+    },
+    {
+      "name": "stages",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\pipeline_core\\stages.py",
+        "last_modified": "2026-04-13T10:51:53.216280",
+        "hash": "de881c43427af43dc94ee9052a31fed34020f493947d1dd45feb25e844eb1cb9"
+      },
+      "design_document": {
+        "path": "src\\pipeline_core\\stages.design.md",
+        "last_modified": "2026-04-13T13:44:31.272141",
+        "hash": "fbf75e6ca9897b35c34a2fb1da103c4513b0984c4e4f8f0be985b04a0e2fe176"
+      },
+      "test_file": null
+    },
+    {
+      "name": "statement_builder",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_synthesis\\statement_builder.py",
+        "last_modified": "2026-04-07T13:46:45.961956",
+        "hash": "1cefa07a6bb1a198c289112b6670497f9f8d1aa14b718d9d7955f03f45a6266e"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\statement_builder.design.md",
+        "last_modified": "2026-03-31T11:51:07.465885",
+        "hash": "e9d101df7d38c92ae5c49c4c5e8d3a3693043154db95d4a282810a1d3b98dced"
+      },
+      "test_file": null
+    },
+    {
+      "name": "structural_memory",
+      "summary": "プロジェクトの「構造的記憶」。クラスやメソッドの役割をセマンティックにインデックス化し、類似機能の検索や重複実装の検出を可能にします。",
+      "status": "active",
+      "dependencies": [
+        "SemanticSearchBase",
+        "ASTAnalyzer",
+        "VectorEngine",
+        "MorphAnalyzer",
+        "ConfigManager"
+      ],
+      "source_file": {
+        "path": "src\\autonomous_learning\\structural_memory.py",
+        "last_modified": "2026-04-13T13:40:28.261143",
+        "hash": "f4a409a5fa7c4fba8be7491a0128e5e59094947c2302ce96554e8ec4abae6e09"
+      },
+      "design_document": {
+        "path": "src\\autonomous_learning\\structural_memory.design.md",
+        "last_modified": "2026-04-13T13:44:35.418830",
+        "hash": "7999422c976c52fb964846bcc2efe561bfcc1f65f6239bb0ef9092f066fd57c6"
+      },
+      "test_file": null
+    },
+    {
+      "name": "structured_parser",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "validator"
+      ],
+      "source_file": {
+        "path": "src\\design_parser\\structured_parser.py",
+        "last_modified": "2026-04-09T14:28:30.743850",
+        "hash": "39e967ff12e94fd791172a78f33a48af33e074b8adb5777f7745633d7e914179"
+      },
+      "design_document": {
+        "path": "src\\design_parser\\structured_parser.design.md",
+        "last_modified": "2026-03-31T09:14:54.007221",
+        "hash": "891f552252ae0a92a957f14cbaa782b1bb1349f1c5e01fe76fbf8a1b64f19581"
+      },
+      "test_file": null
+    },
+    {
+      "name": "suggestion_engine",
+      "summary": "改善提案エンジン。コード構造に基づき、「メソッドの抽出」「変数のリネーム」などの具体的なコード変更パターンを提示します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\refactoring_analyzer\\metrics\\suggestion_engine.py",
+        "last_modified": "2026-01-29T17:00:53.670831",
+        "hash": "dc830402ff65274e60acbc175a061174c1c7c5bcec19d508b0564c65010ad79e"
+      },
+      "design_document": {
+        "path": "src\\refactoring_analyzer\\metrics\\suggestion_engine.design.md",
+        "last_modified": "2026-02-09T11:08:29.508462",
+        "hash": "aeac4ee9be3d661cb06afd6bc81d2ec2eb3db879c221a52d0559a96b4246de94"
+      },
+      "test_file": null
+    },
+    {
+      "name": "symbol_matcher",
+      "summary": "シンボル（識別子）の対応付けエンジン。異なる文脈や言語間で、同一の概念（変数、クラス、メソッド）を指しているかを意味的に判定します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\symbol_matching\\symbol_matcher.py",
+        "last_modified": "2026-03-25T14:56:06.611274",
+        "hash": "3e3927e85147eec8eeed359f15ec126885dc9b6663efb5e27fd8777a69714c11"
+      },
+      "design_document": {
+        "path": "src\\symbol_matching\\symbol_matcher.design.md",
+        "last_modified": "2026-03-31T09:15:36.283744",
+        "hash": "67c2ad00040653660e7f83cef9c9a7c68adb1e9257ebca6685fc6bc2c169b3d8"
+      },
+      "test_file": null,
+      "dependencies": [
+        "vector_engine"
+      ]
+    },
+    {
+      "name": "symbol_matching",
+      "summary": "異なる文脈（日本語指示、コード内識別子、辞書定義等）の間で、同一概念（シンボル）を紐付けるモジュール。",
+      "status": "active",
+      "dependencies": [
+        "symbol_matcher"
+      ],
+      "source_file": null,
+      "design_document": {
+        "path": "src\\symbol_matching\\symbol_matching.design.md",
+        "last_modified": "2026-03-31T09:15:40.535474",
+        "hash": "622636ed44945e42cfb401e6b2a11384ad626c0506d63e21e6bcbce95663b98b"
+      },
+      "test_file": null
+    },
+    {
+      "name": "syntactic_analyzer",
+      "summary": "文節抽出とトークン間依存関係の解析。入力文の構造（何が何にかかっているか）を明確にし、エンティティ抽出や意図理解の精度を高めます。",
+      "status": "active",
+      "dependencies": [
+        "pipeline_core"
+      ],
+      "source_file": {
+        "path": "src\\syntactic_analyzer\\syntactic_analyzer.py",
+        "last_modified": "2026-02-17T15:39:37.471110",
+        "hash": "a16c4e7cc42eb029d48be0974a893d1df8d28f17f191e2bd26d7fb8ab0d504c7"
+      },
+      "design_document": {
+        "path": "src\\syntactic_analyzer\\syntactic_analyzer.design.md",
+        "last_modified": "2026-03-03T14:55:03.044758",
+        "hash": "5bc471526186bca35aba0b63fba56f58bfcb71590e0e1b3c160ab6f130341f5e"
+      },
+      "test_file": "tests\\unit\\test_syntactic_analyzer.py"
+    },
+    {
+      "name": "synthesis_pipeline",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "design_parser"
+      ],
+      "source_file": {
+        "path": "src\\code_synthesis\\synthesis_pipeline.py",
+        "last_modified": "2026-03-26T11:34:44.997212",
+        "hash": "a1be632becc0c3daaacbdcf815b64800b32b5f64751a14c4523d8b39d165dcaf"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\synthesis_pipeline.design.md",
+        "last_modified": "2026-03-30T13:57:56.846294",
+        "hash": "76f5d648a42b4f26a47c706b8b815bd52455b7735336bb00ab8b59acd1ab613b"
+      },
+      "test_file": null
+    },
+    {
+      "name": "task_manager",
+      "summary": "長時間にわたるタスクの状態追跡。複数ターンの対話における進捗管理、承認待ち状態の維持、およびタスクの永続化を担当します。",
+      "status": "active",
+      "dependencies": [
+        "config_manager"
+      ],
+      "source_file": {
+        "path": "src\\task_manager\\task_manager.py",
+        "last_modified": "2026-04-07T11:18:42.546615",
+        "hash": "615bf249dc73ace3bec0607f517555fd6f1affb27db360d997111620afa31582"
+      },
+      "design_document": {
+        "path": "src\\task_manager\\task_manager.design.md",
+        "last_modified": "2026-04-08T14:05:33.592725",
+        "hash": "54d1de6f8effdab904acf18c603da147a7ceb28c75a5c376bcc541fb1c0247ad"
+      },
+      "test_file": "tests\\unit\\test_task_manager.py"
+    },
+    {
+      "name": "task_persistence",
+      "summary": "タスク情報の永続化。アクティブなタスクや過去の完了タスクをJSON形式でストレージに保存し、再起動時の復元を可能にします。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\task_manager\\task_persistence.py",
+        "last_modified": "2026-01-26T09:55:13.116933",
+        "hash": "184175d820e0e4cc09b38fedfd9b31e41c16967ec45324ccf0bc72afa34dc72c"
+      },
+      "design_document": {
+        "path": "src\\task_manager\\task_persistence.design.md",
+        "last_modified": "2026-01-29T13:54:49.638521",
+        "hash": "161d863ca255d01d018b1d1089bdb3f1178cd76f450690722b22686f994f1435"
+      },
+      "test_file": null
+    },
+    {
+      "name": "tdd_operations",
+      "summary": "テスト駆動開発の実務モジュール。テスト失敗からの自動分析、修正案の一括適用、ビルド検証、および失敗時の自動ロールバックを担当します。",
+      "status": "active",
+      "dependencies": [
+        "ActionExecutor",
+        "CSharpOperations"
+      ],
+      "source_file": {
+        "path": "src\\tdd_operations\\tdd_operations.py",
+        "last_modified": "2026-02-09T14:24:04.668389",
+        "hash": "31897216d894657e6dc9dd51ac8c6cd3e641f1fdcd6dc7ed23c9b3472cd14b51"
+      },
+      "design_document": {
+        "path": "src\\tdd_operations\\tdd_operations.design.md",
+        "last_modified": "2026-02-10T09:33:53.849053",
+        "hash": "5a5e97868fab75276ea1a68e7c4e2e9099eed50af2cf72b7860b2611bdba2d96"
+      },
+      "test_file": null
+    },
+    {
+      "name": "template_engine",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\template_engine.py",
+        "last_modified": "2026-03-24T09:48:44.755482",
+        "hash": "7f3445124970213890c6dff3a4d2f8e5f21b4d0ea355a3f3cecb5f3ffa3a54f6"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\template_engine.design.md",
+        "last_modified": "2026-03-30T13:58:36.948668",
+        "hash": "c80aeb4295c812aa9a44dfe28422389e99dad744820feed00e56466791a250f9"
+      },
+      "test_file": null
+    },
+    {
+      "name": "template_registry",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_synthesis\\template_registry.py",
+        "last_modified": "2026-03-13T17:13:33.033528",
+        "hash": "0c5e493cc27a3a4ed853513d0f81d8ed4da6ccfb7256b3ac3a944be26142148d"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\template_registry.design.md",
+        "last_modified": "2026-03-17T14:07:29.246486",
+        "hash": "162873afc3b15589e96dd05e3456f098a8238fccf4c625029a40f790deb57cf9"
+      },
+      "test_file": null
+    },
+    {
+      "name": "test_generator",
+      "summary": "ソース構造に基づいたテスト自動生成。正常系・異常系・境界値のシナリオ抽出と、多言語（C#, Python, JS）に対応したテストコード生成を行います。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\test_generator\\test_generator.py",
+        "last_modified": "2026-04-07T14:04:36.800366",
+        "hash": "6311bcdd87043119998027c8293d558260f397be52b49e3d5e4b4171c799b096"
+      },
+      "design_document": {
+        "path": "src\\test_generator\\test_generator.design.md",
+        "last_modified": "2026-04-02T16:32:45.373926",
+        "hash": "c1ba583a3dcabb199efb51be2f4ce7467ec250c9b72bc9a3fefb1379a9bcb539"
+      },
+      "test_file": null,
+      "dependencies": [
+        "design_doc_parser"
+      ]
+    },
+    {
+      "name": "test_operations",
+      "summary": "テスト生成・実行の管理。ActionExecutorから呼び出され、テストケース作成、カバレッジ測定、ギャップ分析のプロセスを統括します。",
+      "status": "active",
+      "dependencies": [
+        "csharp_operations"
+      ],
+      "source_file": {
+        "path": "src\\test_operations\\test_operations.py",
+        "last_modified": "2026-04-07T14:04:41.626963",
+        "hash": "b3c7ee77756450cef3ac77d696c756a3724c3380563e160ab585fc16e71979ff"
+      },
+      "design_document": {
+        "path": "src\\test_operations\\test_operations.design.md",
+        "last_modified": "2026-03-31T09:15:55.652968",
+        "hash": "5a7a9bd4a0fec98c9d59ef01606c7273b6e6a432d43f88b1e6f90a609ebc7412"
+      },
+      "test_file": null
+    },
+    {
+      "name": "text_parser",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "utils"
+      ],
+      "source_file": {
+        "path": "src\\utils\\text_parser.py",
+        "last_modified": "2026-03-19T11:40:27.380690",
+        "hash": "369d53ee9213254b43e20990f8669e3e18c802b7aa8e8b241758d46c8e6175b0"
+      },
+      "design_document": {
+        "path": "src\\utils\\text_parser.design.md",
+        "last_modified": "2026-03-30T14:07:55.802207",
+        "hash": "a650f7319509a7787cb31bca9c531d0f8b01503e2532586febdfaf88769159b4"
+      },
+      "test_file": null
+    },
+    {
+      "name": "type_system",
+      "summary": "コード合成のための型定義管理。多言語間で共通の型情報（POCO、インターフェース等）を抽出し、シグネチャの整合性を維持します。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\code_synthesis\\type_system.py",
+        "last_modified": "2026-04-07T13:40:09.601141",
+        "hash": "29b6b39662d4f2b2d3cae9a94386ebbc1ea7d21e84e7e7047839ed1f50b612de"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\type_system.design.md",
+        "last_modified": "2026-03-31T11:51:07.465885",
+        "hash": "c97d883c674eed33782b4a9efdb5b8610e7a292abda36f7338b8d229969827b9"
+      },
+      "test_file": null
+    },
+    {
+      "name": "unified_knowledge_base",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_synthesis\\unified_knowledge_base.py",
+        "last_modified": "2026-04-07T13:27:30.992064",
+        "hash": "444dccc7478d50aa9b4453467c927a505874f79edf8c902e63aad8147de4e2a9"
+      },
+      "design_document": {
+        "path": "src\\code_synthesis\\unified_knowledge_base.design.md",
+        "last_modified": "2026-03-31T11:51:07.466884",
+        "hash": "05b8b896e3c172538f517504d6905a1f2f60ab90a611c174cc2f41adc2135e58"
+      },
+      "test_file": null
+    },
+    {
+      "name": "utils",
+      "summary": "プロジェクト全体で使用される共通ユーティリティ群（文字列操作、コレクション操作、環境判定等）。",
+      "status": "active",
+      "design_document": {
+        "path": "src\\utils\\utils.design.md",
+        "last_modified": "2026-04-02T16:32:54.036291",
+        "hash": "3009240112984e77c73c4110f0be526c371d77b07ceeb97f617e30eb882c3cdb"
+      },
+      "source_file": null,
+      "test_file": "tests\\unit\\test_utils.py",
+      "dependencies": [
+        "retry_utils"
+      ]
+    },
+    {
+      "name": "validation_renderer",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\code_generation\\renderers\\validation_renderer.py",
+        "last_modified": "2026-03-31T16:10:46.405934",
+        "hash": "0a06ffe699de4dbed74f78f14f2c5a27b9a4f99800499bae8d2931942f83211a"
+      },
+      "design_document": {
+        "path": "src\\code_generation\\renderers\\validation_renderer.design.md",
+        "last_modified": "2026-03-31T16:30:41.240071",
+        "hash": "fbbc8a62c1202652da8e8e19d98b135d5d1d04cd222a26780fa8fe909ae81a22"
+      },
+      "test_file": null
+    },
+    {
+      "name": "validator",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "なし（標準ライブラリのみ）"
+      ],
+      "source_file": {
+        "path": "src\\design_parser\\validator.py",
+        "last_modified": "2026-03-24T15:22:24.908368",
+        "hash": "7ecc46fa80eb9230839eedc9f0d671ee656e182c6be6455ca203796d928754b5"
+      },
+      "design_document": {
+        "path": "src\\design_parser\\validator.design.md",
+        "last_modified": "2026-03-30T13:25:15.039020",
+        "hash": "29e120a44b6c28fb67fa16fd5b3c994ca4414647ed103a1835c638f9c533da32"
+      },
+      "test_file": null
+    },
+    {
+      "name": "vector_engine",
+      "summary": "chiVe等の事前学習モデルを用いたベクトル演算コア。自然言語のセマンティック検索、類似度計算、および意味特徴量の抽出を担当する共通基盤です。",
+      "status": "active",
+      "source_file": {
+        "path": "src\\vector_engine\\vector_engine.py",
+        "last_modified": "2026-04-07T11:50:42.666546",
+        "hash": "5341f1b2cadc59907efdd34ad0e0300afea62193299be9f3005d934cdc4c01f6"
+      },
+      "design_document": {
+        "path": "src\\vector_engine\\vector_engine.design.md",
+        "last_modified": "2026-04-08T14:11:39.202460",
+        "hash": "cec3b63fb02d1625920a0e5cb4c7e5e498b04158568269075349b8e3ed2f9cb3"
+      },
+      "test_file": "tests\\unit\\test_vector_engine.py"
+    }
+  ],
+  "tools_catalog": [
+    {
+      "name": "CodeBuilder",
+      "language": "csharp",
+      "summary": "Auto-discovered tool.",
+      "status": "discovered",
+      "dependencies": [],
+      "path": "tools\\csharp\\CodeBuilder",
+      "last_modified": "2026-03-30T13:40:43.621928",
+      "readme_file": null,
+      "config_file": null,
+      "design_document": {
+        "path": "tools\\csharp\\CodeBuilder\\CodeBuilder.design.md",
+        "last_modified": "2026-03-30T13:40:43.622928",
+        "hash": "eaafdc3d1e88646f46a498fd01b24b7fbaf26e7ce2221230d0171c4eee977456"
+      }
+    },
+    {
+      "name": "MethodHarvesterCLI",
+      "language": "csharp",
+      "summary": "Auto-discovered tool.",
+      "status": "discovered",
+      "dependencies": [],
+      "path": "tools\\csharp\\MethodHarvesterCLI",
+      "last_modified": "2026-02-05T10:39:22.959202",
+      "readme_file": null,
+      "config_file": null
+    },
+    {
+      "name": "MyRoslynAnalyzer",
+      "language": "csharp",
+      "summary": "C#のソースコードを解析し、クラス構造、メソッド定義、および呼び出し関係を抽出するRoslynベースの静的解析ツール。",
+      "status": "active",
+      "dependencies": [],
+      "path": "tools\\csharp\\MyRoslynAnalyzer",
+      "last_modified": "2026-03-30T13:41:02.532902",
+      "readme_file": null,
+      "config_file": {
+        "path": "tools\\csharp\\MyRoslynAnalyzer\\config.json",
+        "last_modified": "2026-01-20T11:37:18.476978",
+        "hash": "eef4f104a981450cde1e09c38729e939ba3d1501d0a49fa49575956d9c1323fb"
+      },
+      "design_document": {
+        "path": "tools\\csharp\\MyRoslynAnalyzer\\MyRoslynAnalyzer.design.md",
+        "last_modified": "2026-03-30T13:41:02.532902",
+        "hash": "13793acdeee2c6c0ccc78024d22ca69451b6190b966a8f0c5c6686d4db3baee0"
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "required.string": "if (string.IsNullOrWhiteSpace({Var}.{Field})) return null;",
+  "required.value": "if ({Var}.{Field} == default) return null;",
+  "min_len": "if ({Var}.{Field} != null && {Var}.{Field}.Length < {Min}) return null;",
+  "max_len": "if ({Var}.{Field} != null && {Var}.{Field}.Length > {Max}) return null;",
+  "contains": "if ({Var}.{Field} == null || !{Var}.{Field}.Contains(\"{Token}\")) return null;",
+  "min_value": "if ({Var}.{Field} < {Min}) return null;",
+  "max_value": "if ({Var}.{Field} > {Max}) return null;"
+}

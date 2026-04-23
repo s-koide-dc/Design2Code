@@ -1,0 +1,10 @@
+{
+  "Dapper": {
+    "name": "Dapper",
+    "version": "2.1.72"
+  },
+  "Microsoft.Extensions.Logging": {
+    "name": "Microsoft.Extensions.Logging",
+    "version": "10.0.5"
+  }
+}

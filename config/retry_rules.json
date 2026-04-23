@@ -1,0 +1,18 @@
+{
+    "retry_rules": [
+        {
+            "error_type": "FileNotFoundError",
+            "condition": "filename is similar to existing files",
+            "suggestion": "指定されたファイルが見つかりませんでした。もしかして '{suggested_filename}' のことでしょうか？",
+            "alternative_action": "LIST_DIR",
+            "alternative_message": "ファイル一覧を表示しますか？"
+        },
+        {
+            "error_type": "PermissionError",
+            "condition": "action is FILE_CREATE or FILE_APPEND",
+            "suggestion": "権限エラーが発生しました。別の場所（例: ワークスペースのルート）に作成してみますか？",
+            "alternative_action": "PROMPT_FOR_NEW_LOCATION",
+            "alternative_message": "別のパスを指定してください。"
+        }
+    ]
+}

@@ -1,0 +1,52 @@
+{
+  "service.list": [
+    "var items = _repo.{RepoList}();",
+    "return items == null ? new List<{ResponseDto}>() : items.Select({ResponseDto}.FromEntity).Where(r => r != null).Select(r => r!).ToList();"
+  ],
+  "service.get": [
+    "var item = _repo.{RepoGet}(id);",
+    "return {ResponseDto}.FromEntity(item);"
+  ],
+  "service.create": [
+    "if (req == null) return null;",
+    "{ValidationGuards}",
+    "var entity = req.ToEntity();",
+    "return {ResponseDto}.FromEntity(_repo.{RepoCreate}(entity));"
+  ],
+  "service.update": [
+    "if (req == null) return null;",
+    "{ValidationGuards}",
+    "var existing = _repo.{RepoGet}(id);",
+    "if (existing == null) return null;",
+    "{UpdateAssignments}",
+    "var updated = _repo.{RepoUpdate}(id, existing);",
+    "if (updated == null) return null;",
+    "{TimestampAssignment}",
+    "return {ResponseDto}.FromEntity(updated);"
+  ],
+  "service.delete": [
+    "return _repo.{RepoDelete}(id);"
+  ],
+  "repo.fetch_all": [
+    "return _db.Query<{Entity}>(\"{Sql}\").ToList();"
+  ],
+  "repo.fetch_by_id": [
+    "return _db.QuerySingleOrDefault<{Entity}>(\"{Sql}\", new { Id = id });"
+  ],
+  "repo.insert": [
+    "const string sql = \"{Sql}; SELECT CAST(SCOPE_IDENTITY() as int);\";",
+    "var newId = _db.ExecuteScalar<int>(sql, {ParamObject});",
+    "return new {Entity} { Id = newId{InitObject} };"
+  ],
+  "repo.update": [
+    "const string sql = \"{Sql}\";",
+    "var rows = _db.Execute(sql, {ParamObjectWithId});",
+    "if (rows <= 0) return null;",
+    "return new {Entity} { Id = id{InitObject} };"
+  ],
+  "repo.delete": [
+    "const string sql = \"{Sql}\";",
+    "var rows = _db.Execute(sql, new { Id = id });",
+    "return rows > 0;"
+  ]
+}

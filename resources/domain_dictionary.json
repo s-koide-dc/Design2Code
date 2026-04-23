@@ -1,0 +1,532 @@
+{
+  "mappings": {
+    "閾値": [
+      "threshold",
+      "limit",
+      "max",
+      "min"
+    ],
+    "しきい値": [
+      "threshold"
+    ],
+    "ユーザー名": [
+      "username",
+      "user_name",
+      "login"
+    ],
+    "名前": [
+      "name"
+    ],
+    "価格": [
+      "price",
+      "cost",
+      "amount",
+      "value"
+    ],
+    "金額": [
+      "amount",
+      "price",
+      "total",
+      "value"
+    ],
+    "合計金額": [
+      "total",
+      "amount",
+      "totalamount"
+    ],
+    "顧客タイプ": [
+      "customertype",
+      "customer_type",
+      "type"
+    ],
+    "メールアドレス": [
+      "email",
+      "mail"
+    ],
+    "メール": [
+      "email",
+      "mail"
+    ],
+    "年齢": [
+      "age"
+    ],
+    "作成": [
+      "create",
+      "add",
+      "insert",
+      "new"
+    ],
+    "検証": [
+      "validate",
+      "check",
+      "verify"
+    ],
+    "チェック": [
+      "check",
+      "verify",
+      "validate",
+      "exists"
+    ],
+    "計算": [
+      "calculate",
+      "calc",
+      "compute",
+      "算出"
+    ],
+    "割引": [
+      "Discount",
+      "discount",
+      "ディスカウント"
+    ],
+    "税金": [
+      "tax",
+      "vat"
+    ],
+    "成功": [
+      "success",
+      "ok",
+      "passed"
+    ],
+    "一致度": [
+      "compliance"
+    ],
+    "取得": [
+      "get",
+      "fetch",
+      "retrieve",
+      "find",
+      "read",
+      "download",
+      "receive"
+    ],
+    "保存": [
+      "save",
+      "store",
+      "insert",
+      "persist",
+      "upsert",
+      "upload",
+      "write"
+    ],
+    "更新": [
+      "update",
+      "modify",
+      "edit",
+      "patch"
+    ],
+    "削除": [
+      "delete",
+      "remove",
+      "clear",
+      "destroy"
+    ],
+    "送信": [
+      "send",
+      "post",
+      "dispatch",
+      "emit"
+    ],
+    "変換": [
+      "select",
+      "convert",
+      "parse",
+      "map",
+      "transform",
+      "deserialize",
+      "serialize"
+    ],
+    "ユーザー": [
+      "user",
+      "account",
+      "member"
+    ],
+    "種別": [
+      "Type",
+      "Category",
+      "Kind",
+      "Rank",
+      "Classification"
+    ],
+    "顧客タイプ": [
+      "CustomerType",
+      "UserType",
+      "Rank",
+      "MemberType",
+      "Type",
+      "Category"
+    ],
+    "タイプ": [
+      "Type",
+      "Category",
+      "Kind"
+    ],
+    "合計金額": [
+      "TotalAmount",
+      "Amount",
+      "Total",
+      "Price",
+      "Sum"
+    ],
+    "金額": [
+      "Amount",
+      "Price",
+      "Total",
+      "Value",
+      "TotalAmount",
+      "Cost"
+    ],
+    "価格": [
+      "Price",
+      "Cost",
+      "Amount",
+      "Value",
+      "UnitPrice"
+    ],
+    "割引額": [
+      "Discount",
+      "DiscountAmount",
+      "Amount"
+    ],
+    "割引": [
+      "Discount",
+      "discount",
+      "ディスカウント"
+    ],
+    "読み込む": [
+      "read",
+      "load",
+      "input",
+      "open"
+    ],
+    "書き込む": [
+      "write",
+      "output",
+      "save",
+      "append"
+    ],
+    "出力": [
+      "output",
+      "log",
+      "write",
+      "display",
+      "print"
+    ],
+    "名前": [
+      "Name",
+      "DisplayName",
+      "呼称"
+    ],
+    "文字列": [
+      "string",
+      "text",
+      "content"
+    ],
+    "リスト": [
+      "list",
+      "collection",
+      "array",
+      "enumerable"
+    ],
+    "件数": [
+      "count",
+      "size",
+      "length",
+      "amount"
+    ],
+    "分割": [
+      "split",
+      "divide",
+      "separator"
+    ],
+    "解析": [
+      "deserialize",
+      "jsonserializer",
+      "parse",
+      "analyze"
+    ],
+    "直列化": [
+      "serialize",
+      "jsonserializer",
+      "convert",
+      "export"
+    ],
+    "一覧": [
+      "files",
+      "list",
+      "getfiles",
+      "enumerate",
+      "listing"
+    ],
+    "フォルダ": [
+      "directory",
+      "folder",
+      "path"
+    ],
+    "存在": [
+      "exists",
+      "check",
+      "contain"
+    ],
+    "絞り込む": [
+      "where",
+      "filter",
+      "search"
+    ],
+    "抽出": [
+      "where",
+      "filter",
+      "select",
+      "extract"
+    ],
+    "条件": [
+      "where",
+      "predicate",
+      "condition"
+    ],
+    "平均": [
+      "average",
+      "avg",
+      "mean"
+    ],
+    "合計": [
+      "total",
+      "sum",
+      "amount",
+      "総計"
+    ],
+    "最大": [
+      "max",
+      "maximum"
+    ],
+    "最小": [
+      "min",
+      "minimum"
+    ],
+    "正規表現": [
+      "regex",
+      "match",
+      "pattern"
+    ],
+    "一致": [
+      "match",
+      "equals",
+      "is match"
+    ],
+    "デシリアライズ": [
+      "deserialize",
+      "jsonserializer",
+      "parse",
+      "json"
+    ],
+    "シリアライズ": [
+      "serialize",
+      "jsonserializer",
+      "convert",
+      "json"
+    ],
+    "準備": [
+      "new",
+      "create",
+      "initialize",
+      "setup"
+    ],
+    "連結": [
+      "join",
+      "combine",
+      "concat",
+      "aggregate"
+    ],
+    "結合": [
+      "join",
+      "combine",
+      "concat",
+      "merge"
+    ],
+    "オブジェクト": [
+      "deserialize",
+      "json",
+      "convert"
+    ],
+    "json": [
+      "getasync",
+      "serialize",
+      "json",
+      "convert",
+      "http"
+    ],
+    "yaml": [
+      "serialize",
+      "yaml",
+      "convert"
+    ],
+    "ログ": [
+      "log",
+      "logging",
+      "trace",
+      "history"
+    ],
+    "顧客": [
+      "Customer",
+      "Client",
+      "User"
+    ],
+    "注文": [
+      "Order",
+      "order",
+      "OrderInfo"
+    ],
+    "メッセージ": [
+      "message",
+      "text",
+      "content"
+    ],
+    "表示": [
+      "display",
+      "print",
+      "output",
+      "show"
+    ],
+    "コンソール": [
+      "console",
+      "display",
+      "writeline"
+    ],
+    "ポイント": [
+      "Points",
+      "Score",
+      "Rating"
+    ]
+  },
+  "metadata": {
+    "version": "1.0.3",
+    "description": "Consolidated dictionary for Phase 27."
+  },
+  "tags": {
+    "notification": [
+      "通知",
+      "知らせる",
+      "報告",
+      "完了",
+      "message",
+      "notify",
+      "メッセージ"
+    ],
+    "quantity": [
+      "数量",
+      "個数",
+      "qty",
+      "quantity"
+    ],
+    "datetime_now": [
+      "現在時刻",
+      "現在日時",
+      "現在の日時",
+      "今の時間",
+      "現在の時刻"
+    ],
+    "datetime_utc_now": [
+      "UTC時刻",
+      "UTC日時",
+      "現在時刻(UTC)"
+    ],
+    "update_intent": [
+      "設定",
+      "更新",
+      "書き換える",
+      "セット",
+      "set",
+      "update"
+    ],
+    "aggregation_intent": [
+      "加算",
+      "合計",
+      "累計",
+      "集計",
+      "add",
+      "sum",
+      "aggregate"
+    ],
+    "last_hint": [
+      "最後",
+      "最終",
+      "Last"
+    ],
+    "http_write": [
+      "登録",
+      "送信",
+      "POST",
+      "更新",
+      "作成"
+    ],
+    "persist_intent": [
+      "更新",
+      "変更",
+      "書き換え",
+      "保存",
+      "反映",
+      "update",
+      "persist"
+    ],
+    "heuristic_else": [
+      "そうでなければ",
+      "それ以外"
+    ],
+    "heuristic_end": [
+      "を終えて",
+      "終了"
+    ],
+    "heuristic_condition": [
+      "もし",
+      "ならば",
+      "であれば",
+      "の場合"
+    ],
+    "heuristic_loop": [
+      "各",
+      "それぞれ"
+    ],
+    "heuristic_exists": [
+      "存在",
+      "チェック",
+      "exists"
+    ],
+    "heuristic_fetch": [
+      "取得",
+      "一覧",
+      "読み込",
+      "ダウンロード"
+    ],
+    "heuristic_linq": [
+      "絞り込",
+      "フィルタ",
+      "抽出"
+    ],
+    "heuristic_transform": [
+      "変換",
+      "Select",
+      "選択"
+    ],
+    "heuristic_display": [
+      "表示",
+      "出力",
+      "ログ"
+    ],
+    "heuristic_persist": [
+      "保存",
+      "書き込"
+    ],
+    "heuristic_entity_user": [
+      "ユーザー"
+    ],
+    "heuristic_entity_product": [
+      "商品",
+      "製品"
+    ],
+    "heuristic_entity_inventory": [
+      "在庫"
+    ],
+    "heuristic_entity_order": [
+      "注文"
+    ]
+  }
+}

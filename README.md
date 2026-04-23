@@ -1,0 +1,246 @@
+# NLP プロジェクト README
+
+日本語の設計書を書くと、C#コードを自動生成するローカルAIです。
+クラウド不要・LLM不要で動作し、同じ入力から常に同じコードを生成します。
+
+## 特徴
+- 設計書ベースのコード生成
+  自然言語の設計を解析し、構造化された処理としてコードに変換
+- 完全ローカル実行
+  外部API・LLMに依存せず動作
+- 決定論的出力
+  同じ入力から常に同じコードを生成（再現性を担保）
+- 意味解析ベース
+  形態素解析・辞書・ベクトル類似度に基づいて設計書の意味を解釈
+- TDD支援・対話処理も内蔵
+  コード生成だけでなく、テスト解析や対話的処理にも対応
+
+## サンプル
+設計書→C#コード生成のサンプルです。
+### 入力
+```md
+# ComplexLinqSearch
+## 1. Purpose
+'A'で始まる名前、かつ価格が500より大きいユーザーを抽出します。
+## 2. Structured Specification
+### Input
+- **Description**: None
+- **Type/Format**: void
+### Output
+- **Description**: status
+- **Type/Format**: bool
+### Core Logic
+1. [ACTION|FETCH|User|string|NONE] 'users.json' を読み込む
+2. [ACTION|JSON_DESERIALIZE|User|List<User>|NONE] データをユーザーリストに変換する
+3. [ACTION|LINQ|User|List<User>|NONE] [refs:step_2] [semantic_roles:{"property":"Name"}] 名前が 'A' で始まるユーザーを抽出する
+4. [ACTION|LINQ|User|List<User>|NONE] [refs:step_3] [semantic_roles:{"property":"Price"}] 価格が 500 より大きいユーザーを抽出する
+5. [ACTION|DISPLAY|User|void|NONE] [refs:step_4] 条件に合致したユーザー一覧を表示する
+### Test Cases
+- **Scenario**: Default
+- **Expected**: true
+```
+
+### 出力
+```csharp
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+
+namespace Generated
+{
+    // Rendered by updated CodeBuilder
+    public partial class GeneratedProcessor
+    {
+        public bool ComplexLinqSearch()
+        {
+            List<User> items = new List<User>();
+            var content = File.ReadAllText("users.json");
+            try
+            {
+                items = JsonSerializer.Deserialize<List<User>>(content) ?? new List<User>();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error during JSON_DESERIALIZE in JsonSerializer.Deserialize: " + ex.Message);
+                return false;
+            }
+
+            var user = items.Where(item => item.Name.StartsWith("A")).ToList();
+            var user1 = user.Where(item1 => item1.Price > 500m).ToList();
+            foreach (User item2 in user1)
+            {
+                Console.WriteLine($"User {{ Id: {item2.Id}, Name: {item2.Name}, Age: {item2.Age}, Email: {item2.Email}, Points: {item2.Points}, Price: {item2.Price}, LastLoginAt: {item2.LastLoginAt} }}");
+            }
+
+            return true;
+        }
+    }
+
+    public class User
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public int Age { get; set; }
+        public string Email { get; set; }
+        public int Points { get; set; }
+        public decimal Price { get; set; }
+        public DateTime LastLoginAt { get; set; }
+    }
+}
+```
+
+## 0. 導入と実行環境
+
+### 必要環境
+- Python 3.13+
+- `requirements.txt` の依存が導入済み
+  - janome
+  - numpy
+
+- .NET SDK（C# 解析や CodeBuilder 利用時）
+
+### 初期セットアップ例
+```bash
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+### ベクトル/辞書の準備
+```bash
+# chiVe 取得
+python scripts/data/fetch_vectors.py
+# chiVe キャッシュ生成（必須）
+python scripts/data/convert_vectors.py
+
+# JMDict 取得/変換（dictionary.db 作成）
+python scripts/data/fetch_jmdict.py
+python scripts/data/parse_jmdict.py
+```
+
+## 1. 入口（エントリポイント）
+- 設計書 → コード生成: `scripts/generate/generate_from_design.py`
+- 対話パイプライン: `src/pipeline_core/pipeline_core.py`
+- TDD 支援: `src/advanced_tdd/main.py`
+
+## 1.1 入口の実行例
+```bash
+# 設計書 → コード生成
+python scripts/generate/generate_from_design.py --design scenarios/SampleProject.design.md --output cache/Impact.cs
+
+# 対話パイプライン（コマンド実行）
+python src/pipeline_core/pipeline_core.py
+# 例: 「今の時間は？」
+
+# TDD 支援（コマンド実行）
+# 1) パイプライン経由（自然言語コマンド）
+python src/pipeline_core/pipeline_core.py
+# 例: 「tests/MyProject.Tests のテストを実行して」
+# 例: 「失敗を分析して」
+
+# 2) CLI 直接実行（JSON入力）
+python scripts/validate/run_tdd.py --test-failure path/to/failure.json
+python scripts/validate/run_tdd.py --goal path/to/goal.json
+
+# TDD 支援（例: Python から呼び出す場合）
+python - << 'PY'
+from src.advanced_tdd.main import AdvancedTDDSupport
+tdd = AdvancedTDDSupport()
+print(tdd.analyze_and_fix_test_failure({}, {}))
+PY
+```
+
+## 1.2 テスト実行
+```bash
+# 全体テスト（unit + integration）
+python -m unittest discover -s tests -p "test_*.py" -t .
+```
+
+### TDD CLI 入力例
+```json
+{
+  "test_file": "tests/CalculatorTests.cs",
+  "test_method": "Add_ShouldReturnSum_WhenValidInput",
+  "error_type": "assertion_failure",
+  "error_message": "Expected: 5, Actual: 0",
+  "stack_trace": "at Calculator.Add(Int32 a, Int32 b) in Calculator.cs:line 15",
+  "line_number": 15,
+  "target_code": {
+    "file": "src/Calculator.cs",
+    "method": "Add",
+    "current_implementation": "public int Add(int a, int b) { return 0; }"
+  }
+}
+```
+
+```json
+{
+  "description": "電卓アプリに四則演算機能を追加",
+  "acceptance_criteria": [
+    "加算機能の実装",
+    "減算機能の実装",
+    "ゼロ除算エラーの処理"
+  ],
+  "constraints": {
+    "language": "csharp",
+    "test_framework": "xunit",
+    "coverage_target": 90
+  },
+  "context": {
+    "existing_code": "src/Calculator.cs"
+  }
+}
+```
+
+## 2. 主要ディレクトリ
+- `src`  
+  コア実装。生成・解析・パイプラインの本体。
+- `resources`  
+  辞書・ベクトル・知識ベース等のデータ資産。
+- `config`  
+  振る舞い・安全性・生成方針の設定。
+- `scripts`  
+  取得・変換・生成・検証・同期のユーティリティ。
+- `docs`  
+  設計・仕様・データフロー資料。
+- `tests`  
+  `unit` / `integration` / `security` のテスト構成。
+
+## 3. 設計書からの生成
+1. 設計書を `scenarios/*.design.md` に用意
+2. `scripts/generate/generate_from_design.py` を実行
+3. 出力: `cache/*Impact.cs` または `{ProjectName}/`
+
+※ ブループリントは `cache/blueprints/<run_id>/blueprint.json` に保存されます。
+
+## 4. 重要な設計方針
+- **決定論性**: 同一入力に対して同一出力を前提とする
+- **自然言語主導**: ルール増殖ではなく設計書の意味を解釈して生成
+- **構造化パースベース**: 形態素解析＋決定的ルールに基づく推論（ベクトル類似度は補助的に利用）
+
+## 5. 主要ドキュメント
+- プロジェクト全体像: `docs/project_overview.md`
+- 設計書→生成フロー: `docs/generate_from_design_dataflow.md`
+- MethodStore 仕様: `docs/method_store_spec.md`
+- リソース一覧: `resources/README.md`
+- 設定一覧: `config/README.md`
+
+## 6. 変更履歴
+- 直近の更新: `AI_CHANGELOG.md`
+
+## 7. クレジット
+- JMDict
+  This project uses JMdict data provided by the Electronic Dictionary Research and Development Group (EDRDG).
+  JMdict is licensed under Creative Commons Attribution-ShareAlike.
+
+- chiVe
+  This project requires chiVe word vectors.
+  Due to licensing restrictions, they are not distributed with this repository.
+  Please download them from the official source.
+  https://github.com/WorksApplications/chiVe
+  **v1.3 mc90**
+
+## 8. ライセンス
+MIT License

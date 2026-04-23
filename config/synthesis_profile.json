@@ -1,0 +1,143 @@
+{
+    "tech_mandates": {
+        "DISPLAY": {
+            "keywords": [
+                "表示",
+                "出力",
+                "display",
+                "print",
+                "console",
+                "output"
+            ],
+            "required_tags": [
+                "display",
+                "print",
+                "output",
+                "console"
+            ],
+            "forbidden_tags": [
+                "read",
+                "input",
+                "input_prompt"
+            ]
+        },
+        "JSON": {
+            "keywords": [
+                "json",
+                "デシリアライズ",
+                "シリアライズ",
+                "deserialize",
+                "serialize",
+                "直列化",
+                "取得",
+                "fetch",
+                "get"
+            ],
+            "required_tags": [
+                "json"
+            ]
+        },
+        "FILE_IO": {
+            "keywords": [
+                "ファイル",
+                "file",
+                "保存",
+                "読み込",
+                "読込",
+                "write",
+                "read",
+                "path",
+                "結果を",
+                "結果に",
+                "save"
+            ],
+            "required_tags": [
+                "file"
+            ]
+        },
+        "DATABASE_QUERY": {
+            "keywords": [
+                "sql",
+                "データベース",
+                "クエリ",
+                "database",
+                "query",
+                "select",
+                "在庫",
+                "inventory",
+                "order"
+            ],
+            "required_tags": [
+                "sql",
+                "database",
+                "query"
+            ]
+        },
+        "HTTP_REQUEST": {
+            "keywords": [
+                "url",
+                "api",
+                "http",
+                "fetch",
+                "get",
+                "取得",
+                "json"
+            ],
+            "required_tags": [
+                "http"
+            ]
+        },
+        "LIST": {
+            "keywords": [
+                "リスト",
+                "一覧",
+                "list",
+                "array",
+                "enumerable",
+                "collection"
+            ],
+            "required_tags": [
+                "enumerable",
+                "list",
+                "array",
+                "collection"
+            ]
+        },
+        "EXISTS": {
+            "keywords": [
+                "存在",
+                "check",
+                "exists",
+                "チェック"
+            ],
+            "required_tags": [
+                "exists",
+                "check"
+            ]
+        },
+        "PARSE": {
+            "keywords": [
+                "解析",
+                "変換",
+                "parse",
+                "convert"
+            ],
+            "required_tags": [
+                "parse",
+                "convert"
+            ]
+        }
+    },
+    "list_keywords": [
+        "一覧",
+        "リスト",
+        "list",
+        "all"
+    ],
+    "loop_keywords": [
+        "foreach",
+        "各アイテムに対して",
+        "ループ",
+        "繰り返す"
+    ]
+}

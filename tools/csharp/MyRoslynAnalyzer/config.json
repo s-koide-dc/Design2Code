@@ -1,0 +1,9 @@
+{
+  "ignore": {
+    "fileSuffixes": [
+      ".g.cs",
+      "AssemblyInfo.cs"
+    ],
+    "namespaces": []
+  }
+}

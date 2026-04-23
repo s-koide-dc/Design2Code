@@ -1,0 +1,254 @@
+{
+  "base_scores": {
+    "exact_name_match": 10.0,
+    "async_task_bonus": 2.0,
+    "tag_match_unit": 2.0,
+    "chain_bonus": 2.0,
+    "data_flow_priority": 10.0,
+    "loop_context_priority": 8.0,
+    "intent_mismatch_penalty": 100.0,
+    "type_mismatch_penalty": 200.0
+  },
+  "namespace_priorities": [
+    {
+      "pattern": "System",
+      "bonus": 1.0
+    },
+    {
+      "pattern": "Microsoft",
+      "bonus": 1.0
+    }
+  ],
+  "deterministic_rules": [
+    {
+      "name": "tolist",
+      "keyword": "リスト",
+      "bonus": 2.0
+    },
+    {
+      "name": "ismatch",
+      "keyword": "正規表現",
+      "bonus": 2.0
+    },
+    {
+      "name": "where",
+      "keyword": "抽出",
+      "bonus": 4.0
+    },
+    {
+      "name": "where",
+      "keyword": "絞り込む",
+      "bonus": 4.0
+    },
+    {
+      "name": "writeline",
+      "keyword": "出力",
+      "bonus": 2.0
+    },
+    {
+      "name": "readalltextasync",
+      "keyword": "読み込む",
+      "bonus": 5.0
+    },
+    {
+      "name": "readalltext",
+      "keyword": "読み込む",
+      "bonus": 2.0
+    },
+    {
+      "name": "writealltext",
+      "keyword": "保存",
+      "bonus": 2.0
+    },
+    {
+      "name": "join",
+      "keyword": "連結",
+      "bonus": 3.0
+    },
+    {
+      "name": "retry",
+      "keyword": "リトライ",
+      "bonus": 4.0
+    },
+    {
+      "name": "deserialize",
+      "keyword": "デシリアライズ",
+      "bonus": 50.0
+    },
+    {
+      "name": "deserialize",
+      "keyword": "解析",
+      "bonus": 30.0
+    },
+    {
+      "name": "serialize",
+      "keyword": "シリアライズ",
+      "bonus": 50.0
+    },
+    {
+      "name": "serialize",
+      "keyword": "保存",
+      "bonus": 20.0
+    },
+    {
+      "name": "query",
+      "keyword": "データベース",
+      "bonus": 40.0
+    },
+    {
+      "name": "linq",
+      "keyword": "絞り込",
+      "bonus": 15.0
+    },
+    {
+      "name": "linq",
+      "keyword": "抽出",
+      "bonus": 15.0
+    },
+    {
+      "name": "sys.system.io.file.exists",
+      "keyword": "チェック",
+      "bonus": 20.0
+    },
+    {
+      "name": "sys.system.io.file.exists",
+      "keyword": "存在",
+      "bonus": 20.0
+    },
+    {
+      "name": "exists",
+      "keyword": "チェック",
+      "bonus": 10.0
+    },
+    {
+      "name": "exists",
+      "keyword": "存在",
+      "bonus": 10.0
+    },
+    {
+      "name": "query",
+      "keyword": "取得",
+      "bonus": 10.0
+    },
+    {
+      "name": "average",
+      "keyword": "平均",
+      "bonus": 3.0
+    }
+  ],
+  "verb_priorities": [
+    {
+      "verb": "平均",
+      "name": "average",
+      "bonus": 2.0
+    },
+    {
+      "verb": "合計",
+      "name": "sum",
+      "bonus": 2.0
+    },
+    {
+      "verb": "取得",
+      "names": [
+        "getstringasync",
+        "getasync",
+        "fetchjsonasync"
+      ],
+      "bonus": 8.0
+    }
+  ],
+  "domain_bonuses": [
+    {
+      "id": "network_json",
+      "tags": [
+        "http",
+        "json",
+        "fetch",
+        "network"
+      ],
+      "keywords": [
+        "json",
+        "url",
+        "http",
+        "api",
+        "web"
+      ],
+      "bonus": 10.0,
+      "step_bonus": 5.0
+    },
+    {
+      "id": "validation",
+      "tags": [
+        "validation",
+        "check",
+        "email",
+        "mail"
+      ],
+      "keywords": [
+        "検証",
+        "チェック",
+        "メール",
+        "email",
+        "valid"
+      ],
+      "bonus": 10.0,
+      "step_bonus": 10.0
+    },
+    {
+      "id": "storage",
+      "tags": [
+        "database",
+        "repo",
+        "store",
+        "save",
+        "io",
+        "file",
+        "sql"
+      ],
+      "keywords": [
+        "保存",
+        "記録",
+        "save",
+        "ファイル",
+        "データ",
+        "DB",
+        "データベース"
+      ],
+      "bonus": 30.0,
+      "step_bonus": 10.0
+    },
+    {
+      "id": "user",
+      "tags": [
+        "user",
+        "account",
+        "member",
+        "customer"
+      ],
+      "keywords": [
+        "ユーザー",
+        "user",
+        "アカウント"
+      ],
+      "bonus": 10.0,
+      "step_bonus": 15.0
+    },
+    {
+      "id": "console",
+      "tags": [
+        "console",
+        "output",
+        "display",
+        "print"
+      ],
+      "keywords": [
+        "出力",
+        "コンソール",
+        "console",
+        "表示"
+      ],
+      "bonus": 10.0,
+      "step_bonus": 5.0
+    }
+  ]
+}

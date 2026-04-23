@@ -1,0 +1,775 @@
+{
+  "intents": [
+    {
+      "name": "RUN_LEARNING_CYCLE",
+      "patterns": [
+        {
+          "pattern": "学習(?:サイクル)?(?:を)?(?:実行|走らせ|開始|回し)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "ラーニング(?:サイクル)?(?:を)?(?:実行|走らせ|開始)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "学んで",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "自己学習",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "学習サイクルを実行して",
+        "今すぐ学習を開始"
+      ]
+    },
+    {
+      "name": "CORRECTION",
+      "patterns": [
+        {
+          "pattern": "それは違う",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "間違って(?:る|いる|います)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "そうじゃない",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "訂正(?:して|させて)",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "修正(?:して|させて)",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "それは違います",
+        "間違っています",
+        "そうじゃないです"
+      ]
+    },
+    {
+      "name": "PROVIDE_CONTENT",
+      "patterns": [
+        {
+          "pattern": "^内容は",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "^中身は",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "本文は「こんにちは世界」です",
+        "内容は「テスト」です"
+      ]
+    },
+    {
+      "name": "ANALYZE_TEST_FAILURE",
+      "patterns": [
+        {
+          "pattern": "失敗したテスト.*(?:一括|すべて|全部)?.*(?:分析|理由|原因|修正)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "(?:一括|すべて|全部).*テスト.*失敗.*(?:分析|修正)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "テスト.*失敗.*(?:分析|修正)",
+          "confidence_score": 0.98
+        }
+      ],
+      "examples": [
+        "失敗したテストの原因を一括分析して",
+        "すべてのテスト失敗の修正案を出して"
+      ]
+    },
+    {
+      "name": "APPLY_CODE_FIX",
+      "patterns": [
+        {
+          "pattern": "(?:一括|すべて|全部).*(?:適用|修正|反映)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "修正(?:案)?.*?(?P<fix_id>[a-z_]+_\\d{8}_\\d{6}(?:_\\d+)?)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "修正(?:案)?\\\\\\s*(?P<fix_id>[a-z_]+_\\d{8}_\\d{6}(?:_\\d+)?)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "直して",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "すべての修正案を一括で適用して",
+        "修正を全部反映"
+      ]
+    },
+    {
+      "name": "GENERATE_TESTS",
+      "patterns": [
+        {
+          "pattern": ".+(?:の)?テスト.*(?:生成|作って|作成)",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": "テスト.*生成",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "テストケース.*作成",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "単体テスト.*生成",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "Calculator.csのテストを生成して",
+        "テストケースを作成して"
+      ]
+    },
+    {
+      "name": "EXECUTE_GOAL_DRIVEN_TDD",
+      "patterns": [
+        {
+          "pattern": "(?P<goal_description>.+?)(?:機能|システム|ロジック)(?:を)?(?:実装|構築|作成)",
+          "confidence_score": 0.8
+        }
+      ],
+      "examples": [
+        "YAMLをパースする機能を実装して",
+        "電卓システムを構築",
+        "認証ロジックを作成"
+      ]
+    },
+    {
+      "name": "PROVIDE_CRITERIA",
+      "patterns": [
+        {
+          "pattern": "受け入れ条件は[、\\\\s]*(?P<acceptance_criteria>.+)",
+          "confidence_score": 1.0
+        }
+      ],
+      "examples": [
+        "受け入れ条件は、テストが全て通ること"
+      ]
+    },
+    {
+      "name": "CS_ANALYZE",
+      "patterns": [
+        {
+          "pattern": ".+を解析",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": ".+を分析",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": "解析して",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "分析して",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "プロジェクトを解析して",
+        "ソースコードを分析して",
+        "「C:\\path\\to\\project」を解析して"
+      ]
+    },
+    {
+      "name": "CS_TEST_RUN",
+      "patterns": [
+        {
+          "pattern": "dotnet.*test",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "C#.*テスト.*実行",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": ".+(?:の)?テスト.*(?:走らせ|実行|実行して)",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": "このC#プロジェをシュッとビルドしてテストして",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "C#のテストを実行して",
+        "dotnet testを走らせて",
+        "テストを実行して"
+      ]
+    },
+    {
+      "name": "CS_QUERY_ANALYSIS",
+      "patterns": [
+        {
+          "pattern": "(.+)の要約",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": "(.+)の詳細",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": "(.+)の呼び出し元",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": "(.+)が呼び出している",
+          "confidence_score": 0.98
+        }
+      ],
+      "examples": [
+        "Programクラスの要約を教えて",
+        "Mainメソッドの詳細",
+        "このメソッドの呼び出し元は？"
+      ]
+    },
+    {
+      "name": "CS_IMPACT_SCOPE",
+      "patterns": [
+        {
+          "pattern": "(?P<target_name>.+)の(?:影響範囲|波及範囲)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "(?:影響範囲|波及範囲).*(?P<target_name>.+)",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "Calculateメソッドの影響範囲を教えて",
+        "このクラスの波及範囲は？"
+      ]
+    },
+    {
+      "name": "LIST_DIR",
+      "patterns": [
+        {
+          "pattern": "ファイル(?:の)?一覧",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "ディレクトリ(?:の)?一覧",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "中身を見(?:せて|せてください|る)",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "ファイル一覧を表示して",
+        "ディレクトリの中身を見せて"
+      ]
+    },
+    {
+      "name": "FILE_CREATE",
+      "patterns": [
+        {
+          "pattern": "(?P<quote>['\"‘“]?)(?P<filename>[a-zA-Z0-9_\\-\\.\\u3040-\\u309F\\u30A0-\\u30FF\\u4E00-\\u9FFF]*\\.[a-zA-Z0-9]+)(?P=quote)(?=\\s*を?作(?:成|って|り|る))",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "(?P<quote>['\"‘“])(?P<filename>[^'\"“”]+)(?P=quote)(?=\\s*を?作(?:成|って|り|る))",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "(?P<quote>['\"‘“]?)(?P<filename>[^'\"“”\\s]+)(?P=quote)\\s*というファイルを作(?:成|って|り|る)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "ファイル\\s*(?P<quote>['\"‘“]?)(?P<filename>[a-zA-Z0-9_\\-\\.\\u3040-\\u309F\\u30A0-\\u30FF\\u4E00-\\u9FFF]*\\.[a-zA-Z0-9]+)(?P=quote)(?=\\s*を?作(?:成|って|り|る))",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": "^ファイルを作成して$",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "新しいファイルを作(?:成|って|る)",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "新規作成",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "新しいファイル",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "test.txtを作成して",
+        "新しいファイルを作って",
+        "ファイルを作って"
+      ]
+    },
+    {
+      "name": "FILE_APPEND",
+      "patterns": [
+        {
+          "pattern": "追記",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "追加して",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "ファイルに追記して",
+        "内容を追加して"
+      ]
+    },
+    {
+      "name": "FILE_READ",
+      "patterns": [
+        {
+          "pattern": "読(?:んで|む|み)",
+          "confidence_score": 0.9
+        },
+        {
+          "pattern": "表示",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "内容を表示",
+        "開いて",
+        "読んで",
+        "それを読んで"
+      ]
+    },
+    {
+      "name": "FILE_WRITE",
+      "patterns": [
+        {
+          "pattern": "書(?:き|く|き込)",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "保存",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "ファイルに書き込む",
+        "結果を保存して"
+      ]
+    },
+    {
+      "name": "BACKUP_AND_DELETE",
+      "patterns": [
+        {
+          "pattern": "バックアップ.*削除",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": "コピーして.*削除",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "コピーして.*消して",
+          "confidence_score": 1.0
+        }
+      ],
+      "examples": [
+        "コピーして消す",
+        "複製して削除",
+        "バックアップして削除して"
+      ]
+    },
+    {
+      "name": "FILE_DELETE",
+      "patterns": [
+        {
+          "pattern": "削除",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "そのファイル.*削除",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "それ.*削除",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "消して",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "そのファイルを削除して",
+        "それを消して",
+        "破棄"
+      ]
+    },
+    {
+      "name": "FILE_MOVE",
+      "patterns": [
+        {
+          "pattern": "移動",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "移して",
+        "場所変更",
+        "移動して"
+      ]
+    },
+    {
+      "name": "FILE_COPY",
+      "patterns": [
+        {
+          "pattern": "コピー",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "複製",
+        "写し",
+        "コピーして"
+      ]
+    },
+    {
+      "name": "MEASURE_COVERAGE",
+      "patterns": [
+        {
+          "pattern": "カバレッジ(?:を)?(?:測定|計測|分析)",
+          "confidence_score": 0.98
+        }
+      ],
+      "examples": [
+        "プロジェクトのカバレッジを測定して"
+      ]
+    },
+    {
+      "name": "ANALYZE_REFACTORING",
+      "patterns": [
+        {
+          "pattern": "リファクタリング(?:の)?(?:分析|解析|提案)",
+          "confidence_score": 0.98
+        }
+      ],
+      "examples": [
+        "コードのリファクタリング分析をして"
+      ]
+    },
+    {
+      "name": "CMD_RUN",
+      "patterns": [
+        {
+          "pattern": "コマンド「.+」を実行",
+          "confidence_score": 0.99
+        },
+        {
+          "pattern": "コマンド.+を実行",
+          "confidence_score": 0.99
+        },
+        {
+          "pattern": ".+コマンドを実行",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": "実行",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "lsを実行して",
+        "pwdコマンドを実行",
+        "コマンドを実行して"
+      ]
+    },
+    {
+      "name": "GREETING",
+      "patterns": [
+        {
+          "pattern": "^(?:こんにちは|おはよ[うう]|こんばん[はわ]|ハロー|うっす)[！!？?]*$",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "おはよう",
+        "ハロー",
+        "うっす",
+        "こんにちは"
+      ]
+    },
+    {
+      "name": "PERSONAL_Q",
+      "patterns": [
+        {
+          "pattern": "元気？",
+          "confidence_score": 0.9
+        },
+        {
+          "pattern": "調子はどう",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "元気ですか",
+        "調子いい？",
+        "元気？"
+      ]
+    },
+    {
+      "name": "BYE",
+      "patterns": [
+        {
+          "pattern": "^(?:さようなら|バイバイ|またね|じゃあね)[！!？?]*$",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "バイバイ",
+        "またね"
+      ]
+    },
+    {
+      "name": "AGREE",
+      "patterns": [
+        {
+          "pattern": "^(?:はい|お願いします|了解|りょ|OK|おk)[。！!]*$",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "^はい、お願いします[。！!]*$",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "はい、お願いします",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "^お願いします[。！!]*$",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "はい、そうです",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "そうですね",
+        "OK",
+        "はい、お願いします",
+        "はい"
+      ]
+    },
+    {
+      "name": "DISAGREE",
+      "patterns": [
+        {
+          "pattern": "^(?:いいえ|違います|ノー|ダメ|拒否|キャンセル|やめて)$",
+          "confidence_score": 1.0
+        }
+      ],
+      "examples": [
+        "違います",
+        "ノー",
+        "いいえ"
+      ]
+    },
+    {
+      "name": "TIME",
+      "patterns": [
+        {
+          "pattern": "今何時？",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "時間",
+        "時計",
+        "今何時？"
+      ]
+    },
+    {
+      "name": "GET_CWD",
+      "patterns": [
+        {
+          "pattern": "今のパス",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "現在地",
+        "カレントディレクトリ",
+        "今のパスを教えて"
+      ]
+    },
+    {
+      "name": "EMOTIVE",
+      "patterns": [
+        {
+          "pattern": "疲れた",
+          "confidence_score": 0.9
+        },
+        {
+          "pattern": "へとへと",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "疲れました",
+        "へとへとです",
+        "疲れたな"
+      ]
+    },
+    {
+      "name": "DEFINITION",
+      "patterns": [
+        {
+          "pattern": ".+とは(?:何|なに|なん|何か|なんだ)",
+          "confidence_score": 0.98
+        },
+        {
+          "pattern": ".+とは[？? ]*$",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": ".+(?:の)?定義",
+          "confidence_score": 0.9
+        },
+        {
+          "pattern": ".+を説明",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "AIとは何？",
+        "形態素解析の定義を教えて",
+        "辞書について説明して",
+        "エージェントとは何？",
+        "クラスとは何？",
+        "量子コンピュータネットワークとは何？"
+      ]
+    },
+    {
+      "name": "MANAGE_KNOWLEDGE",
+      "patterns": [
+        {
+          "pattern": "(?:学習|学んだ)(?:内容|データ|知識|ルール)?(?:を)?(?:一覧|表示|見せて)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "現在の(?:学習)?状況",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "(.+)(?:に関連する|に関係する|の)?コード(?:を)?(?:検索|探して|見つけて)",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "学習した内容を見せて",
+        "ロギングに関連するコードを探して",
+        "現在の学習状況を教えて"
+      ]
+    },
+    {
+      "name": "REVERSE_DICTIONARY_SEARCH",
+      "patterns": [
+        {
+          "pattern": "(.+?)(?:という|の)?意味(?:を)?持つ(?:言葉|単語|記号)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "(.+?)(?:のような|といった|な)(?:言葉|単語|記号).*(?:検索|探し|見つけ)",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "「円」の意味を持つ記号は？",
+        "「歩く」のような意味の言葉を探して"
+      ]
+    },
+    {
+      "name": "SET_METHOD_NAME",
+      "patterns": [
+        {
+          "pattern": "メソッド(?:名|の名前).*?['\"‘“](?P<target_name>[a-zA-Z0-9_]+)['\"’”]",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "['\"‘“](?P<target_name>[a-zA-Z0-9_]+)['\"’”](?:という名前|というメソッド名)",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "メソッド名は 'CalculateTotal' とする",
+        "名前を 'FetchData' にして",
+        "'GetResult' という名前のメソッド"
+      ]
+    },
+    {
+      "name": "DOC_GEN",
+      "patterns": [
+        {
+          "pattern": ".+(?:の)?設計書.*(?:作成|生成|作って)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "設計書.*生成",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "ドキュメント.*作成",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "Calculator.csの設計書を作成して",
+        "設計書を自動生成して"
+      ]
+    },
+    {
+      "name": "DOC_REFINE",
+      "patterns": [
+        {
+          "pattern": "(?P<filename>.+design\\.md).*(?:同期|最新化|リファイン)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": ".+(?:の)?設計書.*(?:補完|洗練|詳細化|埋めて|追記|同期|最新化)",
+          "confidence_score": 1.0
+        },
+        {
+          "pattern": "設計書.*(中身|ロジック).*(書いて|埋めて|補完)",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "math_utils.design.mdを補完して",
+        "設計書の詳細を追記して"
+      ]
+    }
+  ]
+}
