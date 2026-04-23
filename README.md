@@ -238,8 +238,8 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 - chiVe
   This project requires chiVe word vectors.
   Due to licensing restrictions, they are not distributed with this repository.
-  Please download them from the official source.
-  https://github.com/WorksApplications/chiVe
+  Please download them from the official source.  
+  https://github.com/WorksApplications/chiVe  
   **v1.3 mc90**
 
 ## 8. ライセンス

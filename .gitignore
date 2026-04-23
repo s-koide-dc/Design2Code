@@ -41,3 +41,6 @@ resources/dictionary.db
 logs/
 cache/
 refactoring_reports/
+
+## [Sandbox]
+.github
