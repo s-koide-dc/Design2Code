@@ -258,3 +258,14 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 
 ## 8. ライセンス
 MIT License
+
+## 9. Experimental: Project-Level Code Generation
+
+This system also supports generating multi-file projects from design documents.
+
+- Generates multiple source files and project structure
+- Extends the same design → IR → synthesis pipeline
+
+⚠️ This feature is currently experimental and not fully validated.
+It may produce inconsistent structures depending on the input.
+
