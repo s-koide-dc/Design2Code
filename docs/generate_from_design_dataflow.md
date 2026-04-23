@@ -410,11 +410,7 @@ Outputs
 4. Safety policy and project rules are enforced only in single-module mode, not in project generation.
 5. Project audit reuses method-level synthesis; spec issues are surfaced but do not block generation unless the caller interprets them.
 
-## Audit report workflow
-1. **Template**: [generate_from_design_audit_report_template.md](./generate_from_design_audit_report_template.md)
-2. **Index**: [generate_from_design_audit_report_index.md](./generate_from_design_audit_report_index.md)
-
-## SpecAuditor enhancements (2026-03-18)
+## SpecAuditor enhancements
 1. **Intent coverage**
    1. IR node `intent` must be reflected in the generated statements for the same `node_id`.
    2. Special cases covered: `RETURN`, `TRANSFORM`, `CALC`, `LINQ`, `DISPLAY`, `LOOP`, `CONDITION`, and try/catch wrappers.
