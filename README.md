@@ -18,15 +18,15 @@
 - AI-Centric Specifications: The design documents are optimized for AI consumption, featuring a hybrid of Japanese and English to maximize machine interpretation accuracy.
 
 ## 特徴
-- 設計書ベースのコード生成
+- **設計書ベースのコード生成**  
   自然言語の設計を解析し、構造化された処理としてコードに変換
-- 完全ローカル実行
+- **完全ローカル実行**  
   外部API・LLMに依存せず動作
-- 決定論的出力
+- **決定論的出力**  
   同じ入力から常に同じコードを生成（再現性を担保）
-- 意味解析ベース
+- **意味解析ベース**  
   形態素解析・辞書・ベクトル類似度に基づいて設計書の意味を解釈
-- TDD支援・対話処理も内蔵
+- **TDD支援・対話処理も内蔵**  
   コード生成だけでなく、テスト解析や対話的処理にも対応
 
 ## サンプル
