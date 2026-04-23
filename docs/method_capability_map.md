@@ -6,7 +6,7 @@ Provide an explicit, deterministic mapping for `intent`, `capabilities`, and par
 This map is a required workaround for third-party or standard libraries where attributes cannot be added. It avoids keyword/heuristic inference and keeps behavior compliant with project constraints.
 
 ## File Location
-`C:\workspace\NLP\resources\method_capability_map.json`
+`resources/method_capability_map.json`
 
 ## Format
 ```json

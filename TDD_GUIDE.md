@@ -3,7 +3,7 @@
 このガイドでは、NLP パイプラインを活用して効率的に C# のテスト駆動開発（TDD）を行う方法を解説します。
 
 ## 前提
-- TDD 支援の入口は `C:\workspace\NLP\src\advanced_tdd\main.py` です。
+- TDD 支援の入口は `src/advanced_tdd/main.py` です。
 - テスト配置は `tests/unit`, `tests/integration`, `tests/security` を基本とします。
 
 ## 1. ファイルを解析する

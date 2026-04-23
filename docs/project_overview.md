@@ -3,9 +3,9 @@
 このプロジェクトは、3つの入口を持つローカルAI基盤として構成されている。モジュールが細分化されているため、入口ごとの処理フローと責務を整理して、全体像を素早く辿れるようにする。
 
 **Entry Points**
-- 設計書 → コード生成: `C:\workspace\NLP\scripts\generate\generate_from_design.py`
-- 対話パイプライン: `C:\workspace\NLP\src\pipeline_core\pipeline_core.py`
-- TDD支援: `C:\workspace\NLP\src\advanced_tdd\main.py`
+- 設計書 → コード生成: `scripts/generate/generate_from_design.py`
+- 対話パイプライン: `src/pipeline_core/pipeline_core.py`
+- TDD支援: `src/advanced_tdd/main.py`
 
 **Core Flows**
 - 設計書生成フロー: Design Parser → IR Generator → Code Synthesis → CodeBuilder
@@ -14,30 +14,30 @@
   - 補足: Code Generation の前に標準 CRUD 仕様の `method_specs` が内部補完される。
 
 **Module Map (By Responsibility)**
-- パイプライン入口: `C:\workspace\NLP\src\pipeline_core\pipeline_core.py`
-- パイプライン段階定義: `C:\workspace\NLP\src\pipeline_core\stages.py`
-- 形態素解析: `C:\workspace\NLP\src\morph_analyzer\morph_analyzer.py`
-- 構文解析: `C:\workspace\NLP\src\syntactic_analyzer\syntactic_analyzer.py`
-- 意味解析: `C:\workspace\NLP\src\semantic_analyzer\semantic_analyzer.py`
-- 意図検出: `C:\workspace\NLP\src\intent_detector\intent_detector.py`
-- タスク管理: `C:\workspace\NLP\src\task_manager\task_manager.py`
-- 実行系: `C:\workspace\NLP\src\action_executor\action_executor.py`
-- 応答生成: `C:\workspace\NLP\src\response_generator\response_generator.py`
-- 設計書パーサ: `C:\workspace\NLP\src\design_parser`
-- IR生成: `C:\workspace\NLP\src\ir_generator`
-- 合成系(コードシンセシス): `C:\workspace\NLP\src\code_synthesis`
-- 生成系(コード生成/プロジェクト生成): `C:\workspace\NLP\src\code_generation`
-- 検証/監査: `C:\workspace\NLP\src\code_verification`
-- ベクトル検索: `C:\workspace\NLP\src\vector_engine`, `C:\workspace\NLP\src\semantic_search`
-- TDD支援: `C:\workspace\NLP\src\advanced_tdd`
+- パイプライン入口: `src/pipeline_core/pipeline_core.py`
+- パイプライン段階定義: `src/pipeline_core/stages.py`
+- 形態素解析: `src/morph_analyzer/morph_analyzer.py`
+- 構文解析: `src/syntactic_analyzer/syntactic_analyzer.py`
+- 意味解析: `src/semantic_analyzer/semantic_analyzer.py`
+- 意図検出: `src/intent_detector/intent_detector.py`
+- タスク管理: `src/task_manager/task_manager.py`
+- 実行系: `src/action_executor/action_executor.py`
+- 応答生成: `src/response_generator/response_generator.py`
+- 設計書パーサ: `src/design_parser`
+- IR生成: `src/ir_generator`
+- 合成系(コードシンセシス): `src/code_synthesis`
+- 生成系(コード生成/プロジェクト生成): `src/code_generation`
+- 検証/監査: `src/code_verification`
+- ベクトル検索: `src/vector_engine`, `src/semantic_search`
+- TDD支援: `src/advanced_tdd`
 
 **Artifacts That Affect Determinism**
-- メソッドメタデータ: `C:\workspace\NLP\resources\method_store.json`
-- メソッドメタデータ補助: `C:\workspace\NLP\resources\vectors\vector_db\method_store_meta.json`
-- メソッドベクトル: `C:\workspace\NLP\resources\vectors\vector_db\method_store_vectors.npy`
-- メソッド能力マップ: `C:\workspace\NLP\resources\method_capability_map.json`
-- 設計書: `C:\workspace\NLP\scenarios\*.design.md`
-- 生成設定: `C:\workspace\NLP\config\config.json`
+- メソッドメタデータ: `resources/method_store.json`
+- メソッドメタデータ補助: `resources/vectors/vector_db/method_store_meta.json`
+- メソッドベクトル: `resources/vectors/vector_db/method_store_vectors.npy`
+- メソッド能力マップ: `resources/method_capability_map.json`
+- 設計書: `scenarios/*.design.md`
+- 生成設定: `config/config.json`
 
 **Determinism Policy**
 - 設計書→コード生成は決定的であることを前提とする
@@ -47,15 +47,15 @@
 - 外部資産に依存する場合は、パスとバージョンが追跡可能であること
 
 **Traceability Pointers (Design → Code)**
-- 入力: `C:\workspace\NLP\scenarios\*.design.md`
-- 設計書解析: `C:\workspace\NLP\src\design_parser`
-- IR生成: `C:\workspace\NLP\src\ir_generator`
-- 合成: `C:\workspace\NLP\src\code_synthesis`
-- 出力: `C:\workspace\NLP\cache\*Impact.cs` または `C:\workspace\NLP\{ProjectName}\`
-- ブループリント: `C:\workspace\NLP\cache\blueprints\<run_id>\blueprint.json`
+- 入力: `scenarios/*.design.md`
+- 設計書解析: `src/design_parser`
+- IR生成: `src/ir_generator`
+- 合成: `src/code_synthesis`
+- 出力: `cache/*Impact.cs` または `{ProjectName}/`
+- ブループリント: `cache/blueprints/<run_id>/blueprint.json`
 
 **ActionExecutor Action Map (Entry → Execution)**
-- コア実行入口: `C:\workspace\NLP\src\action_executor\action_executor.py`
+- コア実行入口: `src/action_executor/action_executor.py`
 - 学習/知識:
   - `_run_learning_cycle`
   - `_manage_knowledge`
@@ -109,7 +109,7 @@
   - `_validate_code_syntax`
 
 **Intent → Action Routing (Planner)**
-- 参照: `C:\workspace\NLP\src\planner\planner.py`
+- 参照: `src/planner/planner.py`
 - FILE_CREATE: `_create_file`
 - FILE_READ: `_read_file`
 - FILE_APPEND: `_append_file`
@@ -140,13 +140,13 @@
 - DOC_REFINE: `_refine_design_doc`
 
 **Task Definitions (Entry Conditions / Compound Tasks)**
-- 定義ファイル: `C:\workspace\NLP\resources\task_definitions.json`
+- 定義ファイル: `resources/task_definitions.json`
 - 単純タスク: FILE_CREATE, FILE_READ, FILE_APPEND, FILE_DELETE, FILE_MOVE, FILE_COPY, LIST_DIR, GET_CWD, CMD_RUN, CS_ANALYZE, CS_TEST_RUN, GENERATE_TESTS, CS_QUERY_ANALYSIS, CS_IMPACT_SCOPE, MEASURE_COVERAGE, ANALYZE_COVERAGE_GAPS, GENERATE_COVERAGE_REPORT, ANALYZE_REFACTORING, SUGGEST_REFACTORING, APPLY_REFACTORING, RUN_LEARNING_CYCLE, MANAGE_KNOWLEDGE, REVERSE_DICTIONARY_SEARCH, DOC_GEN, DOC_REFINE
 - 複合タスク: BACKUP_AND_DELETE, READ_AND_CREATE, RECOVERY_FROM_TEST_FAILURE
 - 連続フロー型: SETUP_CICD, CONFIGURE_QUALITY_GATES, GENERATE_PIPELINE_CONFIG
 
 **Where To Start (When You Are Lost)**
-- 対話処理の入口: `C:\workspace\NLP\src\pipeline_core\pipeline_core.py`
-- 設計書生成の入口: `C:\workspace\NLP\scripts\generate\generate_from_design.py`
-- プロジェクト生成の入口: `C:\workspace\NLP\src\code_generation\project_generator.py`
-- メソッドストア仕様: `C:\workspace\NLP\docs\method_store_spec.md`
+- 対話処理の入口: `src/pipeline_core/pipeline_core.py`
+- 設計書生成の入口: `scripts/generate/generate_from_design.py`
+- プロジェクト生成の入口: `src/code_generation/project_generator.py`
+- メソッドストア仕様: `docs/method_store_spec.md`

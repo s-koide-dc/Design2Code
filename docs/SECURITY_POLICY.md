@@ -75,7 +75,7 @@
 ### 4.1 ベースコマンドのホワイトリスト
 許可されたコマンドのみ実行可能。
 
-**正本**: `C:\workspace\NLP\config\safety_policy.json`  
+**正本**: `config/safety_policy.json`  
 キー: `safe_commands`
 
 ### 4.2 サブコマンド制限
@@ -143,7 +143,7 @@ allowlist 判定は以下の正規化ルールに従う:
 - `command`
 - `content`
 - `error_details`
-正本: `C:\workspace\NLP\config\config.json` → `logging.sensitive_fields`
+正本: `config/config.json` → `logging.sensitive_fields`
 加えて、キー名に機密キーワード（例: `token`, `secret`, `password`）を含む場合もマスクする。
 
 ### 6.2 監査要件（セキュリティイベント）
@@ -155,7 +155,7 @@ allowlist 判定は以下の正規化ルールに従う:
 
 ## 7. セキュリティテスト
 セキュリティ検証は以下で実施する:
-`C:\workspace\NLP\tests\security`
+`tests/security`
 
 現行のカバレッジ:
 - ログの秘匿化

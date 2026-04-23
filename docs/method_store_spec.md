@@ -3,9 +3,9 @@
 本資料は `resources/method_store.json` と `resources/vectors/vector_db/method_store_meta.json` の **構造仕様** を定義する。
 
 ## 対象ファイル
-1. `C:\workspace\NLP\resources\method_store.json`
-2. `C:\workspace\NLP\resources\vectors\vector_db\method_store_meta.json`
-3. `C:\workspace\NLP\resources\vectors\vector_db\method_store_vectors.npy`
+1. `resources/method_store.json`
+2. `resources/vectors/vector_db/method_store_meta.json`
+3. `resources/vectors/vector_db/method_store_vectors.npy`
 
 ## 1. ルート構造
 
