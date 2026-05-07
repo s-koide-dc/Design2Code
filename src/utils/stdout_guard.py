@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import sys
 from typing import Any
 
@@ -37,3 +38,17 @@ def install_stdout_guard() -> None:
         sys.stdout = _SafeStream(sys.stdout)
     if not getattr(sys.stderr, "_stdout_guard", False):
         sys.stderr = _SafeStream(sys.stderr)
+
+
+def is_debug_stdout_enabled() -> bool:
+    flag = str(os.environ.get("NLP_DEBUG_STDOUT", "")).strip().lower()
+    return flag in {"1", "true", "yes", "on"}
+
+
+def debug_print(message: Any) -> None:
+    if not is_debug_stdout_enabled():
+        return
+    try:
+        print(message)
+    except OSError:
+        pass

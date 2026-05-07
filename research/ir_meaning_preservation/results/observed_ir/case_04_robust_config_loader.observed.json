@@ -1,0 +1,118 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "CONDITION",
+      "original_text": "\"config.json\" が存在するかを確認する",
+      "intent": "EXISTS",
+      "role": "ACTION",
+      "cardinality": "SINGLE",
+      "target_entity": "string",
+      "output_type": "bool",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "string",
+            "operator": "Equal",
+            "expected_value": "config.json",
+            "variable_hint": "",
+            "target_hint": null,
+            "original_step": "\"config.json\" が存在するかを確認する"
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "Item"
+        }
+      },
+      "input_link": null,
+      "children": [
+        {
+          "id": "step_2",
+          "type": "ACTION",
+          "original_text": "設定ファイルを読み込む",
+          "intent": "FETCH",
+          "role": "FETCH",
+          "cardinality": "SINGLE",
+          "target_entity": "string",
+          "output_type": "string",
+          "source_kind": "file",
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "string"
+            }
+          },
+          "input_link": "step_1",
+          "children": [],
+          "else_children": []
+        },
+        {
+          "id": "step_3",
+          "type": "ACTION",
+          "original_text": "読み込んだ設定内容を表示する",
+          "intent": "DISPLAY",
+          "role": "DISPLAY",
+          "cardinality": "SINGLE",
+          "target_entity": "string",
+          "output_type": "void",
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "string"
+            }
+          },
+          "input_link": "step_2",
+          "children": [],
+          "else_children": []
+        }
+      ],
+      "else_children": [
+        {
+          "id": "step_5",
+          "type": "ACTION",
+          "original_text": "「config.json not found」というメッセージを表示する",
+          "intent": "DISPLAY",
+          "role": "DISPLAY",
+          "cardinality": "SINGLE",
+          "target_entity": "string",
+          "output_type": "void",
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [
+              {
+                "type": "string",
+                "operator": "Equal",
+                "expected_value": "config.json not found",
+                "variable_hint": "",
+                "target_hint": null,
+                "original_step": "「config.json not found」というメッセージを表示する"
+              }
+            ],
+            "semantic_roles": {
+              "target_entity": "string"
+            }
+          },
+          "input_link": "step_3",
+          "children": [],
+          "else_children": []
+        }
+      ]
+    }
+  ],
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "output_1",
+      "description": "status",
+      "type_format": "bool",
+      "example": ""
+    }
+  ],
+  "data_sources": []
+}

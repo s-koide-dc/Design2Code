@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional
 
 from src.advanced_tdd.ast_analyzer import ASTAnalyzer
 from src.semantic_search.semantic_search_base import SemanticSearchBase
+from src.utils.stdout_guard import debug_print
 
 class StructuralMemory(SemanticSearchBase):
     """
@@ -249,7 +250,7 @@ class StructuralMemory(SemanticSearchBase):
         has_engine = self.vector_engine is not None and getattr(self.vector_engine, 'is_ready', False)
         weight = 0.8 if has_engine else 0.0
         
-        print(f"[DEBUG] find_duplicates called. Engine Ready: {has_engine}, Weight: {weight}, Items: {len(self.items)}")
+        debug_print(f"[DEBUG] find_duplicates called. Engine Ready: {has_engine}, Weight: {weight}, Items: {len(self.items)}")
         
         # ターゲットの個別スコア調査 (デバッグ)
         target_item = next((it for it in self.items if "InventoryUtils.CalculateAveragePrice" in it['name']), None)
@@ -267,17 +268,17 @@ class StructuralMemory(SemanticSearchBase):
                 if kw.lower() in name_lower: k_score += 0.5
                 if kw.lower() in summary_lower: k_score += 0.3
             k_score = min(1.0, k_score)
-            print(f"[DEBUG] Targeted Item 'InventoryUtils.CalculateAveragePrice' Keyword Score: {k_score}, Keywords: {q_keywords}")
+            debug_print(f"[DEBUG] Targeted Item 'InventoryUtils.CalculateAveragePrice' Keyword Score: {k_score}, Keywords: {q_keywords}")
 
         candidates = self.search_component(summary_or_code, top_k=top_k, semantic_weight=weight)
         
         # DEBUGログ: 全候補のスコアを出力
         for c in candidates:
-            print(f"[DEBUG] Duplicate candidate: {c['name']}, Similarity: {c.get('similarity', 0.0):.4f}")
+            debug_print(f"[DEBUG] Duplicate candidate: {c['name']}, Similarity: {c.get('similarity', 0.0):.4f}")
 
         duplicates = [c for c in candidates if c.get('similarity', 0.0) >= threshold]
         if duplicates:
-            print(f"[DEBUG] Found {len(duplicates)} duplicates above threshold {threshold}")
+            debug_print(f"[DEBUG] Found {len(duplicates)} duplicates above threshold {threshold}")
         return duplicates
 
     def get_class_properties(self, class_name: str) -> Optional[Dict[str, str]]:

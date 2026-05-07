@@ -1,0 +1,109 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "CONDITION",
+      "original_text": "もし config.json が存在するならば、以下の処理を行う：",
+      "intent": "EXISTS",
+      "role": "CHECK",
+      "cardinality": "SINGLE",
+      "target_entity": "Item",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        },
+        "spec_role": "CHECK",
+        "check_kind": "exists_check",
+        "check_subject": "value",
+        "expected_truth": true
+      },
+      "input_link": null,
+      "children": [
+        {
+          "id": "step_2",
+          "type": "ACTION",
+          "original_text": "設定ファイルを読み込む。",
+          "intent": "FETCH",
+          "role": "FETCH",
+          "cardinality": "SINGLE",
+          "target_entity": "Item",
+          "output_type": null,
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "Item"
+            },
+            "spec_role": "FETCH"
+          },
+          "input_link": "step_1",
+          "children": [],
+          "else_children": []
+        },
+        {
+          "id": "step_3",
+          "type": "ACTION",
+          "original_text": "設定内容を表示する。",
+          "intent": "DISPLAY",
+          "role": "DISPLAY",
+          "cardinality": "SINGLE",
+          "target_entity": "Item",
+          "output_type": "string",
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "Item"
+            },
+            "spec_role": "DISPLAY"
+          },
+          "input_link": "step_2",
+          "children": [],
+          "else_children": []
+        }
+      ],
+      "else_children": [
+        {
+          "id": "step_5",
+          "type": "ACTION",
+          "original_text": "「config.json not found」というメッセージを表示する。",
+          "intent": "DISPLAY",
+          "role": "DISPLAY",
+          "cardinality": "SINGLE",
+          "target_entity": "Item",
+          "output_type": "string",
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [
+              {
+                "type": "string",
+                "operator": "Equal",
+                "expected_value": "config.json not found",
+                "variable_hint": "",
+                "target_hint": null,
+                "original_step": "「config.json not found」というメッセージを表示する。"
+              }
+            ],
+            "semantic_roles": {
+              "target_entity": "Item"
+            },
+            "spec_role": "DISPLAY"
+          },
+          "input_link": "step_1",
+          "children": [],
+          "else_children": []
+        }
+      ]
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

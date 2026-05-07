@@ -84,7 +84,7 @@ class CodeBuilderClient:
             try:
                 result = json.loads(json_str)
             except json.JSONDecodeError:
-                print(f"[ERROR] CodeBuilder output was not JSON: {stdout}")
+                logging.error("CodeBuilder output was not JSON: %s", stdout)
                 return {"status": "error", "message": "Non-JSON output from CodeBuilder"}
 
             if "code" in result:

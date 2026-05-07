@@ -3,6 +3,7 @@ import os
 import json
 import copy
 import numpy as np
+import logging
 from typing import List, Dict, Any, Optional
 
 from src.code_synthesis.method_store import MethodStore
@@ -35,6 +36,7 @@ class UnifiedKnowledgeBase:
         self.method_store = method_store
         self.structural_memory = structural_memory
         self.type_system = TypeSystem()
+        self.logger = logging.getLogger(__name__)
         self.patterns = self._load_patterns()
         self.canonical_data = self._load_canonical_knowledge()
         # Disable keyword-based ontology boosting by default
@@ -49,7 +51,7 @@ class UnifiedKnowledgeBase:
                     data = json.load(f)
                     return data.get("patterns", [])
             except Exception as e:
-                print(f"Error loading action patterns: {e}")
+                self.logger.error("Error loading action patterns: %s", e)
         return []
 
     def _load_canonical_knowledge(self) -> Dict[str, Any]:
@@ -67,7 +69,7 @@ class UnifiedKnowledgeBase:
                 with open(path, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
-                print(f"Error loading canonical knowledge: {e}")
+                self.logger.error("Error loading canonical knowledge: %s", e)
         return {}
 
     def get(self, key: str, default: Any = None) -> Any:

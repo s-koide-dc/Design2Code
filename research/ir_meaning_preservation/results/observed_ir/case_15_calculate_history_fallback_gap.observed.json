@@ -1,0 +1,76 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "注文を取得する。",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "SINGLE",
+      "target_entity": "Order",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Order"
+        },
+        "spec_role": "FETCH"
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "ACTION",
+      "original_text": "Totalを計算する。",
+      "intent": "CALC",
+      "role": "CALC",
+      "cardinality": "SINGLE",
+      "target_entity": "Order",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Order",
+          "target_hint": "Total",
+          "property": "Total",
+          "entity_resolution": "history_fallback"
+        },
+        "spec_role": "CALCULATE"
+      },
+      "input_link": "step_1",
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_3",
+      "type": "ACTION",
+      "original_text": "計算結果を表示する。",
+      "intent": "DISPLAY",
+      "role": "DISPLAY",
+      "cardinality": "SINGLE",
+      "target_entity": "Order",
+      "output_type": "string",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        },
+        "spec_role": "DISPLAY"
+      },
+      "input_link": "step_2",
+      "children": [],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

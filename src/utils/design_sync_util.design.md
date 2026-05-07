@@ -37,3 +37,7 @@
 ## 3. Dependencies
 - **Internal**: `logic_auditor`, `fix_engine` (からの呼び出し)
 - **External**: `re`, `json`, `pathlib`
+
+## 4. Operational Notes
+- 同期失敗やロジックステップ更新失敗は stdout ではなく logger に記録する。
+- API は成功可否を bool で返し、補助診断は呼び出し側がログから確認する。

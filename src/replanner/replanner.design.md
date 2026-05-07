@@ -20,6 +20,7 @@
 2. `analyze_logic_mismatch` で論理不一致の追加ヒントを収集する。
 3. 同一ヒントの繰り返しを履歴で検出し、無限ループを防ぐ。
 4. `IRPatcher.apply_patches` で IR を修正し、`patched_ir` を返す。
+5. 生成ヒントの詳細表示は通常経路では出さず、debug 出力が有効な場合のみ補助情報として出す。
 
 ### Test Cases
 - **Happy Path**:
@@ -33,3 +34,7 @@
 
 ## 3. Dependencies
 - **Internal**: `reason_analyzer`, `ir_patcher`
+
+## 4. Operational Notes
+- 生成ヒントの詳細列挙は `src.utils.stdout_guard.debug_print` を使う opt-in 出力とする。
+- 通常の再計画フローでは stdout を使わず、正式な結果は `patched_ir` と `hints` を含む戻り値に集約する。

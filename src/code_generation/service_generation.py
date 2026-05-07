@@ -2,6 +2,8 @@
 """Service code generation helpers."""
 from __future__ import annotations
 
+import logging
+
 from src.code_synthesis.synthesis_pipeline import synthesize_structured_spec
 from src.design_parser import StructuredDesignParser
 
@@ -391,11 +393,11 @@ class ServiceGenerationHelper:
                 allow_retry=False,
             )
             if isinstance(result, dict) and result.get("status") == "FAILED":
-                print(f"[!] Service synth failed: {method_name}")
+                logging.warning("Service synth failed: %s", method_name)
                 errs = result.get("errors") or []
                 if errs:
                     for err in errs:
-                        print(f"    - {err}")
+                        logging.warning("  - %s", err)
             code = result.get("code") if isinstance(result, dict) else ""
             if not code or "NotImplementedException" in code:
                 return []
@@ -403,8 +405,8 @@ class ServiceGenerationHelper:
             if not body_lines:
                 return []
             return self.owner._filter_synth_body_lines(body_lines)
-        except Exception as e:
-            print(f"[!] Service synth exception: {method_name}: {e}")
+        except Exception:
+            logging.exception("Service synth exception: %s", method_name)
             return []
 
     def build_service_method_bodies(

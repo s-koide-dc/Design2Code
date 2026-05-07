@@ -1,0 +1,85 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "ユーザー一覧を取得する。",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "COLLECTION",
+      "target_entity": "User",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "User"
+        },
+        "spec_role": "FETCH"
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "ACTION",
+      "original_text": "Points が input_1 より大きいユーザーを抽出する。",
+      "intent": "LINQ",
+      "role": "FILTER",
+      "cardinality": "COLLECTION",
+      "target_entity": "User",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "numeric",
+            "operator": "Greater",
+            "expected_value": "1",
+            "variable_hint": "input_",
+            "target_hint": null,
+            "original_step": "Points が input_1 より大きいユーザーを抽出する。"
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "User",
+          "property": "Points",
+          "predicate_resolution": "logic_goal",
+          "collection_resolution": "explicit_input_link"
+        },
+        "spec_role": "FILTER"
+      },
+      "input_link": "step_1",
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_3",
+      "type": "ACTION",
+      "original_text": "結果を表示する。",
+      "intent": "DISPLAY",
+      "role": "DISPLAY",
+      "cardinality": "SINGLE",
+      "target_entity": "User",
+      "output_type": "string",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "User"
+        },
+        "spec_role": "DISPLAY"
+      },
+      "input_link": "step_2",
+      "children": [],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

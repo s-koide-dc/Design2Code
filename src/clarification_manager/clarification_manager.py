@@ -4,6 +4,8 @@
 import json
 import os
 
+from src.utils.stdout_guard import debug_print
+
 class ClarificationManager:
     def __init__(self, action_executor, log_manager, clarification_thresholds=None, max_clarification_attempts=3):
         """
@@ -290,7 +292,7 @@ class DummyActionExecutor:
 
 class DummyLogManager:
     def log_event(self, event_type, data, level):
-        print(f"[DummyLog] {event_type}: {data}")
+        debug_print(f"[DummyLog] {event_type}: {data}")
 
 if __name__ == '__main__':
     from src.action_executor.action_executor import ActionExecutor # Import actual ActionExecutor
@@ -302,16 +304,16 @@ if __name__ == '__main__':
     # Test cases for ClarificationManager
     cm = ClarificationManager(action_executor=ae, log_manager=lm, clarification_thresholds={"intent": 0.7, "entity": 0.7})
 
-    print("--- Test Case 1: Low Intent Confidence ---")
+    debug_print("--- Test Case 1: Low Intent Confidence ---")
     context1 = {
         "original_text": "曖昧な指示",
         "analysis": {"intent": "AMBIGUOUS_ACTION", "intent_confidence": 0.6},
     }
     result1 = cm.manage_clarification(context1)
-    print(result1["response"]["text"])
+    debug_print(result1["response"]["text"])
     assert result1["clarification_needed"] == True
 
-    print("\n--- Test Case 2: Low Entity Confidence ---")
+    debug_print("\n--- Test Case 2: Low Entity Confidence ---")
     context2 = {
         "original_text": "ファイル A を編集",
         "analysis": {
@@ -320,10 +322,10 @@ if __name__ == '__main__':
         },
     }
     result2 = cm.manage_clarification(context2)
-    print(result2["response"]["text"])
+    debug_print(result2["response"]["text"])
     assert result2["clarification_needed"] == True
 
-    print("\n--- Test Case 3: Missing Required Entity (FILE_CREATE) ---")
+    debug_print("\n--- Test Case 3: Missing Required Entity (FILE_CREATE) ---")
     context3 = {
         "original_text": "ファイルを作って",
         "analysis": {
@@ -332,22 +334,22 @@ if __name__ == '__main__':
         },
     }
     result3 = cm.manage_clarification(context3)
-    print(result3["response"]["text"])
+    debug_print(result3["response"]["text"])
     assert result3["clarification_needed"] == True
     assert "content" in result3["response"]["text"] # Check if it asks for content
 
-    print("\n--- Test Case 4: Max Attempts Reached ---")
+    debug_print("\n--- Test Case 4: Max Attempts Reached ---")
     context4 = {
         "original_text": "繰り返しの曖昧な指示",
         "analysis": {"intent": "AMBIGUOUS_ACTION", "intent_confidence": 0.6},
     }
     cm.clarification_history[hash("繰り返しの曖昧な指示")] = cm.max_clarification_attempts - 1 # Simulate 2 attempts
     result4 = cm.manage_clarification(context4)
-    print(result4["response"]["text"])
+    debug_print(result4["response"]["text"])
     assert result4["clarification_needed"] == True
     assert "手動で操作してください" in result4["response"]["text"]
     
-    print("\n--- Test Case 5: No Clarification Needed ---")
+    debug_print("\n--- Test Case 5: No Clarification Needed ---")
     context5 = {
         "original_text": "明確な指示",
         "analysis": {"intent": "FILE_CREATE", "intent_confidence": 0.95,
@@ -356,5 +358,5 @@ if __name__ == '__main__':
         },
     }
     result5 = cm.manage_clarification(context5)
-    print(result5.get("response", {}).get("text", "No clarification needed"))
+    debug_print(result5.get("response", {}).get("text", "No clarification needed"))
     assert result5["clarification_needed"] == False

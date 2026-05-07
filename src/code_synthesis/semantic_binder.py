@@ -219,9 +219,101 @@ class SemanticBinder:
     def _build_persist_sql(self, node: Dict[str, Any], path: Dict[str, Any]) -> Optional[str]:
         return None
 
+    def _find_props_for_subject(self, path: Dict[str, Any], target_entity: str, subject_name: str, node: Dict[str, Any] = None) -> Tuple[Dict[str, str], str]:
+        poco_defs = path.get("poco_defs", {})
+        props = poco_defs.get(target_entity, {})
+        if props:
+            return props, target_entity
+        if not subject_name:
+            return props, target_entity
+        subject_low = str(subject_name).lower()
+        for entity_name, entity_props in poco_defs.items():
+            if not isinstance(entity_props, dict):
+                continue
+            for prop_name in entity_props.keys():
+                if str(prop_name).lower() == subject_low:
+                    return entity_props, entity_name
+        return props, target_entity
+
+    def _build_check_expression(self, semantic_map: Dict[str, Any], target_entity: str, path: Dict[str, Any], node: Dict[str, Any] = None) -> Optional[str]:
+        spec_role = str(semantic_map.get("spec_role") or "").strip().upper()
+        if spec_role != "CHECK":
+            return None
+
+        check_kind = str(semantic_map.get("check_kind") or "").strip().lower()
+        subject = semantic_map.get("check_subject")
+        expected_truth = semantic_map.get("expected_truth")
+        source_kind = semantic_map.get("source_kind")
+        source_ref = semantic_map.get("source_ref")
+        operator = semantic_map.get("check_operator")
+        value = semantic_map.get("check_value")
+        subject_resolution = str(semantic_map.get("subject_resolution") or "").strip().lower()
+
+        if check_kind == "exists_check":
+            if source_kind == "file":
+                path_literal = None
+                if isinstance(source_ref, str) and source_ref:
+                    escaped = source_ref.replace('"', '""')
+                    path_literal = f"@\"{escaped}\"" if '"' in source_ref else f"\"{source_ref}\""
+                else:
+                    last_path = path.get("last_literal_map", {}).get("path")
+                    if last_path:
+                        path_literal = last_path
+                if path_literal:
+                    path["last_literal_map"]["path"] = path_literal
+                    path.setdefault("all_usings", set()).add("System.IO")
+                    expr = f"File.Exists({path_literal})"
+                    if expected_truth is False:
+                        return f"!{expr}"
+                    return expr
+
+            if isinstance(subject, str) and self._is_identifier(subject):
+                expr = f"{subject} != null"
+                if expected_truth is False:
+                    return f"{subject} == null"
+                return expr
+            return "true"
+
+        if check_kind == "null_check":
+            subject_expr = str(subject).strip() if isinstance(subject, str) and str(subject).strip() else "value"
+            if expected_truth is False:
+                return f"{subject_expr} == null"
+            return f"{subject_expr} != null"
+
+        if check_kind == "comparison_check":
+            if not operator:
+                return None
+            subject_name = str(subject or "").strip()
+            props = {}
+            if not subject_resolution or subject_resolution in ["explicit_subject", "quoted_literal", "schema_property"]:
+                props, _ = self._find_props_for_subject(path, target_entity, subject_name, node=node)
+            elif subject_resolution == "history_subject":
+                props = path.get("poco_defs", {}).get(target_entity, {}) or {}
+            prop_name = None
+            if props and subject_name:
+                prop_name = self._resolve_prop(subject_name, "numeric", props, node, target_hint=subject_name)
+            if prop_name:
+                subject_expr = f"{path.get('active_scope_item', 'x')}.{prop_name}" if path.get("in_loop") else prop_name
+            else:
+                subject_expr = subject_name or "value"
+
+            if isinstance(value, str) and self._is_identifier(value):
+                value_expr = value
+            elif value is None:
+                value_expr = "0"
+            else:
+                value_expr = str(value)
+            return f"{subject_expr} {operator} {value_expr}"
+
+        return None
+
     def generate_logic_expression(self, semantic_map: Dict[str, Any], target_entity: str, path: Dict[str, Any], node: Dict[str, Any] = None) -> str:
         logic_goals = semantic_map.get("logic", [])
         path.setdefault("last_literal_map", {})
+
+        check_expr = self._build_check_expression(semantic_map, target_entity, path, node=node)
+        if check_expr:
+            return check_expr
         
         if node and node.get("intent") == "EXISTS":
             s_roles = semantic_map.get("semantic_roles", {})

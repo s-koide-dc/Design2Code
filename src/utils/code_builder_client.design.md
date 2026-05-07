@@ -29,6 +29,7 @@ The `CodeBuilderClient` [Phase 23.3] serves as the inter-process communication b
 1.  **Marker Search**: Look for `__CODEBUILDER_JSON_START__` and `__CODEBUILDER_JSON_END__` markers in `stdout` to isolate the JSON payload from any build logs or console noise.
 2.  **Fallback**: If markers are missing, attempt to parse the last non-empty line of output.
 3.  **Deserialization**: Parse the extracted string as JSON.
+4.  **Failure Logging**: Non-JSON output is treated as an internal error and recorded via logger output, not unconditional stdout printing.
 
 ### 2.4 Test Cases
 

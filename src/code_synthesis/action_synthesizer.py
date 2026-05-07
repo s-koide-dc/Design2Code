@@ -31,6 +31,7 @@ from src.code_synthesis.action_handlers import (
     to_csharp_string_literal,
     safe_copy_node,
 )
+from src.utils.stdout_guard import debug_print
 class ActionSynthesizer:
     """[Phase 23.3: Pure Orchestration] Design-to-Code の具体的合成ロジックを担当。"""
     def __init__(self, synthesizer):
@@ -52,9 +53,50 @@ class ActionSynthesizer:
     def _get_semantic_roles(self, node: Dict[str, Any]) -> Dict[str, Any]:
         return get_semantic_roles(node)
 
+    def _get_spec_role(self, node: Dict[str, Any]) -> Optional[str]:
+        if not isinstance(node, dict):
+            return None
+        semantic_map = node.get("semantic_map", {}) or {}
+        spec_role = semantic_map.get("spec_role")
+        if isinstance(spec_role, str) and spec_role.strip():
+            return spec_role.strip().upper()
+        semantic_roles = semantic_map.get("semantic_roles", {}) or {}
+        nested_spec_role = semantic_roles.get("spec_role")
+        if isinstance(nested_spec_role, str) and nested_spec_role.strip():
+            return nested_spec_role.strip().upper()
+        return None
+
+    def _get_execution_intent(self, node: Dict[str, Any]) -> str:
+        intent = str(node.get("intent") or "GENERAL").strip().upper()
+        spec_role = self._get_spec_role(node)
+        if spec_role == "DESERIALIZE":
+            return "JSON_DESERIALIZE"
+        if spec_role == "FILTER":
+            return "LINQ"
+        if spec_role == "DISPLAY" and intent in ["GENERAL", "ACTION", "TRANSFORM"]:
+            return "DISPLAY"
+        return intent
+
+    def _get_effective_runtime_role(self, node: Dict[str, Any], fallback_role: Optional[str] = None) -> Optional[str]:
+        spec_role = self._get_spec_role(node)
+        role = fallback_role or node.get("role")
+        if spec_role in ["DESERIALIZE", "SERIALIZE", "FILTER", "TRANSFORM"]:
+            return "TRANSFORM"
+        if spec_role == "FETCH":
+            return "FETCH"
+        if spec_role == "PERSIST":
+            return "PERSIST"
+        if spec_role == "DISPLAY":
+            return "DISPLAY"
+        if spec_role == "CHECK":
+            return "CHECK"
+        if spec_role == "CALCULATE":
+            return "CALC"
+        return role
+
     def process_node(self, node: Dict[str, Any], path: Dict[str, Any], future_hint: str = None, consumed_ids: set = None) -> List[Dict[str, Any]]:
         node_type = node.get("type", "ACTION")
-        intent = node.get("intent", "GENERAL")
+        intent = self._get_execution_intent(node)
         roles = self._get_semantic_roles(node)
         if roles.get("audit_only"):
             new_p = self.synthesizer._copy_path(path)
@@ -135,7 +177,10 @@ class ActionSynthesizer:
             if fallback_paths is not None:
                 return fallback_paths
         if not results:
-            print(f"[ERROR] ActionSynthesizer: No results for node={node.get('id')}, intent={node.get('intent')}")
+            debug_print(
+                f"[DEBUG] ActionSynthesizer: no results for node={node.get('id')}, "
+                f"intent={node.get('intent')}"
+            )
             todo_path = self.synthesizer._copy_path(path)
             intent_val = node.get("intent", "UNKNOWN")
             target_val = node.get("target_entity", "Unknown")
@@ -148,7 +193,8 @@ class ActionSynthesizer:
 
     def _process_condition_node(self, node, path, consumed_ids=None) -> List[Dict[str, Any]]:
         cond_expr = self.semantic_binder.generate_logic_expression(node.get("semantic_map", {}), node.get("target_entity", "Item"), path, node=node)
-        if node.get("intent") == "EXISTS":
+        check_kind = str(node.get("semantic_map", {}).get("check_kind") or "").strip().lower()
+        if node.get("intent") == "EXISTS" and check_kind == "exists_check":
             coll_var = None
             for vt, vs in reversed(list(path.get("type_to_vars", {}).items())):
                 if any(k in vt for k in ["IEnumerable", "List", "[]"]) and vt != "string":
@@ -504,6 +550,22 @@ class ActionSynthesizer:
 
     def _process_linq_filter_block(self, node, path) -> List[Dict[str, Any]]:
         intent = node.get("intent")
+        semantic_roles = node.get("semantic_map", {}).get("semantic_roles", {}) or {}
+        predicate_resolution = str(semantic_roles.get("predicate_resolution") or "").strip().lower()
+        collection_resolution = str(semantic_roles.get("collection_resolution") or "").strip().lower()
+        weak_filter_provenance = predicate_resolution == "default_predicate" or collection_resolution == "default_collection"
+        history_filter_provenance = predicate_resolution == "history_predicate" or collection_resolution == "history_collection"
+        if weak_filter_provenance:
+            new_path = self.synthesizer._copy_path(path)
+            new_path["statements"].append({
+                "type": "raw",
+                "code": 'throw new NotImplementedException("TODO: Resolve weak FILTER provenance before generating property-aware filter.");',
+                "node_id": node.get("id"),
+                "intent": intent,
+            })
+            new_path.setdefault("consumed_ids", set()).add(node.get("id"))
+            new_path["completed_nodes"] += 1
+            return [new_path]
         coll_var, coll_type = None, None
         for vt, vs in reversed(list(path["type_to_vars"].items())):
             if any(k in vt for k in ["IEnumerable", "List", "[]"]) and vt != "string":
@@ -516,31 +578,34 @@ class ActionSynthesizer:
         item_name = self.stmt_builder.get_semantic_var_name(node, item_type, "filter", path, prefix="item", role="item")
         ops_set = set(node.get("semantic_map", {}).get("semantic_roles", {}).get("ops", []) or [])
         if "filter_points_gt_input" in ops_set:
-            input_var = None
-            for _, vs in path.get("type_to_vars", {}).items():
-                for v in vs:
-                    if v.get("role") == "input":
-                        input_var = v.get("var_name")
+            if history_filter_provenance:
+                ops_set = set()
+            else:
+                input_var = None
+                for _, vs in path.get("type_to_vars", {}).items():
+                    for v in vs:
+                        if v.get("role") == "input":
+                            input_var = v.get("var_name")
+                            break
+                    if input_var:
                         break
                 if input_var:
-                    break
-            if input_var:
-                new_path = self.synthesizer._copy_path(path)
-                new_path.setdefault("all_usings", set()).add("System.Linq")
-                out_var = self.stmt_builder.get_semantic_var_name(node, coll_type, "filtered", new_path, role="data")
-                new_path["statements"].append({
-                    "type": "raw",
-                    "code": f"var {out_var} = {coll_var}.Where({item_name} => {item_name}.Points > {input_var}).ToList();",
-                    "node_id": node.get("id"),
-                    "out_var": out_var,
-                    "var_type": coll_type,
-                    "intent": intent
-                })
-                new_path.setdefault("type_to_vars", {}).setdefault(coll_type, []).append({"var_name": out_var, "node_id": node.get("id"), "intent": "LINQ", "target_entity": item_type})
-                new_path["active_scope_item"] = out_var
-                new_path.setdefault("consumed_ids", set()).add(node.get("id"))
-                new_path["completed_nodes"] += 1
-                return [new_path]
+                    new_path = self.synthesizer._copy_path(path)
+                    new_path.setdefault("all_usings", set()).add("System.Linq")
+                    out_var = self.stmt_builder.get_semantic_var_name(node, coll_type, "filtered", new_path, role="data")
+                    new_path["statements"].append({
+                        "type": "raw",
+                        "code": f"var {out_var} = {coll_var}.Where({item_name} => {item_name}.Points > {input_var}).ToList();",
+                        "node_id": node.get("id"),
+                        "out_var": out_var,
+                        "var_type": coll_type,
+                        "intent": intent
+                    })
+                    new_path.setdefault("type_to_vars", {}).setdefault(coll_type, []).append({"var_name": out_var, "node_id": node.get("id"), "intent": "LINQ", "target_entity": item_type})
+                    new_path["active_scope_item"] = out_var
+                    new_path.setdefault("consumed_ids", set()).add(node.get("id"))
+                    new_path["completed_nodes"] += 1
+                    return [new_path]
         all_child_goals = []
         own_goals = node.get("semantic_map", {}).get("logic", [])
         if own_goals:
@@ -552,11 +617,11 @@ class ActionSynthesizer:
                     all_child_goals.append({"type": "conjunction", "value": "OR" if any(k in child.get("original_text", "") for k in ["または", "OR"]) else "AND"})
                 all_child_goals.extend(child_goals)
         # LINQ Select (transform) if no logic goals and explicit select op
-        if not all_child_goals and ("select" in ops_set or node.get("role") == "TRANSFORM"):
+        effective_role = self._get_effective_runtime_role(node)
+        if not all_child_goals and ("select" in ops_set or effective_role == "TRANSFORM"):
             new_path = self.synthesizer._copy_path(path)
             self.stmt_builder.register_entity(item_type, new_path)
             props = new_path.get("poco_defs", {}).get(item_type, {})
-            semantic_roles = node.get("semantic_map", {}).get("semantic_roles", {}) or {}
             target_prop = None
             for key in ["target_property", "property", "field", "target_hint"]:
                 hint_val = semantic_roles.get(key)
@@ -755,13 +820,13 @@ class ActionSynthesizer:
                 want_count_return = intent == "PERSIST" and method_ret in ["int", "long", "Task<int>", "Task<long>"]
                 is_side_effect_only = intent in ["DISPLAY"] or (intent == "PERSIST" and not want_count_return) or (node.get("side_effect") in ["IO", "DB"] and unwrapped_ret in ["int", "long"] and not want_count_return)
                 if not is_side_effect_only:
-                    var_role = m.get("role") or node.get("role") or "data"
+                    var_role = self._get_effective_runtime_role(node, m.get("role")) or "data"
                     var_name = self.stmt_builder.get_semantic_var_name(node, unwrapped_ret, m.get("name"), new_path, role=var_role)
                     stmt["out_var"] = var_name
                     primitive_types = ["int", "long", "decimal", "double", "float", "bool", "string"]
                     if unwrapped_ret not in primitive_types:
                         stmt["var_type"] = unwrapped_ret
-                    new_path["type_to_vars"].setdefault(unwrapped_ret, []).append({"var_name": var_name, "node_id": node.get("id"), "semantic_role": m.get("role") or node.get("role") or "data", "target_entity": target_entity})
+                    new_path["type_to_vars"].setdefault(unwrapped_ret, []).append({"var_name": var_name, "node_id": node.get("id"), "semantic_role": var_role, "target_entity": target_entity})
                     new_path["active_scope_item"] = var_name
                     call_cache = path.get("call_cache", {})
                     cached = call_cache.get(call_expr) if intent in ["DATABASE_QUERY", "FETCH"] else None
@@ -838,12 +903,12 @@ class ActionSynthesizer:
     def _gather_candidates(self, node: Dict[str, Any], path: Dict[str, Any], target_entity: str) -> List[Dict[str, Any]]:
         # Refresh UKB reference in case synthesizer.ukb was swapped (e.g., tests/mocks)
         self.ukb = self.synthesizer.ukb
-        intent, source_kind = node.get("intent"), node.get("source_kind")
-        try:
-            print(f"[DEBUG] Gathering candidates for intent={intent}, role={node.get('role')}, target={target_entity}, source_kind={source_kind}")
-        except OSError:
-            # stdout may be closed in some test runners
-            pass
+        intent, source_kind = self._get_execution_intent(node), node.get("source_kind")
+        effective_role = self._get_effective_runtime_role(node)
+        debug_print(
+            f"[DEBUG] Gathering candidates for intent={intent}, role={effective_role}, "
+            f"target={target_entity}, source_kind={source_kind}"
+        )
         explicit_id = node.get("explicit_method_id")
         explicit_name = node.get("explicit_method_name")
         if explicit_id or explicit_name:
@@ -897,7 +962,7 @@ class ActionSynthesizer:
         wants_payload = intent == "HTTP_REQUEST" and (
             "payload" in semantic_roles or "content" in semantic_roles
         )
-        requested_role = node.get("role")
+        requested_role = effective_role
         ukb_results = self.ukb.search(node.get("original_text", ""), limit=10, intent=intent, target_entity=target_entity, requested_role=requested_role) if self.ukb is not None else []
         ukb_results = [c for c in ukb_results if c.get("name") not in ["Enumerable.ToList", "List.Add", "GenericAction"]]
         
@@ -919,11 +984,11 @@ class ActionSynthesizer:
             if " " in c_name:
                 continue
             role_mismatch = False
-            if node.get("role") and c_role:
+            if effective_role and c_role:
                 # 27.448: Strict role enforcement even for templates
-                if node["role"] in ["READ", "FETCH"] and c_role in ["WRITE", "PERSIST"]:
+                if effective_role in ["READ", "FETCH"] and c_role in ["WRITE", "PERSIST"]:
                     role_mismatch = True
-                if node["role"] in ["WRITE", "PERSIST"] and c_role in ["READ", "FETCH"]:
+                if effective_role in ["WRITE", "PERSIST"] and c_role in ["READ", "FETCH"]:
                     role_mismatch = True
             
             if role_mismatch:

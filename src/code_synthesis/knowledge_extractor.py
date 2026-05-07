@@ -2,6 +2,7 @@
 import json
 import os
 import ast
+import logging
 from typing import List, Dict, Any
 
 class KnowledgeExtractor:
@@ -13,6 +14,7 @@ class KnowledgeExtractor:
     def __init__(self, workspace_root: str):
         self.workspace_root = workspace_root
         self.knowledge = {"templates": [], "type_mappings": {}, "common_patterns": {}}
+        self.logger = logging.getLogger(__name__)
 
     def extract_from_source(self):
         self._extract_type_system_ast()
@@ -34,7 +36,7 @@ class KnowledgeExtractor:
                             if isinstance(node.value, ast.Dict):
                                 self.knowledge["type_mappings"] = self._parse_ast_dict(node.value)
         except Exception as e:
-            print(f"[!] AST error in TypeSystem: {e}")
+            self.logger.error("AST error in TypeSystem: %s", e)
 
     def _extract_ir_patterns_ast(self):
         ir_path = os.path.join(self.workspace_root, "src", "ir_generator", "ir_generator.py")
@@ -51,7 +53,7 @@ class KnowledgeExtractor:
                             if isinstance(node.value, ast.Dict):
                                 self.knowledge["common_patterns"] = self._parse_ast_dict(node.value)
         except Exception as e:
-            print(f"[!] AST error in IRGenerator: {e}")
+            self.logger.error("AST error in IRGenerator: %s", e)
 
     def _parse_ast_dict(self, node: ast.Dict) -> Dict[str, Any]:
         result = {}
@@ -93,7 +95,7 @@ class KnowledgeExtractor:
         
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(existing, f, indent=4, ensure_ascii=False)
-        print(f"[+] Canonical knowledge updated with structural data at {output_path}")
+        self.logger.info("Canonical knowledge updated with structural data at %s", output_path)
 
 if __name__ == "__main__":
     extractor = KnowledgeExtractor(os.getcwd())

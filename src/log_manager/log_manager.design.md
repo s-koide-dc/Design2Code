@@ -109,3 +109,7 @@
 - **Logic**:
   - 起動時に `Pipeline` から呼び出される。
   - 指定日数（例: 7日）より古い `pipeline_*.json/log` を `logs/archive/` に zip 圧縮して移動。
+
+## 11. Operational Notes
+- `LogManager` 自身の補助診断（ログ読取失敗、エラーサマリー読取失敗）は stdout ではなく logger に出力する。
+- 利用者向けの可視化は常に管理対象ログファイル経由で行い、補助エラーを標準出力へ混在させない。

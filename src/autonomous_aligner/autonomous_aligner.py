@@ -11,6 +11,7 @@ from src.utils.design_doc_parser import DesignDocParser
 from src.advanced_tdd.fix_engine import CodeFixSuggestionEngine
 from src.config.config_manager import ConfigManager
 from src.vector_engine.vector_engine import VectorEngine
+from src.utils.stdout_guard import debug_print
 
 class AutonomousAligner:
     """設計書と実装の整合性を自律的に修正・維持するクラス"""
@@ -211,7 +212,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     aligner = AutonomousAligner(".")
     report = aligner.align_all_modules()
-    print(f"Alignment completed. Modules processed: {report['total_modules_processed']}")
+    debug_print(f"Alignment completed. Modules processed: {report['total_modules_processed']}")
     # TODO: Implement Logic: **整合性修復サイクル (Iterative Repair)**:
         # TODO: Implement Logic: **修正提案の生成**: `findings` を `FixEngine` に渡し、スタブ挿入等の修正案を取得。
         # TODO: Implement Logic: 以下のステップを、不整合が解消されるか最大試行回数（5回）に達するまで繰り返す。

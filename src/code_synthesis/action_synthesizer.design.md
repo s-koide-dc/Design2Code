@@ -1,91 +1,49 @@
-# Action Synthesizer Design Document
+# ActionSynthesizer Design Document
 
 ## 1. Purpose
-The `ActionSynthesizer` is a core component of the Code Synthesis module, responsible for transforming high-level design nodes (representing intents, actions, or control flow) into concrete C# intermediate representation (IR) or code statements. It operates as the "Pure Orchestration" layer [Phase 23.3], bridging the gap between abstract design plans and executable code.
+
+`ActionSynthesizer` は IR ノードを具体的な合成経路へ落とす orchestration 層である。  
+特に、`spec_role` を runtime execution intent に橋渡しし、`CHECK`, `FILTER`, `CALCULATE`, `DESERIALIZE` の metadata-driven dispatch を担う。
 
 ## 2. Structured Specification
 
-### 2.1 Input
-- **node** (`Dict[str, Any]`): A dictionary representing the current action node from the execution plan. Key fields include:
-    - `type` (str): Node type (e.g., "ACTION", "LOOP", "CONDITION").
-    - `intent` (str): The semantic intent (e.g., "DISPLAY", "CALC", "RETURN", "general").
-    - `target_entity` (str): The primary entity the action operates on.
-    - `semantic_map` (Dict): Detailed semantic roles and logic.
-    - `children` (List): Child nodes for container types (LOOP, CONDITION).
-- **path** (`Dict[str, Any]`): The current synthesis state/context, containing:
-    - `statements` (List): Accumulated code statements.
-    - `type_to_vars` (Dict): Mapping of types to available variables.
-    - `active_scope_item` (str): The most recently modified/accessed variable.
-    - `poco_defs` (Dict): Definitions of POCO classes.
-    - `all_usings` (Set): Required namespace imports.
-- **future_hint** (`str`, optional): Hint for downstream synthesis.
-- **consumed_ids** (`set`, optional): Set of node IDs already processed to prevent cycles.
+### Input
+- **Description**: 現在ノード、合成 path、任意の future hint、既消費 node ID 集合。
+- **Type/Format**: `Dict[str, Any]`, `Dict[str, Any]`, `Optional[str]`, `Optional[set]`
 
-### 2.2 Output
-- **List[Dict[str, Any]]**: A list of potential synthesis paths (branches). Each path is a copy of the input `path` with:
-    - Appended `statements` (e.g., method calls, control structures).
-    - Updated `type_to_vars` and `active_scope_item`.
-    - Updated `consumed_ids`.
-    - Increased `completed_nodes` count.
+### Output
+- **Description**: 更新済み synthesis path 候補群。
+- **Type/Format**: `List[Dict[str, Any]]`
 
-### 2.3 Core Logic
+### Core Logic
+1. ノードから `spec_role` を読み、必要なら execution intent を補正する。
+   - `DESERIALIZE` -> `JSON_DESERIALIZE`
+   - `FILTER` -> `LINQ`
+   - `DISPLAY` は弱い runtime intent を `DISPLAY` に補正する
+2. `audit_only` や project ops を先に処理する。
+3. `LOOP`, `CONDITION`, `RETURN`, `LINQ`, `CALC`, `DISPLAY/TRANSFORM` は専用 handler へ dispatch する。
+4. `FETCH`, file persist, JSON, IO も専用 handler へ分岐する。
+5. collection 入力で loop 展開が必要な場合は synthetic loop を生成する。
+6. 一般アクションは candidate gathering -> 単一メソッド合成で処理する。
+7. 候補が無い場合は fallback を試し、それでも無ければ `NotImplementedException` を生成する。
+8. `CHECK` / `FILTER` / `CALCULATE` の詳細式や conservatism は binder/handler 側に委譲する。
+9. debug 出力は通常経路では行わず、`NLP_DEBUG_STDOUT` が有効な場合のみ candidate gather や unresolved path の補助情報を出す。
 
-1.  **Dispatch Strategy**:
-    -   Evaluate `node.type` and `node.intent` to determine the specific processing handler.
-    -   **LOOP**: Delegate to `_process_loop_node`.
-    -   **CONDITION**: Delegate to `_process_condition_node`.
-    -   **RETURN**: Delegate to `_process_return_node`.
-    -   **LINQ**: Delegate to `_process_linq_filter_block`.
-    -   **CALC**: Delegate to `_process_calc_node`.
-    -   **DISPLAY/TRANSFORM**: Delegate to `_process_display_transform_specialized`.
+### Test Cases
+- **Happy Path**:
+  - **Scenario**: `spec_role=FILTER` のノード。
+  - **Expected Output**: `LINQ` handler に dispatch される。
+- **Edge Cases**:
+  - **Scenario**: 候補メソッドが無い。
+  - **Expected Output / Behavior**: TODO 付き `NotImplementedException` を生成する。
 
-2.  **Control Flow Handling**:
-    -   **Loops**: Identify the collection variable in `path`. Generate a `foreach` structure. Recursively invoke the synthesizer for the loop body (children). Register the loop variable in the inner scope.
-    -   **Conditions**: Use `SemanticBinder` to generate the boolean expression. Generate `if` (and optionally `else`) blocks. Recursively invoke the synthesizer for the bodies.
+## 3. Dependencies
+- **Internal**:
+  - `semantic_binder`
+  - `statement_builder`
+  - `action_handlers`
+- **External**: なし
 
-3.  **Calculation & Aggregation**:
-    -   **Arithmetic**: Resolve variables for operands. Generate assignment statements (e.g., `var result = a + b;` or `total += amount;`).
-    -   **CSV Aggregation**: Handle specific logic for `aggregate_by_product` ops, creating dictionaries and accumulating values.
-    -   **State Updates**: Detect intents like "UPDATE" or "SET" to modify properties of existing objects instead of creating new variables.
-
-4.  **Display & Transform**:
-    -   **Display**: Generate `Console.WriteLine` calls. Handle literal strings, variable output, and POCO stringification.
-    -   **Transform**: Apply specific string operations (`split_lines`, `trim_upper`, `format_kv`, `csv_serialize`) based on `ops` metadata.
-
-5.  **General Action Synthesis**:
-    -   **HTN Plans**: If `htn_plan` is present, expand it into a sequence of steps and process sequentially.
-    -   **Candidate Gathering**: Query `TemplateRegistry` and `UKB` (Unified Knowledge Base) for methods matching the intent and target entity.
-    -   **Method Synthesis**: For each candidate method:
-        -   Bind parameters using `SemanticBinder`.
-        -   Render the method call using `StatementBuilder`.
-        -   Wrap in try-catch blocks if necessary.
-        -   Handle return values (declare new variables, update scope).
-    -   **Error Handling**: If no candidates are found, generate a `throw new NotImplementedException` statement to allow compilation (with a TODO marker).
-
-### 2.4 Test Cases
-
-#### Happy Path
-1.  **Simple Method Call**:
-    -   Input: Node with intent="GENERAL", method="File.WriteAllText".
-    -   Expected: Path containing `File.WriteAllText(...)` statement.
-2.  **Loop Generation**:
-    -   Input: Node type="LOOP", child intent="DISPLAY". Path has `List<string> items`.
-    -   Expected: Path containing `foreach (var item in items) { Console.WriteLine(item); }`.
-3.  **Calculation**:
-    -   Input: Intent="CALC", logic="a + b".
-    -   Expected: Path containing `var result = a + b;`.
-
-#### Edge Cases
-1.  **Unknown Intent**:
-    -   Input: Node with intent="UNKNOWN_MAGIC".
-    -   Expected: Path containing `throw new NotImplementedException("TODO: Implement UNKNOWN_MAGIC...");`.
-2.  **Missing Collection for Loop**:
-    -   Input: Node type="LOOP" but path has no collection variables.
-    -   Expected: Empty list (no valid paths) or error handling.
-3.  **Display Null/Void**:
-    -   Input: Intent="DISPLAY", target variable doesn't exist.
-    -   Expected: Graceful fallback or generic message.
-
-## 4. Review Notes
-- 2026-03-31: Reviewed against current implementation; specification remains valid.
-
+## 4. Operational Notes
+- candidate gather や unresolved path の補助情報は `src.utils.stdout_guard.debug_print` を使う opt-in 出力とする。
+- 通常の synthesis 経路では stdout を使わず、正式な結果は戻り値の synthesis path と generated code に集約する。

@@ -1,0 +1,146 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "請求書を取得する。",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "SINGLE",
+      "target_entity": "Invoice",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Invoice"
+        },
+        "spec_role": "FETCH"
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "CONDITION",
+      "original_text": "もし請求金額が 100 より大きいならば、以下の処理を行う：",
+      "intent": "EXISTS",
+      "role": "CHECK",
+      "cardinality": "SINGLE",
+      "target_entity": "Invoice",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "numeric",
+            "operator": "Greater",
+            "expected_value": "100",
+            "variable_hint": "請求金額",
+            "target_hint": null,
+            "original_step": "もし請求金額が 100 より大きいならば、以下の処理を行う："
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "Invoice",
+          "structure_kind": "condition"
+        },
+        "spec_role": "CHECK",
+        "check_kind": "comparison_check",
+        "check_subject": "InvoiceAmount",
+        "check_operator": ">",
+        "check_value": "100",
+        "expected_truth": true,
+        "subject_resolution": "schema_property"
+      },
+      "input_link": "step_1",
+      "children": [
+        {
+          "id": "step_3",
+          "type": "ACTION",
+          "original_text": "請求番号を表示する。",
+          "intent": "DISPLAY",
+          "role": "DISPLAY",
+          "cardinality": "SINGLE",
+          "target_entity": "Invoice",
+          "output_type": "string",
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "Invoice"
+            },
+            "spec_role": "DISPLAY"
+          },
+          "input_link": "step_2",
+          "children": [],
+          "else_children": []
+        }
+      ],
+      "else_children": []
+    },
+    {
+      "id": "step_5",
+      "type": "ACTION",
+      "original_text": "請求書一覧を取得する。",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "COLLECTION",
+      "target_entity": "Invoice",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Invoice"
+        },
+        "spec_role": "FETCH"
+      },
+      "input_link": "step_3",
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_6",
+      "type": "ACTION",
+      "original_text": "請求金額が 100 より大きい請求書を抽出する。",
+      "intent": "LINQ",
+      "role": "FILTER",
+      "cardinality": "COLLECTION",
+      "target_entity": "Invoice",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "numeric",
+            "operator": "Greater",
+            "expected_value": "100",
+            "variable_hint": "請求金額",
+            "target_hint": null,
+            "original_step": "請求金額が 100 より大きい請求書を抽出する。"
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "Invoice",
+          "property": "InvoiceAmount",
+          "predicate_resolution": "schema_property",
+          "collection_resolution": "explicit_input_link"
+        },
+        "spec_role": "FILTER"
+      },
+      "input_link": "step_5",
+      "children": [],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

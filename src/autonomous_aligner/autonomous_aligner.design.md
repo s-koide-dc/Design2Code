@@ -31,3 +31,7 @@
 
 ## 3. Dependencies
 - **Internal**: `logic_auditor`, `design_doc_parser`, `fix_engine`
+
+## 4. Operational Notes
+- `__main__` の整合レポート要約は `src.utils.stdout_guard.debug_print` による opt-in 出力とする。
+- 通常のモジュール利用では stdout を使わず、監査・修復の進行は logger か呼び出し側の戻り値で扱う。

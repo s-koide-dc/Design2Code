@@ -267,16 +267,37 @@ Inputs
 1. StructuredSpec and optional `intent_hint`.
 
 Flow
-1. Convert each step into IR nodes:
-   1. Determine node type (ACTION, CONDITION, LOOP, ELSE, END).
-   2. Infer intent and role using `SynthesisIntentDetector` and logic analysis.
-   3. Carry `source_ref` and infer `source_kind` from declarations or semantics.
-   4. Create `semantic_map` including logic goals and semantic roles.
-2. Insert auto-chaining nodes for JSON deserialize or serialize when conditions match.
-3. Build a nested `logic_tree` with `children` and `else_children`.
+1. Normalize each raw step and extract hierarchical clauses.
+2. Run step-local semantic analysis:
+   1. Determine node type (`ACTION`, `CONDITION`, `LOOP`, `ELSE`, `END`, `WRAPPER`).
+   2. Infer coarse `intent`, `role`, `cardinality`, and `target_entity`.
+   3. Merge explicit semantic metadata from the design spec.
+3. Resolve role-specific semantics:
+   1. Infer `spec_role`.
+   2. For `CHECK`, enrich `semantic_map` with `check_kind`, `check_subject`, `check_operator`, `check_value`, `expected_truth`, and `subject_resolution`.
+   3. For `CALCULATE`, resolve canonical property and `entity_resolution`.
+   4. For `FILTER`, apply promotion rules and retain `predicate_resolution` / `collection_resolution`.
+4. Coerce final runtime `intent` / `role` and resolve final `source_kind`.
+5. Determine `input_link` using structural dependency rules:
+   1. First child in a structure uses structural parent dependency.
+   2. Later siblings prefer sequential sibling dependency.
+   3. `ELSE` branches use the parent `CONDITION` as branch base.
+6. Emit IR nodes.
+7. Insert explicit bridge nodes when required:
+   1. `JSON_DESERIALIZE` after upstream string/file fetch.
+   2. `JSON_SERIALIZE` before collection persist.
+8. Attach nodes into the nested `logic_tree` and update context history.
 
 Outputs
 1. IR tree with `logic_tree`, `inputs`, `outputs`, and `data_sources`.
+
+Implementation notes
+1. The generator now delegates domain logic to:
+   1. `src/ir_generator/check_resolution.py`
+   2. `src/ir_generator/promotion_rules.py`
+   3. `src/ir_generator/target_resolution.py`
+   4. `src/ir_generator/spec_role_rules.py`
+2. `ir_generator.py` remains the orchestration skeleton for clause handling, structure control, node emission, and auto-node insertion.
 
 ### 8. `src/code_synthesis/code_synthesizer.py:CodeSynthesizer._synthesize_from_ir_tree`
 Inputs
@@ -299,6 +320,13 @@ Inputs
 Flow
 1. Walk IR nodes and generate candidate paths.
 2. For each node, call `ActionSynthesizer.process_node`.
+3. `ActionSynthesizer` maps specification-facing metadata into runtime execution choices:
+   1. `spec_role=DESERIALIZE` -> `JSON_DESERIALIZE`
+   2. `spec_role=FILTER` -> `LINQ`
+   3. `spec_role=CHECK` keeps condition synthesis on the binder path
+   4. `spec_role=CALCULATE` routes into calc handlers
+4. `SemanticBinder` consumes `CHECK` metadata and provenance-strength to generate conservative conditions.
+5. `calc_ops` consumes `entity_resolution` to decide whether to concretize, stay generic, or emit explicit TODO stop points.
 
 Outputs
 1. A ranked list of synthesis paths.
@@ -374,6 +402,7 @@ Outputs
    1. `module_name`, `purpose`, `inputs`, `outputs`, `steps`, `constraints`, `test_cases`, `data_sources`.
 2. IR tree
    1. `logic_tree` nodes with `intent`, `role`, `target_entity`, `semantic_map`, `source_kind`.
+   2. `semantic_map` may include `spec_role`, `check_*`, `entity_resolution`, `subject_resolution`, `predicate_resolution`, `collection_resolution`.
 3. Blueprint
    1. Method bodies and statements used by CodeBuilder.
 4. VerificationResult
@@ -390,16 +419,22 @@ Outputs
    2. `validate_structured_spec_or_raise` rejects unknown or invalid `source_ref` and `source_kind`.
 3. IR-level intent and cardinality are normalized.
    1. `IRGenerator._analyze_step_integrated` adjusts intent based on logic goals and source kind.
-4. Reachability audit is applied on the final path.
+4. Specification meaning is preserved independently from runtime role.
+   1. `IRGenerator` emits `semantic_map.spec_role` and role-specific resolution metadata.
+5. Structural dependency is normalized at IR time.
+   1. First child / sibling / else-branch linkage is fixed before code synthesis.
+6. Downstream conservatism is metadata-driven.
+   1. Weak provenance stops over-concretization in `CHECK`, `FILTER`, and `CALCULATE`.
+7. Reachability audit is applied on the final path.
    1. `_audit_reachability` adds a warning if source data never reaches sinks.
-5. Safety policy and project rules are enforced for single-module generation.
+8. Safety policy and project rules are enforced for single-module generation.
    1. `enforce_safety_policy` blocks destructive/cautionary intents unless `--allow-unsafe`.
    2. `validate_design_path`, `validate_output_path`, `validate_spec_paths` enforce naming and banned patterns.
-6. Spec alignment audit runs before final output.
+9. Spec alignment audit runs before final output.
    1. `SpecAuditor.audit` can block on `SPEC_INPUT_LINK_UNUSED`.
-7. Compilation verification is enforced before final output.
+10. Compilation verification is enforced before final output.
    1. `CompilationVerifier.verify` runs `dotnet build` and returns structured errors.
-8. Replan guards are present.
+11. Replan guards are present.
    1. Convergence guard prevents repeating hints more than once per hint fingerprint.
    2. Max retry count is capped in `generate_from_design.py`.
 

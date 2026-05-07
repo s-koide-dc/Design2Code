@@ -1,0 +1,148 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "'users.json' を読み込む",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "SINGLE",
+      "target_entity": "User",
+      "output_type": "string",
+      "source_kind": "file",
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "string",
+            "operator": "Equal",
+            "expected_value": "users.json",
+            "variable_hint": "",
+            "target_hint": null,
+            "original_step": "'users.json' を読み込む"
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "Item"
+        }
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "ACTION",
+      "original_text": "データをユーザーリストに変換する",
+      "intent": "JSON_DESERIALIZE",
+      "role": "ACTION",
+      "cardinality": "COLLECTION",
+      "target_entity": "User",
+      "output_type": "List<User>",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "User"
+        }
+      },
+      "input_link": "step_1",
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_3",
+      "type": "ACTION",
+      "original_text": "名前が 'A' で始まるユーザーを抽出する",
+      "intent": "LINQ",
+      "role": "ACTION",
+      "cardinality": "COLLECTION",
+      "target_entity": "User",
+      "output_type": "List<User>",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "string",
+            "operator": "StartsWith",
+            "expected_value": "A",
+            "variable_hint": "名前",
+            "target_hint": null,
+            "original_step": "名前が 'A' で始まるユーザーを抽出する"
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "User",
+          "property": "Name"
+        }
+      },
+      "input_link": "step_2",
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_4",
+      "type": "ACTION",
+      "original_text": "価格が 500 より大きいユーザーを抽出する",
+      "intent": "LINQ",
+      "role": "ACTION",
+      "cardinality": "COLLECTION",
+      "target_entity": "User",
+      "output_type": "List<User>",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "numeric",
+            "operator": "Greater",
+            "expected_value": "500",
+            "variable_hint": "価格",
+            "target_hint": null,
+            "original_step": "価格が 500 より大きいユーザーを抽出する"
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "User",
+          "property": "Price"
+        }
+      },
+      "input_link": "step_3",
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_5",
+      "type": "ACTION",
+      "original_text": "条件に合致したユーザー一覧を表示する",
+      "intent": "DISPLAY",
+      "role": "DISPLAY",
+      "cardinality": "SINGLE",
+      "target_entity": "User",
+      "output_type": "void",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "User"
+        }
+      },
+      "input_link": "step_4",
+      "children": [],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "output_1",
+      "description": "status",
+      "type_format": "bool",
+      "example": ""
+    }
+  ],
+  "data_sources": []
+}

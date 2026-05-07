@@ -1,5 +1,8 @@
 import json
 import os
+import logging
+
+from src.utils.stdout_guard import debug_print
 
 class IntentDetector:
     def __init__(self, task_manager, corpus_path=None, config_manager=None):
@@ -16,6 +19,7 @@ class IntentDetector:
         self.task_manager = task_manager
         self.intents = []
         self.vector_engine = None
+        self.logger = logging.getLogger(__name__)
         self.load_corpus()
 
     def load_corpus(self):
@@ -26,7 +30,7 @@ class IntentDetector:
                     data = json.load(f)
                     self.intents = data.get("intents", [])
             except Exception as e:
-                print(f"Error loading intent corpus: {e}")
+                self.logger.error("Error loading intent corpus: %s", e)
                 self.intents = []
 
     def set_vector_engine(self, vector_engine):
@@ -147,7 +151,7 @@ class IntentDetector:
             with open(self.corpus_path, "w", encoding="utf-8") as f:
                 json.dump({"intents": self.intents}, f, ensure_ascii=False, indent=4)
         except Exception as e:
-            print(f"Error saving intent corpus: {e}")
+            self.logger.error("Error saving intent corpus: %s", e)
 
     def detect(self, context: dict) -> dict:
         """
@@ -184,7 +188,7 @@ class IntentDetector:
                   is_awaiting_conf = True
         
         if is_awaiting_conf and self.vector_engine:
-            print(f"[DEBUG] Awaiting confirmation for task {current_task.get('name') if current_task else 'unknown'}")
+            debug_print(f"[DEBUG] Awaiting confirmation for task {current_task.get('name') if current_task else 'unknown'}")
 
         # 2. Sentence Vector Match (Fallback)
         if hasattr(self, 'intent_vectors') and self.intent_vectors:

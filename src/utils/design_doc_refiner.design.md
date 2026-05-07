@@ -23,6 +23,7 @@ The `DesignDocRefiner` [Phase 23.4] ensures that design documentation remains th
 2.  **AST Analysis**: Use `ASTAnalyzer` to extract class/method structure, parameters, and return types from the source code.
 3.  **Parsing**: Use `DesignDocParser` to understand the current state of the design doc.
 4.  **Audit**: Use `LogicAuditor` to check current consistency before modification.
+5. 解析途中の型確認などの補助情報は通常 stdout へは出さず、debug 出力が有効なときだけ表示する。
 
 #### 2.3.2 Interface Synchronization (`_sync_interface`)
 1.  **Target Identification**: Find the primary class/method in the source structure (First class's first method, or first function).
@@ -60,3 +61,7 @@ The `DesignDocRefiner` [Phase 23.4] ensures that design documentation remains th
 3.  **Already Synced**:
     -   Input: Perfectly matching files.
     -   Result: "no_change" status.
+
+## 3. Operational Notes
+- 解析途中の型確認や設計書 drift の補助観測は `src.utils.stdout_guard.debug_print` を使う opt-in 出力とする。
+- 通常の同期 API は `status/message/findings` を返すだけで、標準出力責務は持たない。

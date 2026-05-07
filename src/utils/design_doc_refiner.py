@@ -5,6 +5,7 @@ from typing import Dict, List, Any, Optional
 from src.advanced_tdd.ast_analyzer import ASTAnalyzer
 from src.utils.logic_auditor import LogicAuditor
 from src.utils.design_doc_parser import DesignDocParser
+from src.utils.stdout_guard import debug_print
 
 class DesignDocRefiner:
     """実装（コード）から設計書（.design.md）を洗練・同期させるクラス"""
@@ -43,7 +44,7 @@ class DesignDocRefiner:
 
             source_structure = self.ast_analyzer.analyze_file(source_path)
             design_data = self.parser.parse_content(design_content)
-            print(f"[DEBUG] design_data type: {type(design_data)}")
+            debug_print(f"[DEBUG] design_data type: {type(design_data)}")
 
             # 2. 整合性チェック (監査)
             audit_result = self.auditor.audit(design_data, source_structure, source_code)

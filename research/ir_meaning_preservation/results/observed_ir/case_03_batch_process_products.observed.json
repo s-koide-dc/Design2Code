@@ -1,0 +1,87 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "'products.json' を読み込み、JSON を商品リストに変換する",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "COLLECTION",
+      "target_entity": "Item",
+      "output_type": "void",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "string",
+            "operator": "Equal",
+            "expected_value": "products.json",
+            "variable_hint": "",
+            "target_hint": "リスト",
+            "original_step": "'products.json' を読み込み、JSON を商品リストに変換する"
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "Item"
+        }
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "LOOP",
+      "original_text": "各商品に対して以下の処理を繰り返す",
+      "intent": "GENERAL",
+      "role": "ACTION",
+      "cardinality": "COLLECTION",
+      "target_entity": "Product",
+      "output_type": "void",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        }
+      },
+      "input_link": "step_1",
+      "children": [
+        {
+          "id": "step_3",
+          "type": "ACTION",
+          "original_text": "商品Nameをコンソールに表示する",
+          "intent": "DISPLAY",
+          "role": "DISPLAY",
+          "cardinality": "SINGLE",
+          "target_entity": "Product",
+          "output_type": "void",
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "Product"
+            }
+          },
+          "input_link": "step_2",
+          "children": [],
+          "else_children": []
+        }
+      ],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "output_1",
+      "description": "status",
+      "type_format": "bool",
+      "example": ""
+    }
+  ],
+  "data_sources": []
+}

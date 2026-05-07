@@ -33,3 +33,7 @@
 
 ## 3. Dependencies
 - **Internal**: `config_manager`
+
+## 4. Operational Notes
+- `dotnet restore` 失敗の補助診断は stdout ではなく logger の warning に記録する。
+- サンドボックス生成 API 自体は返り値の `Path` を正式結果とし、常時標準出力は持たない。

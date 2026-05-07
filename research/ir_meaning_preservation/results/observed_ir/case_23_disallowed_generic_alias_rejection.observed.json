@@ -1,0 +1,146 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "注文を取得する。",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "SINGLE",
+      "target_entity": "Order",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Order"
+        },
+        "spec_role": "FETCH"
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "CONDITION",
+      "original_text": "もし金額が 100 より大きいならば、以下の処理を行う：",
+      "intent": "EXISTS",
+      "role": "CHECK",
+      "cardinality": "SINGLE",
+      "target_entity": "Order",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "numeric",
+            "operator": "Greater",
+            "expected_value": "100",
+            "variable_hint": "金額",
+            "target_hint": null,
+            "original_step": "もし金額が 100 より大きいならば、以下の処理を行う："
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "Item",
+          "structure_kind": "condition"
+        },
+        "spec_role": "CHECK",
+        "check_kind": "comparison_check",
+        "check_subject": "金額",
+        "check_operator": ">",
+        "check_value": "100",
+        "expected_truth": true,
+        "subject_resolution": "explicit_subject"
+      },
+      "input_link": "step_1",
+      "children": [
+        {
+          "id": "step_3",
+          "type": "ACTION",
+          "original_text": "IDを表示する。",
+          "intent": "DISPLAY",
+          "role": "DISPLAY",
+          "cardinality": "SINGLE",
+          "target_entity": "Order",
+          "output_type": "string",
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "Item"
+            },
+            "spec_role": "DISPLAY"
+          },
+          "input_link": "step_2",
+          "children": [],
+          "else_children": []
+        }
+      ],
+      "else_children": []
+    },
+    {
+      "id": "step_5",
+      "type": "ACTION",
+      "original_text": "注文一覧を取得する。",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "COLLECTION",
+      "target_entity": "Order",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Order"
+        },
+        "spec_role": "FETCH"
+      },
+      "input_link": "step_3",
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_6",
+      "type": "ACTION",
+      "original_text": "金額が 100 より大きい注文を抽出する。",
+      "intent": "LINQ",
+      "role": "FILTER",
+      "cardinality": "COLLECTION",
+      "target_entity": "Order",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "numeric",
+            "operator": "Greater",
+            "expected_value": "100",
+            "variable_hint": "金額",
+            "target_hint": null,
+            "original_step": "金額が 100 より大きい注文を抽出する。"
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "Order",
+          "property": "金額",
+          "predicate_resolution": "logic_goal",
+          "collection_resolution": "explicit_input_link"
+        },
+        "spec_role": "FILTER"
+      },
+      "input_link": "step_5",
+      "children": [],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

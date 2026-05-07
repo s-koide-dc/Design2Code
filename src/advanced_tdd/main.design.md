@@ -29,3 +29,7 @@
 
 ## 3. Dependencies
 - **Internal**: `failure_analyzer`, `fix_engine`, `autonomous_synthesizer`
+
+## 4. Operational Notes
+- `execute_goal_driven_tdd` の補助診断と `__main__` のサンプル結果表示は `src.utils.stdout_guard.debug_print` を通す。
+- 通常利用時の stdout 汚染を避けつつ、`NLP_DEBUG_STDOUT=1` で手動確認を継続できる。

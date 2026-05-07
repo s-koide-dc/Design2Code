@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 import copy
 from src.replanner.reason_analyzer import ReasonAnalyzer
 from src.replanner.ir_patcher import IRPatcher
+from src.utils.stdout_guard import debug_print
 
 class Replanner:
     """Design-to-Code パイプラインの再試行サイクルを管理するクラス"""
@@ -45,7 +46,7 @@ class Replanner:
         if len(self.history) > 5:
             return {"status": "FAILED", "message": "Max retry limit reached."}
 
-        print(f"    - Generated Hints: {hints}")
+        debug_print(f"    - Generated Hints: {hints}")
 
         # 3. IR ツリーへのパッチ適用
         patched_ir = self.patcher.apply_patches(copy.deepcopy(ir_tree), hints)

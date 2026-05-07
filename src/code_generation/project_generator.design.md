@@ -54,7 +54,7 @@
 12. ルート定義があれば、コントローラをレンダリングする。`USE_CODE_SYNTH_PROJECT_ALL` が有効なら合成器でアクション本体を生成する。
    - `routes` からベースパスを推定し、二重パス（例: `catalogitems/catalog`）にならないようにする。
 13. `Program.cs` / `appsettings.json` / `<Project>.csproj` / テストプロジェクトを生成する。
-14. `LogicAuditor` と `DesignDocRefiner` でロジック/設計書監査を行い、警告を出力する。
+14. `LogicAuditor` と `DesignDocRefiner` でロジック/設計書監査を行い、必要な警告は logger 経由で記録する。
 
 ### Test Cases
 - **Happy Path**:
@@ -64,7 +64,12 @@
   - **Scenario**: `entity_specs` が空。
   - **Expected Output / Behavior**: `generation_hints` と `modules` から既定値を構築する。
   - **Scenario**: `modules` に宣言されていない Controller/Service/Repository がある。
-  - **Expected Output / Behavior**: 警告が標準出力に表示される。
+  - **Expected Output / Behavior**: 警告が logger 経由で記録される。
+
+## 4. Notes
+- resolver 統計や監査警告は、通常の生成コード出力と混ざらないよう logger 経由で扱う。
+- モジュール定義欠落の補助通知は `src.utils.stdout_guard.debug_print` を通す opt-in 出力とし、通常の project generation stdout には混在させない。
+- 2026-05-07: 欠落モジュール通知の実装位置を `_warn_missing_module` 内に固定し、通常フローでは stdout を使わない方針を維持する。
 
 ## 3. Dependencies
 - **Internal**:

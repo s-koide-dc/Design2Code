@@ -6,6 +6,8 @@ import json
 import os # Added for file operations
 import time
 
+from src.utils.stdout_guard import debug_print
+
 class TaskManager:
     def __init__(self, action_executor=None, log_manager=None, task_definitions_path=None, config_manager=None):
         """
@@ -111,7 +113,7 @@ class TaskManager:
         if self.log_manager:
             self.log_manager.log_event("task_manager_error", {"message": message}, level="ERROR")
         elif self.config and self.config.debug_mode:
-            print(f"[TaskManager ERROR] {message}")
+            debug_print(f"[TaskManager ERROR] {message}")
 
     def _log_debug(self, message: str):
         """デバッグログの出力"""

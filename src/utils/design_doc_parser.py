@@ -2,6 +2,8 @@
 import os
 from typing import Dict, List, Any, Optional
 
+from src.utils.stdout_guard import debug_print
+
 class DesignDocParser:
     """設計書(.design.md)を構造化データに変換するクラス"""
 
@@ -317,4 +319,4 @@ if __name__ == "__main__":
     parser = DesignDocParser()
     sample = "# Test Design Document\n## 1. Purpose\nCheck\n## 2. Structured Specification\n### Input\n- **Description**: Data\n### Core Logic\n1. Step A\n### Test Cases\n- **Case 1**: Result"
     import json
-    print(json.dumps(parser.parse_content(sample), indent=2, ensure_ascii=False))
+    debug_print(json.dumps(parser.parse_content(sample), indent=2, ensure_ascii=False))

@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 
-def infer_target_entity(text: str, history: list, entity_schema: Dict[str, Any], morph_analyzer=None) -> str:
+def infer_target_entity(
+    text: str,
+    history: list,
+    entity_schema: Dict[str, Any],
+    morph_analyzer=None,
+    allow_history_fallback: bool = True,
+) -> str:
     context_entity = history[-1]["target_entity"] if history else "Item"
     entities = [ent.get("name") for ent in entity_schema.get("entities", []) if ent.get("name")] if isinstance(entity_schema, dict) else []
 
@@ -31,8 +37,8 @@ def infer_target_entity(text: str, history: list, entity_schema: Dict[str, Any],
             if kw_low and kw_low in lower_text:
                 return ent_name
 
-    if context_entity and context_entity != "Item":
+    if allow_history_fallback and context_entity and context_entity != "Item":
         return context_entity
     if len(entities) == 1:
         return entities[0]
-    return context_entity
+    return context_entity if allow_history_fallback else "Item"

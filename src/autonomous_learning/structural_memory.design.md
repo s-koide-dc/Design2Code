@@ -143,7 +143,11 @@
 - **ハイブリッド検索**: セマンティック検索とキーワード検索を組み合わせることで精度向上
 - **デバッグログ**: 本番環境では無効化することを推奨
 
-## 7. Future Enhancements
+## 7. Operational Notes
+- `find_duplicates` の候補トレースは `src.utils.stdout_guard.debug_print` を使う opt-in デバッグ出力とする。
+- 重複候補の観測は `NLP_DEBUG_STDOUT=1` のときだけ有効化し、通常利用時の stdout は汚さない。
+
+## 8. Future Enhancements
 - **増分インデックス**: ファイルの変更を検出して、変更されたファイルのみを再インデックス
 - **キャッシュ機構**: 頻繁に検索されるクエリの結果をキャッシュ
 - **多言語サポート**: JavaScript, Java等の他の言語のサポート

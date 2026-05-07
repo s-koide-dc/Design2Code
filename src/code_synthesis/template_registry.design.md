@@ -58,3 +58,7 @@ The `TemplateRegistry` [Phase 23.3] manages the collection of reusable code temp
 3.  **Missing File**:
     -   Condition: `knowledge_path` does not exist.
     -   Result: Registry initializes safely with 0 templates.
+
+## 3. Operational Notes
+- テンプレート読込失敗や未配置通知は stdout ではなく logger に記録する。
+- `TemplateRegistry` は検索結果だけを返し、利用者向け出力責務は持たない。

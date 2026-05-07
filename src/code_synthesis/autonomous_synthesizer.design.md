@@ -81,4 +81,4 @@ It also integrates the legacy `GoalDrivenTDDEngine` capabilities, enabling it to
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
 - 2026-04-21: StructuralMemory の保存先は `config_manager.storage_dir`（`resources/vectors/vector_db`）を使用し、`cache` への分散保存を避ける構成に更新。
-
+- 2026-05-07: 自律合成ループの進行表示は `src.utils.stdout_guard.debug_print` に統一し、通常実行では stdout を汚さず `NLP_DEBUG_STDOUT=1` でのみ補助トレースを有効化する。

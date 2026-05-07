@@ -31,3 +31,8 @@
 
 ## 3. Dependencies
 - **External**: `subprocess`, `tempfile`, `shutil`, `os`, `re`
+
+## 4. Operational Notes
+- 実行検証中に生成するモックファイルの通知は `src.utils.stdout_guard.debug_print` による opt-in 出力とする。
+- 通常の検証結果は戻り値の `stdout` / `stderr` / `exception` に集約し、補助通知を標準出力へ常時流さない。
+- 2026-05-07: モックファイル生成通知は実行フローの副作用説明に留め、正式な検証結果チャネルには含めない。

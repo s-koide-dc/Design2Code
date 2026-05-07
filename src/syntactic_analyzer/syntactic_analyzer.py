@@ -3,6 +3,8 @@ import os
 import re
 from typing import List, Dict, Any
 
+from src.utils.stdout_guard import debug_print
+
 class SyntacticAnalyzer:
     """
     形態素解析結果に基づき、日本語の文節分割と係り受け構造（構文木）を解析するクラス。
@@ -148,7 +150,7 @@ if __name__ == '__main__':
     context = m_analyzer.analyze(context)
     context = s_analyzer.analyze(context)
     
-    print(f"Text: {text}")
+    debug_print(f"Text: {text}")
     for node in context["analysis"]["syntax_tree"]:
         head_text = context["analysis"]["syntax_tree"][node["head"]]["surface"] if node["head"] != -1 else "NONE"
-        print(f" [{node['id']}] {node['surface']} ({node['dep_type']}) -> {head_text}")
+        debug_print(f" [{node['id']}] {node['surface']} ({node['dep_type']}) -> {head_text}")

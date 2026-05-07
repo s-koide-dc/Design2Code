@@ -1,5 +1,221 @@
 # AI Changelog
 
+- **2026-05-07**: Completed the regression-run draft generator by extending `run_ir_meaning_preservation_regression.py` to emit paste-ready `Output Path Check` and `Deliverables Produced` blocks, so the runner now covers the full operational body of a regression record aside from final judgment editing.
+
+- **2026-05-07**: Extended `run_ir_meaning_preservation_regression.py` to emit paste-ready draft blocks for `Affected Claims` and `Downstream Conservatism Check`, reusing the current run file's claim text, claim-map references, consumer list, and stronger/weaker fallback notes so a follow-up regression record can be drafted with minimal manual copying.
+
+- **2026-05-07**: Extended `run_ir_meaning_preservation_regression.py` so the runner now emits a paste-ready `Change Summary` / `Benchmark Coverage` draft block by reusing the current run file's changed-area, related-file, and benchmark-coverage entries, reducing manual rewriting when preparing the next regression record.
+
+- **2026-05-07**: Extended `run_ir_meaning_preservation_regression.py` again so the runner now emits a paste-ready draft block for `Role Weakening Check` and `Alias Admission Check`, seeded from the run file's affected roles and alias timing root plus the corresponding regression-table checks.
+
+- **2026-05-07**: Added a shared `scripts/validate/ir_meaning_preservation_regression_lib.py` helper and extended `run_ir_meaning_preservation_regression.py` so the runner now reprints the exact `Regression Check` rows implied by the run file's `Affected spec_role` values and alias timing root/admission state, both in the console summary and in the paste-ready markdown block.
+
+- **2026-05-07**: Improved `run_ir_meaning_preservation_regression.py` so the runner now captures each step's output and emits a paste-ready markdown block for the `Validation Run` section of a regression record, with concise logical commands (`python ...`) and summarized outcomes instead of raw interpreter paths.
+
+- **2026-05-07**: Extended `validate_ir_meaning_preservation_regression.py` to verify that `Affected spec_role` values exist in `results/role_weakening_regression_table.md` and that the run-record alias timing root / admission state resolves to a valid row in `results/schema_alias_admission_regression_table.md`, with explicit normalization from operational states (`Admit Now`, `Hold For Evidence`, `Reject`) to table states (`admitted`, `not admitted`); updated the playbook and regression template accordingly.
+
+- **2026-05-07**: Added `scripts/validate/run_ir_meaning_preservation_regression.py` to execute the standard IR meaning-preservation playbook as a single command by chaining project-map sync, project consistency validation, regression-run validation, and an optional predefined IR test suite; wired it into the safety whitelist, scripts catalog, regression template, playbook, checklist, and results/template indexes, and verified it against the metadata-baseline run with the `ir-core` suite.
+
+- **2026-05-07**: Added `scripts/validate/validate_ir_meaning_preservation_regression.py` to semi-automate IR meaning-preservation regression runs by validating the run-record structure, required policy/result assets, output-path review section, and referenced files; updated the regression template, baseline run record, playbook, checklist, scripts catalog, safety whitelist, and results/template READMEs to use the new validator.
+
+- **2026-05-07**: Integrated `docs/stdout_output_policy.md` into the research-operation layer by extending the regression run template, benchmark addition template, regression checklist, combined playbook, and templates README with explicit output-path verification steps.
+
+- **2026-05-07**: Backfilled missing output-path guidance in source-level design documents for `ActionSynthesizer`, `IRGenerator`, `DesignDocRefiner`, `Replanner`, and `ServiceGeneration`, aligning them with `docs/stdout_output_policy.md` so the `stdout / stderr / debug_print / logger` boundary is documented consistently.
+
+- **2026-05-07**: Added `docs/stdout_output_policy.md` to normalize the project's output channels into `Formal CLI stdout`, `Formal CLI stderr`, `debug_print`, and `logger`, and linked it from `docs/project_overview.md` as the canonical guide for future output-path changes.
+
+- **2026-05-07**: Continued internal diagnostic cleanup by moving `ResponseGenerator`, `TDDOperations`, `DesignSyncUtil`, and `SandboxProvisioner` away from unconditional `print` usage toward logger-based reporting, and synchronized their source-level design documents with the no-stdout internal-output policy.
+
+- **2026-05-07**: Continued internal diagnostic cleanup by routing `ProjectGenerator` missing-module notices and `ExecutionVerifier` mock-file notices through `debug_print`, and moving `TemplateRegistry` / `UnifiedKnowledgeBase` load failures to logger-based reporting; synchronized the related source-level design documents and fixed the affected generator helper indentation.
+
+- **2026-05-07**: Continued internal-output cleanup by routing `AutonomousAligner` manual summary output and `StructuralMemory.find_duplicates` candidate tracing through `src.utils.stdout_guard.debug_print`, and synchronized their source-level design documents with the opt-in debug-output policy.
+
+- **2026-05-07**: Defined the stdout/stderr contract for `Pipeline` REPL and `QualityGateChecker` CLI by isolating user-facing stdout emission from diagnostic stderr emission in code, and updated the corresponding source-level design documents to make the output boundary explicit.
+
+- **2026-05-07**: Continued stdout cleanup on internal diagnostic paths by moving `IntentDetector`, `VectorEngine`, `KnowledgeExtractor`, `LogManager`, and `TaskManager` away from unconditional `print` usage toward logger output or `debug_print` fallbacks, and synchronized the corresponding source-level design documents with the revised output policy.
+
+- **2026-05-07**: Extended stdout cleanup across manual verification and internal progress paths by routing `AdvancedTDDSupport`, `ClarificationManager`, `SyntacticAnalyzer`, and `AutonomousSynthesizer` sample/progress output through `src.utils.stdout_guard.debug_print`, and synchronized their source-level design documents with the opt-in debug-output policy.
+
+- **2026-05-07**: Continued stdout cleanup by routing `__main__` demo/sample output in `MorphAnalyzer`, `DesignDocParser`, and `NuGetClient` through `src.utils.stdout_guard.debug_print`, keeping manual inspection paths available behind `NLP_DEBUG_STDOUT` while leaving CLI-facing output untouched; also re-inventoried remaining `print` sites to separate user-facing paths from future cleanup targets.
+
+- **2026-05-07**: Continued stdout cleanup across the design-to-code pipeline by moving internal diagnostic output in `CodeBuilderClient`, `Replanner`, `DesignDocRefiner`, `ServiceGenerationHelper`, and `ProjectGenerator` away from unconditional `print` usage toward logger/debug-gated paths, and synchronized the affected source-level design documents with the new output policy.
+
+- **2026-05-07**: Moved the `DI Generated Code` dump in `tests/unit/test_code_synthesizer_integration.py` behind the opt-in `NLP_TEST_DEBUG_STDOUT` flag so normal test runs stay quiet while keeping a targeted diagnostic path available.
+
+- **2026-05-07**: Cleaned up always-on debug output in `IRGenerator` and `ActionSynthesizer` by routing diagnostic prints through `src/utils/stdout_guard.py` as opt-in `NLP_DEBUG_STDOUT` logging, and updated the corresponding source-level design documents to reflect the new stdout policy.
+
+- **2026-05-07**: Added `research/ir_meaning_preservation/combined_regression_playbook.md` to combine role-weakening and schema-alias-admission regression into one repeatable operating procedure, and linked it from the research summary indexes.
+
+- **2026-05-07**: Added `research/ir_meaning_preservation/results/schema_alias_admission_regression_table.md` to normalize alias-admission regression checks by timing root, admission state, IR effect, downstream impact, and required verification points, and linked it from the research indexes.
+
+- **2026-05-07**: Added `research/ir_meaning_preservation/results/role_weakening_regression_table.md` to normalize role-weakening regression checks by `spec_role`, runtime bridge point, baseline status, evidence, and required verification points, and linked it from the research indexes.
+
+- **2026-05-07**: Added `research/ir_meaning_preservation/results/regression_run_2026_05_07_metadata_baseline.md` as the first concrete regression-run record based on the new templates, fixing the current metadata-driven IR/synthesis behavior as an operational baseline after running the focused IR/code-synthesis test suite and project consistency validation.
+
+- **2026-05-07**: Added reusable research operation templates under `research/templates/` for IR meaning-preservation regression runs and benchmark additions, and linked them from the research README, document map, and schema-alias/role-weakening checklist so the current claims can be carried into repeatable validation workflows.
+
+- **2026-05-07**: Added missing source-level design documents for `design_parser.data_source_utils`, `design_parser.design_inference`, `ir_generator.check_resolution`, `ir_generator.promotion_rules`, `ir_generator.spec_role_rules`, `ir_generator.target_resolution`, `utils.entity_inference`, and `utils.stdout_guard`, and refreshed the module-level design documents for `ir_generator`, `action_synthesizer`, `semantic_binder`, and `calc_ops` to match the current metadata-driven IR and synthesis flow.
+
+- **2026-05-01**: Updated the module design documents to match the current IR meaning-preservation implementation: rewrote `docs/ir_design.md`, expanded `docs/generate_from_design_dataflow.md` with role-specific resolution and metadata-driven synthesis flow, added `docs/ir_generator_module_design.md`, and refreshed `docs/project_overview.md` with the decomposed `ir_generator` and code-synthesis metadata consumer map.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/executive_summary.md` as a short external-facing summary that compresses the current research into its problem statement, main findings, demonstrated outcomes, and final framing.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/goal_state.md` to define the research endpoint, done conditions, and the boundary between expansion work and closure work.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/schema_alias_role_weakening_regression_checklist.md` to convert the current role-weakening and alias-admission claims into a concrete regression workflow for future schema and IR changes.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/implementation_priority_from_claims.md` to derive the next implementation priorities from the `substantiated` vs `implemented` split in the claim/evidence/implementation map.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/claim_evidence_implementation_map.md` to connect each research claim to its benchmark evidence and implementation sites, making the research-to-code trace explicit.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/research_outcome_memo.md` to compress the current research into a one-page memo organized by the three layers `role`, `provenance`, and `alias admission timing`.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/results/schema_alias_admission_status_table.md` to normalize current alias-admission status across the five timing roots, making schema admission state and IR-side canonicalization readable without opening each case file.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/schema_alias_admission_timing_matrix.md` to normalize the five alias-admission timing roots into a single cross-case table, and integrated that layer into the midterm synthesis beside role and provenance.
+
+- **2026-05-01**: Captured observed IR for `case_31_external_compatibility_threshold`, extending `research/ir_meaning_preservation/results/schema_alias_admission_threshold_observation.md` so schema-admission timing is now grounded in five roots: `Hold For Evidence`, `Repeated Spec Use`, `Cross-Case Relevance`, `Downstream Impact`, and `External Compatibility`.
+
+- **2026-05-01**: Captured observed IR for `case_29_cross_case_relevance_threshold` and `case_30_downstream_impact_threshold`, extending `research/ir_meaning_preservation/results/schema_alias_admission_threshold_observation.md` so admission timing is now grounded in `Hold For Evidence`, `Repeated Spec Use`, `Cross-Case Relevance`, and `Downstream Impact`.
+
+- **2026-05-01**: Captured observed IR for `case_27_admissible_but_deferred_alias` and `case_28_repeated_spec_use_promotes_alias`, and added `research/ir_meaning_preservation/results/schema_alias_admission_threshold_observation.md` to show that admission threshold is best modeled as schema-admission timing rather than runtime inference.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/schema_alias_admission_threshold.md` to define when owner-confined but low-evidence aliases should be admitted now, held for evidence, or rejected, separating `can_admit` from `should_admit_now`.
+
+- **2026-05-01**: Captured observed IR for `case_26_legacy_field_bridge_admission` and extended `research/ir_meaning_preservation/results/schema_alias_tier2_observation.md` to show that `legacy field bridge` and `compound-part shorthand` share the same Tier 2 admission conditions when owner explanation and canonical non-ambiguity are satisfied.
+
+- **2026-05-01**: Captured observed IR for `case_24_conditional_alias_with_owner_explanation` and `case_25_generic_abbreviation_rejection`, and added `research/ir_meaning_preservation/results/schema_alias_tier2_observation.md` to show that `Tier 2` alias admission depends on owner explanation and canonical non-ambiguity rather than abbreviation surface alone.
+
+- **2026-05-01**: Captured observed IR for `case_22_allowed_alias_admission` and `case_23_disallowed_generic_alias_rejection`, and added `research/ir_meaning_preservation/results/schema_alias_coverage_observation.md` to show that policy-approved alias admission and intentionally rejected generic alias retention are now cleanly distinguishable.
+
+- **2026-05-01**: Added alias-coverage policy contrast benchmarks `case_22_allowed_alias_admission.md` and `case_23_disallowed_generic_alias_rejection.md` to distinguish policy-approved alias admission from intentionally rejected generic alias retention.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/schema_alias_coverage_policy.md` to define alias admission/rejection rules, coverage tiers, and the benchmark-facing boundary between allowable alias gaps and intentionally disallowed generic aliases.
+
+- **2026-05-01**: Captured observed IR for `case_20_schema_alias_supplied_canonicalization` and `case_21_schema_alias_missing_weak_retention`, and added `research/ir_meaning_preservation/results/schema_alias_supply_observation.md` to show that alias supply success and weak-retention contrast are now cleanly distinguishable.
+
+- **2026-05-01**: Added alias-supply contrast benchmarks `case_20_schema_alias_supplied_canonicalization.md` and `case_21_schema_alias_missing_weak_retention.md` to separate `supply failure` from `promotion failure` in property-side provenance evaluation.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/schema_alias_supply_model.md` to define how property aliases must be supplied deterministically through `entity_schema`, including exact-match-only canonicalization, canonical ambiguity rejection, and the boundary between alias supply and provenance promotion.
+
+- **2026-05-01**: Extended property-side provenance promotion with deterministic schema aliases, allowing Japanese lexical property tokens such as `在庫` / `合計金額` to canonicalize to `Stock` / `Total` when explicitly declared in schema metadata, and re-captured the boundary cases as successful `schema_property` / `history_*` separations.
+
+- **2026-05-01**: Implemented the first property-side provenance promotion in `IRGenerator`: canonical schema property names can now lift `CHECK.subject_resolution` to `schema_property` / `history_subject` and `FILTER.predicate_resolution` to `schema_property` / `history_predicate` when owner uniqueness or exact-scope uniqueness is deterministically available.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/property_side_provenance_promotion_rule.md` to define the minimal promotion rules for lifting `CHECK.subject_resolution` and `FILTER.predicate_resolution` from lexical/logic-goal retention into `schema_backed` or `history_based` property provenance.
+
+- **2026-05-01**: Captured observed IR for `case_18_check_provenance_strength_boundary` and `case_19_filter_provenance_strength_boundary`, and added `research/ir_meaning_preservation/results/provenance_strength_boundary_observation.md` to record the current gap between expected `schema_backed/history_based` provenance and observed `explicit_subject/logic_goal` retention.
+
+- **2026-05-01**: Extended cross-role provenance-based downstream conservatism with a first `history_based` middle policy: `CHECK.history_subject` now allows only exact-target property resolution, and `FILTER.history_predicate` / `history_collection` now avoid strong shortcut generation while still permitting generic logic-based `.Where(...)`.
+
+- **2026-05-01**: Applied the first cross-role provenance-based downstream conservatism for `CHECK` and `FILTER`: weak `CHECK.subject_resolution` now blocks schema-backed property lifting in comparison generation, and weak `FILTER` predicate/collection provenance now stops property-aware LINQ generation with an explicit TODO instead of over-concretizing.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/cross_role_provenance_design.md` to unify `CHECK`, `FILTER`, and `CALCULATE` under a common `resolved value + provenance + downstream policy` design, including a shared provenance-strength lattice and role-specific field mappings.
+
+- **2026-05-01**: Added `research/ir_meaning_preservation/midterm_synthesis.md` to synthesize the current research position across baseline construction, major failure localization, provenance/resolution findings, downstream conservatism, decomposition progress, and remaining open questions.
+
+- **2026-05-01**: Completed another orchestration-focused in-file decomposition step in `IRGenerator` by extracting `ELSE` / `END` handling, redundant `DATABASE_QUERY` suppression, and context-history appends into dedicated helpers, leaving the main generation path closer to a pure orchestration skeleton while preserving existing behavior and tests.
+
+- **2026-05-01**: Consolidated phase-3 role-specific semantic resolution inside `IRGenerator` into a dedicated helper that applies structure-role annotation, CHECK metadata enrichment, and CALCULATE target/entity-resolution bridging before final runtime coercion, while preserving existing behavior and tests.
+
+- **2026-05-01**: Advanced the in-file decomposition of `IRGenerator` again by extracting auto-inserted JSON deserialize/serialize node handling into local helpers for collection-input detection, current-structure append, upstream string-output checks, and JSON bridge node insertion, while preserving existing behavior and tests.
+
+- **2026-05-01**: Advanced the in-file decomposition of `IRGenerator` by extracting final intent/runtime-role coercion and pre-emission node shaping into local helpers for runtime intent normalization, source-kind resolution, cardinality finalization, and node construction, while preserving existing behavior and tests.
+
+- **2026-05-01**: Advanced the structural-dependency in-file decomposition inside `IRGenerator` by extracting chaining and block-attachment rules into local helpers for collection-link lookup, structural `input_link` selection, `ELSE` branch activation, and structural node attachment, while keeping the main generation flow central and preserving tests.
+
+- **2026-05-01**: Extracted the spec-role domain from `IRGenerator` into `src/ir_generator/spec_role_rules.py`, moving specification-facing role inference behind a thin delegating wrapper while preserving existing behavior and tests.
+
+- **2026-05-01**: Extracted the target-resolution domain from `IRGenerator` into `src/ir_generator/target_resolution.py`, moving CALCULATE target-entity ownership and schema-backed entity helpers behind thin delegating wrappers while preserving existing behavior and tests.
+
+- **2026-05-01**: Extracted the promotion domain from `IRGenerator` into `src/ir_generator/promotion_rules.py`, moving FILTER/CALCULATE promotion helpers behind thin delegating wrappers while preserving existing behavior and tests.
+
+- **2026-05-01**: Extracted the first module-level helper from `IRGenerator` by moving CHECK resolution logic into `src/ir_generator/check_resolution.py` and leaving thin delegating wrappers in `IRGenerator`, preserving behavior while reducing in-class bulk.
+
+- **2026-05-01**: Extended the first in-file decomposition of `IRGenerator` by annotating the main `generate()` flow into explicit phases and marking the promotion helpers as a dedicated domain, making structure analysis, role-specific resolution, final intent coercion, and node emission easier to read.
+
+- **2026-05-01**: Started the first in-file decomposition of `IRGenerator` by adding explicit domain headers and orchestration comments for target resolution, spec-role inference, CHECK resolution, promotion rules, and lexical baseline handling without changing behavior.
+
+- **2026-05-01**: Added `ir_generator_decomposition_plan.md` to define a research-aligned, staged decomposition strategy for the growing `IRGenerator`, separating structural dependency, target resolution, CHECK resolution, promotion rules, and spec-role handling before any physical module split.
+
+- **2026-05-01**: Implemented the first FILTER promotion rule in `IRGenerator`, allowing ambiguous `抽出` steps with predicate logic goals and upstream collection context to recover `LINQ/FILTER`, and observed `property`, `predicate_resolution`, and `collection_resolution` in case 16.
+
+- **2026-05-01**: Added `filter_promotion_rule.md` to define a non-keyword-based FILTER promotion rule using ambiguous lexical evidence plus predicate logic goals and upstream collection context.
+
+- **2026-05-01**: Added `filter_fetch_collapse_analysis.md`, tracing the FILTER failure in the provenance benchmark to an ambiguous `抽出` lexeme being classified as `FETCH` before logic-goal evidence can promote it back to `LINQ/FILTER`.
+
+- **2026-05-01**: Implemented `CHECK.subject_resolution` in IR generation, preserving `quoted_literal` and `explicit_subject` provenance for condition subjects and updating the provenance benchmark observation accordingly.
+
+- **2026-05-01**: Captured the first provenance-focused observations: CHECK already preserves `check_kind` and `check_subject` but lacks explicit `subject_resolution`, while FILTER still collapses to `FETCH` before predicate provenance can be attached.
+
+- **2026-05-01**: Filled concrete expected IR for the new provenance-focused cases, fixing `predicate_resolution=logic_goal` / `collection_resolution=explicit_input_link` as the FILTER baseline and `subject_resolution=quoted_literal` / `history_subject` as the CHECK baseline.
+
+- **2026-05-01**: Added `resolution_provenance_model.md` to generalize CALCULATE-style provenance metadata into a role-specific model for `CHECK` and `FILTER`, and added supplemental benchmark templates for filter predicate provenance and check subject provenance.
+
+- **2026-04-30**: Split no-history entity inference from `CALCULATE` history-based entity resolution so upstream observation can preserve `entity_resolution=history_fallback`, and added `document_map.md` plus a categorized README index to keep IR research documents organized without a risky bulk move.
+
+- **2026-04-30**: Added a `history_fallback` gap benchmark for `CALCULATE`, documenting that upstream observation still collapses some history-derived resolution into `explicit_entity` before the dedicated resolution stage runs.
+
+- **2026-04-30**: Added `calculate_metadata_conservatism_summary.md` as a midpoint research summary showing that IR metadata now controls downstream `CALCULATE` concretization conservatively rather than serving only as observational annotations.
+
+- **2026-04-30**: Added a unified downstream policy for `CALCULATE` `entity_resolution` values, documenting and testing that `history_fallback` allows exact-target synthesis while `ambiguous` disables cross-entity fallback and stays conservative.
+
+- **2026-04-30**: Made downstream `CALCULATE` synthesis conservative for `entity_resolution=ambiguous`, preventing arbitrary POCO/property selection and emitting an explicit TODO stop instead of silently generating over-specific assignments.
+
+- **2026-04-30**: Added observational `semantic_roles.entity_resolution` metadata for `CALCULATE` target-entity bridging so unique-owner and ambiguous-property cases can be distinguished without changing the resolved `target_entity` contract.
+
+- **2026-04-30**: Added and observed an ambiguous-owner `CALCULATE` benchmark, confirming that `CALCULATE` promotion can coexist with preserving weak `target_entity` values when schema property ownership is not unique.
+
+- **2026-04-30**: Added `calculate_target_entity_ambiguity_rule.md` to define deterministic handling for ambiguous `CALCULATE` property ownership, requiring unique schema-backed owners before lifting weak `target_entity` values.
+
+- **2026-04-30**: Added schema-backed `CALCULATE` target-entity resolution so property ownership can lift weak `Item` targets to a unique entity without broad keyword heuristics, and added regression coverage to prevent DISPLAY-to-CALC mispromotion.
+
+- **2026-04-30**: Improved `CHECK` subject/property resolution so `null_check` preserves identifier subjects and `comparison_check` can emit loop-scoped property conditions even when `target_entity` remains `Item`.
+
+- **2026-04-30**: Captured observed IR and generated condition expressions for the supplemental `CHECK` cases, and documented the remaining subject/entity resolution gaps.
+
+- **2026-04-30**: Updated condition synthesis to consume `semantic_map.check_kind`, generating `File.Exists`, null guards, and comparison expressions from IR metadata instead of falling back to generic EXISTS handling.
+
+- **2026-04-30**: Implemented `CHECK` metadata extraction in `IRGenerator`, adding `check_kind`, `check_subject`, `expected_truth`, and comparison/source fields for condition nodes, with unit coverage for exists/null/comparison cases.
+
+- **2026-04-30**: Added supplemental `CHECK` benchmark cases and templates for `exists_check`, `null_check`, and `comparison_check` under `research/ir_meaning_preservation/cases/`.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/check_role_refinement.md` to define `CHECK` subtypes, required IR fields, canonical shapes, and downstream consumption order.
+
+- **2026-04-30**: Updated `ActionSynthesizer` to consume `semantic_map.spec_role` for execution intent and candidate-role selection, and added dispatch coverage for `DESERIALIZE` and `FILTER`.
+
+- **2026-04-30**: Implemented `spec_role` preservation in `IRGenerator` by storing it under `semantic_map`, including condition/loop overrides and auto-generated JSON serialize/deserialize nodes, and added unit coverage.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/minimal_design_change_proposal.md` to define the smallest IR design change for preserving `spec_role` without breaking current runtime role usage.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/focused_role_analysis.md` to isolate how `DESERIALIZE`, `FILTER`, and `CHECK` collapse into coarse runtime roles.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/results/role_mapping_matrix.md` to compare expected `spec_role` values against observed `runtime_role` readings for the first five cases.
+
+- **2026-04-30**: Added `spec_role` annotations to the first five expected IR case templates and aligned the role-layer definition with that comparison format.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/role_layer_definition.md` to define separate `spec_role` and `runtime_role` layers for IR role analysis.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/results/intent_drift_trace.md` to trace where role weakening occurs between `_analyze_step_integrated` and final IR generation.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/intent_drift_analysis.md` to isolate recurring role/intent weakening patterns and identify likely hotspots in `IRGenerator`.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/results/failure_mapping.md` to formally map the first five case diffs to the IR failure taxonomy.
+
+- **2026-04-30**: Captured observed IR for the first five benchmark cases under `research/ir_meaning_preservation/results/observed_ir/` and added an initial diff summary.
+
+- **2026-04-30**: Filled concrete draft `Expected IR` structures for the first five IR meaning-preservation benchmark case templates.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/cases/` templates for the first five benchmark scenarios to author expected IR and record observed diffs.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/benchmark_cases.md` to select initial IR meaning-preservation benchmark scenarios and map them to evaluation coverage.
+
+- **2026-04-30**: Added `research/ir_meaning_preservation/evaluation.md` to define evaluation units, meaning-preservation criteria, failure taxonomy, and phase-1 exit criteria for IR research.
+
+- **2026-04-30**: Created `research/` as a dedicated workspace for foundational research and added initial documentation for `ir_meaning_preservation`.
+
+- **2026-04-30**: Added `AIFiles/FOUNDATIONAL_RESEARCH_AREAS.md` to summarize foundational research themes based on the project charter and development conventions.
+
 - **2026-04-21**: Switched default chiVe model from `chive-1.3-mc5` to `chive-1.3-mc90`, changed vector cache default to full load (`v0`), updated fetch/convert scripts and cache checks, and validated with real-model vector tests.
 
 - **2026-04-09**: CodeBuilder blueprints now use synthesized input_defs to omit parameters when Input is none.
@@ -742,3 +958,65 @@
         - TRANSFORM/PERSIST 関連の roles 取得を統一し、フォールバックの前段を解析結果に寄せた。
 - **2026-04-13**: Documented security policy, unified command allow-lists under config safety policy, added disallowed options and stricter approvals (including pipeline confirmation and script --confirm), stabilized security tests, documented allow-unsafe usage rules across scripts and security policy, defined the approval flow state transitions, restricted python/py execution to scripts/ allowlist only (with update guidance), added keyword-based log masking, restricted read/list commands to configured directories, narrowed read_allowed_dirs to a minimal set, added token-based read_blocked_rules (with update guidance), enforced backups for high-risk changes, clarified allowlist normalization rules, defined absolute prohibitions, documented backup retention, added backup pruning script, and documented dry-run/CI usage.
 - **2026-04-14**: Added `npm` to safe commands and aligned the default read-allowed directories to the minimal policy set (`AIFiles/config/docs/scripts/src/tests`).
+- **2026-04-30**:
+    - **IR meaning preservation の `CHECK` 系を強化**:
+        - `IRGenerator` が `spec_role=CHECK` の条件ノードで `intent=EXISTS`, `role=CHECK`, `check_kind`, `check_subject`, `expected_truth` を保持するよう改善。
+        - `null_check` では識別子 subject を保持し、`comparison_check` では比較演算子と比較値を保持。
+        - `ActionSynthesizer` / `SemanticBinder` が `spec_role` と `check_kind` を参照し、`DESERIALIZE`, `FILTER`, `CHECK` を runtime 側で消費できるよう改善。
+        - `comparison_check` は `target_entity=Item` のままでも既知 POCO から property を逆引きし、loop 文脈付き条件式を生成できるよう改善。
+    - **IR 研究文書と観測ログを同期**:
+        - `research/ir_meaning_preservation/` 配下の `CHECK` ベンチマーク観測結果、ケース差分、保存済み `observed_ir` を最新実装に合わせて更新。
+    - **外部レビュー提案を研究計画へ反映**:
+        - `Dependency Loss` の edge-focused 分析、明示チェーン vs 自動チェーン比較、`LOOP` / `WRAPPER` の構造境界評価、否定系 `CHECK` 比較を次段研究課題として明記。
+    - **Dependency Loss を独立分析として追加**:
+        - `dependency_loss_analysis.md` を作成し、依存損失を `Edge Break`, `Edge Misbinding`, `Compression-Induced Loss`, `Boundary Drift` の 4 型で整理。
+        - `RobustConfigLoader`, `BatchProcessProducts`, `SyncExternalData`, `ComplexLinqSearch` を使って、構造跨ぎ誤接続と前段圧縮を role drift から切り離して記述。
+    - **Dependency Loss の実装トレースを追加**:
+        - `dependency_loss_trace.md` を作成し、`RobustConfigLoader` の `else_children.input_link = step_3` が、`ELSE` で配置先だけ切り替えつつ `last_node_id` を then 側のまま持ち越すことで発生していると整理。
+    - **ELSE 分岐の依存誤接続を修正**:
+        - `IRGenerator` の `block_stack` に branch base を持たせ、else 側最初のノードが then 側の `last_node_id` ではなく対応 `CONDITION` ノードへ接続されるよう改善。
+        - `test_else_children_input_link_uses_condition_branch_base` を追加し、`RobustConfigLoader` 型の `else_children.input_link` が条件ノードへ戻ることを固定。
+    - **構造親優先の依存規則を LOOP / WRAPPER に一般化**:
+        - 構造ブロック内の最初の子ノードは、直前ノードではなく構造親の branch base を既定 `input_link` とするよう調整。
+        - `test_generate_nested_structure` で wrapper 直下と loop 直下の first-child 接続を固定。
+    - **構造親依存規則を研究文書として固定**:
+        - `structural_dependency_rule.md` を追加し、`CONDITION`, `LOOP`, `WRAPPER` に共通する `structural_parent_dependency` と `sequential_sibling_dependency` を定義。
+        - `evaluation.md` に「構造親依存と sibling 依存の区別」を評価観点として追記。
+    - **構造親依存規則の補助ベンチマークを追加**:
+        - `case_09_condition_branch_dependency.md`, `case_10_loop_body_dependency.md`, `case_11_wrapper_scope_dependency.md` を追加。
+        - `CONDITION`, `LOOP`, `WRAPPER` それぞれについて `first-child`, `second sibling`, `nested child` を比較できるように整理。
+    - **構造親依存ケースの期待 IR を具体化**:
+        - `case_09` から `case_11` について、`structural_parent_dependency` と `sequential_sibling_dependency` を読み分けられる `Expected IR` を追加。
+    - **構造親依存ケースの初回観測を追加**:
+        - `case_09` から `case_11` の `Observed IR` を保存し、`structural_dependency_observation.md` で比較結果を要約。
+        - `CONDITION` では branch dependency が期待どおり成立し、`LOOP` では second sibling が collection 優先規則に上書きされることを確認。
+    - **構造ブロック内部で sibling 依存を優先するよう調整**:
+        - `IRGenerator` の `input_link` 決定で、構造ブロック内に既存 sibling がある場合は `branch_last_id` を `last_collection_id` より優先するよう改善。
+        - `case_10_loop_body_dependency` で `step_4.input_link` が `step_2` ではなく `step_3` になることを確認。
+    - **構造 role の橋渡し方針を整理**:
+        - `IRGenerator` が retry wrapper に `spec_role=WRAP`、loop 構造に `role=ITERATE` / `spec_role=ITERATE` を付与するよう改善。
+        - `structural_role_bridge.md` を追加し、`CALCULATE` は runtime role へ橋渡し、`ITERATE` は node type 主体、`WRAP` は保存優先とする方針を整理。
+    - **CALCULATE の弱化を局所分析**:
+        - `calculate_role_analysis.md` を追加し、`価格を計算する` のようなケースが `logic_goals` 不足により `GENERAL/ACTION` へ落ちることを整理。
+        - `CALCULATE` は downstream bridge より upstream detection が主課題であると明記。
+    - **CALCULATE 補助ベンチマークを追加**:
+        - `case_12_calculate_with_target_hint.md` と `case_13_calculate_without_target_hint.md` を追加。
+        - explicit target hint あり/なしで `CALCULATE` 検出安定性を比較できるよう整理。
+    - **CALCULATE 補助ケースの期待 IR を具体化**:
+        - `case_12` と `case_13` に `CALC/CALCULATE` を期待する基準形を追加し、target hint あり/なしで差分比較できる状態にした。
+    - **CALCULATE 補助ケースの初回観測を追加**:
+        - `case_12` と `case_13` の `Observed IR` を保存し、`calculate_case_observation.md` で比較結果を要約。
+        - target hint を付けても現状は `GENERAL/ACTION` から `CALC/CALCULATE` へ昇格しないことを確認。
+    - **CALCULATE 昇格規則を設計**:
+        - `calculate_promotion_rule.md` を追加し、`logic_goals.calculation` または `target_hint/property + calculation intent` の組み合わせでのみ `CALCULATE` へ上げる最小規則を定義。
+        - 単語だけ・metadata だけでは昇格させない方針と、`case_12` / `case_13` を使った受け入れ条件を明記。
+    - **CALCULATE 昇格規則を実装**:
+        - `IRGenerator` に `target_hint/property + calculation intent` による最小昇格規則を追加し、`case_12` は `CALC/CALCULATE`、`case_13` は `GENERAL/ACTION` のまま残ることを確認。
+        - `test_calculate_promotes_with_target_hint_and_calculation_intent` と `test_calculate_does_not_promote_without_target_hint` を追加。
+## 2026-05-01
+
+- Added provenance-strength boundary benchmark definitions for `CHECK` and `FILTER` in `case_18_check_provenance_strength_boundary.md` and `case_19_filter_provenance_strength_boundary.md`, along with benchmark index updates to support exact-scope validation.
+- Added `research/ir_meaning_preservation/provenance_strength_policy_matrix.md` to formalize a cross-role provenance-strength matrix for `CHECK`, `FILTER`, and `CALCULATE`, including exact-scope rules and allowed/forbidden downstream concretization.
+- Updated `research/ir_meaning_preservation/README.md` and `document_map.md` to register the new provenance-strength policy document in the foundation set.
+
+- **2026-05-01**: Performed a final consistency pass across synthesis and alias-admission documents, fixing stale next-step references and the thesis-claim count in midterm_synthesis.md.

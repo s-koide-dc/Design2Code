@@ -25,6 +25,8 @@
 ## 4. validate (検証)
 
 - `scripts/validate/validate_method_store.py` : method_store の検証
+- `scripts/validate/validate_ir_meaning_preservation_regression.py` : IR meaning preservation の regression run 記録と関連成果物の整合性検証
+- `scripts/validate/run_ir_meaning_preservation_regression.py` : IR meaning preservation の標準 regression 手順（sync / consistency / run-record validation / optional tests）を 1 コマンドで実行し、`Validation Run` 欄用 markdown、該当 `Regression Check`、`Change Summary` / `Affected Claims` / `Benchmark Coverage` / `Downstream Conservatism Check` / `Role Weakening Check` / `Alias Admission Check` / `Output Path Check` / `Deliverables Produced` の下書き block を出力
 - `scripts/validate/run_unit_smoke.py` : unitテストのスモーク（vector cache を含む）
 - `scripts/validate/run_tdd.py` : Advanced TDD の CLI 入口
 

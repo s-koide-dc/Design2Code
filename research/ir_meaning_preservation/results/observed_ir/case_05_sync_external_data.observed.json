@@ -1,0 +1,129 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "API 'https://api.example.com/products' からJSON文字列を取得する。",
+      "intent": "HTTP_REQUEST",
+      "role": "READ",
+      "cardinality": "SINGLE",
+      "target_entity": "string",
+      "output_type": "string",
+      "source_kind": "http",
+      "source_ref": "product_api",
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "string",
+            "operator": "Equal",
+            "expected_value": "https://api.example.com/products",
+            "variable_hint": "API",
+            "target_hint": null,
+            "original_step": "API 'https://api.example.com/products' からJSON文字列を取得する。"
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "Item",
+          "url": "https://api.example.com/products"
+        }
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "ACTION",
+      "original_text": "取得したJSONを商品リストに変換する。",
+      "intent": "JSON_DESERIALIZE",
+      "role": "ACTION",
+      "cardinality": "COLLECTION",
+      "target_entity": "Product",
+      "output_type": "IEnumerable<Product>",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "string"
+        }
+      },
+      "input_link": "step_1",
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_3",
+      "type": "ACTION",
+      "original_text": "商品リストの各項目に対し、SQL 'INSERT INTO Products (Name, Price) VALUES (@Name, @Price)' を実行して保存する。",
+      "intent": "PERSIST",
+      "role": "PERSIST",
+      "cardinality": "SINGLE",
+      "target_entity": "Product",
+      "output_type": "void",
+      "source_kind": "db",
+      "source_ref": "local_db",
+      "semantic_map": {
+        "logic": [
+          {
+            "type": "string",
+            "operator": "Equal",
+            "expected_value": "INSERT INTO Products (Name, Price) VALUES (@Name, @Price)",
+            "variable_hint": "SQL",
+            "target_hint": null,
+            "original_step": "商品リストの各項目に対し、SQL 'INSERT INTO Products (Name, Price) VALUES (@Name, @Price)' を実行して保存する。"
+          }
+        ],
+        "semantic_roles": {
+          "target_entity": "Product",
+          "sql": "INSERT INTO Products (Name, Price) VALUES (@Name, @Price)"
+        }
+      },
+      "input_link": "step_2",
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_4",
+      "type": "ACTION",
+      "original_text": "処理が成功したとして true を返す。",
+      "intent": "RETURN",
+      "role": "ACTION",
+      "cardinality": "SINGLE",
+      "target_entity": "bool",
+      "output_type": "bool",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Product"
+        }
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "output_1",
+      "description": "同期成功フラグ",
+      "type_format": "Task<bool>",
+      "example": ""
+    }
+  ],
+  "data_sources": [
+    {
+      "id": "product_api",
+      "kind": "http",
+      "description": "Product API Endpoint"
+    },
+    {
+      "id": "local_db",
+      "kind": "db",
+      "description": "Local SQL Database"
+    }
+  ]
+}

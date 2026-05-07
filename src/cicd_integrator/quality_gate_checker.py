@@ -28,6 +28,16 @@ class QualityGateChecker:
     def __init__(self, workspace_root: str = "."):
         self.workspace_root = workspace_root
         self.gate_manager = QualityGateManager(self._load_config())
+
+    @staticmethod
+    def _emit_stderr(message: str) -> None:
+        """CLI 補助診断は stderr に出力する。"""
+        print(message, file=sys.stderr)
+
+    @staticmethod
+    def _emit_stdout(message: str) -> None:
+        """CLI 正式出力は stdout に出力する。"""
+        print(message)
     
     def _load_config(self) -> Dict[str, Any]:
         """設定を読み込む"""
@@ -38,7 +48,7 @@ class QualityGateChecker:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     return json.load(f)
         except Exception as e:
-            print(f"設定読み込みエラー: {e}", file=sys.stderr)
+            self._emit_stderr(f"設定読み込みエラー: {e}")
         
         return {}
     
@@ -92,7 +102,7 @@ class QualityGateChecker:
                 with open(metrics_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
-                print(f"メトリクスファイル読み込みエラー: {e}", file=sys.stderr)
+                self._emit_stderr(f"メトリクスファイル読み込みエラー: {e}")
         
         # デフォルトメトリクスまたは自動収集
         return self._collect_metrics()
@@ -123,7 +133,7 @@ class QualityGateChecker:
             metrics.update(quality_results)
             
         except Exception as e:
-            print(f"メトリクス収集エラー: {e}", file=sys.stderr)
+            self._emit_stderr(f"メトリクス収集エラー: {e}")
         
         return metrics
     
@@ -301,7 +311,7 @@ class QualityGateChecker:
             }
             
         except Exception as e:
-            print(f"品質レポート解析エラー: {e}", file=sys.stderr)
+            self._emit_stderr(f"品質レポート解析エラー: {e}")
             return {
                 "quality_score": 0.0,
                 "high_priority_smells": 0,
@@ -332,27 +342,27 @@ class QualityGateChecker:
         }
     
     def print_results(self, results: Dict[str, Any]) -> None:
-        """結果を出力"""
+        """CLI の正式結果を stdout に出力"""
         overall_status = results.get("overall_status", "unknown")
         summary = results.get("summary", {})
         metrics = results.get("metrics", {})
         
-        print(f"品質ゲートチェック結果: {overall_status.upper()}")
-        print(f"  カバレッジ: {metrics.get('coverage', 0):.1f}%")
-        print(f"  テスト通過: {'Yes' if metrics.get('all_tests_pass') else 'No'}")
-        print(f"  品質スコア: {metrics.get('quality_score', 0):.1f}")
-        print("-" * 20)
-        print(f"総ゲート数: {summary.get('total', 0)}")
-        print(f"成功: {summary.get('passed', 0)}")
-        print(f"失敗: {summary.get('failed', 0)}")
-        print(f"警告: {summary.get('warnings', 0)}")
-        print(f"エラー: {summary.get('errors', 0)}")
-        print(f"成功率: {summary.get('success_rate', 0):.1f}%")
+        self._emit_stdout(f"品質ゲートチェック結果: {overall_status.upper()}")
+        self._emit_stdout(f"  カバレッジ: {metrics.get('coverage', 0):.1f}%")
+        self._emit_stdout(f"  テスト通過: {'Yes' if metrics.get('all_tests_pass') else 'No'}")
+        self._emit_stdout(f"  品質スコア: {metrics.get('quality_score', 0):.1f}")
+        self._emit_stdout("-" * 20)
+        self._emit_stdout(f"総ゲート数: {summary.get('total', 0)}")
+        self._emit_stdout(f"成功: {summary.get('passed', 0)}")
+        self._emit_stdout(f"失敗: {summary.get('failed', 0)}")
+        self._emit_stdout(f"警告: {summary.get('warnings', 0)}")
+        self._emit_stdout(f"エラー: {summary.get('errors', 0)}")
+        self._emit_stdout(f"成功率: {summary.get('success_rate', 0):.1f}%")
         
-        print("\n詳細結果:")
+        self._emit_stdout("\n詳細結果:")
         for gate in results.get("gates", []):
             status_icon = "✅" if gate.get("status") == "passed" else "❌" if gate.get("status") == "failed" else "⚠️"
-            print(f"{status_icon} {gate.get('gate_name', 'unknown')}: {gate.get('message', 'no message')}")
+            self._emit_stdout(f"{status_icon} {gate.get('gate_name', 'unknown')}: {gate.get('message', 'no message')}")
 
 
 def main():
@@ -374,7 +384,7 @@ def main():
             with open(args.output, 'w', encoding='utf-8') as f:
                 f.write(output)
         else:
-            print(output)
+            checker._emit_stdout(output)
     else:
         checker.print_results(results)
         if args.output:

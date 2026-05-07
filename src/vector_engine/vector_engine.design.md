@@ -60,3 +60,7 @@
 ## 3. 依存関係 (Dependencies)
 - **内部**: `src/semantic_search/light_vector_db.py` (PretrainedVectorStore)
 - **External**: `numpy`, `hashlib`, `os`, `sys`
+
+## 4. Operational Notes
+- モデル未検出、キャッシュ未生成、テキスト変換、キャッシュ保存などの診断は stdout ではなく logger に出力する。
+- ベクトルエンジン本体は利用者向けの標準出力を持たず、初期化状態は呼び出し側かログで確認する。

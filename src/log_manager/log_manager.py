@@ -3,6 +3,7 @@
 
 import json
 import os
+import logging
 from datetime import datetime
 
 SECURITY_SENSITIVE_EVENTS = [
@@ -56,6 +57,7 @@ class LogManager:
             self.sensitive_field_keywords = self.DEFAULT_SENSITIVE_KEYWORDS
 
         self._ensure_log_dir()
+        self.logger = logging.getLogger(__name__)
         self.log_file_path = os.path.join(self.log_dir, f"{self.log_file_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
         self.json_log_file_path = os.path.join(self.log_dir, f"{self.log_file_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
         self.error_summary_file_path = os.path.join(self.log_dir, "error_summary.json")
@@ -151,7 +153,7 @@ class LogManager:
                             start_pos = e + 1
                         else: break
         except Exception as e:
-            print(f"Error reading log: {e}")
+            self.logger.error("Error reading log: %s", e)
             
         return events
 
@@ -257,7 +259,7 @@ class LogManager:
                         except json.JSONDecodeError:
                             error_records = []
             except Exception as e:
-                print(f"Error reading error summary file: {e}. Starting new.")
+                self.logger.warning("Error reading error summary file: %s. Starting new.", e)
 
         error_records.append(error_data)
         

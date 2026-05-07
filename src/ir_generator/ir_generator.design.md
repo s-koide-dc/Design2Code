@@ -1,15 +1,15 @@
-# IR Generator Design Document
+# IRGenerator Design Document
 
-## 1. Purpose (Updated 2026-04-14)
+## 1. Purpose
 
-`IRGenerator` は `StructuredSpec` のステップ列を中間表現（IR）ツリーへ変換する。  
-意図推定、カードinality 推定、データフロー連結、必要に応じたシリアライズ/デシリアライズノードの挿入を行い、後続のコード合成工程に決定的な論理骨格を提供する。
+`IRGenerator` は `StructuredSpec` を、仕様意味と依存境界を保持した IR ツリーへ変換する。  
+runtime 向けの `intent` / `role` だけでなく、`spec_role`, `CHECK` metadata, provenance, `entity_resolution`, structural `input_link` を生成し、後続の `code_synthesis` が保守的に消費できる基盤を作る。
 
 ## 2. Structured Specification
 
 ### Input
-- **Description**: `StructuredSpec`（`steps`/`inputs`/`outputs`/`data_sources` を含む）。`steps` のみの簡易リストも受け付ける。
-- **Type/Format**: `Dict[str, Any]` または `List[str]`
+- **Description**: `StructuredSpec` か、`steps` の簡易リスト。任意の `intent_hint` も受け付ける。
+- **Type/Format**: `Dict[str, Any] | List[str]`, `Optional[str]`
 - **Example**:
   ```json
   {
@@ -17,28 +17,35 @@
       {"id":"step_1","text":"注文一覧を取得する","intent":"FETCH","source_ref":"orders_api","source_kind":"http"}
     ],
     "inputs": [],
-    "outputs": []
+    "outputs": [],
+    "data_sources": []
   }
   ```
 
 ### Output
-- **Description**: IR ツリーと I/O 情報。
+- **Description**: `logic_tree`, `inputs`, `outputs`, `data_sources` を含む IR。
 - **Type/Format**: `Dict[str, Any]`
-- **Example**:
-  ```json
-  { "logic_tree": [ { "id":"step_1", "intent":"FETCH" } ] }
-  ```
 
 ### Core Logic
-1. `StructuredSpec` がリスト入力の場合は `steps` を持つ辞書形式へ正規化する。
-2. `steps` を順に処理し、`[data_source|...]` 行や入力記述と一致する行はスキップする。
-3. `strict_semantics` が有効な場合、各ステップに `ops` または明示的な意図指定がないと例外を投げる。
-4. 各ステップに対して `_analyze_step_integrated` を呼び、形態素解析・ベクトル類似度・論理監査（`LogicAuditor`）から intent/role/cardinality/semantic_roles を決定する。
-5. 明示された `semantic_roles` / `source_ref` / `source_kind` を上書き・補完し、`semantic_roles.path` や `semantic_roles.name` を必要に応じて付与する。
-6. intent を補正する（例: `semantic_roles.url` があれば `HTTP_REQUEST`、`semantic_roles.sql` があれば `PERSIST` へ昇格）。
-7. 直前ノードの履歴を参照して `input_link` を決定し、`cardinality` と `output_type` を調整する。
-8. `FETCH/HTTP_REQUEST` でコレクション型を返す場合は `JSON_DESERIALIZE` ノードを追加し、`PERSIST` でコレクションを受ける場合はシリアライズ用ノードを挿入する。
-9. `CONDITION/LOOP/ELSE/END` を考慮しつつ `logic_tree` を構築して返却する。
+1. リスト入力は `steps` を持つ辞書へ正規化する。
+2. `steps` を順に走査し、data source 行と入力説明行を除外する。
+3. 必要なら hierarchical clause を抽出し、1 ステップを複数 clause に分割する。
+4. 各 clause に対して `_analyze_step_integrated` を実行し、coarse な `intent`, `role`, `cardinality`, `target_entity`, `logic`, `semantic_roles` を得る。
+5. 明示 metadata を `semantic_map` に統合し、`source_ref` / `source_kind` の補完を行う。
+6. `_resolve_role_specific_semantics` で role-specific enrichment を行う。
+   - `spec_role` を付与する。
+   - `CHECK` に `check_kind`, `check_subject`, `check_operator`, `check_value`, `expected_truth`, `subject_resolution` を付与する。
+   - `FILTER` / `CALCULATE` の昇格と property/provenance 補強を行う。
+   - `CALCULATE` では `target_entity` と `entity_resolution` を調整する。
+7. `_coerce_final_intent_and_role` で runtime intent/role を最終決定する。
+8. `_determine_structural_input_link` で `input_link` を決定する。
+   - 構造ブロックの first child は structural parent に接続する。
+   - later sibling は直前 sibling を優先する。
+   - `ELSE` branch は `CONDITION` を branch base にする。
+9. `_build_ir_node` でノードを構築し、構造ツリーへ接続する。
+10. 必要なら `JSON_DESERIALIZE` / `JSON_SERIALIZE` bridge node を自動挿入する。
+11. context history を更新し、最終 `logic_tree` を返す。
+12. debug 出力は通常経路では行わず、`NLP_DEBUG_STDOUT` が有効な場合のみ補助情報を出す。
 
 ### Test Cases
 - **Happy Path**:
@@ -47,13 +54,23 @@
 - **Edge Cases**:
   - **Scenario**: `STRICT_SEMANTICS=1` で `ops`/明示意図が無いステップ。
   - **Expected Output / Behavior**: `ValueError` を送出。
-  - **Scenario**: `FETCH` の出力型が `List<T>` の場合。
-  - **Expected Output / Behavior**: `JSON_DESERIALIZE` ノードが追加される。
-  - **Scenario**: `PERSIST` がコレクション入力を受ける場合。
-  - **Expected Output / Behavior**: シリアライズ用ノードが挿入される。
+  - **Scenario**: `FETCH` の出力型が collection。
+  - **Expected Output / Behavior**: `JSON_DESERIALIZE` が挿入される。
+  - **Scenario**: `PERSIST` が collection 入力を受ける。
+  - **Expected Output / Behavior**: `JSON_SERIALIZE` が挿入される。
+  - **Scenario**: `ELSE` 側最初のノード。
+  - **Expected Output / Behavior**: then 側ではなく `CONDITION` に接続される。
 
 ## 3. Dependencies
-- **Internal**: `morph_analyzer`, `logic_auditor`, `type_system`
+- **Internal**:
+  - `morph_analyzer`
+  - `code_synthesis`
+  - `utils`
+- **External**: なし
 
-## 4. Review Notes
-- 2026-04-14: strict_semantics と input_link 決定・intent 補正フローを現行実装に合わせて再確認。
+## 4. Notes
+- `IRGenerator` は orchestration を維持し、domain-specific logic は helper module へ分割する。
+
+## 5. Operational Notes
+- clause 解析や role/path の補助トレースは `src.utils.stdout_guard.debug_print` を通す opt-in 出力とする。
+- 通常の IR 生成経路では stdout を使わず、正式な結果は返却される IR 構造に限定する。

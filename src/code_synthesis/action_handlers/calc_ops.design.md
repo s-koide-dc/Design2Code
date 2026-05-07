@@ -2,40 +2,40 @@
 
 ## 1. Purpose
 
-`calc_ops` は CALC ノードの実処理を担当し、集計・割引・更新などの数値計算を C# 文へ変換する。
+`calc_ops` は `CALC` ノードを具体的な C# 計算・更新・集計文へ変換する。  
+現在は `entity_resolution` に応じて concretization の強さを変え、曖昧な entity 解決では cross-entity fallback を禁止する。
 
 ## 2. Structured Specification
 
 ### Input
-- **Description**: ActionSynthesizer、CALC ノード、現在のパス状態。
+- **Description**: `ActionSynthesizer`、`CALC` ノード、現在の path。
 - **Type/Format**: `Dict[str, Any]`, `Dict[str, Any]`
-- **Example**: `node={"intent":"CALC","semantic_roles":{}}`
 
 ### Output
-- **Description**: 計算ステートメントを含むパス配列。
+- **Description**: 計算ステートメントを含む path 候補。
 - **Type/Format**: `List[Dict[str, Any]]`
-- **Example**: `[{"statements":[{"type":"raw","code":"var total = ...;"}]}]`
 
 ### Core Logic
-1. `semantic_roles.ops` に `aggregate_by_product` がある場合は CSV 集計専用ロジックに分岐する。
-2. 対象エンティティ/プロパティを推定し、必要な `var_name` と式を組み立てる。
-3. 日時系の `semantic_roles` があれば `DateTime.Now/DateTime.UtcNow` を代入式に用いる。
-4. 数量・価格ヒントを使って `price * quantity` の式を構成する。
-5. ％表現がある場合は `base * (percent/100)` に変換する。
-6. 集計意図の場合は累積変数を生成し加算式を作成する。
-7. 更新意図または既知状態プロパティの場合はプロパティ代入を行う。
-8. それ以外は計算結果をローカル変数として生成する。
+1. `semantic_roles.ops` に `aggregate_by_product` がある場合は CSV 集計専用ロジックへ分岐する。
+2. `entity_resolution` を読み、以下の方針を決める。
+   - `unique_owner` / `explicit_entity`: 通常 concretization を許可する。
+   - `history_fallback`: exact target に閉じた fallback のみ許可する。
+   - `ambiguous`: cross-entity fallback を禁止する。
+3. target property / target hint / logic goals から assignment target を決める。
+4. `datetime` hint, `%`, quantity/price, rate rules, aggregation/update intent を考慮して式を組み立てる。
+5. 曖昧解決で安全に target を決められない場合は property assignment を作らず、明示 TODO 停止へ寄せる。
+6. 集計では accumulator 変数を生成し、path に登録する。
 
 ### Test Cases
 - **Happy Path**:
-  - **Scenario**: `price * quantity` の計算。
-  - **Expected Output**: 乗算式が生成される。
+  - **Scenario**: unique owner を持つ `DiscountedPrice` 計算。
+  - **Expected Output**: owner entity の property assignment が生成される。
 - **Edge Cases**:
-  - **Scenario**: 対象プロパティが特定できない。
-  - **Expected Output / Behavior**: 既定の数値プロパティが参照される。
+  - **Scenario**: ambiguous owner の `Total` 計算。
+  - **Expected Output / Behavior**: cross-entity fallback を行わず TODO 停止する。
 
 ## 3. Dependencies
 - **Internal**:
-  - `code_synthesis`
   - `action_utils`
   - `text_parser`
+- **External**: なし

@@ -2,7 +2,9 @@
 """Project generator for multi-file C# projects from Project Specs."""
 from __future__ import annotations
 
+import logging
 import os
+from src.utils.stdout_guard import debug_print
 
 from src.code_generation.template_engine import TemplateEngine
 from src.code_generation.renderers import (
@@ -547,7 +549,7 @@ class ProjectGenerator:
                     missing.append(name)
             if missing:
                 joined = ", ".join(missing)
-                print(f"[!] Module definition missing {type_name}: {joined}")
+                debug_print(f"[!] Module definition missing {type_name}: {joined}")
 
         declared_controllers = _module_names_by_type(modules, "controller")
         declared_services = _module_names_by_type(modules, "service")
@@ -953,12 +955,14 @@ class ProjectGenerator:
         self._write_file(os.path.join(output_root, "appsettings.json"), self._render_appsettings())
         self._write_file(os.path.join(output_root, f"{project_name}.csproj"), self._render_csproj(project_name, tech.get("Target"), provider, data_access.get("Strategy", "Dapper")))
         if any(v > 0 for v in resolver_stats.values()):
-            print("[*] Resolver stats:",
-                  f"morph={resolver_stats['morph']}",
-                  f"syntactic={resolver_stats['syntactic']}",
-                  f"semantic={resolver_stats['semantic']}",
-                  f"ukb_search={resolver_stats['ukb_search']}",
-                  f"ukb_hits={resolver_stats['ukb_hits']}")
+            logging.info(
+                "Resolver stats: morph=%s syntactic=%s semantic=%s ukb_search=%s ukb_hits=%s",
+                resolver_stats["morph"],
+                resolver_stats["syntactic"],
+                resolver_stats["semantic"],
+                resolver_stats["ukb_search"],
+                resolver_stats["ukb_hits"],
+            )
 
         test_dir = os.path.join(output_root, "Tests")
         self._ensure_dir(test_dir)
@@ -1030,16 +1034,16 @@ class ProjectGenerator:
                 )
 
         if logic_findings:
-            print("[!] Logic audit warnings (project generation):")
+            logging.warning("Logic audit warnings (project generation):")
             for finding in logic_findings:
                 method_label = finding.get("method", "unknown")
                 reason = finding.get("reason", "UNKNOWN")
                 detail = finding.get("detail", "")
-                print(f"    - {method_label}: {reason} {detail}".strip())
+                logging.warning("%s", f"    - {method_label}: {reason} {detail}".strip())
         if refiner_findings:
-            print("[!] Design doc audit warnings (project generation):")
+            logging.warning("Design doc audit warnings (project generation):")
             for finding in refiner_findings:
                 method_label = finding.get("method", "unknown")
                 reason = finding.get("reason", "UNKNOWN")
                 detail = finding.get("detail", "")
-                print(f"    - {method_label}: {reason} {detail}".strip())
+                logging.warning("%s", f"    - {method_label}: {reason} {detail}".strip())

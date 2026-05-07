@@ -1,0 +1,111 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "ユーザー一覧を取得する。",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "COLLECTION",
+      "target_entity": "Item",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        },
+        "spec_role": "FETCH"
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "LOOP",
+      "original_text": "取得した各アイテムに対して、以下の処理を行う：",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "COLLECTION",
+      "target_entity": "Item",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        },
+        "spec_role": "ITERATE"
+      },
+      "input_link": "step_1",
+      "children": [
+        {
+          "id": "step_3",
+          "type": "CONDITION",
+          "original_text": "もし Points が 100 より大きいならば、以下の処理を行う：",
+          "intent": "EXISTS",
+          "role": "CHECK",
+          "cardinality": "SINGLE",
+          "target_entity": "Item",
+          "output_type": null,
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [
+              {
+                "type": "numeric",
+                "operator": "Greater",
+                "expected_value": "100",
+                "variable_hint": "Points",
+                "target_hint": null,
+                "original_step": "もし Points が 100 より大きいならば、以下の処理を行う："
+              }
+            ],
+            "semantic_roles": {
+              "target_entity": "Item"
+            },
+            "spec_role": "CHECK",
+            "check_kind": "comparison_check",
+            "check_subject": "Points",
+            "check_operator": ">",
+            "check_value": "100",
+            "expected_truth": true
+          },
+          "input_link": "step_2",
+          "children": [
+            {
+              "id": "step_4",
+              "type": "ACTION",
+              "original_text": "名前を表示する。",
+              "intent": "DISPLAY",
+              "role": "DISPLAY",
+              "cardinality": "SINGLE",
+              "target_entity": "Item",
+              "output_type": "string",
+              "source_kind": null,
+              "source_ref": null,
+              "semantic_map": {
+                "logic": [],
+                "semantic_roles": {
+                  "target_entity": "Item"
+                },
+                "spec_role": "DISPLAY"
+              },
+              "input_link": "step_2",
+              "children": [],
+              "else_children": []
+            }
+          ],
+          "else_children": []
+        }
+      ],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

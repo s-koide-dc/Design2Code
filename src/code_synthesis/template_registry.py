@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+import logging
 from typing import List, Dict, Any
 
 class TemplateRegistry:
     def __init__(self, knowledge_path: str = None):
         self.templates = []
+        self.logger = logging.getLogger(__name__)
         if knowledge_path is None:
             # Default path relative to project root
             root = os.getcwd()
@@ -17,9 +19,9 @@ class TemplateRegistry:
                     data = json.load(f)
                     self.templates = data.get("templates", [])
             except Exception as e:
-                print(f"[!] Error loading TemplateRegistry: {e}")
+                self.logger.error("Error loading TemplateRegistry: %s", e)
         else:
-            print(f"[!] TemplateRegistry file not found: {knowledge_path}")
+            self.logger.warning("TemplateRegistry file not found: %s", knowledge_path)
 
     def get_templates_for_intent(self, intent: str, source_kind: str = None, is_db_allowed: bool = False) -> List[Dict[str, Any]]:
         results = []

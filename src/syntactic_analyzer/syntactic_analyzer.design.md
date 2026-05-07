@@ -47,3 +47,7 @@
 
 ## 3. 依存関係 (Dependencies)
 - `Janome` (via `MorphAnalyzer`)
+
+## 4. 運用ノート (Operational Notes)
+- `__main__` の構文木ダンプは `src.utils.stdout_guard.debug_print` を通した opt-in 出力とする。
+- これにより、通常利用時は無音のまま、`NLP_DEBUG_STDOUT=1` で文節・係り受けの目視確認を行える。

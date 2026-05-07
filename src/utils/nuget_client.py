@@ -6,6 +6,8 @@ import logging
 import os
 from typing import Optional, Dict, Any, List
 
+from src.utils.stdout_guard import debug_print
+
 class NuGetClient:
     """NuGet Search API 経由でパッケージ情報を取得するクライアント"""
 
@@ -138,5 +140,5 @@ class NuGetClient:
 
 if __name__ == "__main__":
     client = NuGetClient()
-    print(client.resolve_package("YamlDotNet"))
-    print(client.resolve_package("System.Text.Json")) # Standard library might also appear
+    debug_print(str(client.resolve_package("YamlDotNet")))
+    debug_print(str(client.resolve_package("System.Text.Json"))) # Standard library might also appear

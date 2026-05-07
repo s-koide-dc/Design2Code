@@ -75,6 +75,9 @@ def process_csv_aggregate(action_synthesizer, node: Dict[str, Any], path: Dict[s
 
 def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) -> List[Dict[str, Any]]:
     semantic_roles = action_synthesizer._get_semantic_roles(node)
+    entity_resolution = str(semantic_roles.get("entity_resolution") or "").strip().lower()
+    is_ambiguous_entity = entity_resolution == "ambiguous"
+    allow_cross_entity_fallback = entity_resolution in ["", "unique_owner", "explicit_entity"]
     ops = semantic_roles.get("ops", []) or []
     if "aggregate_by_product" in ops:
         return process_csv_aggregate(action_synthesizer, node, path)
@@ -85,7 +88,7 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
     is_aggregation = action_synthesizer._has_tag(text, "aggregation_intent") or (semantic_roles.get("aggregation") is True)
     primitive_types = ["int", "long", "decimal", "double", "float", "bool", "string", "object"]
     effective_entity = target_entity
-    if target_entity in primitive_types or target_entity not in new_path.get("poco_defs", {}):
+    if not is_ambiguous_entity and (target_entity in primitive_types or target_entity not in new_path.get("poco_defs", {})):
         scope_item = path.get("active_scope_item")
         if scope_item:
             for vt, vs in path.get("type_to_vars", {}).items():
@@ -96,17 +99,17 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
 
     active_ent = None
     props = {}
-    if path.get("active_scope_item"):
+    if path.get("active_scope_item") and not is_ambiguous_entity:
         if effective_entity in new_path.get("poco_defs", {}):
             active_ent = effective_entity
             props = new_path.get("poco_defs", {}).get(effective_entity, {})
-        else:
+        elif allow_cross_entity_fallback:
             for ent, p_props in new_path.get("poco_defs", {}).items():
                 if p_props and ent != "Item":
                     active_ent = ent
                     props = p_props
                     break
-    if not props:
+    if not props and not is_ambiguous_entity:
         schema = getattr(action_synthesizer.synthesizer, "entity_schema", {}) or {}
         for ent in schema.get("entities", []):
             if ent.get("name") == target_entity and isinstance(ent.get("properties"), dict):
@@ -465,10 +468,18 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
             new_path["active_scope_item"] = var_name
     else:
         actual_expr = specialized_assignment if specialized_assignment else expr
-        local_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "decimal", target_hint or "result", new_path, role="data")
-        new_path["statements"].append({"type": "raw", "code": f"var {local_var} = {actual_expr};", "node_id": node.get("id")})
-        new_path.setdefault("type_to_vars", {}).setdefault("decimal", []).append({"var_name": local_var, "node_id": node.get("id"), "semantic_role": "data"})
-        new_path["active_scope_item"] = local_var
+        if is_ambiguous_entity and not actual_expr:
+            hint_label = target_hint or explicit_prop or "value"
+            new_path["statements"].append({
+                "type": "raw",
+                "code": f'throw new NotImplementedException("TODO: Resolve ambiguous CALCULATE target for {hint_label}");',
+                "node_id": node.get("id")
+            })
+        else:
+            local_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "decimal", target_hint or "result", new_path, role="data")
+            new_path["statements"].append({"type": "raw", "code": f"var {local_var} = {actual_expr};", "node_id": node.get("id")})
+            new_path.setdefault("type_to_vars", {}).setdefault("decimal", []).append({"var_name": local_var, "node_id": node.get("id"), "semantic_role": "data"})
+            new_path["active_scope_item"] = local_var
     new_path.setdefault("consumed_ids", set()).add(node.get("id"))
     new_path["completed_nodes"] += 1
     return [new_path]

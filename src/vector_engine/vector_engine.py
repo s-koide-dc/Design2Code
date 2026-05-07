@@ -13,13 +13,14 @@ class VectorEngine:
     Uses PretrainedVectorStore for optimized mmap access to word vectors.
     """
     def __init__(self, model_path: str = None, max_vocab: int = 0):
+        self.logger = logging.getLogger(__name__)
         self.is_ready = False
         self.model_path = model_path
         self.store: Optional[PretrainedVectorStore] = None
         self._oov_cache: Dict[str, np.ndarray] = {}
         
         if os.environ.get("SKIP_VECTOR_MODEL") == "1":
-            print("VectorEngine: Fast mode enabled (skipping model load).")
+            self.logger.info("VectorEngine: Fast mode enabled (skipping model load).")
             self.is_ready = True
             return
 
@@ -36,7 +37,7 @@ class VectorEngine:
         if model_path and os.path.exists(model_path):
             self.load_with_cache(model_path, max_vocab=max_vocab)
         else:
-            print(f"VectorEngine initialized but no model found at '{model_path}'.")
+            self.logger.warning("VectorEngine initialized but no model found at '%s'.", model_path)
 
     def load_with_cache(self, path: str, max_vocab: int = 0):
         """Loads vectors using PretrainedVectorStore if cache available."""
@@ -76,11 +77,11 @@ class VectorEngine:
                 )
             return
 
-        print(f"Vector cache missing. Run scripts/data/convert_vectors.py for: {path}")
+        self.logger.warning("Vector cache missing. Run scripts/data/convert_vectors.py for: %s", path)
 
     def load_model_text(self, path: str, max_vocab: int):
         """Parsing text file and preparing for cache."""
-        print(f"Parsing text file {path} for caching...")
+        self.logger.info("Parsing text file %s for caching...", path)
         try:
             vocab = []
             vec_list = []
@@ -106,12 +107,12 @@ class VectorEngine:
             self.temp_matrix = np.array(vec_list, dtype=np.float32)
             self.is_ready = True
         except Exception as e:
-            print(f"Text load error: {e}")
+            self.logger.error("Text load error: %s", e)
 
     def _save_cache(self, model_path_prefix: str):
         vocab_cache_path = model_path_prefix + ".vocab.npy"
         matrix_cache_path = model_path_prefix + ".matrix.npy"
-        print(f"Saving binary cache to {vocab_cache_path}...")
+        self.logger.info("Saving binary cache to %s...", vocab_cache_path)
         np.save(vocab_cache_path, np.array(self.temp_vocab, dtype=object))
         np.save(matrix_cache_path, self.temp_matrix)
         del self.temp_vocab

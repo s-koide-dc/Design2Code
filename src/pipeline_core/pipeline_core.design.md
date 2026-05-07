@@ -61,3 +61,8 @@
 
 ## 5. Performance & Security
 - `VectorEngine` はバックグラウンドでロードし、必要時に同期的に取得する。
+
+## 6. CLI / I/O Contract
+- `Pipeline.run()` 自体は構造化 `context` を返し、標準出力へ直接書き込まない。
+- `__main__` の REPL だけが正式な対話 I/O を持ち、ユーザー応答は `AI: ...` 形式で stdout に出力する。
+- REPL 実行時の予期しない例外は stderr に出力し、通常の応答チャネルと混在させない。

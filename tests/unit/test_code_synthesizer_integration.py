@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 import json
+import os
 import numpy as np
 from src.code_synthesis.code_synthesizer import CodeSynthesizer
 from src.config.config_manager import ConfigManager
@@ -8,10 +9,16 @@ from src.morph_analyzer.morph_analyzer import MorphAnalyzer
 
 class TestCodeSynthesizerIntegration(unittest.TestCase):
 
+    def _debug_dump_generated_code(self, label, code):
+        flag = str(os.environ.get("NLP_TEST_DEBUG_STDOUT", "")).strip().lower()
+        if flag not in {"1", "true", "yes", "on"}:
+            return
+        print(f"\n--- {label} ---\n")
+        print(code)
+
     def setUp(self):
         from unittest.mock import MagicMock
         import tempfile
-        import os
         import shutil
         
         self.test_dir = tempfile.TemporaryDirectory()
@@ -227,6 +234,22 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             if s.get("else_body"):
                 methods.extend(self._collect_call_methods(s.get("else_body", [])))
         return methods
+
+    def _base_path(self):
+        return {
+            "consumed_ids": set(),
+            "completed_nodes": 0,
+            "statements": [],
+            "type_to_vars": {},
+            "used_names": set(["db", "http", "logger", "_logger", "_httpClient", "_dbConnection"]),
+            "all_usings": set(),
+            "poco_defs": {},
+            "method_return_type": "void",
+            "last_literal_map": {},
+            "input_defs": [],
+            "dependencies": set(),
+            "rank_tuple": (0, 0, 0, 0.0),
+        }
 
     def test_input_link_prefers_upstream_vars(self):
         from src.utils.spec_auditor import SpecAuditor
@@ -496,9 +519,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         }
         result = self.synthesizer.synthesize_from_structured_spec("DoBusiness", spec)
         code = result["code"]
-        
-        print("\n--- DI Generated Code ---\n")
-        print(code)
+        self._debug_dump_generated_code("DI Generated Code", code)
         
         # 生成コードが得られていることを確認
         self.assertTrue(isinstance(code, str) and len(code) > 0)
@@ -783,6 +804,193 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertTrue(any("ToList()" in c for c in raw_codes))
         self.assertTrue(any("Dictionary<string, decimal>" in c for c in raw_codes))
         self.assertTrue(any("string.Join(Environment.NewLine" in c for c in raw_codes))
+
+    def test_spec_role_deserialize_dispatches_json_handler(self):
+        node = {
+            "id": "step_json",
+            "type": "ACTION",
+            "intent": "TRANSFORM",
+            "role": "ACTION",
+            "target_entity": "User",
+            "cardinality": "COLLECTION",
+            "output_type": "List<User>",
+            "semantic_map": {
+                "spec_role": "DESERIALIZE",
+                "semantic_roles": {"source_var": "jsonText"},
+                "logic": []
+            }
+        }
+        path = self._base_path()
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("JsonSerializer.Deserialize<List<User>>(jsonText)" in c for c in raw_codes))
+
+    def test_spec_role_filter_dispatches_linq_handler(self):
+        node = {
+            "id": "step_filter",
+            "type": "ACTION",
+            "intent": "TRANSFORM",
+            "role": "ACTION",
+            "target_entity": "User",
+            "cardinality": "COLLECTION",
+            "output_type": "IEnumerable<User>",
+            "semantic_map": {
+                "spec_role": "FILTER",
+                "semantic_roles": {"ops": ["filter_points_gt_input"]},
+                "logic": []
+            }
+        }
+        path = self._base_path()
+        path["type_to_vars"] = {
+            "IEnumerable<User>": [{"var_name": "users", "role": "data", "node_id": "step_1", "target_entity": "User"}],
+            "int": [{"var_name": "input_1", "role": "input", "node_id": "input"}],
+        }
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("users.Where" in c and "Points > input_1" in c for c in raw_codes))
+
+    def test_filter_with_default_provenance_stays_conservative_downstream(self):
+        node = {
+            "id": "step_filter_weak",
+            "type": "ACTION",
+            "intent": "LINQ",
+            "role": "FILTER",
+            "target_entity": "User",
+            "cardinality": "COLLECTION",
+            "output_type": "IEnumerable<User>",
+            "semantic_map": {
+                "spec_role": "FILTER",
+                "semantic_roles": {
+                    "property": "Points",
+                    "predicate_resolution": "default_predicate",
+                    "collection_resolution": "default_collection",
+                },
+                "logic": []
+            }
+        }
+        path = self._base_path()
+        path["type_to_vars"] = {
+            "IEnumerable<User>": [{"var_name": "users", "role": "data", "node_id": "step_1", "target_entity": "User"}],
+        }
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("Resolve weak FILTER provenance" in c for c in raw_codes))
+        self.assertFalse(any(".Where(" in c and "Points" in c for c in raw_codes))
+
+    def test_filter_with_history_provenance_uses_generic_logic_path(self):
+        node = {
+            "id": "step_filter_history",
+            "type": "ACTION",
+            "intent": "LINQ",
+            "role": "FILTER",
+            "target_entity": "User",
+            "cardinality": "COLLECTION",
+            "output_type": "IEnumerable<User>",
+            "semantic_map": {
+                "spec_role": "FILTER",
+                "semantic_roles": {
+                    "predicate_resolution": "history_predicate",
+                    "collection_resolution": "history_collection",
+                },
+                "logic": [{
+                    "type": "numeric",
+                    "operator": "Greater",
+                    "expected_value": "100",
+                    "variable_hint": "Points"
+                }]
+            }
+        }
+        path = self._base_path()
+        path["type_to_vars"] = {
+            "IEnumerable<User>": [{"var_name": "users", "role": "data", "node_id": "step_1", "target_entity": "User"}],
+        }
+        path["poco_defs"] = {"User": {"Points": "int"}}
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any(".Where(" in c and "Points > 100" in c for c in raw_codes))
+        self.assertFalse(any("Resolve weak FILTER provenance" in c for c in raw_codes))
+
+    def test_ambiguous_calculate_stays_conservative_downstream(self):
+        node = {
+            "id": "step_calc_ambiguous",
+            "type": "ACTION",
+            "intent": "CALC",
+            "role": "CALC",
+            "target_entity": "Item",
+            "cardinality": "SINGLE",
+            "output_type": "decimal",
+            "semantic_map": {
+                "spec_role": "CALCULATE",
+                "semantic_roles": {
+                    "target_hint": "Total",
+                    "property": "Total",
+                    "target_entity": "Item",
+                    "entity_resolution": "ambiguous"
+                },
+                "logic": []
+            }
+        }
+        path = self._base_path()
+        path["active_scope_item"] = "item"
+        path["type_to_vars"] = {
+            "Order": [{"var_name": "order", "role": "data", "node_id": "step_1", "target_entity": "Order"}],
+            "Invoice": [{"var_name": "invoice", "role": "data", "node_id": "step_2", "target_entity": "Invoice"}],
+        }
+        path["poco_defs"] = {
+            "Order": {"Total": "decimal", "Id": "int"},
+            "Invoice": {"Total": "decimal", "Number": "string"},
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("Resolve ambiguous CALCULATE target for Total" in c for c in raw_codes))
+        self.assertFalse(any(".Total" in c for c in raw_codes))
+
+    def test_history_fallback_calculate_uses_exact_target_without_cross_entity_fallback(self):
+        node = {
+            "id": "step_calc_history",
+            "type": "ACTION",
+            "intent": "CALC",
+            "role": "CALC",
+            "target_entity": "Order",
+            "cardinality": "SINGLE",
+            "output_type": "decimal",
+            "semantic_map": {
+                "spec_role": "CALCULATE",
+                "semantic_roles": {
+                    "target_hint": "Total",
+                    "property": "Total",
+                    "target_entity": "Order",
+                    "entity_resolution": "history_fallback"
+                },
+                "logic": []
+            }
+        }
+        path = self._base_path()
+        path["active_scope_item"] = "order"
+        path["type_to_vars"] = {
+            "Order": [{"var_name": "order", "role": "data", "node_id": "step_1", "target_entity": "Order"}],
+            "Invoice": [{"var_name": "invoice", "role": "data", "node_id": "step_2", "target_entity": "Invoice"}],
+        }
+        path["poco_defs"] = {
+            "Invoice": {"Total": "decimal", "Number": "string"},
+            "Order": {"Total": "decimal", "Id": "int"},
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertFalse(any("Resolve ambiguous CALCULATE target" in c for c in raw_codes))
+        self.assertTrue(any("order.Total" in c for c in raw_codes))
 
 
 if __name__ == '__main__':

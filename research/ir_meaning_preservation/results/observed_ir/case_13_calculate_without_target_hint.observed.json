@@ -1,0 +1,73 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "商品を取得する。",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "SINGLE",
+      "target_entity": "Item",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        },
+        "spec_role": "FETCH"
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "ACTION",
+      "original_text": "価格を計算する。",
+      "intent": "GENERAL",
+      "role": "ACTION",
+      "cardinality": "SINGLE",
+      "target_entity": "Item",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        },
+        "spec_role": "ACTION"
+      },
+      "input_link": "step_1",
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_3",
+      "type": "ACTION",
+      "original_text": "計算結果を表示する。",
+      "intent": "DISPLAY",
+      "role": "DISPLAY",
+      "cardinality": "SINGLE",
+      "target_entity": "Item",
+      "output_type": "string",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        },
+        "spec_role": "DISPLAY"
+      },
+      "input_link": "step_2",
+      "children": [],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

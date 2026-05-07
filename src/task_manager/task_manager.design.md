@@ -51,3 +51,7 @@
 ## 3. Dependencies
 - **Internal**: `metrics`, `task_persistence`, `condition_evaluator`, `session_manager`, `approval_messages`, `config_manager`
 - **External**: `json`, `os`, `time`, `uuid`
+
+## 4. Operational Notes
+- `log_manager` が存在しない場合のデバッグ fallback は `src.utils.stdout_guard.debug_print` を使う。
+- これにより、`TASK_MANAGER_DEBUG=true` でも通常の stdout を汚さず、`NLP_DEBUG_STDOUT=1` のときだけ補助メッセージを確認できる。

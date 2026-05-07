@@ -3,6 +3,8 @@ from typing import Any, Dict, List
 
 from janome.tokenizer import Tokenizer
 
+from src.utils.stdout_guard import debug_print
+
 class MorphAnalyzer:
     def __init__(self, config_manager=None):
         """
@@ -84,38 +86,38 @@ if __name__ == '__main__':
     # ハッピーパス
     context1 = {"original_text": "猫が歩く", "pipeline_history": [], "analysis": {}}
     result1 = analyzer.analyze(context1)
-    print("--- Happy Path ---")
-    print(result1)
+    debug_print("--- Happy Path ---")
+    debug_print(str(result1))
     assert len(result1["analysis"]["tokens"]) == 3
     assert result1["analysis"]["tokens"][0]["surface"] == "猫"
     assert "morph_analyzer" in result1["pipeline_history"]
-    print("Happy Path Test Passed.")
+    debug_print("Happy Path Test Passed.")
 
     # エッジケース: 空文字列
     context2 = {"original_text": "", "pipeline_history": [], "analysis": {}}
     result2 = analyzer.analyze(context2)
-    print("--- Edge Case (Empty String) ---")
-    print(result2)
+    debug_print("--- Edge Case (Empty String) ---")
+    debug_print(str(result2))
     assert len(result2["analysis"]["tokens"]) == 0
     assert "morph_analyzer" in result2["pipeline_history"]
-    print("Empty String Test Passed.")
+    debug_print("Empty String Test Passed.")
 
     # エッジケース: original_textがない
     context3 = {"pipeline_history": [], "analysis": {}}
     result3 = analyzer.analyze(context3)
-    print("--- Edge Case (Missing original_text) ---")
-    print(result3)
+    debug_print("--- Edge Case (Missing original_text) ---")
+    debug_print(str(result3))
     assert "errors" in result3
     assert any("original_textがcontextに存在しない" in e["message"] for e in result3["errors"])
-    print("Missing original_text Test Passed.")
+    debug_print("Missing original_text Test Passed.")
 
     # エッジケース: original_textが文字列ではない
     context4 = {"original_text": 123, "pipeline_history": [], "analysis": {}}
     result4 = analyzer.analyze(context4)
-    print("--- Edge Case (original_text not string) ---")
-    print(result4)
+    debug_print("--- Edge Case (original_text not string) ---")
+    debug_print(str(result4))
     assert "errors" in result4
     assert any("original_textがcontextに存在しないか、文字列ではありません。" in e["message"] for e in result4["errors"])
-    print("original_text not string Test Passed.")
+    debug_print("original_text not string Test Passed.")
 
-    print("\nAll basic tests passed for MorphAnalyzer.")
+    debug_print("\nAll basic tests passed for MorphAnalyzer.")

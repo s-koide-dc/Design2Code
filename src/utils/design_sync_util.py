@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import logging
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
@@ -9,6 +10,7 @@ class DesignSyncUtil:
 
     def __init__(self, workspace_root: str):
         self.workspace_root = Path(workspace_root)
+        self.logger = logging.getLogger(__name__)
 
     def _load_sync_config(self) -> Dict[str, Any]:
         config_path = self.workspace_root / "resources" / "canonical_knowledge.json"
@@ -46,7 +48,7 @@ class DesignSyncUtil:
             return False
 
         except Exception as e:
-            print(f"Sync error: {e}")
+            self.logger.error("Sync error: %s", e)
             return False
 
     def _update_interface_metadata(self, content: str, structure: Dict[str, Any]) -> str:
@@ -115,7 +117,7 @@ class DesignSyncUtil:
             return True
 
         except Exception as e:
-            print(f"Logic update error: {e}")
+            self.logger.error("Logic update error: %s", e)
             return False
 
     def collect_user_feedback(self, finding_id: str, feedback: str):

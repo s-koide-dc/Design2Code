@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import re
+import logging
 from datetime import datetime
 from typing import Dict, Any
 from collections import defaultdict
@@ -14,6 +15,7 @@ class TDDOperations:
     
     def __init__(self, action_executor):
         self.ae = action_executor
+        self.logger = logging.getLogger(__name__)
 
     def analyze_test_failure(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """テスト失敗を分析して修正提案を生成"""
@@ -151,7 +153,7 @@ class TDDOperations:
                         all_suggestions.append(sug)
             except Exception as e:
                 self.ae.log_manager.log_event("analyze_test_failure_error", {"error": str(e), "test_method": test_method}, level="ERROR")
-                print(f"Error analyzing {test_method}: {e}")
+                self.logger.error("Error analyzing %s: %s", test_method, e)
 
         if not all_suggestions:
             # Collect some debug info from failure objects if any

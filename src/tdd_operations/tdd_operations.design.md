@@ -48,3 +48,7 @@
 - 履歴に修正提案が見つからない場合のエラー
 - 修正適用後の検証失敗時の自動ロールバック
 - ファイル操作やコマンド実行時の例外キャッチ
+
+## 5. Operational Notes
+- 個別失敗分析中の例外は `action_executor.log_manager` とモジュール logger に記録し、stdout へ直接出力しない。
+- 利用者向けの結果は `context["action_result"]` に集約する。

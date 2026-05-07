@@ -150,3 +150,16 @@
 - 設計書生成の入口: `scripts/generate/generate_from_design.py`
 - プロジェクト生成の入口: `src/code_generation/project_generator.py`
 - メソッドストア仕様: `docs/method_store_spec.md`
+- 出力契約の基準: `docs/stdout_output_policy.md`
+
+**IR Generator Submodules**
+- オーケストレーション / 構造制御: `src/ir_generator/ir_generator.py`
+- CHECK 解決: `src/ir_generator/check_resolution.py`
+- FILTER / CALCULATE 昇格: `src/ir_generator/promotion_rules.py`
+- target / property / entity 解決: `src/ir_generator/target_resolution.py`
+- `spec_role` 推定: `src/ir_generator/spec_role_rules.py`
+
+**Code Synthesis Metadata Consumers**
+- 実行 intent 変換と dispatch: `src/code_synthesis/action_synthesizer.py`
+- 条件式 / semantic binding: `src/code_synthesis/semantic_binder.py`
+- CALCULATE の保守的 concretization: `src/code_synthesis/action_handlers/calc_ops.py`

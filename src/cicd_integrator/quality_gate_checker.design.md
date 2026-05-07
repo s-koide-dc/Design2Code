@@ -25,3 +25,8 @@
 ## 3. Dependencies
 - **Internal**: `cicd_integrator`
 - **External**: `xml.etree.ElementTree`, `glob`, `json`
+
+## 4. CLI / I/O Contract
+- 正式な評価結果 (`print_results`, `--format json` の標準出力) は stdout に出力する。
+- 設定読込失敗、メトリクス読込失敗、品質レポート解析失敗などの補助診断は stderr に出力する。
+- `check_gates()` 自体は結果辞書を返し、出力責務は CLI レイヤー (`print_results`, `main`) に限定する。

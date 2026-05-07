@@ -33,3 +33,7 @@
 ## 3. Storage
 - **File**: `resources/dependency_map.json`
 - **Format**: `{ "SymbolName": { "name": "PackageID", "version": "x.y.z" }, ... }`
+
+## 4. Operational Notes
+- `__main__` の手動確認パスは保持するが、サンプル出力は `src.utils.stdout_guard.debug_print` による opt-in 出力とする。
+- 通常のライブラリ利用では stdout を使わず、診断は logger または debug-gated path に限定する。

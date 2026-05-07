@@ -86,6 +86,8 @@
         "scripts/tools/suggest_method_capabilities.py",
         "scripts/validate/run_tdd.py",
         "scripts/validate/run_unit_smoke.py",
+        "scripts/validate/run_ir_meaning_preservation_regression.py",
+        "scripts/validate/validate_ir_meaning_preservation_regression.py",
         "scripts/validate/validate_method_store.py"
     ],
     "blocked_metacharacters": [

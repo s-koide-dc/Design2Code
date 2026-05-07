@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional
 from .models import TestFailure, TDDGoal, CodeFixSuggestion
 from .failure_analyzer import TestFailureAnalyzer
 from .fix_engine import CodeFixSuggestionEngine
+from src.utils.stdout_guard import debug_print
 
 class AdvancedTDDSupport:
     """高度TDD支援のメインクラス"""
@@ -206,7 +207,7 @@ class AdvancedTDDSupport:
     # Phase 4: ゴール駆動型TDD
     def execute_goal_driven_tdd(self, goal_data: Dict[str, Any]) -> Dict[str, Any]:
         """ゴール駆動型TDDを実行"""
-        print(f"[DEBUG] execute_goal_driven_tdd CALLED with goal: {goal_data.get('description')}")
+        debug_print(f"[DEBUG] execute_goal_driven_tdd CALLED with goal: {goal_data.get('description')}")
         try:
             # 目標の構造化
             goal = TDDGoal(
@@ -374,8 +375,8 @@ if __name__ == "__main__":
     }
     
     phase3_result = tdd_support.analyze_and_fix_test_failure(test_failure_example)
-    print("Phase 3 結果:")
-    print(json.dumps(phase3_result, ensure_ascii=False, indent=2))
+    debug_print("Phase 3 結果:")
+    debug_print(json.dumps(phase3_result, ensure_ascii=False, indent=2))
     
     # Phase 4 例: ゴール駆動型TDD
     goal_example = {
@@ -396,5 +397,5 @@ if __name__ == "__main__":
     }
     
     phase4_result = tdd_support.execute_goal_driven_tdd(goal_example)
-    print("\nPhase 4 結果:")
-    print(json.dumps(phase4_result, ensure_ascii=False, indent=2))
+    debug_print("\nPhase 4 結果:")
+    debug_print(json.dumps(phase4_result, ensure_ascii=False, indent=2))

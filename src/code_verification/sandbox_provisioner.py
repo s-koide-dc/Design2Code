@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import logging
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
@@ -16,6 +17,7 @@ class SandboxProvisioner:
         self.config = config
         self.root = getattr(config, 'workspace_root', os.getcwd())
         self.temp_dir = Path(tempfile.gettempdir()) / "gemini_nlp_sandbox"
+        self.logger = logging.getLogger(__name__)
 
     def provision_sandbox(self, project_name: str, dependencies: List[Dict[str, str]]) -> Path:
         """
@@ -36,7 +38,7 @@ class SandboxProvisioner:
             subprocess.run(["dotnet", "restore", str(csproj_path)], 
                            capture_output=True, check=True, timeout=30)
         except Exception as e:
-            print(f"[!] Sandbox restore failed: {e}")
+            self.logger.warning("Sandbox restore failed: %s", e)
             
         return self.temp_dir
 

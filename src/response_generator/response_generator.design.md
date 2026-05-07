@@ -41,3 +41,7 @@
 ## 3. Dependencies
 - **Internal**: `vector_engine`, `task_manager`, `log_manager`
 - **External**: `json`, `os`, `random`, `datetime`
+
+## 4. Operational Notes
+- タスク定義や knowledge base の読込失敗は stdout ではなく logger に記録する。
+- 正式な利用者向け出力は常に `context["response"]["text"]` に集約し、モジュール自身は標準出力責務を持たない。

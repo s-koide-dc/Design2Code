@@ -63,3 +63,7 @@
 ## 3. Dependencies
 - **Internal**: `vector_engine`, `morph_analyzer`, `task_manager`, `config_manager`
 - **External**: `json`, `os`, `pickle`
+
+## 4. Operational Notes
+- コーパス読込・保存失敗は stdout ではなく logger に記録する。
+- 承認待ち状態の補助トレースだけは `src.utils.stdout_guard.debug_print` を使い、`NLP_DEBUG_STDOUT=1` のときのみ確認できる。

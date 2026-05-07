@@ -66,3 +66,7 @@ The `KnowledgeExtractor` [Phase 7.1] is a utility component designed to "learn" 
 3.  **Unsupported AST Node**:
     -   Condition: Variable assigned to function call `hierarchy = get_hierarchy()`.
     -   Result: `_parse_ast_dict` returns None or skips, avoiding arbitrary code execution.
+
+## 3. Operational Notes
+- AST 解析失敗や canonical knowledge 保存完了は stdout ではなく logger を使って記録する。
+- 手動実行 (`__main__`) は維持するが、進行表示を標準出力へ直接出す契約は持たない。

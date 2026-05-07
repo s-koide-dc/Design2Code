@@ -6,6 +6,7 @@ import tempfile
 import shutil
 from typing import Dict, List, Any, Optional
 from .compilation_verifier import CompilationVerifier
+from src.utils.stdout_guard import debug_print
 
 class ExecutionVerifier(CompilationVerifier):
     """
@@ -173,7 +174,7 @@ class ExecutionVerifier(CompilationVerifier):
                         # ダミーJSON生成
                         with open(filepath, "w", encoding="utf-8") as f:
                             f.write('[{"Name": "Item1", "Price": 2000, "Stock": 2}, {"Name": "Item2", "Price": 500, "Stock": 10}]')
-                        print(f"[ExecutionVerifier] Created mock file: {filename}")
+                        debug_print(f"[ExecutionVerifier] Created mock file: {filename}")
 
             wrapper = f"""
 using System;

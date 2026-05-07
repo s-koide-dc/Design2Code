@@ -18,6 +18,7 @@ import tempfile
 import shutil
 import os
 import time
+from src.utils.stdout_guard import debug_print
 
 class AutonomousSynthesizer:
     """合成・検証・自己修復のループを統括するクラス"""
@@ -67,7 +68,7 @@ class AutonomousSynthesizer:
         
         while attempt <= max_retries:
             attempt += 1
-            print(f"\n[AutonomousSynthesizer] Attempt {attempt} for '{method_name}'")
+            debug_print(f"\n[AutonomousSynthesizer] Attempt {attempt} for '{method_name}'")
             
             # 1. 合成 (セッションコンテキストを考慮)
             enhanced_steps = design_steps.copy()
@@ -80,7 +81,7 @@ class AutonomousSynthesizer:
             code = result["code"]
             
             # 2. 検証 (ビルド)
-            print("[AutonomousSynthesizer] Verifying build...")
+            debug_print("[AutonomousSynthesizer] Verifying build...")
             v_start = time.time()
             
             # Use current dependencies from path
@@ -89,25 +90,25 @@ class AutonomousSynthesizer:
             for d in result.get("dependencies", []): session_dependencies.add(d)
             v_res = self.verifier.verify(code, work_dir=work_dir, dependencies=current_deps)
             v_time = time.time() - v_start
-            print(f"[AutonomousSynthesizer] Build took {v_time:.2f}s")
+            debug_print(f"[AutonomousSynthesizer] Build took {v_time:.2f}s")
             
             if v_res.get("valid"):
-                print("[AutonomousSynthesizer] Build SUCCESS!")
+                debug_print("[AutonomousSynthesizer] Build SUCCESS!")
                 # Persist the newly resolved packages
                 self.dependency_resolver.save_mappings()
                 
                 # 3. 実行検証 (オプション)
                 if execute:
-                    print("[AutonomousSynthesizer] Extracting logic goals for assertions...")
+                    debug_print("[AutonomousSynthesizer] Extracting logic goals for assertions...")
                     assertion_goals = self.logic_auditor.extract_assertion_goals(enhanced_steps)
                     
-                    print("[AutonomousSynthesizer] Executing code with assertions...")
+                    debug_print("[AutonomousSynthesizer] Executing code with assertions...")
                     e_start = time.time()
                     e_res = self.executor.run_and_capture(code, method_name, work_dir=work_dir, assertion_goals=assertion_goals, dependencies=current_deps)
                     e_time = time.time() - e_start
-                    print(f"[AutonomousSynthesizer] Execution took {e_time:.2f}s")
+                    debug_print(f"[AutonomousSynthesizer] Execution took {e_time:.2f}s")
                     if e_res.get("success"):
-                        print("[AutonomousSynthesizer] Execution SUCCESS!")
+                        debug_print("[AutonomousSynthesizer] Execution SUCCESS!")
                         
                         # --- NEW: Positive Semantic Feedback ---
                         if intent:
@@ -115,7 +116,7 @@ class AutonomousSynthesizer:
                             for uid in used_ids:
                                 self.synthesizer.method_store.record_semantic_feedback(uid, intent, is_success=True)
                             if used_ids:
-                                print(f"[AutonomousSynthesizer] Positive feedback recorded for {len(used_ids)} methods under intent {intent}")
+                                debug_print(f"[AutonomousSynthesizer] Positive feedback recorded for {len(used_ids)} methods under intent {intent}")
                         # ---------------------------------------
 
                         return {
@@ -126,7 +127,7 @@ class AutonomousSynthesizer:
                             "poco_info": result.get("poco_info")
                         }
                     else:
-                        print(f"[AutonomousSynthesizer] Execution FAILED: {e_res.get('exception', {}).get('type')}")
+                        debug_print(f"[AutonomousSynthesizer] Execution FAILED: {e_res.get('exception', {}).get('type')}")
                         
                         # --- NEW: Semantic Feedback Analysis ---
                         from src.advanced_tdd.models import TestFailure
@@ -146,14 +147,14 @@ class AutonomousSynthesizer:
                         mismatch = runtime_feedback_analysis.get('semantic_mismatch')
                         if mismatch:
                             actual_code = mismatch.get('actual_code')
-                            print(f"[AutonomousSynthesizer] SEMANTIC MISMATCH detected: {actual_code} is NOT suitable for {intent}")
+                            debug_print(f"[AutonomousSynthesizer] SEMANTIC MISMATCH detected: {actual_code} is NOT suitable for {intent}")
                             
                             # Update MethodStore with negative feedback
                             # Note: actual_code is class.method, MethodStore expects ID
                             # For now, we try to match the ID.
                             method_id = actual_code.lower()
                             self.synthesizer.method_store.record_semantic_feedback(method_id, intent, is_success=False)
-                            print(f"[AutonomousSynthesizer] Penalty applied to {method_id} for intent {intent}")
+                            debug_print(f"[AutonomousSynthesizer] Penalty applied to {method_id} for intent {intent}")
                         # ----------------------------------------
 
                         runtime_feedback = self.analyzer.analyze_runtime_failure(e_res.get("exception", {}))
@@ -166,7 +167,7 @@ class AutonomousSynthesizer:
                         if rec == "AddFileCheck":
                             new_step = "もしファイルの存在が確認できれば"
                             if new_step not in design_steps:
-                                print(f"[AutonomousSynthesizer] Injecting conditional safety step: {new_step}")
+                                debug_print(f"[AutonomousSynthesizer] Injecting conditional safety step: {new_step}")
                                 design_steps.insert(0, "ファイルの存在を確認する")
                                 design_steps.insert(1, new_step)
                 else:
@@ -181,7 +182,7 @@ class AutonomousSynthesizer:
             # 4. 失敗分析と学習 (ビルドエラー)
             errors = v_res.get("errors", [])
             if not v_res.get("valid") and errors:
-                print(f"[AutonomousSynthesizer] Build FAILED with {len(errors)} errors.")
+                debug_print(f"[AutonomousSynthesizer] Build FAILED with {len(errors)} errors.")
                 
                 # --- NEW: Autonomous NuGet Resolution ---
                 resolution_results = self.dependency_resolver.analyze_build_errors(errors)
@@ -190,34 +191,34 @@ class AutonomousSynthesizer:
                 for res in resolution_results:
                     if res.get("internal"):
                         # 内部コードの場合は using 句の欠落としてマーク
-                        print(f"[AutonomousSynthesizer] Symbol '{res.get('id')}' found internally. Injecting reference hint.")
+                        debug_print(f"[AutonomousSynthesizer] Symbol '{res.get('id')}' found internally. Injecting reference hint.")
                         # 次の合成で using が追加されるようにヒントを与える（仮）
                         # TODO: self.synthesizer に直接 using 強制リストを渡す
                         resolved_any = True 
                     else:
                         pkg_id = res["name"]
                         if pkg_id not in session_dependencies:
-                            print(f"[AutonomousSynthesizer] Found NuGet package: {pkg_id}")
+                            debug_print(f"[AutonomousSynthesizer] Found NuGet package: {pkg_id}")
                             session_dependencies.add(pkg_id)
                             resolved_any = True
                 
                 if resolved_any:
-                    print("[AutonomousSynthesizer] Resolved missing symbols. Retrying synthesis.")
+                    debug_print("[AutonomousSynthesizer] Resolved missing symbols. Retrying synthesis.")
                     continue
                 # -----------------------------------------
 
                 for err in errors:
-                    print(f"  - {err.get('code')}: {err.get('message')} (Line: {err.get('line')})")
+                    debug_print(f"  - {err.get('code')}: {err.get('message')} (Line: {err.get('line')})")
                 feedback = self.analyzer.analyze_compilation_failure(code, errors)
                 
                 if not feedback:
-                    print("[AutonomousSynthesizer] No actionable feedback extracted. Stopping.")
+                    debug_print("[AutonomousSynthesizer] No actionable feedback extracted. Stopping.")
                     break
                     
                 for fb in feedback:
                     if fb["type"] == "negative_feedback":
                         src, tgt = fb["source_type"], fb["target_type"]
-                        print(f"[AutonomousSynthesizer] Learning from mistake: {src} -> {tgt} is invalid.")
+                        debug_print(f"[AutonomousSynthesizer] Learning from mistake: {src} -> {tgt} is invalid.")
                         self.synthesizer.knowledge_base.add_negative_feedback(src, tgt)
                         
                         # 推薦アクションがあれば、設計ステップを動的に補完する
@@ -227,14 +228,14 @@ class AutonomousSynthesizer:
                             insert_idx = max(0, len(design_steps) - 1)
                             new_step = "取得した値をToStringメソッドで文字列に変換する"
                             if new_step not in design_steps:
-                                print(f"[AutonomousSynthesizer] Injecting fix step: {new_step}")
+                                debug_print(f"[AutonomousSynthesizer] Injecting fix step: {new_step}")
                                 design_steps.insert(insert_idx, new_step)
                     
                     elif fb["type"] == "unresolved_symbol":
                         symbol = fb["symbol"]
                         # NuGet解決ループで解決できなかったものだけを永続化
                         if symbol not in session_dependencies:
-                            print(f"[AutonomousSynthesizer] Marking symbol as dead-end: {symbol}")
+                            debug_print(f"[AutonomousSynthesizer] Marking symbol as dead-end: {symbol}")
                             # self.synthesizer.knowledge_base.add_unresolved_symbol(symbol)
             
             # 5. 知識ベースの更新をSynthesizerに反映
@@ -268,7 +269,7 @@ class AutonomousSynthesizer:
         
             requirements = []
             for i, criteria in enumerate(goal.acceptance_criteria):
-                print(f"[AutonomousSynthesizer] Analyzing Requirement {i+1}: {criteria}")
+                debug_print(f"[AutonomousSynthesizer] Analyzing Requirement {i+1}: {criteria}")
                 
                 # コンテキスト作成と分析
                 context = {"original_text": criteria, "analysis": {}}
@@ -284,14 +285,14 @@ class AutonomousSynthesizer:
                 
                 intent = "GENERAL"
                 entities = context.get("analysis", {}).get("entities", {})
-                print(f"[DEBUG] Detected Intent: {intent}, Entities: {list(entities.keys())}")
+                debug_print(f"[DEBUG] Detected Intent: {intent}, Entities: {list(entities.keys())}")
                 
                 # 特殊ケース: メソッド名指定の意図がある場合
                 if intent == "SET_METHOD_NAME" and "target_name" in entities:
                     target_name = entities["target_name"]["value"]
                     if requirements:
                         # 直前の要件のメソッド名を更新
-                        print(f"[AutonomousSynthesizer] Renaming previous requirement to '{target_name}'")
+                        debug_print(f"[AutonomousSynthesizer] Renaming previous requirement to '{target_name}'")
                         requirements[-1]["method_name"] = target_name
                         continue 
 
@@ -337,7 +338,7 @@ class AutonomousSynthesizer:
                         req_input = prev_ret
                 
                 # 合成実行
-                print(f"[AutonomousSynthesizer] Step {i+1}/{len(requirements)}: Synthesizing task: {m_name}")
+                debug_print(f"[AutonomousSynthesizer] Step {i+1}/{len(requirements)}: Synthesizing task: {m_name}")
                 
                 # CodeSynthesizer.synthesize は完成したコードを返すため、引数を調整
                 res = self.synthesize_safely(m_name, steps, execute=True, session_context=session_context, return_type=req_ret, input_param_type=req_input, work_dir=work_dir, intent=intent)
@@ -361,7 +362,7 @@ class AutonomousSynthesizer:
             consolidated_code = self._consolidate_results(final_results)
             
             total_time = time.time() - start_time
-            print(f"\n[AutonomousSynthesizer] Total Goal processing took {total_time:.2f}s")
+            debug_print(f"\n[AutonomousSynthesizer] Total Goal processing took {total_time:.2f}s")
 
             return {
                 "status": "success",

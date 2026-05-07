@@ -76,3 +76,7 @@ Candidates are sorted based on a tuple of priority scores (Descending Order):
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
 
+## 5. Operational Notes
+- `action_patterns.json` と `canonical_knowledge.json` の読込失敗は stdout ではなく logger に記録する。
+- UKB 自体は検索結果を返すファサードであり、利用者向け出力責務を持たない。
+

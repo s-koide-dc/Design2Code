@@ -225,6 +225,16 @@ class Pipeline:
         self._persist_session_log(context, start_time)
         return context
 
+
+def _emit_repl_response(text: str) -> None:
+    """REPL 向けの正式なユーザー応答だけを stdout に出力する。"""
+    print(f"AI: {text}")
+
+
+def _emit_repl_error(message: str) -> None:
+    """REPL 実行時の予期しない例外は stderr に出力する。"""
+    print(f"AI: 予期せぬエラーが発生しました: {message}", file=sys.stderr)
+
 if __name__ == '__main__':
     pipeline = Pipeline()
     while True:
@@ -232,6 +242,7 @@ if __name__ == '__main__':
             user_input = input("あなた: ")
             if user_input.lower() in ['exit', 'quit']: break
             final_context = pipeline.run(user_input)
-            print(f"AI: {final_context.get('response', {}).get('text', 'N/A')}")
+            _emit_repl_response(final_context.get('response', {}).get('text', 'N/A'))
         except KeyboardInterrupt: break
-        except Exception as e: print(f"AI: 予期せぬエラーが発生しました: {e}")
+        except Exception as e:
+            _emit_repl_error(str(e))

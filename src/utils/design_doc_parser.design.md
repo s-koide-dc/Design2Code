@@ -54,3 +54,7 @@
 ## 3. Dependencies
 - **Internal**: なし
 - **External**: `re` (Python 標準正規表現ライブラリ)
+
+## 4. Operational Notes
+- `__main__` のサンプル実行は維持するが、出力は `src.utils.stdout_guard.debug_print` を通す。
+- これにより、通常実行時の stdout には混入せず、`NLP_DEBUG_STDOUT=1` のときだけ構造化結果を確認できる。

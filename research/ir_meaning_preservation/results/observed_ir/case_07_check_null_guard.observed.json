@@ -1,0 +1,77 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "ユーザーを取得する。",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "SINGLE",
+      "target_entity": "Item",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        },
+        "spec_role": "FETCH"
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "CONDITION",
+      "original_text": "もし user が null ならば、以下の処理を行う：",
+      "intent": "EXISTS",
+      "role": "CHECK",
+      "cardinality": "SINGLE",
+      "target_entity": "User",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "User"
+        },
+        "spec_role": "CHECK",
+        "check_kind": "null_check",
+        "check_subject": "user",
+        "expected_truth": false
+      },
+      "input_link": "step_1",
+      "children": [
+        {
+          "id": "step_3",
+          "type": "ACTION",
+          "original_text": "エラーを表示する。",
+          "intent": "DISPLAY",
+          "role": "DISPLAY",
+          "cardinality": "SINGLE",
+          "target_entity": "Item",
+          "output_type": "string",
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "Item"
+            },
+            "spec_role": "DISPLAY"
+          },
+          "input_link": "step_2",
+          "children": [],
+          "else_children": []
+        }
+      ],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

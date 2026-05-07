@@ -1,0 +1,122 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "リトライする。以下の処理を繰り返す：",
+      "intent": "GENERAL",
+      "role": "ACTION",
+      "cardinality": "SINGLE",
+      "target_entity": "Item",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item",
+          "wrapper_kind": "retry",
+          "structure_kind": "wrapper"
+        },
+        "spec_role": "WRAP"
+      },
+      "input_link": null,
+      "children": [
+        {
+          "id": "step_2",
+          "type": "ACTION",
+          "original_text": "ジョブ一覧を取得する。",
+          "intent": "FETCH",
+          "role": "FETCH",
+          "cardinality": "COLLECTION",
+          "target_entity": "Item",
+          "output_type": null,
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "Item"
+            },
+            "spec_role": "FETCH"
+          },
+          "input_link": "step_1",
+          "children": [],
+          "else_children": []
+        },
+        {
+          "id": "step_3",
+          "type": "ACTION",
+          "original_text": "取得結果を正規化する。",
+          "intent": "FETCH",
+          "role": "FETCH",
+          "cardinality": "SINGLE",
+          "target_entity": "Item",
+          "output_type": null,
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "Item"
+            },
+            "spec_role": "FETCH"
+          },
+          "input_link": "step_2",
+          "children": [],
+          "else_children": []
+        },
+        {
+          "id": "step_4",
+          "type": "LOOP",
+          "original_text": "取得した各ジョブに対して、以下の処理を行う：",
+          "intent": "GENERAL",
+          "role": "ITERATE",
+          "cardinality": "COLLECTION",
+          "target_entity": "Item",
+          "output_type": null,
+          "source_kind": null,
+          "source_ref": null,
+          "semantic_map": {
+            "logic": [],
+            "semantic_roles": {
+              "target_entity": "Item",
+              "structure_kind": "loop"
+            },
+            "spec_role": "ITERATE"
+          },
+          "input_link": "step_3",
+          "children": [
+            {
+              "id": "step_5",
+              "type": "ACTION",
+              "original_text": "名前を表示する。",
+              "intent": "DISPLAY",
+              "role": "DISPLAY",
+              "cardinality": "SINGLE",
+              "target_entity": "Item",
+              "output_type": "string",
+              "source_kind": null,
+              "source_ref": null,
+              "semantic_map": {
+                "logic": [],
+                "semantic_roles": {
+                  "target_entity": "Item"
+                },
+                "spec_role": "DISPLAY"
+              },
+              "input_link": "step_4",
+              "children": [],
+              "else_children": []
+            }
+          ],
+          "else_children": []
+        }
+      ],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

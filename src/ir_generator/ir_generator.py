@@ -8,6 +8,29 @@ from src.utils.logic_auditor import LogicAuditor
 from src.code_synthesis.type_system import TypeSystem
 from src.utils.text_parser import extract_first_quoted_literal
 from src.utils.entity_inference import infer_target_entity
+from src.utils.stdout_guard import debug_print
+from src.ir_generator.check_resolution import (
+    normalize_check_operator,
+    infer_null_check_subject_metadata,
+    infer_check_target_entity,
+    infer_check_metadata,
+)
+from src.ir_generator.promotion_rules import (
+    has_calculation_intent_signal,
+    has_filter_lexical_signal,
+    has_filter_predicate_logic,
+    has_upstream_collection_context,
+    infer_filter_property,
+    should_promote_to_filter,
+    should_promote_to_calculate,
+)
+from src.ir_generator.target_resolution import (
+    extract_entity_property_names,
+    find_property_owner_entities,
+    infer_calculate_target_entity,
+    resolve_property_provenance,
+)
+from src.ir_generator.spec_role_rules import infer_spec_role
 
 class SynthesisIntentDetector:
     """自然言語の概念（セマンティック・クラス）を技術的インテントにマッピングするクラス"""
@@ -89,6 +112,7 @@ class IRGenerator:
         source_map = {ds["id"]: ds["kind"] for ds in data_sources}
 
         for idx, raw_step in enumerate(design_steps):
+            # Phase 1: Raw step normalization and clause extraction
             raw_text = raw_step.get("text", "") if isinstance(raw_step, dict) else str(raw_step)
             if "[data_source|" in raw_text or any(inp.get("description") == raw_text for inp in inputs): continue
             if self.strict_semantics and strict_requested and isinstance(raw_step, dict):
@@ -122,6 +146,7 @@ class IRGenerator:
                     source_kind = "http"
 
             for sub_idx, c_info in enumerate(clauses):
+                # Phase 2: Step-local semantic analysis and structure typing
                 c_text = c_info["text"]; c_type = c_info["type"]
                 step_entry = copy.deepcopy(raw_step) if isinstance(raw_step, dict) else {"text": c_text}
                 step_entry["text"] = c_text
@@ -163,38 +188,33 @@ class IRGenerator:
                     final_semantic_map.setdefault("semantic_roles", {}).setdefault("path", source_ref)
                 if source_ref and source_kind == "env":
                     final_semantic_map.setdefault("semantic_roles", {}).setdefault("name", source_ref)
+
+                analysis, final_semantic_map, target_entity = self._resolve_role_specific_semantics(
+                    analysis,
+                    final_semantic_map,
+                    target_entity,
+                    node_type,
+                    c_info.get("has_body", False),
+                    c_text,
+                    source_kind,
+                    source_ref,
+                    context_history,
+                    weak_entities,
+                )
                 
             # 27.162: STRICT INTENT LOCK.
-            final_intent = step_intent_tag or analysis["intent"]
-            is_explicit_intent = isinstance(step_intent_tag, str) and bool(step_intent_tag)
-            if node_type in ["CONDITION", "ACTION"] and final_intent in ["GENERAL", "HTTP_REQUEST", "FILTER"]:
-                if is_explicit_intent and step_intent_tag in ["HTTP_REQUEST", "DATABASE_QUERY", "PERSIST", "FETCH"]:
-                    pass
-                else:
-                    if any(lg.get("type") in ["numeric", "string", "logic"] for lg in final_semantic_map.get("logic", [])):
-                        final_intent = "LINQ"
-            elif node_type == "CONDITION" and final_intent in ["GENERAL", "HTTP_REQUEST"]:
-                final_intent = "LINQ"
-            if final_intent in ["GENERAL", "ACTION"] and "url" in final_semantic_map.get("semantic_roles", {}):
-                final_intent = "HTTP_REQUEST"
-                source_kind = source_kind or "http"
-            if final_intent in ["GENERAL", "ACTION"] and "sql" in final_semantic_map.get("semantic_roles", {}):
-                final_intent = "PERSIST"
-                source_kind = source_kind or "db"
-            # Downgrade structured DB intent when no DB evidence exists
-            if step_intent_tag == "DATABASE_QUERY":
-                has_sql = "sql" in final_semantic_map.get("semantic_roles", {})
-                if source_kind != "db" and not has_sql:
-                    final_intent = "FETCH"
-            if final_intent == "PERSIST":
-                analysis["role"] = "PERSIST"
-            elif final_intent in ["DATABASE_QUERY", "FETCH"]:
-                analysis["role"] = "FETCH"
-            elif final_intent == "DISPLAY":
-                analysis["role"] = "DISPLAY"
-            elif final_intent == "HTTP_REQUEST":
-                if "payload" in final_semantic_map.get("semantic_roles", {}) or "content" in final_semantic_map.get("semantic_roles", {}):
-                    analysis["role"] = "PERSIST"
+            # Phase 4: Final intent/runtime-role coercion
+            # This is the last place where coarse intent is normalized before
+            # chaining, cardinality, and node emission are finalized.
+            final_intent, final_role, source_kind = self._coerce_final_intent_and_role(
+                step_intent_tag,
+                analysis.get("intent", "GENERAL"),
+                analysis.get("role", "ACTION"),
+                node_type,
+                final_semantic_map,
+                source_kind,
+            )
+            analysis["role"] = final_role
 
             # Compute chaining after intent resolution to allow RETURN literals without upstream linkage
             is_chaining = (analysis.get("is_chaining") or sub_idx > 0)
@@ -203,12 +223,7 @@ class IRGenerator:
             is_notification = final_intent == "DISPLAY" and bool(
                 final_semantic_map.get("semantic_roles", {}).get("notification")
             )
-            last_collection_id = None
-            if context_history:
-                for h in reversed(context_history):
-                    if h.get("cardinality") == "COLLECTION" and h.get("node_id"):
-                        last_collection_id = h.get("node_id")
-                        break
+            last_collection_id = self._find_last_collection_node_id(context_history)
             last_context_output = ""
             if context_history:
                 last_context_output = str(context_history[-1].get("output_type") or "").lower()
@@ -216,13 +231,15 @@ class IRGenerator:
             want_collection_input = (node_type == "LOOP" or final_intent in ["LINQ", "DISPLAY", "TRANSFORM", "CALC"])
             if final_intent == "PERSIST":
                 want_collection_input = not prefer_scalar_input
-            if is_chaining and last_node_id:
-                if is_notification and final_intent == "DISPLAY":
-                    input_link = None
-                else:
-                    input_link = last_collection_id if (want_collection_input and last_collection_id) else last_node_id
-            else:
-                input_link = None
+            input_link = self._determine_structural_input_link(
+                block_stack,
+                is_chaining,
+                last_node_id,
+                last_collection_id,
+                want_collection_input,
+                is_notification,
+                final_intent,
+            )
             if isinstance(step_entry, dict) and step_entry.get("input_refs"):
                 if final_intent == "PERSIST":
                     input_link = step_entry["input_refs"][0]
@@ -231,51 +248,31 @@ class IRGenerator:
                 if self._is_literal_return(c_text, tokens):
                     input_link = None
 
+            # Phase 5: Node emission and structural attachment
             # If explicit input_link exists, avoid forcing "{context}" content
             if input_link and final_semantic_map.get("semantic_roles", {}).get("content") == "{context}":
                 del final_semantic_map["semantic_roles"]["content"]
 
             output_type_hint = step_entry.get("output_type") or analysis.get("output_type")
-            
-            # 27.425: If source_kind is still None, try to infer from semantic_roles
-            if not source_kind:
-                if "path" in final_semantic_map.get("semantic_roles", {}):
-                    path_val = final_semantic_map["semantic_roles"]["path"]
-                    if any(ext in str(path_val).lower() for ext in [".json", ".txt", ".csv", ".xml"]):
-                        source_kind = "file"
-                elif "url" in final_semantic_map.get("semantic_roles", {}):
-                    source_kind = "http"
-                    
+            source_kind = self._resolve_final_source_kind(source_kind, final_intent, final_semantic_map, context_history)
             node_id = step_entry.get('id', f"step_{idx+1}")
             if len(clauses) > 1: node_id = f"{node_id}_{sub_idx+1}"
             
-            # 27.160: FINAL CARDINALITY LOCK.
-            final_cardinality = analysis["cardinality"]
-            if node_type == "LOOP":
-                final_cardinality = "COLLECTION"
-            if final_cardinality == "SINGLE" and final_intent in ["LINQ", "DATABASE_QUERY", "JSON_DESERIALIZE"]:
-                if self._is_collection_type(output_type_hint):
-                    final_cardinality = "COLLECTION"
-            
-            # 27.426: Inherit source_kind if missing for I/O
-            if not source_kind and final_intent in ["PERSIST", "FILE_IO", "WRITE", "FETCH"]:
-                if context_history:
-                    for h in reversed(context_history):
-                        if h.get("source_kind"):
-                            source_kind = h["source_kind"]; break
-            if output_type_hint in ["string", "int", "long", "decimal", "double", "float", "bool"]:
-                final_cardinality = "SINGLE"
-            if final_cardinality == "COLLECTION" and node_type != "LOOP":
-                if final_intent not in ["LINQ", "DATABASE_QUERY", "JSON_DESERIALIZE", "FETCH"]:
-                    if not self._is_collection_type(output_type_hint):
-                        final_cardinality = "SINGLE"
-            node = {
-                "id": node_id, "type": node_type, "original_text": c_text, "intent": final_intent, "role": analysis["role"],
-                "cardinality": final_cardinality, "target_entity": target_entity,
-                "output_type": step_entry.get("output_type") or analysis.get("output_type"),
-                "source_kind": source_kind, "source_ref": source_ref, "semantic_map": final_semantic_map,
-                "input_link": input_link, "children": [], "else_children": []
-            }
+            node = self._build_ir_node(
+                node_id,
+                node_type,
+                c_text,
+                final_intent,
+                analysis["role"],
+                analysis["cardinality"],
+                target_entity,
+                step_entry.get("output_type") or analysis.get("output_type"),
+                output_type_hint,
+                source_kind,
+                source_ref,
+                final_semantic_map,
+                input_link,
+            )
             if step_entry.get("explicit_method_id"):
                 node["explicit_method_id"] = step_entry.get("explicit_method_id")
             if step_entry.get("explicit_method_name"):
@@ -287,140 +284,75 @@ class IRGenerator:
             
             # 27.440: Phase 7 F-1 Auto-Chaining for JSON Deserialization
             if not simple_list_input:
-                ot = node.get("output_type")
-                if ot and any(k in ot for k in ["List", "[]", "IEnumerable", "Collection"]):
-                    if final_intent in ["FETCH", "HTTP_REQUEST", "FILE_IO"] and source_kind in ["file", "http", "api"]:
-                        # 1. 現在のノードの出力を string に変更
-                        node["output_type"] = "string"
-                        if block_stack: parent = block_stack[-1]; parent["node"][parent["target"]].append(node)
-                        else: nodes.append(node)
-                        
-                        # 2. JSON_DESERIALIZE ノードを新規作成
-                        json_node = copy.deepcopy(node)
-                        json_node["id"] = f"{node_id}_json"
-                        json_node["intent"] = "JSON_DESERIALIZE"
-                        json_node["role"] = "TRANSFORM"
-                        json_node["output_type"] = ot
-                        json_node["source_kind"] = "memory"
-                        json_node["semantic_map"]["semantic_roles"] = {} # Binder will resolve content
-                        # Derive target entity from collection output type when possible
-                        inner = self.type_system.extract_generic_inner(str(ot))
-                        if inner:
-                            json_node["target_entity"] = inner
-                        elif str(ot).endswith("[]"):
-                            json_node["target_entity"] = str(ot)[:-2].strip()
-                        
-                        if block_stack: parent = block_stack[-1]; parent["node"][parent["target"]].append(json_node)
-                        else: nodes.append(json_node)
-                        
-                        context_history.append({
-                            "text": c_text,
-                            "target_entity": target_entity,
-                            "cardinality": "COLLECTION",
-                            "output_type": ot,
-                            "source_kind": "memory",
-                            "node_id": json_node["id"]
-                        })
-                        last_node_id = json_node["id"]
-                        continue
+                auto_json_node = self._maybe_insert_json_deserialize_node(
+                    nodes,
+                    block_stack,
+                    node,
+                    node_id,
+                    final_intent,
+                    source_kind,
+                    c_text,
+                    target_entity,
+                    context_history,
+                )
+                if auto_json_node is not None:
+                    last_node_id = auto_json_node["id"]
+                    continue
 
             # 27.450: Phase 7 F-1 Auto-Chaining for JSON Serialization (Reverse of 27.440)
             # If intent is PERSIST and we have a COLLECTION coming in,
             # we need to serialize the collection to string first.
-            is_coll_input = False
-            if context_history:
-                last_ctx = context_history[-1]
-                if last_ctx.get("cardinality") == "COLLECTION": is_coll_input = True
+            is_coll_input = self._has_collection_input_context(context_history)
             
-            try:
-                print(f"[DEBUG] IRGen: node_id={node_id}, intent={final_intent}, is_coll_input={is_coll_input}, source_kind={source_kind}")
-            except OSError:
-                # stdout may be closed in some test runners
-                pass
+            debug_print(
+                f"[DEBUG] IRGen: node_id={node_id}, intent={final_intent}, "
+                f"is_coll_input={is_coll_input}, source_kind={source_kind}"
+            )
             if not simple_list_input:
-                if final_intent in ["PERSIST", "FILE_IO", "WRITE"] and source_kind in ["file", "http", "api"]:
-                    is_poco_input = target_entity and target_entity != "Item"
-                    input_is_string = False
-                    prev_ref = input_link or last_node_id
-                    if prev_ref:
-                        prev_node = self._find_node_by_id(nodes, prev_ref)
-                        if prev_node:
-                            if str(prev_node.get("output_type") or "").lower() == "string":
-                                input_is_string = True
-                            elif prev_node.get("intent") == "DISPLAY":
-                                input_is_string = True
-                    if not input_is_string and context_history:
-                        last_ctx = context_history[-1]
-                        if str(last_ctx.get("output_type") or "").lower() == "string":
-                            input_is_string = True
-                    if is_coll_input or node.get("cardinality") == "COLLECTION" or is_poco_input:
-                        if input_is_string:
-                            # Skip serialization when upstream output is already string
-                            pass
-                        else:
-                            # 1. データのシリアライズ・ノードを挿入
-                            serialize_node = copy.deepcopy(node)
-                            serialize_node["id"] = f"{node_id}_ser"
-                            serialize_node["intent"] = "TRANSFORM"
-                            serialize_node["role"] = "TRANSFORM"
-                            serialize_node["output_type"] = "string"
-                            serialize_node["source_kind"] = "memory"
-                            serialize_node["semantic_map"]["semantic_roles"] = {} # Binder will resolve data from previous collection
-                            
-                            if block_stack:
-                                parent = block_stack[-1]
-                                parent["node"][parent["target"]].append(serialize_node)
-                            else:
-                                nodes.append(serialize_node)
-                            
-                            # 2. 現在のノード（PERSIST）の入力を serialize_node にリンク
-                            node["input_link"] = serialize_node["id"]
-                            # PERSIST ノード自体は COLLECTION ではなく SINGLE (stringを1回出す) として扱う
-                            node["cardinality"] = "SINGLE"
+                self._maybe_insert_json_serialize_node(
+                    nodes,
+                    block_stack,
+                    node,
+                    node_id,
+                    final_intent,
+                    source_kind,
+                    target_entity,
+                    input_link,
+                    last_node_id,
+                    context_history,
+                    is_coll_input,
+                )
                         
             if node_type == "ELSE":
-                if block_stack:
-                    for entry in reversed(block_stack):
-                        if entry["node"]["type"] == "CONDITION": entry["target"] = "else_children"; break
-                context_history.append({
-                    "text": c_text,
-                    "target_entity": main_entity,
-                    "cardinality": "SINGLE",
-                    "output_type": None,
-                    "source_kind": source_kind,
-                    "node_id": node_id
-                })
+                self._handle_else_clause(block_stack, context_history, c_text, main_entity, source_kind, node_id)
                 continue
             if node_type == "END":
-                if block_stack: block_stack.pop()
+                self._handle_end_clause(block_stack)
                 continue
-            # Skip redundant consecutive DATABASE_QUERY with identical SQL/target
-            if final_intent == "DATABASE_QUERY" and last_node_id:
-                prev_node = self._find_node_by_id(nodes, last_node_id)
-                prev_map = prev_node.get("semantic_map", {}) if isinstance(prev_node, dict) else {}
-                prev_sql = prev_map.get("semantic_roles", {}).get("sql")
-                curr_sql = final_semantic_map.get("semantic_roles", {}).get("sql")
-                if prev_node and prev_node.get("intent") == "DATABASE_QUERY" and prev_node.get("target_entity") == target_entity and prev_sql and curr_sql and prev_sql == curr_sql:
-                    last_node_id = prev_node.get("id")
-                    context_history.append({
-                        "text": c_text,
-                        "target_entity": target_entity,
-                        "cardinality": prev_node.get("cardinality"),
-                        "output_type": prev_node.get("output_type"),
-                        "source_kind": prev_node.get("source_kind")
-                    })
-                    continue
-            if block_stack: parent = block_stack[-1]; parent["node"][parent["target"]].append(node)
-            else: nodes.append(node)
-            if node_type in ["CONDITION", "LOOP"] or c_info.get("has_body"): block_stack.append({"node": node, "target": "children"})
-            context_history.append({
-                "text": c_text,
-                "target_entity": target_entity,
-                "cardinality": node.get("cardinality"),
-                "output_type": node.get("output_type"),
-                "source_kind": node.get("source_kind"),
-                "node_id": node["id"]
-            })
+            skipped_node_id = self._maybe_skip_redundant_database_query(
+                nodes,
+                last_node_id,
+                final_intent,
+                target_entity,
+                final_semantic_map,
+                context_history,
+                c_text,
+            )
+            if skipped_node_id:
+                last_node_id = skipped_node_id
+                continue
+            self._attach_node_to_structure(nodes, block_stack, node)
+            if node_type in ["CONDITION", "LOOP"] or c_info.get("has_body"):
+                self._push_structural_block(block_stack, node)
+            self._append_context_history(
+                context_history,
+                c_text,
+                target_entity,
+                node.get("cardinality"),
+                node.get("output_type"),
+                node.get("source_kind"),
+                node["id"],
+            )
             last_node_id = node["id"]
         return {"logic_tree": nodes, "inputs": inputs or [], "outputs": outputs or [], "data_sources": data_sources}
 
@@ -434,6 +366,473 @@ class IRGenerator:
                     if found:
                         return found
         return None
+
+    # Domain: Orchestration Control
+    # These helpers keep clause-control and duplicate suppression readable
+    # while leaving the top-level generation flow intact.
+    def _append_context_history(
+        self,
+        context_history: List[Dict[str, Any]],
+        text: str,
+        target_entity: str,
+        cardinality: Optional[str],
+        output_type: Optional[str],
+        source_kind: Optional[str],
+        node_id: Optional[str] = None,
+    ) -> None:
+        context_history.append({
+            "text": text,
+            "target_entity": target_entity,
+            "cardinality": cardinality,
+            "output_type": output_type,
+            "source_kind": source_kind,
+            "node_id": node_id,
+        })
+
+    def _handle_else_clause(
+        self,
+        block_stack: List[Dict[str, Any]],
+        context_history: List[Dict[str, Any]],
+        step_text: str,
+        main_entity: str,
+        source_kind: Optional[str],
+        node_id: str,
+    ) -> None:
+        if block_stack:
+            self._activate_else_branch(block_stack)
+        self._append_context_history(
+            context_history,
+            step_text,
+            main_entity,
+            "SINGLE",
+            None,
+            source_kind,
+            node_id,
+        )
+
+    def _handle_end_clause(self, block_stack: List[Dict[str, Any]]) -> None:
+        if block_stack:
+            block_stack.pop()
+
+    def _maybe_skip_redundant_database_query(
+        self,
+        nodes: List[Dict[str, Any]],
+        last_node_id: Optional[str],
+        final_intent: str,
+        target_entity: str,
+        final_semantic_map: Dict[str, Any],
+        context_history: List[Dict[str, Any]],
+        step_text: str,
+    ) -> Optional[str]:
+        if final_intent != "DATABASE_QUERY" or not last_node_id:
+            return None
+        prev_node = self._find_node_by_id(nodes, last_node_id)
+        prev_map = prev_node.get("semantic_map", {}) if isinstance(prev_node, dict) else {}
+        prev_sql = prev_map.get("semantic_roles", {}).get("sql")
+        curr_sql = final_semantic_map.get("semantic_roles", {}).get("sql")
+        if prev_node and prev_node.get("intent") == "DATABASE_QUERY" and prev_node.get("target_entity") == target_entity and prev_sql and curr_sql and prev_sql == curr_sql:
+            self._append_context_history(
+                context_history,
+                step_text,
+                target_entity,
+                prev_node.get("cardinality"),
+                prev_node.get("output_type"),
+                prev_node.get("source_kind"),
+            )
+            return prev_node.get("id")
+        return None
+
+    # Domain: Final Intent / Runtime Role Coercion
+    # These rules normalize coarse intent into the runtime-facing form used for
+    # chaining and node emission, while preserving spec-role semantics upstream.
+    def _coerce_final_intent_and_role(
+        self,
+        step_intent_tag: Optional[str],
+        analysis_intent: str,
+        analysis_role: str,
+        node_type: str,
+        final_semantic_map: Dict[str, Any],
+        source_kind: Optional[str],
+    ) -> Tuple[str, str, Optional[str]]:
+        final_intent = step_intent_tag or analysis_intent
+        role = analysis_role
+        if final_semantic_map.get("spec_role") == "CHECK":
+            final_intent = "EXISTS"
+        is_explicit_intent = isinstance(step_intent_tag, str) and bool(step_intent_tag)
+        if node_type in ["CONDITION", "ACTION"] and final_intent in ["GENERAL", "HTTP_REQUEST", "FILTER"]:
+            if not (is_explicit_intent and step_intent_tag in ["HTTP_REQUEST", "DATABASE_QUERY", "PERSIST", "FETCH"]):
+                if any(lg.get("type") in ["numeric", "string", "logic"] for lg in final_semantic_map.get("logic", [])):
+                    final_intent = "LINQ"
+        elif node_type == "CONDITION" and final_intent in ["GENERAL", "HTTP_REQUEST"]:
+            final_intent = "LINQ"
+        if final_intent in ["GENERAL", "ACTION"] and "url" in final_semantic_map.get("semantic_roles", {}):
+            final_intent = "HTTP_REQUEST"
+            source_kind = source_kind or "http"
+        if final_intent in ["GENERAL", "ACTION"] and "sql" in final_semantic_map.get("semantic_roles", {}):
+            final_intent = "PERSIST"
+            source_kind = source_kind or "db"
+        if node_type == "LOOP":
+            final_intent = "GENERAL"
+            role = "ITERATE"
+        elif final_semantic_map.get("spec_role") == "WRAP":
+            final_intent = "GENERAL"
+            role = "ACTION"
+        if step_intent_tag == "DATABASE_QUERY":
+            has_sql = "sql" in final_semantic_map.get("semantic_roles", {})
+            if source_kind != "db" and not has_sql:
+                final_intent = "FETCH"
+        if final_intent == "PERSIST":
+            role = "PERSIST"
+        elif final_intent in ["DATABASE_QUERY", "FETCH"]:
+            role = "FETCH"
+        elif final_intent == "DISPLAY":
+            role = "DISPLAY"
+        elif final_intent == "EXISTS":
+            role = "CHECK"
+        elif final_intent == "HTTP_REQUEST":
+            if "payload" in final_semantic_map.get("semantic_roles", {}) or "content" in final_semantic_map.get("semantic_roles", {}):
+                role = "PERSIST"
+        return final_intent, role, source_kind
+
+    # Domain: Node Emission
+    # These helpers prepare source/cardinality/runtime shape immediately before
+    # node creation without moving auto-inserted nodes out of the main flow.
+    def _resolve_final_source_kind(
+        self,
+        source_kind: Optional[str],
+        final_intent: str,
+        final_semantic_map: Dict[str, Any],
+        context_history: List[Dict[str, Any]],
+    ) -> Optional[str]:
+        if not source_kind:
+            if "path" in final_semantic_map.get("semantic_roles", {}):
+                path_val = final_semantic_map["semantic_roles"]["path"]
+                if any(ext in str(path_val).lower() for ext in [".json", ".txt", ".csv", ".xml"]):
+                    source_kind = "file"
+            elif "url" in final_semantic_map.get("semantic_roles", {}):
+                source_kind = "http"
+        if not source_kind and final_intent in ["PERSIST", "FILE_IO", "WRITE", "FETCH"]:
+            for entry in reversed(context_history or []):
+                if entry.get("source_kind"):
+                    return entry["source_kind"]
+        return source_kind
+
+    def _compute_final_cardinality(
+        self,
+        analysis_cardinality: str,
+        node_type: str,
+        final_intent: str,
+        output_type_hint: Optional[str],
+    ) -> str:
+        final_cardinality = analysis_cardinality
+        if node_type == "LOOP":
+            final_cardinality = "COLLECTION"
+        if final_cardinality == "SINGLE" and final_intent in ["LINQ", "DATABASE_QUERY", "JSON_DESERIALIZE"]:
+            if self._is_collection_type(output_type_hint):
+                final_cardinality = "COLLECTION"
+        if output_type_hint in ["string", "int", "long", "decimal", "double", "float", "bool"]:
+            final_cardinality = "SINGLE"
+        if final_cardinality == "COLLECTION" and node_type != "LOOP":
+            if final_intent not in ["LINQ", "DATABASE_QUERY", "JSON_DESERIALIZE", "FETCH"]:
+                if not self._is_collection_type(output_type_hint):
+                    final_cardinality = "SINGLE"
+        return final_cardinality
+
+    def _build_ir_node(
+        self,
+        node_id: str,
+        node_type: str,
+        original_text: str,
+        final_intent: str,
+        role: str,
+        analysis_cardinality: str,
+        target_entity: str,
+        output_type: Optional[str],
+        output_type_hint: Optional[str],
+        source_kind: Optional[str],
+        source_ref: Optional[str],
+        final_semantic_map: Dict[str, Any],
+        input_link: Optional[str],
+    ) -> Dict[str, Any]:
+        final_cardinality = self._compute_final_cardinality(
+            analysis_cardinality,
+            node_type,
+            final_intent,
+            output_type_hint,
+        )
+        return {
+            "id": node_id,
+            "type": node_type,
+            "original_text": original_text,
+            "intent": final_intent,
+            "role": role,
+            "cardinality": final_cardinality,
+            "target_entity": target_entity,
+            "output_type": output_type,
+            "source_kind": source_kind,
+            "source_ref": source_ref,
+            "semantic_map": final_semantic_map,
+            "input_link": input_link,
+            "children": [],
+            "else_children": [],
+        }
+
+    # Domain: Role-Specific Semantic Resolution
+    # This stage enriches the step-local semantic map before runtime coercion.
+    def _resolve_role_specific_semantics(
+        self,
+        analysis: Dict[str, Any],
+        final_semantic_map: Dict[str, Any],
+        target_entity: str,
+        node_type: str,
+        has_body: bool,
+        step_text: str,
+        source_kind: Optional[str],
+        source_ref: Optional[str],
+        context_history: List[Dict[str, Any]],
+        weak_entities: List[str],
+    ) -> Tuple[Dict[str, Any], Dict[str, Any], str]:
+        if node_type == "LOOP":
+            final_semantic_map["spec_role"] = "ITERATE"
+            final_semantic_map.setdefault("semantic_roles", {}).setdefault("structure_kind", "loop")
+        elif node_type == "CONDITION":
+            final_semantic_map["spec_role"] = "CHECK"
+            final_semantic_map.setdefault("semantic_roles", {}).setdefault("structure_kind", "condition")
+        elif has_body and node_type == "ACTION" and self._is_retry_wrapper(analysis.get("tokens") or []):
+            final_semantic_map["spec_role"] = "WRAP"
+            final_semantic_map.setdefault("semantic_roles", {}).setdefault("wrapper_kind", "retry")
+            final_semantic_map.setdefault("semantic_roles", {}).setdefault("structure_kind", "wrapper")
+
+        if final_semantic_map.get("spec_role") == "CHECK":
+            check_meta = self._infer_check_metadata(
+                step_text,
+                analysis.get("tokens") or [],
+                final_semantic_map.get("logic", []) or [],
+                source_kind,
+                source_ref,
+                target_entity,
+                node_type,
+            )
+            for meta_key, meta_value in check_meta.items():
+                if meta_value is not None:
+                    final_semantic_map[meta_key] = meta_value
+            if check_meta.get("check_kind") == "comparison_check":
+                canonical_property, property_resolution = self._resolve_property_provenance(
+                    check_meta.get("check_subject"),
+                    target_entity,
+                )
+                if canonical_property and property_resolution == "schema_property":
+                    final_semantic_map["check_subject"] = canonical_property
+                    final_semantic_map["subject_resolution"] = "schema_property"
+                elif canonical_property and property_resolution == "history_scope":
+                    final_semantic_map["check_subject"] = canonical_property
+                    final_semantic_map["subject_resolution"] = "history_subject"
+            target_entity = self._infer_check_target_entity(target_entity, check_meta, context_history, weak_entities)
+
+        if self._should_promote_to_calculate(
+            analysis.get("intent", "GENERAL"),
+            node_type,
+            step_text,
+            analysis.get("tokens") or [],
+            final_semantic_map.get("logic", []) or [],
+            final_semantic_map.get("semantic_roles", {}) or {},
+        ):
+            analysis["intent"] = "CALC"
+            analysis["role"] = "CALC"
+            final_semantic_map["spec_role"] = "CALCULATE"
+            calculate_roles = final_semantic_map.get("semantic_roles", {}) or {}
+            calculate_base_entity = calculate_roles.get("target_entity") or target_entity
+            target_entity, entity_resolution = self._infer_calculate_target_entity(
+                calculate_base_entity,
+                calculate_roles,
+                context_history,
+                weak_entities,
+            )
+            semantic_roles = final_semantic_map.setdefault("semantic_roles", {})
+            semantic_roles["target_entity"] = target_entity
+            semantic_roles["entity_resolution"] = entity_resolution
+
+        return analysis, final_semantic_map, target_entity
+
+    def _has_collection_input_context(self, context_history: List[Dict[str, Any]]) -> bool:
+        if not context_history:
+            return False
+        return context_history[-1].get("cardinality") == "COLLECTION"
+
+    def _append_node_in_current_structure(
+        self,
+        nodes: List[Dict[str, Any]],
+        block_stack: List[Dict[str, Any]],
+        node: Dict[str, Any],
+    ) -> None:
+        if block_stack:
+            parent = block_stack[-1]
+            parent["node"][parent["target"]].append(node)
+            return
+        nodes.append(node)
+
+    def _maybe_insert_json_deserialize_node(
+        self,
+        nodes: List[Dict[str, Any]],
+        block_stack: List[Dict[str, Any]],
+        node: Dict[str, Any],
+        node_id: str,
+        final_intent: str,
+        source_kind: Optional[str],
+        step_text: str,
+        target_entity: str,
+        context_history: List[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        output_type = node.get("output_type")
+        if not output_type or not any(k in output_type for k in ["List", "[]", "IEnumerable", "Collection"]):
+            return None
+        if final_intent not in ["FETCH", "HTTP_REQUEST", "FILE_IO"] or source_kind not in ["file", "http", "api"]:
+            return None
+
+        node["output_type"] = "string"
+        self._append_node_in_current_structure(nodes, block_stack, node)
+
+        json_node = copy.deepcopy(node)
+        json_node["id"] = f"{node_id}_json"
+        json_node["intent"] = "JSON_DESERIALIZE"
+        json_node["role"] = "TRANSFORM"
+        json_node["output_type"] = output_type
+        json_node["source_kind"] = "memory"
+        json_node["semantic_map"]["semantic_roles"] = {}
+        json_node["semantic_map"]["spec_role"] = "DESERIALIZE"
+        inner = self.type_system.extract_generic_inner(str(output_type))
+        if inner:
+            json_node["target_entity"] = inner
+        elif str(output_type).endswith("[]"):
+            json_node["target_entity"] = str(output_type)[:-2].strip()
+
+        self._append_node_in_current_structure(nodes, block_stack, json_node)
+        context_history.append({
+            "text": step_text,
+            "target_entity": target_entity,
+            "cardinality": "COLLECTION",
+            "output_type": output_type,
+            "source_kind": "memory",
+            "node_id": json_node["id"],
+        })
+        return json_node
+
+    def _is_string_like_upstream_output(
+        self,
+        nodes: List[Dict[str, Any]],
+        input_link: Optional[str],
+        last_node_id: Optional[str],
+        context_history: List[Dict[str, Any]],
+    ) -> bool:
+        prev_ref = input_link or last_node_id
+        if prev_ref:
+            prev_node = self._find_node_by_id(nodes, prev_ref)
+            if prev_node:
+                if str(prev_node.get("output_type") or "").lower() == "string":
+                    return True
+                if prev_node.get("intent") == "DISPLAY":
+                    return True
+        if context_history:
+            return str(context_history[-1].get("output_type") or "").lower() == "string"
+        return False
+
+    def _maybe_insert_json_serialize_node(
+        self,
+        nodes: List[Dict[str, Any]],
+        block_stack: List[Dict[str, Any]],
+        node: Dict[str, Any],
+        node_id: str,
+        final_intent: str,
+        source_kind: Optional[str],
+        target_entity: str,
+        input_link: Optional[str],
+        last_node_id: Optional[str],
+        context_history: List[Dict[str, Any]],
+        is_coll_input: bool,
+    ) -> None:
+        if final_intent not in ["PERSIST", "FILE_IO", "WRITE"] or source_kind not in ["file", "http", "api"]:
+            return
+        is_poco_input = bool(target_entity and target_entity != "Item")
+        if not (is_coll_input or node.get("cardinality") == "COLLECTION" or is_poco_input):
+            return
+        if self._is_string_like_upstream_output(nodes, input_link, last_node_id, context_history):
+            return
+
+        serialize_node = copy.deepcopy(node)
+        serialize_node["id"] = f"{node_id}_ser"
+        serialize_node["intent"] = "TRANSFORM"
+        serialize_node["role"] = "TRANSFORM"
+        serialize_node["output_type"] = "string"
+        serialize_node["source_kind"] = "memory"
+        serialize_node["semantic_map"]["semantic_roles"] = {}
+        serialize_node["semantic_map"]["spec_role"] = "SERIALIZE"
+        self._append_node_in_current_structure(nodes, block_stack, serialize_node)
+        node["input_link"] = serialize_node["id"]
+        node["cardinality"] = "SINGLE"
+
+    # Domain: Structural Dependency
+    # These helpers keep chaining and block-attachment rules local without
+    # moving the whole generate() control flow out of the main path.
+    def _find_last_collection_node_id(self, history: List[Dict[str, Any]]) -> Optional[str]:
+        for entry in reversed(history or []):
+            if entry.get("cardinality") == "COLLECTION" and entry.get("node_id"):
+                return entry.get("node_id")
+        return None
+
+    def _determine_structural_input_link(
+        self,
+        block_stack: List[Dict[str, Any]],
+        is_chaining: bool,
+        last_node_id: Optional[str],
+        last_collection_id: Optional[str],
+        want_collection_input: bool,
+        is_notification: bool,
+        final_intent: str,
+    ) -> Optional[str]:
+        if not (is_chaining and last_node_id):
+            return None
+        if is_notification and final_intent == "DISPLAY":
+            return None
+
+        active_block = block_stack[-1] if block_stack else None
+        if active_block and active_block.get("target") == "else_children":
+            return active_block.get("branch_last_id") or active_block.get("branch_base")
+        if active_block and active_block.get("branch_last_id"):
+            return active_block.get("branch_last_id")
+        if active_block and active_block.get("branch_base") and active_block.get("branch_last_id") is None:
+            return active_block.get("branch_base")
+        if want_collection_input and last_collection_id:
+            return last_collection_id
+        return last_node_id
+
+    def _activate_else_branch(self, block_stack: List[Dict[str, Any]]) -> None:
+        for entry in reversed(block_stack):
+            if entry["node"]["type"] == "CONDITION":
+                entry["target"] = "else_children"
+                entry["branch_base"] = entry["node"]["id"]
+                entry["branch_last_id"] = None
+                return
+
+    def _attach_node_to_structure(
+        self,
+        nodes: List[Dict[str, Any]],
+        block_stack: List[Dict[str, Any]],
+        node: Dict[str, Any],
+    ) -> None:
+        if block_stack:
+            parent = block_stack[-1]
+            parent["node"][parent["target"]].append(node)
+            parent["branch_last_id"] = node["id"]
+            return
+        nodes.append(node)
+
+    def _push_structural_block(self, block_stack: List[Dict[str, Any]], node: Dict[str, Any]) -> None:
+        block_stack.append({
+            "node": node,
+            "target": "children",
+            "branch_base": node["id"],
+            "branch_last_id": None,
+        })
 
     def _extract_hierarchical_clauses(self, text: str) -> List[Dict[str, Any]]:
         if not text:
@@ -558,12 +957,153 @@ class IRGenerator:
             i += 1
         return None
 
+    # Domain: Promotion Rules
+    # FILTER and CALCULATE promotions both sit above the lexical baseline and
+    # below final intent coercion.
+    def _has_calculation_intent_signal(self, text: str, tokens: List[Dict[str, Any]]) -> bool:
+        return has_calculation_intent_signal(text, tokens)
+
+    def _has_filter_lexical_signal(self, text: str, tokens: List[Dict[str, Any]]) -> bool:
+        return has_filter_lexical_signal(text, tokens)
+
+    def _has_filter_predicate_logic(self, logic_goals: List[Dict[str, Any]]) -> bool:
+        return has_filter_predicate_logic(logic_goals)
+
+    def _has_upstream_collection_context(self, history: List[Dict[str, Any]], output_type_hint: Optional[str] = None) -> bool:
+        return has_upstream_collection_context(history, output_type_hint, self._is_collection_type)
+
+    def _infer_filter_property(self, tokens: List[Dict[str, Any]], logic_goals: List[Dict[str, Any]]) -> Optional[str]:
+        return infer_filter_property(tokens, logic_goals)
+
+    def _should_promote_to_filter(
+        self,
+        current_intent: str,
+        step_text: str,
+        tokens: List[Dict[str, Any]],
+        logic_goals: List[Dict[str, Any]],
+        history: List[Dict[str, Any]],
+        output_type_hint: Optional[str] = None,
+    ) -> bool:
+        return should_promote_to_filter(
+            current_intent,
+            step_text,
+            tokens,
+            logic_goals,
+            history,
+            output_type_hint,
+            self._is_collection_type,
+        )
+
+    def _should_promote_to_calculate(
+        self,
+        current_intent: str,
+        node_type: str,
+        step_text: str,
+        tokens: List[Dict[str, Any]],
+        logic_goals: List[Dict[str, Any]],
+        semantic_roles: Dict[str, Any],
+    ) -> bool:
+        return should_promote_to_calculate(
+            current_intent,
+            node_type,
+            step_text,
+            tokens,
+            logic_goals,
+            semantic_roles,
+        )
+
+    def _extract_entity_property_names(self, entity_def: Dict[str, Any]) -> List[str]:
+        return extract_entity_property_names(entity_def)
+
+    def _find_property_owner_entities(self, property_name: Optional[str]) -> List[str]:
+        return find_property_owner_entities(self.entity_schema, property_name)
+
+    # Domain: Target Resolution
+    # Schema-backed owner resolution and history fallback remain local here
+    # because CALCULATE target selection is still an upstream IR concern.
+    def _infer_calculate_target_entity(
+        self,
+        current_entity: Optional[str],
+        semantic_roles: Dict[str, Any],
+        history: List[Dict[str, Any]],
+        weak_entities: List[str],
+    ) -> Tuple[str, str]:
+        return infer_calculate_target_entity(self.entity_schema, current_entity, semantic_roles, history, weak_entities)
+
+    def _resolve_property_provenance(
+        self,
+        property_name: Optional[str],
+        current_entity: Optional[str],
+    ) -> Tuple[Optional[str], Optional[str]]:
+        return resolve_property_provenance(self.entity_schema, property_name, current_entity)
+
     def _is_collection_type(self, type_hint: Optional[str]) -> bool:
         if not type_hint:
             return False
         t = self.type_system.normalize_type(str(type_hint))
         return any(k in t for k in ["IEnumerable", "List", "ICollection", "IList", "Collection", "[]"])
 
+    # Domain: Spec Role
+    # This helper defines the specification-facing role independently from
+    # downstream runtime role coercions.
+    def _infer_spec_role(
+        self,
+        intent: str,
+        step_text: str,
+        tokens: List[Dict[str, Any]],
+        logic_goals: List[Dict[str, Any]],
+        node_type: Optional[str] = None,
+    ) -> str:
+        return infer_spec_role(
+            intent,
+            step_text,
+            tokens,
+            logic_goals,
+            self._infer_intent_role_cardinality,
+            node_type=node_type,
+        )
+
+    # Domain: CHECK Resolution
+    # Condition-node metadata is kept together so subject/kind/provenance
+    # evolve as one research unit.
+    def _normalize_check_operator(self, operator_name: Optional[str]) -> Optional[str]:
+        return normalize_check_operator(operator_name)
+
+    def _infer_null_check_subject_metadata(self, tokens: List[Dict[str, Any]], target_entity: Optional[str]) -> Tuple[str, str]:
+        return infer_null_check_subject_metadata(tokens, target_entity)
+
+    def _infer_check_target_entity(
+        self,
+        target_entity: Optional[str],
+        check_meta: Dict[str, Any],
+        history: List[Dict[str, Any]],
+        weak_entities: List[str],
+    ) -> str:
+        return infer_check_target_entity(target_entity, check_meta, history, weak_entities)
+
+    def _infer_check_metadata(
+        self,
+        step_text: str,
+        tokens: List[Dict[str, Any]],
+        logic_goals: List[Dict[str, Any]],
+        source_kind: Optional[str],
+        source_ref: Optional[str],
+        target_entity: Optional[str],
+        node_type: Optional[str],
+    ) -> Dict[str, Any]:
+        return infer_check_metadata(
+            step_text,
+            tokens,
+            logic_goals,
+            source_kind,
+            source_ref,
+            target_entity,
+            node_type,
+        )
+
+    # Domain: Step Analysis Orchestration
+    # This is the upstream integration point where generic intent inference,
+    # role-specific promotions, and semantic metadata assembly meet.
     def _analyze_step_integrated(self, step_text: str, history: list, intent_hint: str = None, source_kind: str = None, output_type_hint: str = None) -> Dict[str, Any]:
         tokens = []
         if self.morph_analyzer:
@@ -601,8 +1141,12 @@ class IRGenerator:
                     break
         if calc_hint:
             semantic_roles["target_hint"] = calc_hint
-        # Ensure target entity is always available to downstream binders
-        semantic_roles.setdefault("target_entity", self._identify_target_entity(step_text, history))
+        # Keep a no-history entity reading in semantic metadata so later
+        # resolution stages can distinguish explicit detection from fallback.
+        semantic_roles.setdefault(
+            "target_entity",
+            self._identify_target_entity(step_text, history, allow_history_fallback=False),
+        )
         intent = v_intent
         output_type = None
         inferred_intent, inferred_role, inferred_cardinality = self._infer_intent_role_cardinality(step_text, tokens)
@@ -612,6 +1156,9 @@ class IRGenerator:
         if inferred_cardinality:
             cardinality = inferred_cardinality
 
+        # Promotion Domain:
+        # CALCULATE and FILTER are both semantic promotions that may override
+        # coarse lexical intent when stronger evidence is available.
         if any(lg.get("type") == "calculation" for lg in logic_goals):
             intent = "CALC"; role = "CALC"
             valid_goals = []
@@ -625,6 +1172,32 @@ class IRGenerator:
             logic_goals = valid_goals
         elif intent == "GENERAL" and logic_goals:
             intent = "LINQ"; role = "FILTER"
+        elif self._should_promote_to_filter(
+            intent,
+            step_text,
+            tokens,
+            logic_goals,
+            history,
+            output_type_hint=output_type_hint,
+        ):
+            intent = "LINQ"; role = "FILTER"
+            filter_property = self._infer_filter_property(tokens, logic_goals)
+            if filter_property:
+                property_target_entity = self._identify_target_entity(step_text, history)
+                canonical_property, property_resolution = self._resolve_property_provenance(
+                    filter_property,
+                    property_target_entity,
+                )
+                semantic_roles["property"] = canonical_property or filter_property
+                if property_resolution == "schema_property":
+                    semantic_roles["predicate_resolution"] = "schema_property"
+                elif property_resolution == "history_scope":
+                    semantic_roles["predicate_resolution"] = "history_predicate"
+                else:
+                    semantic_roles["predicate_resolution"] = "logic_goal"
+            else:
+                semantic_roles["predicate_resolution"] = "logic_goal"
+            semantic_roles["collection_resolution"] = "explicit_input_link"
         # Explicit SQL literal inference
         if "sql" in str(step_text).lower():
             sql_literal = extract_first_quoted_literal(step_text)
@@ -651,6 +1224,7 @@ class IRGenerator:
                         cardinality = "COLLECTION"
         if intent == "DISPLAY":
             output_type = "string"
+        spec_role = self._infer_spec_role(intent, step_text, tokens, logic_goals)
         return {
             "node_type": "ACTION",
             "intent": intent,
@@ -658,11 +1232,14 @@ class IRGenerator:
             "cardinality": cardinality,
             "target_entity": self._identify_target_entity(step_text, history),
             "is_chaining": len(history) > 0,
-            "semantic_map": {"logic": logic_goals, "semantic_roles": semantic_roles},
+            "semantic_map": {"logic": logic_goals, "semantic_roles": semantic_roles, "spec_role": spec_role},
             "output_type": output_type,
             "tokens": tokens
         }
 
+    # Domain: Lexical Intent Baseline
+    # This is intentionally coarse. Later promotion helpers may override it
+    # when semantic evidence is stronger than the first lexical reading.
     def _infer_intent_role_cardinality(self, text: str, tokens: List[Dict[str, Any]]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         bases = self._token_bases(tokens)
         surfaces = self._token_surfaces(tokens)
@@ -746,5 +1323,14 @@ class IRGenerator:
                 return True
         return False
 
-    def _identify_target_entity(self, text: str, history: list) -> str:
-        return infer_target_entity(text, history, self.entity_schema, self.morph_analyzer)
+    # Domain: Target Resolution
+    # The no-history / history-fallback split is controlled here so role-
+    # specific resolution logic can choose the appropriate inference layer.
+    def _identify_target_entity(self, text: str, history: list, allow_history_fallback: bool = True) -> str:
+        return infer_target_entity(
+            text,
+            history,
+            self.entity_schema,
+            self.morph_analyzer,
+            allow_history_fallback=allow_history_fallback,
+        )

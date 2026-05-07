@@ -2,6 +2,7 @@ import json
 import os
 import random
 import datetime
+import logging
 
 class ResponseGenerator:
     def __init__(self, vector_engine=None, log_manager=None, task_manager=None):
@@ -28,6 +29,7 @@ class ResponseGenerator:
         self.vector_engine = vector_engine
         self.log_manager = log_manager
         self.task_manager = task_manager
+        self.logger = logging.getLogger(__name__)
         
         # Load local definitions only if no task_manager is provided
         self._local_task_definitions = None
@@ -52,7 +54,7 @@ class ResponseGenerator:
             with open(filepath, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError) as e:
-            print(f"Error loading task definitions: {e}")
+            self.logger.error("Error loading task definitions: %s", e)
             return {}
 
     def _load_knowledge_base(self) -> dict:
@@ -65,7 +67,7 @@ class ResponseGenerator:
                     with open(filepath, 'r', encoding='utf-8') as f:
                         return json.load(f)
                 except (json.JSONDecodeError, IOError) as e:
-                    print(f"Error loading {filename}: {e}")
+                    self.logger.error("Error loading %s: %s", filename, e)
         return {}
 
     def generate(self, context: dict) -> dict:

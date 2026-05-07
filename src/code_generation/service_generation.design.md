@@ -54,7 +54,8 @@ A concise, step-by-step description of how inputs are transformed into outputs.
 - **External**: List third-party libraries or packages required (e.g., `axios`).
 
 ## 6. Notes (Optional)
-Any additional assumptions or clarifications that cannot be captured above.
+- 内部の service synth failure / exception は通常 stdout に直接出さず、logger 経由で扱う。
+- 補助診断は `docs/stdout_output_policy.md` の `logger` / `debug_print` 方針に従い、正式な生成結果チャネルと混在させない。
 
 ---
 
