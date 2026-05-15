@@ -42,6 +42,11 @@
    - `replanner.replan` により IR をパッチし、`_synthesize_from_ir_tree` で再合成する。
    - 再合成後に `spec_auditor` と `verifier` を再実行する。
 7. 最終結果に `spec_issues` / `verification` / `resolved_dependencies` を付与して返却する。
+8. runtime bridge では `ActionSynthesizer` と `IREmitter` が役割分担する。
+   - 弱い `spec_role=TRANSFORM` は `ActionSynthesizer` が `TRANSFORM` intent へ補正して specialized handler に渡す。
+   - `spec_role=ITERATE` は `ActionSynthesizer` が `LOOP` node を主に消費しつつ、exact upstream collection と deterministic item entity を metadata から優先する。
+   - `spec_role=WRAP` は `IREmitter` が structural consumer として child body を保持し、`wrapper_kind` に応じて `retry`, explicit `timeout`, explicit `transaction` statement へ再構成する。
+   - `spec_role=CALCULATE` は `ActionSynthesizer` / `calc_ops` が `entity_resolution`, `calculate_target_resolution`, `calculate_source_resolution` を読み、exact source と target/property の強さに応じて concretization を制御する。
 
 ### Test Cases
 - **Happy Path**:
@@ -60,3 +65,8 @@
 - 2026-03-31: action_handlers の import 更新に合わせて仕様整合を再確認。
 - 2026-04-14: 合成→検証→再計画の流れとブロッキング条件（SPEC_INPUT_LINK_UNUSED）を現行実装に合わせて再確認。
 - 2026-04-21: method_store のベクトルDB保存先統一（`config.storage_dir`）と旧配置移行方針を反映。
+- 2026-05-11: `TRANSFORM` の weak-intent bridge と `WRAP` の retry-statement structural consumer を module-level specification に反映。
+- 2026-05-13: explicit `WRAP/timeout` の structural consumer を追加し、sync/async timeout guard へ決定論的に落とす方針を反映。
+- 2026-05-13: explicit `WRAP/transaction` の structural consumer を追加し、sync/async `TransactionScope` へ決定論的に落とす方針を反映。
+- 2026-05-13: `ITERATE` の collection/item provenance bridge（exact upstream collection と deterministic item entity 優先）を module-level specification に反映。
+- 2026-05-13: `CALCULATE` の source/target provenance（`default_scope_var`, `calculate_target_resolution`）に応じて over-concretization を避ける方針を反映。

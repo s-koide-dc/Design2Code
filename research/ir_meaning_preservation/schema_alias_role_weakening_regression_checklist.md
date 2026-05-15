@@ -43,8 +43,10 @@
 ### A4. Downstream Effect
 
 - role の変化が `semantic_binder.py` / `action_synthesizer.py` / handler 層にどう効くか確認したか
+- `WRAP` を触った場合、fallback renderer と `CodeBuilder` の両方で同じ retry semantics が出るか確認したか
 - stronger role にした結果、over-interpretation が起きていないか見たか
 - weaker role に落ちた結果、不要な TODO 停止や generic path 増加が起きていないか見たか
+- explicit retry policy (`max_attempts`, `exception_type`, `base_delay_ms`, `max_delay_ms`, `backoff_multiplier`) を追加・変更した場合、sync/async の両経路で保持されるか見たか
 
 ## B. Schema Alias Admission Checklist
 

@@ -10,6 +10,9 @@ def infer_target_entity(
     allow_history_fallback: bool = True,
 ) -> str:
     context_entity = history[-1]["target_entity"] if history else "Item"
+    context_item_entity = ""
+    if history:
+        context_item_entity = str(history[-1].get("item_entity") or "").strip()
     entities = [ent.get("name") for ent in entity_schema.get("entities", []) if ent.get("name")] if isinstance(entity_schema, dict) else []
 
     tokens = []
@@ -37,6 +40,8 @@ def infer_target_entity(
             if kw_low and kw_low in lower_text:
                 return ent_name
 
+    if allow_history_fallback and context_item_entity and context_item_entity != "Item":
+        return context_item_entity
     if allow_history_fallback and context_entity and context_entity != "Item":
         return context_entity
     if len(entities) == 1:

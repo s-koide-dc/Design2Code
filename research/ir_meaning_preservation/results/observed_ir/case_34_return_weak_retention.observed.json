@@ -1,0 +1,29 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "結果を返す。",
+      "intent": "RETURN",
+      "role": "RETURN",
+      "cardinality": "SINGLE",
+      "target_entity": "Item",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        },
+        "spec_role": "RETURN"
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

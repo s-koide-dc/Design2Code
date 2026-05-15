@@ -6,6 +6,7 @@ import numpy as np
 from src.code_synthesis.code_synthesizer import CodeSynthesizer
 from src.config.config_manager import ConfigManager
 from src.morph_analyzer.morph_analyzer import MorphAnalyzer
+from src.utils.code_builder_client import CodeBuilderClient
 
 class TestCodeSynthesizerIntegration(unittest.TestCase):
 
@@ -112,6 +113,64 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
                     elif s_type == "if":
                         code_lines.append(f"{indent}if ({s['condition']}) {{")
                         render(s.get("body", []), indent + "  ")
+                        code_lines.append(f"{indent}}}")
+                    elif s_type == "retry":
+                        max_attempts = s.get("max_attempts", 3)
+                        exception_type = s.get("exception_type", "Exception")
+                        base_delay_ms = s.get("base_delay_ms", 0)
+                        max_delay_ms = s.get("max_delay_ms", 0)
+                        backoff_multiplier = s.get("backoff_multiplier", 1.0)
+                        if base_delay_ms:
+                            code_lines.append(
+                                f"{indent}for (int retryAttempt = 0, retryDelayMs = {int(base_delay_ms)}; retryAttempt < {max_attempts}; retryAttempt++) {{"
+                            )
+                        else:
+                            code_lines.append(f"{indent}for (var retryAttempt = 0; retryAttempt < {max_attempts}; retryAttempt++) {{")
+                        code_lines.append(f"{indent}  try {{")
+                        render(s.get("body", []), indent + "    ")
+                        code_lines.append(f"{indent}    break;")
+                        code_lines.append(f"{indent}  }} catch ({exception_type}) {{")
+                        code_lines.append(f"{indent}    if (retryAttempt == {int(max_attempts) - 1}) throw;")
+                        if base_delay_ms:
+                            code_lines.append(f"{indent}    System.Threading.Thread.Sleep(retryDelayMs);")
+                            if max_delay_ms:
+                                if float(backoff_multiplier) > 1.0:
+                                    code_lines.append(f"{indent}    retryDelayMs = Math.Min({int(max_delay_ms)}, (int)Math.Ceiling(retryDelayMs * {float(backoff_multiplier)}));")
+                                else:
+                                    code_lines.append(f"{indent}    retryDelayMs = Math.Min({int(max_delay_ms)}, retryDelayMs);")
+                            elif float(backoff_multiplier) > 1.0:
+                                code_lines.append(f"{indent}    retryDelayMs = (int)Math.Ceiling(retryDelayMs * {float(backoff_multiplier)});")
+                        code_lines.append(f"{indent}  }}")
+                        code_lines.append(f"{indent}}}")
+                    elif s_type == "timeout":
+                        timeout_ms = int(s.get("timeout_ms", 30000))
+                        code_lines.append(f"{indent}{{")
+                        if method.get("is_async"):
+                            code_lines.append(f"{indent}  using var timeoutCts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromMilliseconds({timeout_ms}));")
+                            code_lines.append(f"{indent}  var timeoutTask = System.Threading.Tasks.Task.Run(async () => {{")
+                            render(s.get("body", []), indent + "    ")
+                            code_lines.append(f"{indent}  }}, timeoutCts.Token);")
+                            code_lines.append(f"{indent}  try {{")
+                            code_lines.append(f"{indent}    await timeoutTask.WaitAsync(timeoutCts.Token);")
+                            code_lines.append(f"{indent}  }} catch (System.OperationCanceledException) {{")
+                            code_lines.append(f"{indent}    throw new System.TimeoutException(\"Operation timed out after {timeout_ms}ms.\");")
+                            code_lines.append(f"{indent}  }}")
+                        else:
+                            code_lines.append(f"{indent}  var timeoutTask = System.Threading.Tasks.Task.Run(() => {{")
+                            render(s.get('body', []), indent + '    ')
+                            code_lines.append(f"{indent}  }});")
+                            code_lines.append(f"{indent}  if (!timeoutTask.Wait(System.TimeSpan.FromMilliseconds({timeout_ms}))) {{")
+                            code_lines.append(f"{indent}    throw new System.TimeoutException(\"Operation timed out after {timeout_ms}ms.\");")
+                            code_lines.append(f"{indent}  }}")
+                        code_lines.append(f"{indent}}}")
+                    elif s_type == "transaction":
+                        code_lines.append(f"{indent}{{")
+                        if method.get("is_async"):
+                            code_lines.append(f"{indent}  using var transactionScope = new System.Transactions.TransactionScope(System.Transactions.TransactionScopeAsyncFlowOption.Enabled);")
+                        else:
+                            code_lines.append(f"{indent}  using var transactionScope = new System.Transactions.TransactionScope();")
+                        render(s.get("body", []), indent + "  ")
+                        code_lines.append(f"{indent}  transactionScope.Complete();")
                         code_lines.append(f"{indent}}}")
             render(body)
             code_lines.append("}")
@@ -882,6 +941,824 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertTrue(any("Resolve weak FILTER provenance" in c for c in raw_codes))
         self.assertFalse(any(".Where(" in c and "Points" in c for c in raw_codes))
 
+    def test_spec_role_transform_bridges_weak_intent_to_transform_handler(self):
+        node = {
+            "id": "step_transform_bridge",
+            "type": "ACTION",
+            "intent": "GENERAL",
+            "role": "ACTION",
+            "target_entity": "string",
+            "cardinality": "SINGLE",
+            "output_type": "string",
+            "semantic_map": {
+                "spec_role": "TRANSFORM",
+                "semantic_roles": {"ops": ["trim_upper"]},
+                "logic": []
+            }
+        }
+        path = self._base_path()
+        path["active_scope_item"] = "inputText"
+        path["type_to_vars"] = {
+            "string": [{"var_name": "inputText", "role": "content", "node_id": "step_1", "target_entity": "string"}],
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("Trim().ToUpperInvariant()" in c for c in raw_codes))
+
+    def test_transform_input_link_metadata_prefers_exact_upstream_var_over_active_scope_item(self):
+        node = {
+            "id": "step_transform_exact_source",
+            "type": "ACTION",
+            "intent": "TRANSFORM",
+            "role": "TRANSFORM",
+            "target_entity": "string",
+            "cardinality": "SINGLE",
+            "output_type": "string",
+            "semantic_map": {
+                "spec_role": "TRANSFORM",
+                "semantic_roles": {
+                    "ops": ["trim_upper"],
+                    "transform_op_resolution": "explicit_ops",
+                    "transform_source_node_id": "step_fetch_text",
+                    "transform_source_resolution": "input_link_var",
+                },
+                "logic": []
+            }
+        }
+        path = self._base_path()
+        path["active_scope_item"] = "latestText"
+        path["type_to_vars"] = {
+            "string": [
+                {"var_name": "fetchedText", "role": "content", "node_id": "step_fetch_text", "target_entity": "string"},
+                {"var_name": "latestText", "role": "content", "node_id": "step_other_text", "target_entity": "string"},
+            ],
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("fetchedText.Trim().ToUpperInvariant()" in c for c in raw_codes))
+        self.assertFalse(any("latestText.Trim().ToUpperInvariant()" in c for c in raw_codes))
+
+    def test_iterate_runtime_bridge_keeps_loop_structure_in_synthesis(self):
+        node = {
+            "id": "step_loop",
+            "type": "LOOP",
+            "intent": "GENERAL",
+            "role": "ITERATE",
+            "target_entity": "User",
+            "cardinality": "COLLECTION",
+            "output_type": "void",
+            "children": [
+                {
+                    "id": "step_display",
+                    "type": "ACTION",
+                    "intent": "DISPLAY",
+                    "role": "DISPLAY",
+                    "target_entity": "User",
+                    "cardinality": "SINGLE",
+                    "output_type": "void",
+                    "semantic_map": {
+                        "spec_role": "DISPLAY",
+                        "semantic_roles": {"ops": ["display_names"]},
+                        "logic": []
+                    },
+                    "children": [],
+                    "else_children": [],
+                }
+            ],
+            "semantic_map": {
+                "spec_role": "ITERATE",
+                "semantic_roles": {"structure_kind": "loop"},
+                "logic": []
+            },
+            "else_children": [],
+        }
+        path = self._base_path()
+        path["type_to_vars"] = {
+            "IEnumerable<User>": [{"var_name": "users", "role": "data", "node_id": "step_1", "target_entity": "User"}],
+        }
+        path["poco_defs"] = {"User": {"Name": "string"}}
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        foreach_statements = [s for s in results[0].get("statements", []) if s.get("type") == "foreach"]
+        self.assertTrue(foreach_statements)
+        self.assertTrue(any("Console.WriteLine" in c and ".Name" in c for c in self._collect_all_raw_codes(results[0])))
+
+    def test_iterate_input_link_metadata_prefers_exact_collection_over_latest_collection(self):
+        node = {
+            "id": "step_loop_exact_collection",
+            "type": "LOOP",
+            "intent": "GENERAL",
+            "role": "ITERATE",
+            "target_entity": "User",
+            "cardinality": "COLLECTION",
+            "output_type": "void",
+            "children": [
+                {
+                    "id": "step_display",
+                    "type": "ACTION",
+                    "intent": "DISPLAY",
+                    "role": "DISPLAY",
+                    "target_entity": "User",
+                    "cardinality": "SINGLE",
+                    "output_type": "void",
+                    "semantic_map": {
+                        "spec_role": "DISPLAY",
+                        "semantic_roles": {"ops": ["display_names"]},
+                        "logic": []
+                    },
+                    "children": [],
+                    "else_children": [],
+                }
+            ],
+            "semantic_map": {
+                "spec_role": "ITERATE",
+                "semantic_roles": {
+                    "structure_kind": "loop",
+                    "iteration_source_node_id": "step_fetch_users",
+                    "iteration_source_resolution": "input_link_collection",
+                },
+                "logic": []
+            },
+            "else_children": [],
+        }
+        path = self._base_path()
+        path["type_to_vars"] = {
+            "IEnumerable<User>": [
+                {"var_name": "fetchedUsers", "role": "data", "node_id": "step_fetch_users", "target_entity": "User"},
+                {"var_name": "latestUsers", "role": "data", "node_id": "step_other_users", "target_entity": "User"},
+            ],
+        }
+        path["poco_defs"] = {"User": {"Name": "string"}}
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        foreach_statements = [s for s in results[0].get("statements", []) if s.get("type") == "foreach"]
+        self.assertTrue(foreach_statements)
+        self.assertEqual(foreach_statements[0].get("source"), "fetchedUsers")
+
+    def test_iterate_item_entity_metadata_overrides_weak_collection_inner_type(self):
+        node = {
+            "id": "step_loop_item_entity",
+            "type": "LOOP",
+            "intent": "GENERAL",
+            "role": "ITERATE",
+            "target_entity": "Item",
+            "cardinality": "COLLECTION",
+            "output_type": "void",
+            "children": [],
+            "semantic_map": {
+                "spec_role": "ITERATE",
+                "semantic_roles": {
+                    "structure_kind": "loop",
+                    "iteration_item_entity": "User",
+                    "iteration_item_resolution": "collection_inner",
+                    "iteration_source_node_id": "step_fetch_users",
+                    "iteration_source_resolution": "input_link_collection",
+                },
+                "logic": []
+            },
+            "else_children": [],
+        }
+        path = self._base_path()
+        path["type_to_vars"] = {
+            "IEnumerable<object>": [
+                {"var_name": "fetchedUsers", "role": "data", "node_id": "step_fetch_users", "target_entity": "User"},
+            ],
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        foreach_statements = [s for s in results[0].get("statements", []) if s.get("type") == "foreach"]
+        self.assertTrue(foreach_statements)
+        self.assertEqual(foreach_statements[0].get("var_type"), "User")
+
+    def test_iterate_explicit_item_entity_keeps_nested_condition_property_binding(self):
+        node = {
+            "id": "step_loop_users",
+            "type": "LOOP",
+            "original_text": "各項目に対して、以下の処理を行う：",
+            "intent": "GENERAL",
+            "role": "ITERATE",
+            "target_entity": "User",
+            "cardinality": "COLLECTION",
+            "output_type": "void",
+            "input_link": "step_fetch_items",
+            "semantic_map": {
+                "spec_role": "ITERATE",
+                "semantic_roles": {
+                    "structure_kind": "loop",
+                    "iteration_source_node_id": "step_fetch_items",
+                    "iteration_source_resolution": "input_link_collection",
+                    "iteration_item_entity": "User",
+                    "iteration_item_resolution": "explicit_item_entity",
+                },
+                "logic": [],
+            },
+            "children": [
+                {
+                    "id": "step_condition_points",
+                    "type": "CONDITION",
+                    "original_text": "もし Points が 100 より大きいならば、以下の処理を行う：",
+                    "intent": "EXISTS",
+                    "role": "CHECK",
+                    "target_entity": "User",
+                    "cardinality": "SINGLE",
+                    "output_type": "void",
+                    "input_link": "step_loop_users",
+                    "semantic_map": {
+                        "spec_role": "CHECK",
+                        "check_kind": "comparison_check",
+                        "check_subject": "Points",
+                        "subject_resolution": "schema_property",
+                        "check_operator": ">",
+                        "check_value": "100",
+                        "semantic_roles": {"structure_kind": "condition"},
+                        "logic": [],
+                    },
+                    "children": [
+                        {
+                            "id": "step_display_name",
+                            "type": "ACTION",
+                            "original_text": "名前を表示する。",
+                            "intent": "DISPLAY",
+                            "role": "DISPLAY",
+                            "target_entity": "User",
+                            "cardinality": "SINGLE",
+                            "output_type": "void",
+                            "input_link": "step_condition_points",
+                            "semantic_map": {
+                                "spec_role": "DISPLAY",
+                                "semantic_roles": {},
+                                "logic": [],
+                            },
+                            "children": [],
+                            "else_children": [],
+                        }
+                    ],
+                    "else_children": [],
+                }
+            ],
+            "else_children": [],
+        }
+        path = self._base_path()
+        path["type_to_vars"] = {
+            "IEnumerable<object>": [
+                {"var_name": "fetchedItems", "role": "data", "node_id": "step_fetch_items", "target_entity": "Item"},
+            ],
+        }
+        path["poco_defs"] = {"User": {"Points": "int", "Name": "string"}}
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        statements = results[0].get("statements", [])
+        foreach_statements = [s for s in statements if s.get("type") == "foreach"]
+        self.assertTrue(foreach_statements)
+        loop_stmt = foreach_statements[0]
+        self.assertEqual(loop_stmt.get("var_type"), "User")
+        self.assertEqual(loop_stmt.get("source"), "fetchedItems")
+        body_json = json.dumps(loop_stmt.get("body", []), ensure_ascii=False)
+        self.assertIn("item.Points > 100", body_json)
+
+    def test_iterate_display_property_metadata_uses_item_property_inside_loop(self):
+        from src.ir_generator.ir_generator import IRGenerator
+        generator = IRGenerator(
+            self.cm,
+            entity_schema={
+                "entities": [
+                    {
+                        "name": "User",
+                        "keywords": ["ユーザー"],
+                        "properties": [
+                            {"name": "Name", "aliases": ["名前"]},
+                            {"name": "Points", "aliases": ["ポイント"]},
+                        ],
+                    },
+                ]
+            }
+        )
+        steps = [
+            {
+                "text": "対象一覧を取得する。",
+                "intent": "FETCH",
+                "explicit_intent": True,
+                "target_entity": "Item",
+                "output_type": "IEnumerable<object>",
+            },
+            {
+                "text": "各項目に対して、以下の処理を行う：",
+                "kind": "LOOP",
+                "intent": "GENERAL",
+                "explicit_intent": True,
+                "input_refs": ["step_1"],
+                "semantic_roles": {"item_entity": "User"},
+            },
+            "名前を表示する。",
+            "を終えて。",
+        ]
+
+        ir = generator.generate(steps)
+        loop_node = ir["logic_tree"][1]
+        path = self._base_path()
+        path["type_to_vars"] = {
+            "IEnumerable<object>": [
+                {"var_name": "fetchedItems", "role": "data", "node_id": "step_1", "target_entity": "Item"},
+            ],
+        }
+        path["poco_defs"] = {"User": {"Name": "string", "Points": "int"}}
+
+        results = self.synthesizer.action_synthesizer.process_node(loop_node, path)
+
+        self.assertTrue(results)
+        statements = results[0].get("statements", [])
+        foreach_statements = [s for s in statements if s.get("type") == "foreach"]
+        self.assertTrue(foreach_statements)
+        body_json = json.dumps(foreach_statements[0].get("body", []), ensure_ascii=False)
+        self.assertIn("Console.WriteLine(item.Name)", body_json)
+
+    def test_iterate_explicit_item_var_is_used_as_foreach_alias_and_branch_context(self):
+        from src.ir_generator.ir_generator import IRGenerator
+        generator = IRGenerator(
+            self.cm,
+            entity_schema={
+                "entities": [
+                    {
+                        "name": "User",
+                        "keywords": ["ユーザー"],
+                        "properties": [
+                            {"name": "Name", "aliases": ["名前"]},
+                            {"name": "Points", "aliases": ["ポイント"]},
+                        ],
+                    },
+                ]
+            }
+        )
+        steps = [
+            {
+                "text": "対象一覧を取得する。",
+                "intent": "FETCH",
+                "explicit_intent": True,
+                "target_entity": "Item",
+                "output_type": "IEnumerable<object>",
+            },
+            {
+                "text": "各ユーザーに対して、以下の処理を行う：",
+                "kind": "LOOP",
+                "intent": "GENERAL",
+                "explicit_intent": True,
+                "input_refs": ["step_1"],
+                "semantic_roles": {"item_entity": "User", "item_var": "user"},
+            },
+            "もし Points が 100 より大きいならば、以下の処理を行う：",
+            "名前を表示する。",
+            "を終えて。",
+            "を終えて。",
+        ]
+
+        ir = generator.generate(steps)
+        loop_node = ir["logic_tree"][1]
+        path = self._base_path()
+        path["type_to_vars"] = {
+            "IEnumerable<object>": [
+                {"var_name": "fetchedItems", "role": "data", "node_id": "step_1", "target_entity": "Item"},
+            ],
+        }
+        path["poco_defs"] = {"User": {"Name": "string", "Points": "int"}}
+
+        results = self.synthesizer.action_synthesizer.process_node(loop_node, path)
+
+        self.assertTrue(results)
+        foreach_statements = [s for s in results[0].get("statements", []) if s.get("type") == "foreach"]
+        self.assertTrue(foreach_statements)
+        loop_stmt = foreach_statements[0]
+        self.assertEqual(loop_stmt.get("item_name"), "user")
+        body_json = json.dumps(loop_stmt.get("body", []), ensure_ascii=False)
+        self.assertIn("user.Points > 100", body_json)
+        self.assertIn("Console.WriteLine(user.Name)", body_json)
+
+    def test_wrap_runtime_bridge_preserves_child_body_in_synthesis(self):
+        spec = {
+            "module_name": "RetryDisplay",
+            "purpose": "Preserve wrapper body",
+            "inputs": [],
+            "outputs": [{"type_format": "void", "description": "none"}],
+            "steps": [
+                {
+                    "id": "step_1",
+                    "text": "リトライする。以下の処理を繰り返す：",
+                    "kind": "ACTION",
+                    "intent": "GENERAL",
+                    "explicit_intent": True,
+                    "target_entity": "Item",
+                    "input_refs": [],
+                    "output_type": "void",
+                    "side_effect": "NONE"
+                },
+                {
+                    "id": "step_2",
+                    "text": "処理を完了しました、と表示する。",
+                    "kind": "ACTION",
+                    "intent": "DISPLAY",
+                    "explicit_intent": True,
+                    "target_entity": "string",
+                    "input_refs": ["step_1"],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                    "semantic_roles": {"message": "処理を完了しました"}
+                },
+                {
+                    "id": "step_3",
+                    "text": "を終えて。",
+                    "kind": "ACTION",
+                    "intent": "GENERAL",
+                    "explicit_intent": True,
+                    "target_entity": "Item",
+                    "input_refs": ["step_2"],
+                    "output_type": "void",
+                    "side_effect": "NONE"
+                }
+            ],
+            "constraints": [],
+            "test_cases": [],
+            "data_sources": []
+        }
+
+        result = self.synthesizer.synthesize_from_structured_spec("RetryDisplay", spec, return_trace=True)
+        best_path = result.get("trace", {}).get("best_path", {})
+        statements = best_path.get("statements", [])
+        retry_statements = [s for s in statements if s.get("type") == "retry"]
+        raw_codes = self._collect_all_raw_codes(best_path)
+        code = result.get("code", "")
+
+        self.assertTrue(retry_statements)
+        self.assertEqual(retry_statements[0].get("max_attempts"), 3)
+        self.assertEqual(retry_statements[0].get("max_attempts_resolution"), "default_attempts")
+        self.assertEqual(retry_statements[0].get("exception_type"), "Exception")
+        self.assertEqual(retry_statements[0].get("exception_type_resolution"), "default_exception_type")
+        self.assertEqual(retry_statements[0].get("base_delay_ms"), 0)
+        self.assertEqual(retry_statements[0].get("backoff_multiplier"), 1.0)
+        self.assertEqual(retry_statements[0].get("retry_delay_policy_resolution"), "default_no_delay_policy")
+        self.assertTrue(any("Console.WriteLine" in c and "処理を完了しました" in c for c in raw_codes))
+        self.assertIn("for (var retryAttempt = 0; retryAttempt < 3; retryAttempt++)", code)
+        self.assertIn("try {", code)
+        self.assertNotIn("validate_plan()", code)
+
+    def test_wrap_runtime_bridge_uses_explicit_retry_metadata(self):
+        ir_tree = {
+            "logic_tree": [
+                {
+                    "id": "step_wrap",
+                    "type": "ACTION",
+                    "original_text": "リトライする。",
+                    "intent": "GENERAL",
+                    "role": "ACTION",
+                    "cardinality": "SINGLE",
+                    "target_entity": "Item",
+                    "output_type": "void",
+                    "source_kind": None,
+                    "source_ref": None,
+                    "input_link": None,
+                    "semantic_map": {
+                        "spec_role": "WRAP",
+                        "semantic_roles": {
+                            "wrapper_kind": "retry",
+                            "max_attempts": 5,
+                            "exception_type": "IOException",
+                        },
+                    },
+                    "children": [
+                        {
+                            "id": "step_display",
+                            "type": "ACTION",
+                            "original_text": "処理を完了しました、と表示する。",
+                            "intent": "DISPLAY",
+                            "role": "DISPLAY",
+                            "cardinality": "SINGLE",
+                            "target_entity": "string",
+                            "output_type": "void",
+                            "source_kind": None,
+                            "source_ref": None,
+                            "input_link": "step_wrap",
+                            "semantic_map": {
+                                "spec_role": "DISPLAY",
+                                "semantic_roles": {"message": "処理を完了しました"},
+                                "logic": [],
+                            },
+                            "children": [],
+                            "else_children": [],
+                        }
+                    ],
+                    "else_children": [],
+                }
+            ]
+        }
+
+        result = self.synthesizer._synthesize_from_ir_tree("RetryDisplayExplicit", ir_tree, expected_steps=1)
+        statements = result.get("trace", {}).get("best_path", {}).get("statements", [])
+        retry_statement = next((s for s in statements if s.get("type") == "retry"), None)
+        code = result.get("code", "")
+
+        self.assertIsNotNone(retry_statement)
+        self.assertEqual(retry_statement.get("max_attempts_resolution"), "explicit_attempts")
+        self.assertEqual(retry_statement.get("exception_type_resolution"), "explicit_exception_type")
+        self.assertIn("retryAttempt < 5", code)
+        self.assertIn("catch (IOException)", code)
+        self.assertIn("Console.WriteLine", code)
+
+    def test_wrap_runtime_bridge_preserves_explicit_backoff_policy(self):
+        ir_tree = {
+            "logic_tree": [
+                {
+                    "id": "step_wrap",
+                    "type": "ACTION",
+                    "original_text": "リトライする。",
+                    "intent": "GENERAL",
+                    "role": "ACTION",
+                    "cardinality": "SINGLE",
+                    "target_entity": "Item",
+                    "output_type": "void",
+                    "source_kind": None,
+                    "source_ref": None,
+                    "input_link": None,
+                    "semantic_map": {
+                        "spec_role": "WRAP",
+                        "semantic_roles": {
+                            "wrapper_kind": "retry",
+                            "max_attempts": 4,
+                            "base_delay_ms": 200,
+                            "max_delay_ms": 1000,
+                            "backoff_multiplier": 2.0,
+                        },
+                    },
+                    "children": [
+                        {
+                            "id": "step_display",
+                            "type": "ACTION",
+                            "original_text": "処理を完了しました、と表示する。",
+                            "intent": "DISPLAY",
+                            "role": "DISPLAY",
+                            "cardinality": "SINGLE",
+                            "target_entity": "string",
+                            "output_type": "void",
+                            "source_kind": None,
+                            "source_ref": None,
+                            "input_link": "step_wrap",
+                            "semantic_map": {
+                                "spec_role": "DISPLAY",
+                                "semantic_roles": {"message": "処理を完了しました"},
+                                "logic": [],
+                            },
+                            "children": [],
+                            "else_children": [],
+                        }
+                    ],
+                    "else_children": [],
+                }
+            ]
+        }
+
+        result = self.synthesizer._synthesize_from_ir_tree("RetryDisplayBackoff", ir_tree, expected_steps=1)
+        code = result.get("code", "")
+
+        self.assertIn("retryDelayMs = 200", code)
+        self.assertIn("System.Threading.Thread.Sleep(retryDelayMs);", code)
+        self.assertIn("retryDelayMs = Math.Min(1000, (int)Math.Ceiling(retryDelayMs * 2.0));", code)
+
+    def test_async_retry_blueprint_uses_task_delay_for_backoff(self):
+        client = CodeBuilderClient(self.cm)
+        blueprint = {
+            "namespace": "Generated",
+            "class_name": "RetryAsyncProcessor",
+            "usings": ["System", "System.Threading.Tasks"],
+            "fields": [],
+            "methods": [{
+                "name": "RetryAsync",
+                "return_type": "Task",
+                "is_async": True,
+                "params": [],
+                "body": [{
+                    "type": "retry",
+                    "max_attempts": 4,
+                    "exception_type": "Exception",
+                    "base_delay_ms": 200,
+                    "max_delay_ms": 1000,
+                    "backoff_multiplier": 2.0,
+                    "body": [
+                        {"type": "raw", "code": "await Task.Delay(1);"}
+                    ],
+                }],
+            }],
+            "extra_classes": [],
+            "extra_code": [],
+            "optimize": False,
+        }
+
+        result = client.build_code(blueprint)
+
+        self.assertEqual(result.get("status"), "success")
+        code = result.get("code", "")
+        self.assertIn("public async Task RetryAsync()", code)
+        self.assertIn("await Task.Delay(retryDelayMs);", code)
+        self.assertIn("retryDelayMs = Math.Min(1000, (int)Math.Ceiling(retryDelayMs * 2));", code)
+
+    def test_wrap_runtime_bridge_uses_explicit_timeout_metadata(self):
+        ir_tree = {
+            "logic_tree": [
+                {
+                    "id": "step_wrap_timeout",
+                    "type": "ACTION",
+                    "original_text": "5秒以内に実行する。",
+                    "intent": "GENERAL",
+                    "role": "ACTION",
+                    "cardinality": "SINGLE",
+                    "target_entity": "Item",
+                    "output_type": "void",
+                    "source_kind": None,
+                    "source_ref": None,
+                    "input_link": None,
+                    "semantic_map": {
+                        "spec_role": "WRAP",
+                        "semantic_roles": {
+                            "wrapper_kind": "timeout",
+                            "timeout_ms": 5000,
+                            "timeout_resolution": "explicit_timeout_ms",
+                        },
+                    },
+                    "children": [
+                        {
+                            "id": "step_display",
+                            "type": "ACTION",
+                            "original_text": "処理を完了しました、と表示する。",
+                            "intent": "DISPLAY",
+                            "role": "DISPLAY",
+                            "cardinality": "SINGLE",
+                            "target_entity": "string",
+                            "output_type": "void",
+                            "source_kind": None,
+                            "source_ref": None,
+                            "input_link": "step_wrap_timeout",
+                            "semantic_map": {
+                                "spec_role": "DISPLAY",
+                                "semantic_roles": {"message": "処理を完了しました"},
+                                "logic": [],
+                            },
+                            "children": [],
+                            "else_children": [],
+                        }
+                    ],
+                    "else_children": [],
+                }
+            ]
+        }
+
+        result = self.synthesizer._synthesize_from_ir_tree("TimeoutDisplayExplicit", ir_tree, expected_steps=1)
+        statements = result.get("trace", {}).get("best_path", {}).get("statements", [])
+        timeout_statement = next((s for s in statements if s.get("type") == "timeout"), None)
+        code = result.get("code", "")
+
+        self.assertIsNotNone(timeout_statement)
+        self.assertEqual(timeout_statement.get("timeout_ms"), 5000)
+        self.assertEqual(timeout_statement.get("timeout_resolution"), "explicit_timeout_ms")
+        self.assertIn("System.Threading.Tasks.Task.Run(() =>", code)
+        self.assertIn("System.TimeSpan.FromMilliseconds(5000)", code)
+        self.assertIn("System.TimeoutException(\"Operation timed out after 5000ms.\")", code)
+
+    def test_async_timeout_blueprint_uses_wait_async(self):
+        client = CodeBuilderClient(self.cm)
+        blueprint = {
+            "namespace": "Generated",
+            "class_name": "TimeoutAsyncProcessor",
+            "usings": ["System", "System.Threading.Tasks"],
+            "fields": [],
+            "methods": [{
+                "name": "TimeoutAsync",
+                "return_type": "Task",
+                "is_async": True,
+                "params": [],
+                "body": [{
+                    "type": "timeout",
+                    "timeout_ms": 2500,
+                    "body": [
+                        {"type": "raw", "code": "await Task.Delay(1);"}
+                    ],
+                }],
+            }],
+            "extra_classes": [],
+            "extra_code": [],
+            "optimize": False,
+        }
+
+        result = client.build_code(blueprint)
+
+        self.assertEqual(result.get("status"), "success")
+        code = result.get("code", "")
+        self.assertIn("public async Task TimeoutAsync()", code)
+        self.assertIn("using var timeoutCts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromMilliseconds(2500));", code)
+        self.assertIn("await timeoutTask.WaitAsync(timeoutCts.Token);", code)
+        self.assertIn("throw new System.TimeoutException(\"Operation timed out after 2500ms.\");", code)
+
+    def test_wrap_runtime_bridge_uses_explicit_transaction_metadata(self):
+        ir_tree = {
+            "logic_tree": [
+                {
+                    "id": "step_wrap_tx",
+                    "type": "ACTION",
+                    "original_text": "トランザクションで実行する。",
+                    "intent": "GENERAL",
+                    "role": "ACTION",
+                    "cardinality": "SINGLE",
+                    "target_entity": "Item",
+                    "output_type": "void",
+                    "source_kind": None,
+                    "source_ref": None,
+                    "input_link": None,
+                    "semantic_map": {
+                        "spec_role": "WRAP",
+                        "semantic_roles": {
+                            "wrapper_kind": "transaction",
+                            "transaction_resolution": "explicit_transaction_wrapper",
+                        },
+                    },
+                    "children": [
+                        {
+                            "id": "step_display",
+                            "type": "ACTION",
+                            "original_text": "処理を完了しました、と表示する。",
+                            "intent": "DISPLAY",
+                            "role": "DISPLAY",
+                            "cardinality": "SINGLE",
+                            "target_entity": "string",
+                            "output_type": "void",
+                            "source_kind": None,
+                            "source_ref": None,
+                            "input_link": "step_wrap_tx",
+                            "semantic_map": {
+                                "spec_role": "DISPLAY",
+                                "semantic_roles": {"message": "処理を完了しました"},
+                                "logic": [],
+                            },
+                            "children": [],
+                            "else_children": [],
+                        }
+                    ],
+                    "else_children": [],
+                }
+            ]
+        }
+
+        result = self.synthesizer._synthesize_from_ir_tree("TransactionDisplayExplicit", ir_tree, expected_steps=1)
+        statements = result.get("trace", {}).get("best_path", {}).get("statements", [])
+        transaction_statement = next((s for s in statements if s.get("type") == "transaction"), None)
+        code = result.get("code", "")
+
+        self.assertIsNotNone(transaction_statement)
+        self.assertEqual(transaction_statement.get("transaction_resolution"), "explicit_transaction_wrapper")
+        self.assertIn("using var transactionScope = new System.Transactions.TransactionScope();", code)
+        self.assertIn("transactionScope.Complete();", code)
+        self.assertIn("Console.WriteLine", code)
+
+    def test_async_transaction_blueprint_uses_transaction_scope_async_flow(self):
+        client = CodeBuilderClient(self.cm)
+        blueprint = {
+            "namespace": "Generated",
+            "class_name": "TransactionAsyncProcessor",
+            "usings": ["System", "System.Threading.Tasks"],
+            "fields": [],
+            "methods": [{
+                "name": "TransactionAsync",
+                "return_type": "Task",
+                "is_async": True,
+                "params": [],
+                "body": [{
+                    "type": "transaction",
+                    "body": [
+                        {"type": "raw", "code": "await Task.Delay(1);"}
+                    ],
+                }],
+            }],
+            "extra_classes": [],
+            "extra_code": [],
+            "optimize": False,
+        }
+
+        result = client.build_code(blueprint)
+
+        self.assertEqual(result.get("status"), "success")
+        code = result.get("code", "")
+        self.assertIn("public async Task TransactionAsync()", code)
+        self.assertIn("using var transactionScope = new System.Transactions.TransactionScope(System.Transactions.TransactionScopeAsyncFlowOption.Enabled);", code)
+        self.assertIn("transactionScope.Complete();", code)
+
     def test_filter_with_history_provenance_uses_generic_logic_path(self):
         node = {
             "id": "step_filter_history",
@@ -991,6 +1868,224 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         raw_codes = self._collect_all_raw_codes(results[0])
         self.assertFalse(any("Resolve ambiguous CALCULATE target" in c for c in raw_codes))
         self.assertTrue(any("order.Total" in c for c in raw_codes))
+
+    def test_calculate_input_link_metadata_prefers_exact_upstream_var_over_active_scope(self):
+        node = {
+            "id": "step_calc_exact_source",
+            "type": "ACTION",
+            "intent": "CALC",
+            "role": "CALC",
+            "target_entity": "Order",
+            "cardinality": "SINGLE",
+            "output_type": "decimal",
+            "semantic_map": {
+                "spec_role": "CALCULATE",
+                "semantic_roles": {
+                    "target_hint": "Total",
+                    "property": "Total",
+                    "target_entity": "Order",
+                    "entity_resolution": "history_fallback",
+                    "calculate_source_node_id": "step_fetch_order",
+                    "calculate_source_resolution": "input_link_var",
+                },
+                "logic": [],
+            }
+        }
+        path = self._base_path()
+        path["active_scope_item"] = "latestOrder"
+        path["type_to_vars"] = {
+            "Order": [
+                {"var_name": "fetchedOrder", "role": "data", "node_id": "step_fetch_order", "target_entity": "Order"},
+                {"var_name": "latestOrder", "role": "data", "node_id": "step_other_order", "target_entity": "Order"},
+            ],
+        }
+        path["poco_defs"] = {
+            "Order": {"Total": "decimal", "Id": "int"},
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("fetchedOrder.Total" in c for c in raw_codes))
+        self.assertFalse(any("latestOrder.Total" in c for c in raw_codes))
+
+    def test_calculate_default_scope_metadata_stays_with_active_scope(self):
+        node = {
+            "id": "step_calc_default_scope",
+            "type": "ACTION",
+            "intent": "CALC",
+            "role": "CALC",
+            "target_entity": "Order",
+            "cardinality": "SINGLE",
+            "output_type": "decimal",
+            "semantic_map": {
+                "spec_role": "CALCULATE",
+                "semantic_roles": {
+                    "target_hint": "Total",
+                    "property": "Total",
+                    "target_entity": "Order",
+                    "entity_resolution": "history_fallback",
+                    "calculate_source_resolution": "default_scope_var",
+                },
+                "logic": [],
+            }
+        }
+        path = self._base_path()
+        path["active_scope_item"] = "currentOrder"
+        path["type_to_vars"] = {
+            "Order": [
+                {"var_name": "previousOrder", "role": "data", "node_id": "step_prev_order", "target_entity": "Order"},
+                {"var_name": "currentOrder", "role": "data", "node_id": "step_current_order", "target_entity": "Order"},
+            ],
+        }
+        path["poco_defs"] = {
+            "Order": {"Total": "decimal", "Id": "int"},
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("currentOrder.Total" in c for c in raw_codes))
+        self.assertFalse(any("previousOrder.Total" in c for c in raw_codes))
+
+    def test_calculate_explicit_target_without_schema_upgrade_stays_local_result(self):
+        node = {
+            "id": "step_calc_explicit_target",
+            "type": "ACTION",
+            "intent": "CALC",
+            "role": "CALC",
+            "target_entity": "Item",
+            "cardinality": "SINGLE",
+            "output_type": "decimal",
+            "semantic_map": {
+                "spec_role": "CALCULATE",
+                "semantic_roles": {
+                    "target_hint": "結果",
+                    "property": "結果",
+                    "target_entity": "Item",
+                    "entity_resolution": "history_fallback",
+                    "calculate_target_resolution": "explicit_target",
+                    "calculate_source_resolution": "default_scope_var",
+                },
+                "logic": [],
+            }
+        }
+        path = self._base_path()
+        path["active_scope_item"] = "currentOrder"
+        path["type_to_vars"] = {
+            "Order": [
+                {"var_name": "currentOrder", "role": "data", "node_id": "step_current_order", "target_entity": "Order"},
+            ],
+        }
+        path["poco_defs"] = {
+            "Order": {"Total": "decimal", "Id": "int"},
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("Resolve weak CALCULATE target for 結果" in c for c in raw_codes))
+        self.assertFalse(any(".結果" in c for c in raw_codes))
+        self.assertFalse(any(".Total =" in c for c in raw_codes))
+
+    def test_return_literal_metadata_overrides_latest_typed_variable(self):
+        node = {
+            "id": "step_return_true",
+            "type": "ACTION",
+            "intent": "RETURN",
+            "role": "RETURN",
+            "target_entity": "bool",
+            "cardinality": "SINGLE",
+            "output_type": "bool",
+            "semantic_map": {
+                "spec_role": "RETURN",
+                "semantic_roles": {
+                    "return_value": "true",
+                    "return_value_resolution": "literal_boolean",
+                },
+                "logic": [],
+            },
+        }
+        path = self._base_path()
+        path["method_return_type"] = "bool"
+        path["type_to_vars"] = {
+            "bool": [{"var_name": "isValid", "role": "data", "node_id": "step_1", "target_entity": "bool"}],
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("return true;" in c for c in raw_codes))
+        self.assertFalse(any("return isValid;" in c for c in raw_codes))
+
+    def test_return_null_metadata_overrides_latest_object_variable(self):
+        node = {
+            "id": "step_return_null",
+            "type": "ACTION",
+            "intent": "RETURN",
+            "role": "RETURN",
+            "target_entity": "User",
+            "cardinality": "SINGLE",
+            "output_type": "User",
+            "semantic_map": {
+                "spec_role": "RETURN",
+                "semantic_roles": {
+                    "return_value": "null",
+                    "return_value_resolution": "literal_null",
+                },
+                "logic": [],
+            },
+        }
+        path = self._base_path()
+        path["method_return_type"] = "User"
+        path["type_to_vars"] = {
+            "User": [{"var_name": "user", "role": "data", "node_id": "step_1", "target_entity": "User"}],
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("return null;" in c for c in raw_codes))
+        self.assertFalse(any("return user;" in c for c in raw_codes))
+
+    def test_return_input_link_metadata_prefers_exact_upstream_var_over_latest_type_var(self):
+        node = {
+            "id": "step_return_user",
+            "type": "ACTION",
+            "intent": "RETURN",
+            "role": "RETURN",
+            "target_entity": "User",
+            "cardinality": "SINGLE",
+            "output_type": "User",
+            "semantic_map": {
+                "spec_role": "RETURN",
+                "semantic_roles": {
+                    "return_source_node_id": "step_fetch_user",
+                    "return_value_resolution": "input_link_var",
+                },
+                "logic": [],
+            },
+        }
+        path = self._base_path()
+        path["method_return_type"] = "User"
+        path["type_to_vars"] = {
+            "User": [
+                {"var_name": "fetchedUser", "role": "data", "node_id": "step_fetch_user", "target_entity": "User"},
+                {"var_name": "transformedUser", "role": "data", "node_id": "step_transform_user", "target_entity": "User"},
+            ],
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("return fetchedUser;" in c for c in raw_codes))
+        self.assertFalse(any("return transformedUser;" in c for c in raw_codes))
 
 
 if __name__ == '__main__':

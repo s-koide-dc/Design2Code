@@ -1,5 +1,41 @@
 # AI Changelog
 
+- **2026-05-15**: Added `research/ir_meaning_preservation/report.md` as the formal integrated report that connects the research objective, benchmark method, core findings, runtime/schema/policy boundary, implementation sites, operationalization, remaining open issues, and final conclusion into a single document, and synchronized the research indexes accordingly.
+
+- **2026-05-15**: Added `research/ir_meaning_preservation/runtime_schema_policy_boundary.md` to compress the final `runtime / schema / policy` responsibility split into a single statement, and synchronized the research README, document map, outcome memo, and goal-state summary so the closure phase now has an explicit boundary document.
+
+- **2026-05-13**: Added deterministic source provenance for `spec_role=CALCULATE` by introducing `src/ir_generator/calculate_resolution.py`, preserving explicit `source_var` or structural `input_link` as `calculate_source_resolution` / `calculate_source_node_id`, teaching `calc_ops` to prefer exact upstream vars over `active_scope_item` and latest-var fallback, and synchronizing the affected design/research/regression artifacts.
+
+- **2026-05-13**: Extended `ITERATE` continuity from item entity to explicit item alias by preserving `iteration_item_var` / `iteration_item_var_resolution`, propagating that alias through loop codegen so nested branch children keep the same `foreach` item name instead of falling back to generic `item`, and synchronizing the affected design/research/regression artifacts.
+
+- **2026-05-13**: Materialized deterministic default retry-policy provenance for `spec_role=WRAP` by extending `wrapper_resolution` to emit `default_attempts` / `default_exception_type` / `default_no_delay_policy`, preserving those resolution fields through `IREmitter` into `retry` statements, adding direct IR/code-synthesis regressions for default-policy wrappers, and synchronizing the wrapper design/research/regression artifacts.
+
+- **2026-05-11**: Added deterministic literal-return handling by introducing `src/ir_generator/return_resolution.py`, preserving `return_value` / `return_value_resolution` for `true` / `false` / `null` / numeric / quoted-literal returns, teaching `ActionSynthesizer` to prioritize that metadata over latest-variable fallback, adding direct IR/code-synthesis regressions for literal returns, and synchronizing the affected design/research artifacts.
+
+- **2026-05-12**: Extended `RETURN` stabilization from literal-only metadata to exact upstream source preservation by normalizing explicit `source_var`, attaching `return_source_node_id` for non-literal chained returns, prioritizing input-link-derived exact var resolution over latest-typed-var fallback in `ActionSynthesizer`, and updating the role-weakening baseline to cover chained return integrity.
+
+- **2026-05-12**: Added `case_32_return_provenance_contrast` plus `return_provenance_observation.md` to close the research loop for `RETURN` provenance, fixing branch-local return-source metadata so `input_link_var` points at the semantic upstream source rather than the structural `CONDITION` base.
+
+- **2026-05-12**: Added `return_provenance_supply_model.md` plus `case_33` / `case_34` and `return_provenance_supply_observation.md` to fix the supply boundary for `RETURN` provenance, distinguishing deterministic `input_link_var` supply from provenance-free weak retention when no literal or structural source is available.
+
+- **2026-05-11**: Elevated `spec_role=WRAP` from marker-comment preservation to deterministic retry semantics by emitting structured `retry` statements in `IREmitter`, teaching both the Python fallback renderer and C# `CodeBuilder` to render them as `for + try/catch + break/rethrow`, adding direct integration assertions for wrapper code generation, and documenting the new wrapper-semantics boundary in code-synthesis and research artifacts.
+
+- **2026-05-11**: Added deterministic wrapper-metadata resolution for retry semantics by introducing `src/ir_generator/wrapper_resolution.py`, preserving explicit `max_attempts` / `exception_type`, inferring retry count only from tokenized `<number> + 回` sequences, and extending IR/code-synthesis regressions to verify explicit retry metadata reaches generated C#.
+
+- **2026-05-11**: Extended retry-wrapper semantics with explicit delay/backoff policy propagation by preserving `base_delay_ms`, `max_delay_ms`, and `backoff_multiplier` metadata from IR through `IREmitter` into both the Python fallback renderer and C# `CodeBuilder`, with sync `Thread.Sleep` / async `Task.Delay` generation and matching regression coverage.
+
+- **2026-05-11**: Fixed `CodeBuilderClient` executable selection to choose the newest available Debug/Release binary instead of always preferring Release, preventing stale CodeBuilder builds from masking current retry-semantics changes in runtime validation.
+
+- **2026-05-11**: Strengthened runtime-side handling for weak structural/transform roles by (1) bridging `spec_role=TRANSFORM` with weak `GENERAL/ACTION` intent to the transform handler in `ActionSynthesizer`, and (2) adding a conservative `spec_role=WRAP` consumer in `IREmitter` that preserves wrapper child bodies with a `wrapper:retry` marker instead of collapsing to a generic fallback action; added direct integration regressions for `TRANSFORM`, `ITERATE`, and `WRAP`, and synchronized the affected design/research documents.
+
+- **2026-05-08**: Added `--update-run-file` support to `run_ir_meaning_preservation_regression.py` so the runner can reconstruct and rewrite a regression run record in place from the current draft generators, and documented the in-place update flow in the combined playbook, templates README, results README, and scripts catalog.
+
+- **2026-05-08**: Added `--write-draft` and optional `--draft-file` support to `run_ir_meaning_preservation_regression.py`, verified default draft emission into `research/ir_meaning_preservation/results/regression_run_2026_05_07_metadata_baseline.runner_draft.md`, and documented the default/output override behavior in the playbook, templates README, scripts catalog, and results README.
+
+- **2026-05-08**: Extended `run_ir_meaning_preservation_regression.py` one final step to emit a paste-ready `Final Judgment` draft sourced from the current run file, and updated the playbook/template documentation to state that the runner can now regenerate the full operational body of a regression record as draft text.
+
+- **2026-05-08**: Completed the regression-record drafting support in `run_ir_meaning_preservation_regression.py` by adding a paste-ready `Final Judgment` candidate block sourced from the current run file's regression status, open risks, and next action, so the runner now proposes draft content for the full operational body of a regression record.
+
 - **2026-05-07**: Completed the regression-run draft generator by extending `run_ir_meaning_preservation_regression.py` to emit paste-ready `Output Path Check` and `Deliverables Produced` blocks, so the runner now covers the full operational body of a regression record aside from final judgment editing.
 
 - **2026-05-07**: Extended `run_ir_meaning_preservation_regression.py` to emit paste-ready draft blocks for `Affected Claims` and `Downstream Conservatism Check`, reusing the current run file's claim text, claim-map references, consumer list, and stronger/weaker fallback notes so a follow-up regression record can be drafted with minimal manual copying.
@@ -1020,3 +1056,58 @@
 - Updated `research/ir_meaning_preservation/README.md` and `document_map.md` to register the new provenance-strength policy document in the foundation set.
 
 - **2026-05-01**: Performed a final consistency pass across synthesis and alias-admission documents, fixing stale next-step references and the thesis-claim count in midterm_synthesis.md.
+- **2026-05-12**:
+    - **TRANSFORM provenance を deterministic metadata として固定**:
+        - `src/ir_generator/transform_resolution.py` を追加し、`ops` がある場合の `transform_op_resolution=explicit_ops`、explicit `source_var`、structural upstream source に対する `transform_source_resolution` / `transform_source_node_id` を供給するよう改善。
+        - `IRGenerator` は `spec_role=TRANSFORM` に対して provenance metadata を保持し、`CHECK` を structural parent とする場合でも semantic source は upstream data node へ引き直すよう更新。
+    - **ActionSynthesizer が exact upstream transform source を優先消費**:
+        - `display_transform_ops` は `active_scope_item` より前に `transform_source_resolution` を見て、explicit `source_var` または `input_link` 由来の exact upstream var を優先するよう改善。
+        - generic helper を `ActionSynthesizer` に追加し、`RETURN` と `TRANSFORM` の node-id based var 解決を共有化。
+    - **TRANSFORM 回帰と運用文書を同期**:
+        - `test_ir_generator` と `test_code_synthesizer_integration` に `TRANSFORM` provenance 回帰を追加し、exact upstream source が `active_scope_item` に吸収されないことを固定。
+        - `cross_role_provenance_design.md`, `resolution_provenance_model.md`, `provenance_strength_policy_matrix.md`, `role_weakening_regression_table.md`, baseline regression run record を current `TRANSFORM` 観点に更新。
+    - **ITERATE の collection-source continuity を固定**:
+        - `src/ir_generator/iterate_resolution.py` を追加し、loop に `iteration_source_resolution` / `iteration_source_node_id` を付与するよう改善。
+        - `ActionSynthesizer` の loop 処理は latest collection fallback より前に exact upstream collection を選ぶよう更新。
+        - `test_ir_generator` と `test_code_synthesizer_integration` に `ITERATE` provenance 回帰を追加し、loop source が別 collection に吸収されないことを固定。
+    - **ITERATE の item-side semantics を deterministic に補強**:
+        - `iterate_resolution` が `iteration_item_entity` / `iteration_item_resolution` を保持するよう拡張し、collection inner type または deterministic history collection entity だけを採用するよう改善。
+        - `ActionSynthesizer` の loop 処理は weak collection inner type より `iteration_item_entity` を優先するよう更新。
+        - `test_ir_generator` と `test_code_synthesizer_integration` に item continuity 回帰を追加し、loop item 型が weak fallback に吸収されないことを固定。
+    - **ITERATE の nested child continuity を loop history に接続**:
+        - explicit `item_entity` を `iteration_item_entity` / `iteration_item_resolution=explicit_item_entity` として保持できるようにし、`context history.item_entity` として nested child へ引き継ぐよう改善。
+        - `entity_inference` は通常の `target_entity` history より前に `item_entity` history を読むよう更新し、loop 内 child condition が weak `Item` に戻らず exact item entity を継承できるようにした。
+        - `test_ir_generator` と `test_code_synthesizer_integration` に nested loop condition の回帰を追加し、`Points` 比較が `User` item context で deterministic に binding されることを固定。
+    - **DISPLAY の item-side property provenance を追加**:
+        - `src/ir_generator/display_resolution.py` を追加し、schema property / alias の exact match だけで `property` / `display_property_resolution` を付与するよう改善。
+        - loop item continuity と組み合わせ、`名前を表示する` のような nested child display が weak `item` ではなく `item.Name` へ落ちるようにした。
+        - `test_ir_generator` と `test_code_synthesizer_integration` に回帰を追加し、loop 内 display property continuity を固定した。
+- **2026-05-13**:
+    - **WRAP を explicit timeout wrapper まで一般化**:
+        - `src/ir_generator/wrapper_resolution.py` を拡張し、explicit `wrapper_kind=timeout` または `timeout_ms/max_duration_ms/duration_ms` を持つ wrapper を deterministic に扱うよう改善。
+        - timeout wrapper は `timeout_ms` と `timeout_resolution` を IR metadata として保持し、自然言語からの timeout 推定は行わない。
+    - **IREmitter / CodeBuilder に timeout structural consumer を追加**:
+        - `src/code_synthesis/ir_emitter.py` は `wrapper_kind=timeout` を `timeout` statement に再構成するよう更新。
+        - `tools/csharp/CodeBuilder/Program.cs` と `src/utils/code_builder_client.py` は `timeout` statement を sync `Task.Run(...).Wait(TimeSpan)` / async `CancellationTokenSource + WaitAsync` へ展開するよう改善。
+        - `CodeBuilderClient` は exe だけでなく対応する dll の更新時刻も見て Debug/Release を選ぶようにし、apphost lock 時の stale binary drift を避けるよう更新。
+    - **WRAP timeout 回帰と研究文書を同期**:
+        - `test_ir_generator` と `test_code_synthesizer_integration` に explicit timeout wrapper の IR 保持、runtime bridge、async timeout codegen の回帰を追加。
+        - `wrap_timeout_semantics_design.md`, `structural_role_bridge.md`, `role_weakening_regression_table.md`, 関連 design docs を更新し、`WRAP` を retry/timeout の deterministic wrapper consumer として整理した。
+    - **WRAP を explicit transaction wrapper まで一般化**:
+        - `src/ir_generator/wrapper_resolution.py` を拡張し、explicit `wrapper_kind=transaction` を `transaction_resolution=explicit_transaction_wrapper` として保持するよう改善。
+        - `IREmitter`, `CodeBuilderClient`, `tools/csharp/CodeBuilder/Program.cs` を更新し、`transaction` statement を sync/async `TransactionScope` へ決定論的に展開できるようにした。
+        - `test_ir_generator` と `test_code_synthesizer_integration` に explicit transaction wrapper の IR 保持、runtime bridge、async `TransactionScope` codegen の回帰を追加。
+        - `wrap_transaction_semantics_design.md`, `structural_role_bridge.md`, `role_weakening_regression_table.md`, 関連 design docs を更新し、`WRAP` を retry/timeout/transaction の deterministic wrapper consumer として整理した。
+## 2026-05-15
+- `midterm_synthesis`, `research_outcome_memo`, `goal_state` を更新し、`CHECK/FILTER/CALCULATE/RETURN/TRANSFORM/ITERATE/WRAP/DISPLAY` まで閉じた role 群として summary 層へ反映した。
+- `remaining_open_inventory.md` を追加し、closed role / stable but not focus / open issues を研究の現時点として棚卸しした。
+
+## 2026-05-13
+- `CALCULATE` の target-side provenance 4値を benchmark 上で閉じるため、`case_36_calculate_default_target_retention` と対応 observed IR を追加した。
+- `calculate_case_observation`, `benchmark_cases`, case/result README を更新し、`default_target` は explicit `CALCULATE` だが target metadata を持たない weak-retention case で観測する境界を固定した。
+- `CALCULATE` の target-side provenance 4値を benchmark 上でも閉じるため、`case_35_calculate_history_target_with_explicit_entity` と対応 observed IR を追加した。
+- `calculate_case_observation`, `benchmark_cases`, case/result README を更新し、`history_target` は explicit entity を伴う ambiguous-owner contrast case で観測する境界を固定した。
+- `CALCULATE` target-side provenance として `calculate_target_resolution` を追加し、`schema_property` / `history_target` / `explicit_target` / `default_target` を分離した。
+- `calculate_resolution`, `IRGenerator`, `CALCULATE` tests、`calculate_case_observation` / role regression table / provenance 文書を同期した。
+- `CALCULATE` source provenance に `default_scope_var` を追加し、exact source を materialize できないケースでも weak retention を観測可能にした。
+- `calculate_resolution`, `ActionSynthesizer`, 関連 unit/integration tests、`calculate_case_observation` / provenance 設計文書 / role regression table を同期した。

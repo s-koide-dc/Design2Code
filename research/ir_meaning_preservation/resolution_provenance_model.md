@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-この文書は、`CALCULATE` で導入した「解決結果そのもの」ではなく「その解決由来を保持する」設計を、`CHECK` と `FILTER` へどう拡張するかを定義するためのものである。
+この文書は、`CALCULATE` で導入した「解決結果そのもの」ではなく「その解決由来を保持する」設計を、`CHECK`, `FILTER`, `RETURN`, `TRANSFORM` へどう拡張するかを定義するためのものである。
 
 ここでの狙いは metadata の追加そのものではない。downstream が過剰具体化を避けるために、どの解決が強く、どの解決が弱いかを deterministic に読めるようにすることが目的である。
 
@@ -17,6 +17,7 @@
 
 - `target_entity = Product`
 - `entity_resolution = unique_owner`
+- `calculate_target_resolution = schema_property`
 
 の 2 層で見ている。`CHECK` と `FILTER` でも同じく、「何になったか」と「なぜそうなったか」を分ける。
 
@@ -32,6 +33,12 @@
 - `FILTER`
   - どの predicate を適用するか
   - その predicate / collection をどの根拠で解決したか
+- `RETURN`
+  - 何を返すか
+  - その return target をどの根拠で解決したか
+- `TRANSFORM`
+  - どの transform operation を適用するか
+  - その transform source をどの根拠で解決したか
 
 ## 4. CHECK Provenance
 
@@ -129,6 +136,74 @@
 - 生成後にしか分からない派生状態
 - runtime の一時的な都合だけで、仕様意味に戻れない情報
 
+## 6.5 RETURN Provenance
+
+### Target
+
+`RETURN` で provenance を付ける対象は `return_value` である。
+
+### Proposed Fields
+
+- `semantic_roles.return_value`
+- `semantic_roles.return_value_resolution`
+- 必要なら `semantic_roles.return_source_node_id`
+
+### Allowed Values
+
+- `literal_boolean`
+- `literal_null`
+- `literal_numeric`
+- `quoted_literal`
+- `explicit_literal`
+- `source_var`
+- `input_link_var`
+
+### Initial Policy
+
+- `literal_*`, `quoted_literal`, `explicit_literal`, `source_var`
+  - downstream で explicit return として扱ってよい
+- `input_link_var`
+  - exact upstream node 限定で返却変数を解決してよい
+- metadata が無い場合
+  - typed latest-var fallback に留める
+
+## 6.6 TRANSFORM Provenance
+
+### Target
+
+`TRANSFORM` で provenance を付ける対象は 2 つである。
+
+1. operation
+2. source
+
+### Proposed Fields
+
+- `semantic_roles.transform_op_resolution`
+- `semantic_roles.transform_source_resolution`
+- 必要なら `semantic_roles.transform_source_node_id`
+
+### Allowed Values
+
+`transform_op_resolution`:
+
+- `explicit_ops`
+
+`transform_source_resolution`:
+
+- `source_var`
+- `input_link_var`
+
+### Initial Policy
+
+- `explicit_ops`
+  - downstream で specialized transform path を使ってよい
+- `source_var`
+  - explicit source をそのまま使ってよい
+- `input_link_var`
+  - exact upstream node 限定で transform source var を解決してよい
+- metadata が無い場合
+  - `active_scope_item` / binder fallback に留める
+
 ## 7. Canonical Reading Rule
 
 今後 provenance metadata を読むときは、次の順を統一する。
@@ -156,6 +231,12 @@
 - `property = Points`
 - `predicate_resolution = logic_goal`
 
+`RETURN` なら:
+
+- `spec_role = RETURN`
+- `return_value = true`
+- `return_value_resolution = literal_boolean`
+
 ## 8. Minimal Implementation Order
 
 順番は次の通りに固定する。
@@ -169,12 +250,14 @@
 
 ## 9. Immediate Next Cases
 
-次に追加すべき補助ケースは 2 つで十分である。
+次に追加すべき補助ケースは 3 つで十分である。
 
 1. `FILTER` predicate provenance case
    - property 比較が logic goal 由来なのか explicit ops 由来なのかを見分ける
 2. `CHECK` subject provenance case
    - quoted literal 由来なのか history subject 由来なのかを見分ける
+3. `RETURN` source provenance case
+   - literal return なのか input-link 由来なのかを見分ける
 
 ## 10. Immediate Decision
 

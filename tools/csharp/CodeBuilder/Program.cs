@@ -78,6 +78,12 @@ public class StatementBlueprint
     [JsonPropertyName("catch_body")] public List<StatementBlueprint> CatchBody { get; set; } = new();
     [JsonPropertyName("text")] public string Text { get; set; } = ""; 
     [JsonPropertyName("code")] public string Code { get; set; } = ""; 
+    [JsonPropertyName("max_attempts")] public int MaxAttempts { get; set; } = 3;
+    [JsonPropertyName("exception_type")] public string ExceptionType { get; set; } = "Exception";
+    [JsonPropertyName("base_delay_ms")] public int BaseDelayMs { get; set; } = 0;
+    [JsonPropertyName("max_delay_ms")] public int MaxDelayMs { get; set; } = 0;
+    [JsonPropertyName("backoff_multiplier")] public double BackoffMultiplier { get; set; } = 1.0;
+    [JsonPropertyName("timeout_ms")] public int TimeoutMs { get; set; } = 30000;
 }
 
 class Program
@@ -181,7 +187,7 @@ class Program
                 methodDecl = methodDecl.WithParameterList(ParameterList(SeparatedList(methodParams)));
             }
 
-            var statements = (mbp.Body ?? new()).Select(s => ConvertStatement(s)).Where(s => s != null).ToList();
+            var statements = (mbp.Body ?? new()).Select(s => ConvertStatement(s, mbp.IsAsync)).OfType<StatementSyntax>().ToList();
             classDecl = classDecl.AddMembers(methodDecl.WithBody(Block(statements)));
         }
 
@@ -231,7 +237,7 @@ class Program
         return root.NormalizeWhitespace().ToFullString();
     }
 
-    static StatementSyntax ConvertStatement(StatementBlueprint s)
+    static StatementSyntax? ConvertStatement(StatementBlueprint s, bool isAsyncMethod = false)
     {
         if (s == null || string.IsNullOrEmpty(s.Type)) return null;
         try {
@@ -292,10 +298,10 @@ class Program
                     }
                     return ExpressionStatement(invoke);
                 case "if":
-                    var ifStmt = IfStatement(ParseExpression(s.Condition), Block((s.Body ?? new()).Select(sub => ConvertStatement(sub)).Where(x => x != null)));
+                    var ifStmt = IfStatement(ParseExpression(s.Condition), Block((s.Body ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>()));
                     if (s.ElseBody != null && s.ElseBody.Count > 0)
                     {
-                        ifStmt = ifStmt.WithElse(ElseClause(Block(s.ElseBody.Select(sub => ConvertStatement(sub)).Where(x => x != null))));
+                        ifStmt = ifStmt.WithElse(ElseClause(Block(s.ElseBody.Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>())));
                     }
                     return ifStmt;
                 case "foreach":
@@ -304,14 +310,190 @@ class Program
                     // Use var for foreach loop variable by default or if requested
                     TypeSyntax itemType = (string.IsNullOrEmpty(s.VarType) || s.VarType == "var") ? IdentifierName("var") : ParseTypeName(s.VarType);
                     return ForEachStatement(itemType, Identifier(item), ParseExpression(src), 
-                        Block((s.Body ?? new()).Select(sub => ConvertStatement(sub)).Where(x => x != null)));
+                        Block((s.Body ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>()));
                 case "while":
-                    return WhileStatement(ParseExpression(s.Condition), Block((s.Body ?? new()).Select(sub => ConvertStatement(sub)).Where(x => x != null)));
+                    return WhileStatement(ParseExpression(s.Condition), Block((s.Body ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>()));
                 case "try":
-                    var tryBlock = Block((s.Body ?? new()).Select(sub => ConvertStatement(sub)).Where(x => x != null));
-                    var catchBlock = Block((s.ElseBody ?? new()).Select(sub => ConvertStatement(sub)).Where(x => x != null));
+                    var tryBlock = Block((s.Body ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>());
+                    var catchBlock = Block((s.ElseBody ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>());
                     var catchClause = CatchClause().WithDeclaration(CatchDeclaration(ParseTypeName("Exception")).WithIdentifier(Identifier("ex"))).WithBlock(catchBlock);
                     return TryStatement().WithBlock(tryBlock).WithCatches(SingletonList(catchClause));
+                case "retry":
+                    var maxAttempts = s.MaxAttempts < 1 ? 1 : s.MaxAttempts;
+                    var lastAttempt = maxAttempts - 1;
+                    var retryVariable = "retryAttempt";
+                    var retryBody = Block((s.Body ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>());
+                    var catchType = string.IsNullOrWhiteSpace(s.ExceptionType) ? "Exception" : s.ExceptionType;
+                    var baseDelayMs = s.BaseDelayMs < 0 ? 0 : s.BaseDelayMs;
+                    var maxDelayMs = s.MaxDelayMs < 0 ? 0 : s.MaxDelayMs;
+                    var backoffMultiplier = s.BackoffMultiplier < 1.0 ? 1.0 : s.BackoffMultiplier;
+                    var catchStatements = new List<StatementSyntax>
+                    {
+                        IfStatement(
+                            BinaryExpression(
+                                SyntaxKind.EqualsExpression,
+                                IdentifierName(retryVariable),
+                                LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(lastAttempt))
+                            ),
+                            ThrowStatement()
+                        )
+                    };
+                    if (baseDelayMs > 0)
+                    {
+                        StatementSyntax delayStatement;
+                        if (isAsyncMethod)
+                        {
+                            delayStatement = ExpressionStatement(
+                                AwaitExpression(
+                                    InvocationExpression(
+                                        MemberAccessExpression(
+                                            SyntaxKind.SimpleMemberAccessExpression,
+                                            IdentifierName("Task"),
+                                            IdentifierName("Delay")
+                                        )
+                                    ).AddArgumentListArguments(
+                                        Argument(IdentifierName("retryDelayMs"))
+                                    )
+                                )
+                            );
+                        }
+                        else
+                        {
+                            delayStatement = ParseStatement("System.Threading.Thread.Sleep(retryDelayMs);\n");
+                        }
+                        catchStatements.Add(delayStatement);
+
+                        string nextDelayExpr = backoffMultiplier > 1.0
+                            ? $"(int)Math.Ceiling(retryDelayMs * {backoffMultiplier.ToString(System.Globalization.CultureInfo.InvariantCulture)})"
+                            : "retryDelayMs";
+                        if (maxDelayMs > 0)
+                        {
+                            catchStatements.Add(ParseStatement($"retryDelayMs = Math.Min({maxDelayMs}, {nextDelayExpr});\n"));
+                        }
+                        else if (backoffMultiplier > 1.0)
+                        {
+                            catchStatements.Add(ParseStatement($"retryDelayMs = {nextDelayExpr};\n"));
+                        }
+                    }
+                    var retryTry = TryStatement()
+                        .WithBlock(retryBody.AddStatements(BreakStatement()))
+                        .WithCatches(
+                            SingletonList(
+                                CatchClause()
+                                    .WithDeclaration(CatchDeclaration(ParseTypeName(catchType)))
+                                    .WithBlock(Block(catchStatements))
+                                )
+                        );
+                    VariableDeclarationSyntax retryDeclaration;
+                    if (baseDelayMs > 0)
+                    {
+                        retryDeclaration = VariableDeclaration(ParseTypeName("int"))
+                            .AddVariables(
+                                VariableDeclarator(Identifier(retryVariable))
+                                    .WithInitializer(
+                                        EqualsValueClause(
+                                            LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(0))
+                                        )
+                                    ),
+                                VariableDeclarator(Identifier("retryDelayMs"))
+                                    .WithInitializer(
+                                        EqualsValueClause(
+                                            LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(baseDelayMs))
+                                        )
+                                    )
+                            );
+                    }
+                    else
+                    {
+                        retryDeclaration = VariableDeclaration(ParseTypeName("var"))
+                            .AddVariables(
+                                VariableDeclarator(Identifier(retryVariable))
+                                    .WithInitializer(
+                                        EqualsValueClause(
+                                            LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(0))
+                                        )
+                                    )
+                            );
+                    }
+                    return ForStatement(
+                            Block(retryTry)
+                        )
+                        .WithDeclaration(retryDeclaration)
+                        .WithCondition(
+                            BinaryExpression(
+                                SyntaxKind.LessThanExpression,
+                                IdentifierName(retryVariable),
+                                LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(maxAttempts))
+                            )
+                        )
+                        .WithIncrementors(
+                            SingletonSeparatedList<ExpressionSyntax>(
+                                PostfixUnaryExpression(
+                                    SyntaxKind.PostIncrementExpression,
+                                    IdentifierName(retryVariable)
+                                )
+                            )
+                        );
+                case "timeout":
+                    var timeoutMs = s.TimeoutMs < 1 ? 1 : s.TimeoutMs;
+                    var timeoutBodyCode = RenderStatementBlock(s.Body ?? new(), isAsyncMethod, 2);
+                    string timeoutCode;
+                    if (isAsyncMethod)
+                    {
+                        timeoutCode =
+$@"{{
+    using var timeoutCts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromMilliseconds({timeoutMs}));
+    var timeoutTask = System.Threading.Tasks.Task.Run(async () =>
+    {{
+{timeoutBodyCode}
+    }}, timeoutCts.Token);
+    try
+    {{
+        await timeoutTask.WaitAsync(timeoutCts.Token);
+    }}
+    catch (System.OperationCanceledException)
+    {{
+        throw new System.TimeoutException(""Operation timed out after {timeoutMs}ms."");
+    }}
+}}";
+                    }
+                    else
+                    {
+                        timeoutCode =
+$@"{{
+    var timeoutTask = System.Threading.Tasks.Task.Run(() =>
+    {{
+{timeoutBodyCode}
+    }});
+    if (!timeoutTask.Wait(System.TimeSpan.FromMilliseconds({timeoutMs})))
+    {{
+        throw new System.TimeoutException(""Operation timed out after {timeoutMs}ms."");
+    }}
+}}";
+                    }
+                    return ParseStatement(timeoutCode + "\n");
+                case "transaction":
+                    var transactionBodyCode = RenderStatementBlock(s.Body ?? new(), isAsyncMethod, 1);
+                    string transactionCode;
+                    if (isAsyncMethod)
+                    {
+                        transactionCode =
+$@"{{
+    using var transactionScope = new System.Transactions.TransactionScope(System.Transactions.TransactionScopeAsyncFlowOption.Enabled);
+{transactionBodyCode}
+    transactionScope.Complete();
+}}";
+                    }
+                    else
+                    {
+                        transactionCode =
+$@"{{
+    using var transactionScope = new System.Transactions.TransactionScope();
+{transactionBodyCode}
+    transactionScope.Complete();
+}}";
+                    }
+                    return ParseStatement(transactionCode + "\n");
                 case "raw":
                     string rawCode = !string.IsNullOrEmpty(s.Code) ? s.Code : s.Text;
                     if (string.IsNullOrWhiteSpace(rawCode)) return EmptyStatement();
@@ -327,6 +509,34 @@ class Program
                     return ParseStatement($"// TODO: Unsupported type '{s.Type}' - {s.Text}\n");
             }
         } catch (Exception ex) { return ParseStatement($"// Build Error in {s.Type}: {ex.Message}\n"); }
+    }
+
+    static string RenderStatementBlock(IEnumerable<StatementBlueprint> statements, bool isAsyncMethod, int indentLevel)
+    {
+        var indent = new string(' ', indentLevel * 4);
+        var lines = new List<string>();
+        foreach (var statement in statements ?? Enumerable.Empty<StatementBlueprint>())
+        {
+            var converted = ConvertStatement(statement, isAsyncMethod);
+            if (converted == null)
+            {
+                continue;
+            }
+            var rendered = converted.NormalizeWhitespace().ToFullString().TrimEnd();
+            if (string.IsNullOrWhiteSpace(rendered))
+            {
+                continue;
+            }
+            foreach (var line in rendered.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
+            {
+                lines.Add(indent + line);
+            }
+        }
+        if (lines.Count == 0)
+        {
+            lines.Add(indent + "// TODO: timeout body");
+        }
+        return string.Join(Environment.NewLine, lines);
     }
 
     static string OptimizeCode(string code)

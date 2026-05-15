@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-この文書は、`CHECK`, `FILTER`, `CALCULATE` に共通する provenance-strength を、downstream の許可操作と禁止操作へ直接対応付けるための matrix である。
+この文書は、`CHECK`, `FILTER`, `CALCULATE`, `RETURN`, `TRANSFORM` に共通する provenance-strength を、downstream の許可操作と禁止操作へ直接対応付けるための matrix である。
 
 `cross_role_provenance_design.md` では設計原理を定義した。この文書では、その原理を `どの strength なら何をしてよいか` という判定表へ落とす。
 
@@ -37,12 +37,12 @@ provenance-strength は次の順で強いものから弱いものへ並ぶ。
 
 ## 4. Cross-Role Matrix
 
-| Strength | Common Rule | `CHECK` | `FILTER` | `CALCULATE` |
-| --- | --- | --- | --- | --- |
-| `explicit` | 明示指定に従って具体化してよい | property-aware condition 可 | property-aware `.Where(...)` 可 | entity / property concretization 可 |
-| `schema_backed` | schema 根拠がある範囲で具体化してよい | schema-backed property lifting 可 | schema-backed property predicate 可 | owner entity への持ち上げ可 |
-| `history_based` | exact scope に限定して補完可 | exact target scope 内だけ subject/property 解決可 | strong shortcut 禁止、既知 collection scope の generic logic path のみ可 | exact target entity 限定で concretization 可 |
-| `default_or_ambiguous` | cross-scope 補完禁止、generic または停止 | generic expression に留める | property-aware filter 禁止、必要なら TODO 停止 | cross-entity fallback 禁止、必要なら TODO 停止 |
+| Strength | Common Rule | `CHECK` | `FILTER` | `CALCULATE` | `RETURN` | `TRANSFORM` |
+| --- | --- | --- | --- | --- | --- | --- |
+| `explicit` | 明示指定に従って具体化してよい | property-aware condition 可 | property-aware `.Where(...)` 可 | entity / property concretization 可 | literal / explicit source return 可 | explicit ops / explicit source transform 可 |
+| `schema_backed` | schema 根拠がある範囲で具体化してよい | schema-backed property lifting 可 | schema-backed property predicate 可 | owner entity への持ち上げ可 | `not used` | `not used` |
+| `history_based` | exact scope に限定して補完可 | exact target scope 内だけ subject/property 解決可 | strong shortcut 禁止、既知 collection scope の generic logic path のみ可 | exact target entity 限定で concretization 可 | exact upstream node 限定で返却 var 解決可 | exact upstream node 限定で transform source var 解決可 |
+| `default_or_ambiguous` | cross-scope 補完禁止、generic または停止 | generic expression に留める | property-aware filter 禁止、必要なら TODO 停止 | cross-entity fallback 禁止、必要なら TODO 停止 | typed latest-var fallback または TODO 停止 | `active_scope_item` / binder fallback に留める |
 
 ## 5. Allowed Operations By Strength
 
@@ -159,6 +159,22 @@ provenance-strength は次の順で強いものから弱いものへ並ぶ。
 - `history_fallback` -> `history_based`
 - `ambiguous` -> `default_or_ambiguous`
 
+### 7.4 `RETURN`
+
+- `literal_boolean` -> `explicit`
+- `literal_null` -> `explicit`
+- `literal_numeric` -> `explicit`
+- `quoted_literal` -> `explicit`
+- `explicit_literal` -> `explicit`
+- `source_var` -> `explicit`
+- `input_link_var` -> `history_based`
+
+### 7.5 `TRANSFORM`
+
+- `explicit_ops` -> `explicit`
+- `source_var` -> `explicit`
+- `input_link_var` -> `history_based`
+
 ## 8. Current Implementation Alignment
 
 現時点の実装は、この matrix と次のように整合している。
@@ -172,6 +188,12 @@ provenance-strength は次の順で強いものから弱いものへ並ぶ。
 - `CALCULATE`
   - `history_fallback`: exact target entity 限定
   - `ambiguous`: cross-entity fallback を止め、必要なら TODO 停止
+- `RETURN`
+  - `literal_*` / `quoted_literal` / `source_var`: latest-var fallback より前に deterministic return を許可
+  - `input_link_var`: exact upstream node id に限定して返却変数を解決
+- `TRANSFORM`
+  - `explicit_ops` / `source_var`: specialized transform path と explicit source を優先
+  - `input_link_var`: exact upstream node id に限定して transform source var を解決
 
 したがって、この matrix は新しい理想論ではなく、すでに入った PoC 実装を role 横断で読めるようにした整理である。
 

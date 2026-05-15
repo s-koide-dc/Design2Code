@@ -3,7 +3,7 @@
 ## 1. Purpose
 
 `ActionSynthesizer` は IR ノードを具体的な合成経路へ落とす orchestration 層である。  
-特に、`spec_role` を runtime execution intent に橋渡しし、`CHECK`, `FILTER`, `CALCULATE`, `DESERIALIZE` の metadata-driven dispatch を担う。
+特に、`spec_role` を runtime execution intent に橋渡しし、`CHECK`, `FILTER`, `CALCULATE`, `DESERIALIZE`, `RETURN`, `TRANSFORM`, `ITERATE` の metadata-driven dispatch を担う。
 
 ## 2. Structured Specification
 
@@ -19,9 +19,19 @@
 1. ノードから `spec_role` を読み、必要なら execution intent を補正する。
    - `DESERIALIZE` -> `JSON_DESERIALIZE`
    - `FILTER` -> `LINQ`
+   - `TRANSFORM` は弱い runtime intent (`GENERAL` / `ACTION`) を `TRANSFORM` に補正する
    - `DISPLAY` は弱い runtime intent を `DISPLAY` に補正する
 2. `audit_only` や project ops を先に処理する。
 3. `LOOP`, `CONDITION`, `RETURN`, `LINQ`, `CALC`, `DISPLAY/TRANSFORM` は専用 handler へ dispatch する。
+  - `RETURN` は `return_value_resolution` がある場合、latest var fallback より前に literal return、explicit `source_var`、または `input_link` 由来の exact upstream var を優先する。
+  - `CALCULATE` は `calculate_source_resolution` がある場合、`active_scope_item` や latest var fallback より前に explicit `source_var` または `input_link` 由来の exact upstream var を優先する。
+  - `calculate_source_resolution=default_scope_var` は weak retention として扱い、exact upstream node を捏造せず current `active_scope_item` に留める。
+  - `TRANSFORM` は `transform_source_resolution` がある場合、`active_scope_item` より前に explicit `source_var` または `input_link` 由来の exact upstream var を優先する。
+   - `ITERATE` は `iteration_source_resolution` がある場合、latest collection より前に exact upstream collection を優先する。
+   - `ITERATE` は `iteration_item_entity` がある場合、weak collection inner type や `Item` より前にそれを loop item 型として優先する。
+   - `iteration_item_var` がある場合は generic `item` ではなくその alias を `foreach` item 名として使う。
+   - nested child は上流の `context history.item_entity` により `target_entity` が補強される前提で property binding する。
+   - `DISPLAY` child に schema-backed `property` がある場合は `display_transform_ops` 側で `item.<Property>` を優先表示する。
 4. `FETCH`, file persist, JSON, IO も専用 handler へ分岐する。
 5. collection 入力で loop 展開が必要な場合は synthetic loop を生成する。
 6. 一般アクションは candidate gathering -> 単一メソッド合成で処理する。

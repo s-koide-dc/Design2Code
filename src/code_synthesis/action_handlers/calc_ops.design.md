@@ -3,7 +3,7 @@
 ## 1. Purpose
 
 `calc_ops` は `CALC` ノードを具体的な C# 計算・更新・集計文へ変換する。  
-現在は `entity_resolution` に応じて concretization の強さを変え、曖昧な entity 解決では cross-entity fallback を禁止する。
+現在は `entity_resolution` に応じて concretization の強さを変え、曖昧な entity 解決では cross-entity fallback を禁止する。加えて `calculate_target_resolution` により target/property 側の強さも観測できる。
 
 ## 2. Structured Specification
 
@@ -21,10 +21,11 @@
    - `unique_owner` / `explicit_entity`: 通常 concretization を許可する。
    - `history_fallback`: exact target に閉じた fallback のみ許可する。
    - `ambiguous`: cross-entity fallback を禁止する。
-3. target property / target hint / logic goals から assignment target を決める。
-4. `datetime` hint, `%`, quantity/price, rate rules, aggregation/update intent を考慮して式を組み立てる。
-5. 曖昧解決で安全に target を決められない場合は property assignment を作らず、明示 TODO 停止へ寄せる。
-6. 集計では accumulator 変数を生成し、path に登録する。
+3. `calculate_target_resolution` を読み、target/property が schema-backed か weak retention かを説明可能に保つ。
+4. target property / target hint / logic goals から assignment target を決める。
+5. `datetime` hint, `%`, quantity/price, rate rules, aggregation/update intent を考慮して式を組み立てる。
+6. 曖昧解決や weak target provenance で安全に target を決められない場合は property assignment や generic numeric-property fallback を作らず、明示 TODO 停止へ寄せる。
+7. 集計では accumulator 変数を生成し、path に登録する。
 
 ### Test Cases
 - **Happy Path**:

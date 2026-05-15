@@ -18,7 +18,7 @@
 
 ## 3. Code-Level Observation
 
-発生点は [ir_generator.py](/C:/workspace/NLP/src/ir_generator/ir_generator.py:843) 付近にある。
+発生点は [ir_generator.py](src/ir_generator/ir_generator.py:843) 付近にある。
 
 現行ロジックでは `CALC` へ上がる主条件が、
 

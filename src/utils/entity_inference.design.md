@@ -15,12 +15,13 @@
 - **Type/Format**: `str`
 
 ### Core Logic
-1. history がある場合は `context_entity` を直前 `target_entity` から初期化する。
+1. history がある場合は `context_entity` を直前 `target_entity` から初期化し、loop item continuity がある場合は `item_entity` も読む。
 2. morph analyzer がある場合は token の base/surface を取得する。
 3. entity schema の各 entity について `keywords` を走査し、token または lower text と一致した最初の entity を返す。
-4. 一致が無い場合、`allow_history_fallback=True` なら強い context entity を返す。
-5. schema 上の entity が 1 つだけなら、その entity を返す。
-6. それ以外は `allow_history_fallback` の設定に応じて `context_entity` または `Item` を返す。
+4. 一致が無い場合、`allow_history_fallback=True` なら `item_entity` を `target_entity` より優先して返す。
+5. それでも無ければ強い context entity を返す。
+6. schema 上の entity が 1 つだけなら、その entity を返す。
+7. それ以外は `allow_history_fallback` の設定に応じて `context_entity` または `Item` を返す。
 
 ### Test Cases
 - **Happy Path**:
@@ -29,6 +30,9 @@
 - **Edge Cases**:
   - **Scenario**: keyword 一致なし、history fallback 無効。
   - **Expected Output / Behavior**: `Item` を返す。
+
+## 5. Notes
+- loop node が `iteration_item_entity` / `iteration_item_var` を `context history` に残している場合、nested child の entity inference は item entity continuity を通常の `target_entity` history より優先し、downstream は同じ loop item alias を維持しやすくなる。
 
 ## 3. Dependencies
 - **Internal**: なし

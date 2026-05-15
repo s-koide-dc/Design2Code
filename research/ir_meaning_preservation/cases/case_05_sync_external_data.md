@@ -107,7 +107,9 @@
           }
         ],
         "semantic_roles": {
-          "spec_role": "RETURN"
+          "spec_role": "RETURN",
+          "return_value": "true",
+          "return_value_resolution": "literal_boolean"
         }
       },
       "children": [],
@@ -136,7 +138,7 @@ See `research/ir_meaning_preservation/results/observed_ir/case_05_sync_external_
 - 大きな直列構造は保持された
 - `HTTP_REQUEST.role` が `FETCH` ではなく `READ`
 - `PERSIST.cardinality` が `COLLECTION` 期待に対して `SINGLE`
-- `RETURN` ノードの補助意味情報が薄い
+- `RETURN` の runtime role はなお粗いが、literal return metadata 自体は保持できるようになった
 
 ## Failure Mapping
 

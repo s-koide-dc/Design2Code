@@ -73,6 +73,8 @@ class ActionSynthesizer:
             return "JSON_DESERIALIZE"
         if spec_role == "FILTER":
             return "LINQ"
+        if spec_role == "TRANSFORM" and intent in ["GENERAL", "ACTION"]:
+            return "TRANSFORM"
         if spec_role == "DISPLAY" and intent in ["GENERAL", "ACTION", "TRANSFORM"]:
             return "DISPLAY"
         return intent
@@ -97,6 +99,8 @@ class ActionSynthesizer:
     def process_node(self, node: Dict[str, Any], path: Dict[str, Any], future_hint: str = None, consumed_ids: set = None) -> List[Dict[str, Any]]:
         node_type = node.get("type", "ACTION")
         intent = self._get_execution_intent(node)
+        runtime_node = safe_copy_node(node)
+        runtime_node["intent"] = intent
         roles = self._get_semantic_roles(node)
         if roles.get("audit_only"):
             new_p = self.synthesizer._copy_path(path)
@@ -116,18 +120,18 @@ class ActionSynthesizer:
             if project_ops is not None:
                 return project_ops
         if node_type == "LOOP":
-            return handle_loop(self, node, path, consumed_ids=consumed_ids)
+            return handle_loop(self, runtime_node, path, consumed_ids=consumed_ids)
         if node_type == "CONDITION":
-            return handle_condition(self, node, path, consumed_ids=consumed_ids)
+            return handle_condition(self, runtime_node, path, consumed_ids=consumed_ids)
         if intent == "RETURN":
-            return handle_return(self, node, path)
+            return handle_return(self, runtime_node, path)
         if intent == "LINQ":
-            return handle_linq(self, node, path)
+            return handle_linq(self, runtime_node, path)
 
-        stdin_paths = handle_fetch(self, node, path)
+        stdin_paths = handle_fetch(self, runtime_node, path)
         if stdin_paths is not None:
             return stdin_paths
-        file_persist_paths = handle_file_persist(self, node, path)
+        file_persist_paths = handle_file_persist(self, runtime_node, path)
         if file_persist_paths is not None:
             return file_persist_paths
 
@@ -135,13 +139,13 @@ class ActionSynthesizer:
             is_transform_to_single = (intent == "TRANSFORM" and not any(k in str(node.get("output_type", "")).lower() for k in ["list", "enumerable", "[]"]))
             if intent not in ["JSON_DESERIALIZE", "FETCH", "DATABASE_QUERY"] or is_transform_to_single:
                 if intent != "RETURN":
-                    return self._expand_to_synthetic_loop(node, path)
+                    return self._expand_to_synthetic_loop(runtime_node, path)
         
         if intent == "CALC":
-            return handle_calc(self, node, path)
+            return handle_calc(self, runtime_node, path)
         
         if intent in ["DISPLAY", "TRANSFORM"]:
-            res = handle_display_transform(self, node, path)
+            res = handle_display_transform(self, runtime_node, path)
             if res is not None:
                 return res
         
@@ -153,27 +157,27 @@ class ActionSynthesizer:
                 htn_plan = None
         
         if htn_plan and len(htn_plan) > 1:
-            return handle_htn_plan(self, node, path, htn_plan)
+            return handle_htn_plan(self, runtime_node, path, htn_plan)
 
         if intent == "DATABASE_QUERY":
-            return handle_io(self, node, path)
+            return handle_io(self, runtime_node, path)
         if intent == "HTTP_REQUEST":
-            return handle_io(self, node, path)
+            return handle_io(self, runtime_node, path)
         if intent == "JSON_DESERIALIZE":
-            return handle_json(self, node, path)
+            return handle_json(self, runtime_node, path)
         
-        candidates = gather_candidates(self, node, path, target_entity)
+        candidates = gather_candidates(self, runtime_node, path, target_entity)
         results = []
         for m in candidates:
             if "steps" in m:
-                results.extend(self._process_htn_plan(node, path, m["steps"]))
+                results.extend(self._process_htn_plan(runtime_node, path, m["steps"]))
             else:
-                res = self._synthesize_single_method(m, node, path, target_entity, future_hint=future_hint)
+                res = self._synthesize_single_method(m, runtime_node, path, target_entity, future_hint=future_hint)
                 if res:
                     res.setdefault("consumed_ids", set()).add(node.get("id"))
                     results.append(res)
         if not results:
-            fallback_paths = apply_fallbacks(self, node, path)
+            fallback_paths = apply_fallbacks(self, runtime_node, path)
             if fallback_paths is not None:
                 return fallback_paths
         if not results:
@@ -260,18 +264,34 @@ class ActionSynthesizer:
             child["else_children"] = []
             node["children"] = [child]
         coll_var, coll_type = None, None
-        for vt, vs in reversed(list(path["type_to_vars"].items())):
-            if any(k in vt for k in ["IEnumerable", "List", "[]"]) and vt != "string":
-                coll_var, coll_type = vs[-1]["var_name"], vt
-                break
+        preferred_collection_var = self._resolve_iterate_source_var(node, path)
+        if preferred_collection_var:
+            for vt, vs in reversed(list(path["type_to_vars"].items())):
+                if not any(k in vt for k in ["IEnumerable", "List", "[]"]) or vt == "string":
+                    continue
+                for entry in reversed(vs or []):
+                    if isinstance(entry, dict) and entry.get("var_name") == preferred_collection_var:
+                        coll_var, coll_type = preferred_collection_var, vt
+                        break
+                if coll_var:
+                    break
+        if not coll_var:
+            for vt, vs in reversed(list(path["type_to_vars"].items())):
+                if any(k in vt for k in ["IEnumerable", "List", "[]"]) and vt != "string":
+                    coll_var, coll_type = vs[-1]["var_name"], vt
+                    break
         if not coll_var:
             return []
+        semantic_roles = self._get_semantic_roles(node)
+        explicit_item_entity = str(semantic_roles.get("iteration_item_entity") or "").strip()
+        explicit_item_var = str(semantic_roles.get("iteration_item_var") or "").strip()
         inner = self.type_system.extract_generic_inner(coll_type)
-        item_type = inner if inner else "var"
+        item_type = explicit_item_entity or inner or "var"
         if item_type == "var" and node.get("target_entity"):
             item_type = node.get("target_entity")
         self.stmt_builder.register_entity(item_type, path)
-        item_name = self.stmt_builder.get_semantic_var_name(node, item_type, "loop", path, prefix="item", role="item")
+        item_prefix = explicit_item_var or "item"
+        item_name = self.stmt_builder.get_semantic_var_name(node, item_type, "loop", path, prefix=item_prefix, role="item")
         loop_stmt = {"type": "foreach", "source": coll_var, "item_name": item_name, "var_type": item_type, "body": [], "node_id": node.get("id"), "intent": node.get("intent")}
         consumed = (consumed_ids or set()).copy()
         consumed.add(node.get("id"))
@@ -505,16 +525,12 @@ class ActionSynthesizer:
 
     def _process_return_node(self, node, path) -> List[Dict[str, Any]]:
         new_path = self.synthesizer._copy_path(path)
-        text = node.get("original_text", "").lower()
         desired_type = path.get("method_return_type", "")
         desired_type = self.type_system.unwrap_task_type(desired_type) if desired_type else desired_type
-        literal_val = None
-        if "true" in text or "成功" in text:
-            literal_val = "true"
-        elif "false" in text or "失敗" in text:
-            literal_val = "false"
-        if literal_val and desired_type in ["", "bool", None]:
-            new_path["statements"].append({"type": "raw", "code": f"return {literal_val};", "node_id": node.get("id"), "intent": "RETURN"})
+        semantic_roles = self._get_semantic_roles(node)
+        return_expr = self._build_explicit_return_expression(semantic_roles, path)
+        if return_expr is not None:
+            new_path["statements"].append({"type": "raw", "code": f"return {return_expr};", "node_id": node.get("id"), "intent": "RETURN"})
         else:
             ret_var = None
             if desired_type:
@@ -536,6 +552,131 @@ class ActionSynthesizer:
         new_path.setdefault("consumed_ids", set()).add(node.get("id"))
         new_path["completed_nodes"] += 1
         return [new_path]
+
+    def _build_explicit_return_expression(self, semantic_roles: Dict[str, Any], path: Dict[str, Any]) -> Optional[str]:
+        if not semantic_roles:
+            return None
+        resolution = str(semantic_roles.get("return_value_resolution") or "").strip().lower()
+        if resolution == "input_link_var":
+            source_node_id = str(semantic_roles.get("return_source_node_id") or "").strip()
+            if not source_node_id:
+                return None
+            resolved_var = self._resolve_var_by_node_id(
+                path,
+                source_node_id,
+                preferred_type=self.type_system.unwrap_task_type(path.get("method_return_type", "") or ""),
+            )
+            return resolved_var
+        if "return_value" not in semantic_roles:
+            return None
+        return_value = semantic_roles.get("return_value")
+        if resolution == "source_var":
+            all_vars = {v.get("var_name") for vs in path.get("type_to_vars", {}).values() for v in vs if isinstance(v, dict)}
+            if return_value in all_vars:
+                return str(return_value)
+            return None
+        if resolution in ["literal_boolean", "literal_null", "literal_numeric"]:
+            return str(return_value)
+        if resolution in ["quoted_literal", "explicit_literal"]:
+            return to_csharp_string_literal(str(return_value))
+        return None
+
+    def _resolve_var_by_node_id(
+        self,
+        path: Dict[str, Any],
+        source_node_id: str,
+        preferred_type: Optional[str] = None,
+    ) -> Optional[str]:
+        type_to_vars = path.get("type_to_vars", {}) or {}
+
+        if preferred_type:
+            matching_vars = type_to_vars.get(preferred_type, [])
+            for entry in reversed(matching_vars):
+                if isinstance(entry, dict) and str(entry.get("node_id") or "").strip() == source_node_id:
+                    return entry.get("var_name")
+
+        for _, vars_for_type in reversed(list(type_to_vars.items())):
+            for entry in reversed(vars_for_type or []):
+                if isinstance(entry, dict) and str(entry.get("node_id") or "").strip() == source_node_id:
+                    return entry.get("var_name")
+        return None
+
+    def _resolve_transform_source_var(self, node: Dict[str, Any], path: Dict[str, Any]) -> Optional[str]:
+        semantic_roles = self._get_semantic_roles(node)
+        resolution = str(semantic_roles.get("transform_source_resolution") or "").strip().lower()
+        if resolution == "source_var":
+            source_var = str(semantic_roles.get("source_var") or "").strip()
+            if not source_var:
+                return None
+            all_vars = {
+                v.get("var_name")
+                for vars_for_type in (path.get("type_to_vars", {}) or {}).values()
+                for v in (vars_for_type or [])
+                if isinstance(v, dict)
+            }
+            return source_var if source_var in all_vars else None
+        if resolution == "input_link_var":
+            source_node_id = str(semantic_roles.get("transform_source_node_id") or "").strip()
+            if not source_node_id:
+                return None
+            preferred_type = str(node.get("output_type") or "").strip()
+            if preferred_type and preferred_type not in ["void", "bool"]:
+                resolved = self._resolve_var_by_node_id(path, source_node_id, preferred_type=preferred_type)
+                if resolved:
+                    return resolved
+            return self._resolve_var_by_node_id(path, source_node_id)
+        return None
+
+    def _resolve_iterate_source_var(self, node: Dict[str, Any], path: Dict[str, Any]) -> Optional[str]:
+        semantic_roles = self._get_semantic_roles(node)
+        resolution = str(semantic_roles.get("iteration_source_resolution") or "").strip().lower()
+        if resolution == "source_var":
+            source_var = str(semantic_roles.get("source_var") or "").strip()
+            if not source_var:
+                return None
+            all_vars = {
+                v.get("var_name")
+                for vars_for_type in (path.get("type_to_vars", {}) or {}).values()
+                for v in (vars_for_type or [])
+                if isinstance(v, dict)
+            }
+            return source_var if source_var in all_vars else None
+        if resolution == "input_link_collection":
+            source_node_id = str(semantic_roles.get("iteration_source_node_id") or "").strip()
+            if not source_node_id:
+                return None
+            type_to_vars = path.get("type_to_vars", {}) or {}
+            for var_type, vars_for_type in reversed(list(type_to_vars.items())):
+                if not any(k in str(var_type) for k in ["IEnumerable", "List", "[]"]):
+                    continue
+                for entry in reversed(vars_for_type or []):
+                    if isinstance(entry, dict) and str(entry.get("node_id") or "").strip() == source_node_id:
+                        return entry.get("var_name")
+        return None
+
+    def _resolve_calculate_source_var(self, node: Dict[str, Any], path: Dict[str, Any]) -> Optional[str]:
+        semantic_roles = self._get_semantic_roles(node)
+        resolution = str(semantic_roles.get("calculate_source_resolution") or "").strip().lower()
+        if resolution == "source_var":
+            source_var = str(semantic_roles.get("source_var") or "").strip()
+            if not source_var:
+                return None
+            all_vars = {
+                v.get("var_name")
+                for vars_for_type in (path.get("type_to_vars", {}) or {}).values()
+                for v in (vars_for_type or [])
+                if isinstance(v, dict)
+            }
+            return source_var if source_var in all_vars else None
+        if resolution == "input_link_var":
+            source_node_id = str(semantic_roles.get("calculate_source_node_id") or "").strip()
+            if not source_node_id:
+                return None
+            return self._resolve_var_by_node_id(path, source_node_id)
+        if resolution == "default_scope_var":
+            scope_var = path.get("active_scope_item")
+            return scope_var if isinstance(scope_var, str) and scope_var.strip() else None
+        return None
 
     def _expand_to_synthetic_loop(self, node, path) -> List[Dict[str, Any]]:
         synthetic_loop_node = copy.deepcopy(node)

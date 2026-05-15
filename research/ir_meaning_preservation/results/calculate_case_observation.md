@@ -10,6 +10,8 @@
 - `case_13_calculate_without_target_hint`
 - `case_14_calculate_ambiguous_property_owner`
 - `case_15_calculate_history_fallback_gap`
+- `case_35_calculate_history_target_with_explicit_entity`
+- `case_36_calculate_default_target_retention`
 
 ## Summary
 
@@ -39,6 +41,7 @@ Reading:
 - Observed IR: `intent=CALC`, `role=CALC`, `spec_role=CALCULATE`
 - Preserved metadata: `semantic_roles.target_hint=Total`, `property=Total`
 - Resolution metadata: `semantic_roles.entity_resolution=ambiguous`
+- Target provenance: `semantic_roles.calculate_target_resolution=explicit_target`
 - Entity result: `target_entity=Item` のまま維持
 
 Reading:
@@ -52,6 +55,7 @@ Reading:
 - Observed IR: `intent=CALC`, `role=CALC`, `spec_role=CALCULATE`
 - Preserved metadata: `semantic_roles.target_hint=Total`, `property=Total`
 - Resolution metadata: `semantic_roles.entity_resolution=history_fallback`
+- Target provenance: `semantic_roles.calculate_target_resolution=explicit_target`
 - Entity result: `target_entity=Order`
 
 Reading:
@@ -60,6 +64,35 @@ Reading:
 - `history_fallback` が upstream 観測でも独立に残るようになった
 - 一般の `target_entity` 推定と `CALCULATE` 専用 resolution の責務を分離したことで、history 由来の補正を `explicit_entity` に吸収しなくなった
 - ただし `semantic_roles.target_entity` は no-history base を保持するため、後続 `DISPLAY` の metadata では `Item` に留まる
+
+### Case 35: Calculate History Target With Explicit Entity
+
+- Observed IR: `intent=CALC`, `role=CALC`, `spec_role=CALCULATE`
+- Preserved metadata: `semantic_roles.target_entity=Order`, `target_hint=Total`, `property=Total`
+- Resolution metadata:
+  - `semantic_roles.entity_resolution=explicit_entity`
+  - `semantic_roles.calculate_target_resolution=history_target`
+  - `semantic_roles.calculate_source_resolution=input_link_var`
+
+Reading:
+
+- property owner 自体は `Order.Total` / `Invoice.Total` に分かれるため schema-backed target にはならない
+- ただし current exact scope は explicit `target_entity=Order` で与えられているため、property-side provenance は `history_target` まで上げられる
+- これは natural-language only の case 15 と異なり、entity 側と target-side provenance 側を別々に説明できるケースである
+
+### Case 36: Calculate Default Target Retention
+
+- Observed IR: `intent=CALC`, `spec_role=CALCULATE`
+- Preserved metadata:
+  - `semantic_roles.target_entity=Item`
+  - `semantic_roles.calculate_target_resolution=default_target`
+  - `semantic_roles.calculate_source_resolution=default_scope_var`
+
+Reading:
+
+- `CALCULATE` role 自体は explicit intent から成立している
+- ただし target/property metadata が無いため、target-side provenance は `default_target` に留まる
+- source 側も upstream source を持たないため `default_scope_var` に留まり、target/source の両方が weak retention である最小ケースになっている
 
 ## Initial Conclusion
 
@@ -97,6 +130,34 @@ Reading:
 - したがって、この改善は research 上も deterministic metadata bridge として説明できる
 - `CALCULATE` の昇格と `target_entity` 補正は別段階になっており、schema がないケースや owner ambiguity があるケースでは `Item` に留まる
 - `history_fallback` は downstream policy だけでなく、upstream 観測上の説明変数としても独立に扱えるようになった
+
+## Source Provenance Follow-up
+
+`CALCULATE` の source 側でも、success と weak retention の境界を明示した。
+
+- explicit `source_var` がある場合は `calculate_source_resolution=source_var`
+- structural upstream source がある場合は `calculate_source_resolution=input_link_var`
+- どちらも無い場合は silent fallback にせず `calculate_source_resolution=default_scope_var`
+
+Reading:
+
+- `default_scope_var` は source 推定の失敗ではなく、weak provenance を観測可能に残した状態である
+- downstream はこの状態で exact upstream source を捏造せず、`active_scope_item` に留まる
+- したがって `CALCULATE` の source continuity も `RETURN` / `TRANSFORM` と同じく `supply success` と `weak retention` に分けて説明できる
+
+## Target Provenance Follow-up
+
+target 側でも、entity 補正とは別に property/target の強さを切り出した。
+
+- canonical property owner が一意な場合は `calculate_target_resolution=schema_property`
+- canonical property は複数 owner にまたがり current target entity が exact scope で決まる場合は `calculate_target_resolution=history_target`
+- explicit `target_hint/property` はあるが canonical property へ上がらない場合は `calculate_target_resolution=explicit_target`
+- target metadata 自体が無い manual / weak case は `calculate_target_resolution=default_target`
+
+Reading:
+
+- `entity_resolution` は entity 側の強さ、`calculate_target_resolution` は property/target 側の強さであり、役割を分けて読む
+- `explicit_target` は weak retention であり、schema-backed property-aware concretization を意味しない
 
 ## Next Target
 

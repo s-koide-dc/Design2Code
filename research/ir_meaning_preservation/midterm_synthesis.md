@@ -29,9 +29,9 @@
 
 少なくとも初期研究基盤は固定できている。
 
-- 保存対象の観点は [evaluation.md](/C:/workspace/NLP/research/ir_meaning_preservation/evaluation.md:1) で定義済み
-- benchmark coverage は [benchmark_cases.md](/C:/workspace/NLP/research/ir_meaning_preservation/benchmark_cases.md:1) で整理済み
-- 初回 5 ケースの失敗分類は [failure_mapping.md](/C:/workspace/NLP/research/ir_meaning_preservation/results/failure_mapping.md:1) で固定済み
+- 保存対象の観点は [evaluation.md](research/ir_meaning_preservation/evaluation.md:1) で定義済み
+- benchmark coverage は [benchmark_cases.md](research/ir_meaning_preservation/benchmark_cases.md:1) で整理済み
+- 初回 5 ケースの失敗分類は [failure_mapping.md](research/ir_meaning_preservation/results/failure_mapping.md:1) で固定済み
 
 これにより、改善前後を比較するための基準面はすでに成立している。
 
@@ -53,6 +53,11 @@
 - `CHECK`
 - `CALCULATE`
 - `FILTER`
+- `RETURN`
+- `TRANSFORM`
+- `ITERATE`
+- `WRAP`
+- `DISPLAY`
 - structural dependency
 - `spec_role` / `runtime_role` separation
 
@@ -135,7 +140,7 @@ representative case の current status は
 - 構造ブロック最初の子は structural parent に依存する
 - 同一ブロック内の後続 sibling は直前 sibling に依存する
 
-この原理は [structural_dependency_rule.md](/C:/workspace/NLP/research/ir_meaning_preservation/structural_dependency_rule.md:1) に固定され、実装側にも反映済みである。
+この原理は [structural_dependency_rule.md](research/ir_meaning_preservation/structural_dependency_rule.md:1) に固定され、実装側にも反映済みである。
 
 ## 5. What Has Been Implemented As Research-Backed Change
 
@@ -146,8 +151,14 @@ representative case の current status は
 - `CHECK.subject_resolution`
 - `CALCULATE` promotion
 - `CALCULATE.entity_resolution`
+- `CALCULATE` source / target provenance
 - downstream conservatism for ambiguous `CALCULATE`
 - `FILTER` promotion with predicate/context conditions
+- `RETURN` literal / source provenance
+- `TRANSFORM` source provenance
+- `ITERATE` collection / item continuity
+- `WRAP` retry / timeout / transaction consumer
+- `DISPLAY` property-side provenance
 - structural dependency repair for `ELSE` and block siblings
 - `IRGenerator` decomposition aligned to research domains
 
@@ -155,14 +166,15 @@ representative case の current status は
 
 ## 6. What Is Not Yet Fully Established
 
-### 6.1 Cross-Role Generalization Is Incomplete
+### 6.1 Cross-Role Generalization Is Better, But Not Final
 
-`entity_resolution` 相当の由来 metadata は、まだ `CALCULATE` で最も成熟している。
+`entity_resolution` 相当の由来 metadata は、当初は `CALCULATE` で最も成熟していたが、現在は `RETURN`, `TRANSFORM`, `ITERATE`, `WRAP`, `DISPLAY` までかなり広がっている。
 
-`CHECK` と `FILTER` では拡張が始まっているが、
+ただし、
 
-- すべての resolution class が観測で閉じているわけではない
-- downstream conservatism まで一貫しているわけではない
+- すべての role で定量比較があるわけではない
+- wrapper kind の非明示推定は未実施である
+- `runtime / schema / policy` の最終境界主張はまだ圧縮余地がある
 
 ### 6.2 Summary-Level Claim Is Stronger Than Paper-Level Claim
 
@@ -176,7 +188,7 @@ representative case の current status は
 
 ### 6.3 IRGenerator Decomposition Is Advanced but Not Final
 
-[ir_generator_decomposition_plan.md](/C:/workspace/NLP/research/ir_meaning_preservation/ir_generator_decomposition_plan.md:1) に沿って、domain helper 化と in-file decomposition はかなり進んだ。
+[ir_generator_decomposition_plan.md](research/ir_meaning_preservation/ir_generator_decomposition_plan.md:1) に沿って、domain helper 化と in-file decomposition はかなり進んだ。
 
 ただしこれは最終アーキテクチャではない。
 
@@ -203,17 +215,18 @@ representative case の current status は
 - `Phase 1: baseline construction`
   - 完了
 - `Phase 2: major failure localization and PoC`
-  - 大部分完了
+  - 完了に近い
 - `Phase 3: generalization and synthesis`
-  - 進行中
+  - 後半
 
-したがって、今は「次のケースを増やすこと」そのものより、「どの知見を一般原理として主張するか」を整理する優先度が高い。
+したがって、今は「次のケースを増やすこと」そのものより、「どの知見を一般原理として主張し、どこで閉じるか」を整理する優先度が高い。
 
 ## 9. Recommended Next Step
 
-中間統括の次にやるべきことは、次のどちらかである。
+中間統括の次にやるべきことは、次のどれかである。
 
-1. `claim -> evidence -> implementation -> checklist` の一貫性を最終点検する
-2. ここまでの成果を外向け報告用にさらに圧縮する
+1. closed role 群の横断 summary と未解決 inventory を揃える
+2. `claim -> evidence -> implementation -> checklist` の一貫性を最終点検する
+3. ここまでの成果を外向け報告用にさらに圧縮する
 
-現段階では、新論点を広げるより、この 2 つで研究を閉じに行く方が価値が高い。
+現段階では、新論点を広げるより、この 3 つで研究を閉じに行く方が価値が高い。

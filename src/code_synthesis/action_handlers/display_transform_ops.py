@@ -9,7 +9,9 @@ def process_transform_ops(action_synthesizer, node: Dict[str, Any], path: Dict[s
     intent = node.get("intent")
     output_type = node.get("output_type", "string")
     ops_set = {o.lower() for o in ops}
-    source_var = path.get("active_scope_item")
+    source_var = action_synthesizer._resolve_transform_source_var(node, path)
+    if not source_var:
+        source_var = path.get("active_scope_item")
     transform_ops = action_synthesizer.ukb.get("transform_ops", {}) if (action_synthesizer.ukb and hasattr(action_synthesizer.ukb, "get")) else {}
     if not source_var:
         res = action_synthesizer.semantic_binder._resolve_source_var(node, path, "string")

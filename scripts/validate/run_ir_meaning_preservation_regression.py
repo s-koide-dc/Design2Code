@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import io
+import re
 import subprocess
 import sys
+from contextlib import redirect_stdout
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -81,11 +84,39 @@ def parse_args() -> argparse.Namespace:
         choices=sorted(TEST_SUITES.keys()),
         help="Predefined test suite to run after the mandatory validators.",
     )
+    parser.add_argument(
+        "--write-draft",
+        action="store_true",
+        help="Write the generated draft blocks to a markdown file.",
+    )
+    parser.add_argument(
+        "--draft-file",
+        type=Path,
+        help="Optional path for the generated draft markdown file. Defaults to <run-file>.runner_draft.md",
+    )
+    parser.add_argument(
+        "--update-run-file",
+        action="store_true",
+        help="Rewrite the run file in place using the current draft generators.",
+    )
     return parser.parse_args()
 
 
 def resolve_run_file(raw_path: Path) -> Path:
     return raw_path if raw_path.is_absolute() else (PROJECT_ROOT / raw_path).resolve()
+
+
+def resolve_draft_file(run_file: Path, raw_path: Path | None) -> Path:
+    if raw_path is not None:
+        return raw_path if raw_path.is_absolute() else (PROJECT_ROOT / raw_path).resolve()
+    return run_file.with_name(f"{run_file.stem}.runner_draft.md")
+
+
+def display_path(path: Path) -> str:
+    try:
+        return path.relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def build_steps(run_file: Path, test_suite: str) -> list[tuple[str, list[str]]]:
@@ -457,6 +488,37 @@ def print_output_and_deliverables_draft_snippet(run_file: Path) -> None:
     print("```")
 
 
+def print_final_judgment_draft_snippet(run_file: Path) -> None:
+    draft = extract_run_record_draft_inputs(run_file)
+
+    print("\n--- Paste-Ready Final Judgment Draft ---")
+    print("```md")
+    print("## 10. Final Judgment")
+    print("")
+    print("- **Regression status**:")
+    regression_status = draft["regression_status"]
+    if isinstance(regression_status, list) and regression_status:
+        for item in regression_status:
+            print(f"  - `{item}`")
+    else:
+        print("  - `no regression observed`")
+    print("- **Open risks**:")
+    open_risks = draft["open_risks"]
+    if isinstance(open_risks, list) and open_risks:
+        for item in open_risks:
+            print(f"  - {item}")
+    else:
+        print("  - なし")
+    print("- **Next action**:")
+    next_action = draft["next_action"]
+    if isinstance(next_action, str) and next_action:
+        for line in next_action.splitlines():
+            normalized = normalize_draft_line(line)
+            if normalized:
+                print(f"  - {normalized}")
+    print("```")
+
+
 def print_markdown_snippet(results: list[StepResult], run_file: Path, test_suite: str) -> None:
     summary_by_name = {result.name: result for result in results}
     print("\n--- Paste-Ready Validation Block ---")
@@ -503,6 +565,70 @@ def print_markdown_snippet(results: list[StepResult], run_file: Path, test_suite
     print("```")
 
 
+def render_text_block(renderer, *args) -> str:
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        renderer(*args)
+    return buffer.getvalue().strip()
+
+
+def extract_markdown_code_block(rendered: str) -> str:
+    match = re.search(r"```md\s*(.*?)\s*```", rendered, re.DOTALL)
+    if not match:
+        raise ValueError("Expected fenced ```md block was not found in rendered draft output.")
+    return match.group(1).strip()
+
+
+def build_run_file_content(results: list[StepResult], run_file: Path, test_suite: str) -> str:
+    existing_text = run_file.read_text(encoding="utf-8")
+    first_line = existing_text.splitlines()[0].strip() if existing_text.splitlines() else ""
+    title = first_line if first_line.startswith("# ") else "# IR Meaning Preservation Regression Run"
+
+    summary_block = extract_markdown_code_block(render_text_block(print_summary_draft_snippet, run_file))
+    claims_block = extract_markdown_code_block(
+        render_text_block(print_claims_and_downstream_draft_snippet, run_file)
+    )
+    checks_block = extract_markdown_code_block(render_text_block(print_check_draft_snippet, run_file))
+    validation_block = extract_markdown_code_block(
+        render_text_block(print_markdown_snippet, results, run_file, test_suite)
+    )
+    output_block = extract_markdown_code_block(
+        render_text_block(print_output_and_deliverables_draft_snippet, run_file)
+    )
+    judgment_block = extract_markdown_code_block(
+        render_text_block(print_final_judgment_draft_snippet, run_file)
+    )
+
+    sections = [
+        title,
+        summary_block,
+        claims_block,
+        checks_block,
+        "## 7. Validation Run\n\n" + validation_block,
+        output_block,
+        judgment_block,
+    ]
+    return "\n\n".join(section.strip() for section in sections if section.strip()) + "\n"
+
+
+def write_draft_file(draft_file: Path, results: list[StepResult], run_file: Path, test_suite: str) -> None:
+    sections = [
+        f"# Regression Runner Draft Bundle\n\n- Source run file: `{run_file.relative_to(PROJECT_ROOT).as_posix()}`\n- Test suite: `{test_suite}`",
+        render_text_block(print_regression_checks, run_file),
+        render_text_block(print_summary_draft_snippet, run_file),
+        render_text_block(print_claims_and_downstream_draft_snippet, run_file),
+        render_text_block(print_check_draft_snippet, run_file),
+        render_text_block(print_output_and_deliverables_draft_snippet, run_file),
+        render_text_block(print_final_judgment_draft_snippet, run_file),
+        render_text_block(print_markdown_snippet, results, run_file, test_suite),
+    ]
+    draft_file.write_text("\n\n".join(section for section in sections if section), encoding="utf-8")
+
+
+def update_run_file(run_file: Path, results: list[StepResult], test_suite: str) -> None:
+    run_file.write_text(build_run_file_content(results, run_file, test_suite), encoding="utf-8")
+
+
 def main() -> int:
     args = parse_args()
     run_file = resolve_run_file(args.run_file)
@@ -537,7 +663,15 @@ def main() -> int:
     print_claims_and_downstream_draft_snippet(run_file)
     print_check_draft_snippet(run_file)
     print_output_and_deliverables_draft_snippet(run_file)
+    print_final_judgment_draft_snippet(run_file)
     print_markdown_snippet(results, run_file, args.test_suite)
+    if args.update_run_file:
+        update_run_file(run_file, results, args.test_suite)
+        print(f"\nRun file updated: {display_path(run_file)}")
+    if args.write_draft:
+        draft_file = resolve_draft_file(run_file, args.draft_file)
+        write_draft_file(draft_file, results, run_file, args.test_suite)
+        print(f"\nDraft file written: {display_path(draft_file)}")
     return 0
 
 

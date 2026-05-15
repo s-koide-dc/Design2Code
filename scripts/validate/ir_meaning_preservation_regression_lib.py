@@ -148,6 +148,7 @@ def extract_run_record_draft_inputs(run_file: Path) -> dict[str, list[str] | str
     downstream_conservatism = sections.get("## 6. Downstream Conservatism Check", "")
     output_path = sections.get("## 8. Output Path Check", "")
     deliverables = sections.get("## 9. Deliverables Produced", "")
+    final_judgment = sections.get("## 10. Final Judgment", "")
 
     changed_areas = parse_bulleted_backtick_values(
         extract_labeled_block(change_summary, "- **Changed Area**:")
@@ -213,6 +214,14 @@ def extract_run_record_draft_inputs(run_file: Path) -> dict[str, list[str] | str
         if line.strip().startswith("- [")
     ]
 
+    regression_status = parse_bulleted_backtick_values(
+        extract_labeled_block(final_judgment, "- **Regression status**:")
+    )
+    open_risks = parse_bulleted_lines(
+        extract_labeled_block(final_judgment, "- **Open risks**:")
+    )
+    next_action = extract_labeled_block(final_judgment, "- **Next action**:")
+
     return {
         "changed_areas": changed_areas,
         "related_files": related_files,
@@ -233,6 +242,9 @@ def extract_run_record_draft_inputs(run_file: Path) -> dict[str, list[str] | str
         "design_updates": design_updates,
         "raw_print_status": raw_print_status,
         "deliverable_lines": deliverable_lines,
+        "regression_status": regression_status,
+        "open_risks": open_risks,
+        "next_action": next_action,
     }
 
 

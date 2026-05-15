@@ -51,6 +51,208 @@ class TestIRGenerator(unittest.TestCase):
             self.assertEqual(wrapper_children[2].get("input_link"), wrapper_children[1].get("id"))
             self.assertEqual(loop_child.get("input_link"), wrapper_children[2].get("id"))
 
+    def test_wrap_explicit_retry_metadata_is_preserved(self):
+        structured_spec = {
+            "steps": [
+                {
+                    "id": "step_1",
+                    "text": "リトライする。以下の処理を繰り返す：",
+                    "kind": "ACTION",
+                    "intent": "GENERAL",
+                    "explicit_intent": True,
+                    "target_entity": "Item",
+                    "input_refs": [],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                    "semantic_roles": {
+                        "max_attempts": 5,
+                        "exception_type": "IOException",
+                        "base_delay_ms": 200,
+                        "max_delay_ms": 1000,
+                        "backoff_multiplier": 2.0,
+                    },
+                },
+                {
+                    "id": "step_2",
+                    "text": "内容を表示する。",
+                    "kind": "ACTION",
+                    "intent": "DISPLAY",
+                    "explicit_intent": True,
+                    "target_entity": "string",
+                    "input_refs": ["step_1"],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                },
+                {
+                    "id": "step_3",
+                    "text": "を終えて。",
+                    "kind": "ACTION",
+                    "intent": "GENERAL",
+                    "explicit_intent": True,
+                    "target_entity": "Item",
+                    "input_refs": ["step_2"],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                },
+            ],
+            "inputs": [],
+            "outputs": [],
+            "data_sources": [],
+        }
+        ir = self.generator.generate(structured_spec)
+
+        semantic_roles = ir["logic_tree"][0].get("semantic_map", {}).get("semantic_roles", {})
+        self.assertEqual(ir["logic_tree"][0].get("semantic_map", {}).get("spec_role"), "WRAP")
+        self.assertEqual(semantic_roles.get("wrapper_kind"), "retry")
+        self.assertEqual(semantic_roles.get("max_attempts"), 5)
+        self.assertEqual(semantic_roles.get("max_attempts_resolution"), "explicit_attempts")
+        self.assertEqual(semantic_roles.get("exception_type"), "IOException")
+        self.assertEqual(semantic_roles.get("exception_type_resolution"), "explicit_exception_type")
+        self.assertEqual(semantic_roles.get("base_delay_ms"), 200)
+        self.assertEqual(semantic_roles.get("max_delay_ms"), 1000)
+        self.assertEqual(semantic_roles.get("backoff_multiplier"), 2.0)
+        self.assertEqual(semantic_roles.get("retry_delay_policy_resolution"), "explicit_delay_policy")
+
+    def test_wrap_retry_attempts_can_be_inferred_from_token_sequence(self):
+        steps = [
+            "3回再試行する。以下の処理を繰り返す：",
+            "内容を表示する。",
+            "を終えて。",
+        ]
+        ir = self.generator.generate(steps)
+
+        semantic_roles = ir["logic_tree"][0].get("semantic_map", {}).get("semantic_roles", {})
+        self.assertEqual(ir["logic_tree"][0].get("semantic_map", {}).get("spec_role"), "WRAP")
+        self.assertEqual(semantic_roles.get("max_attempts"), 3)
+        self.assertEqual(semantic_roles.get("max_attempts_resolution"), "token_attempts")
+        self.assertEqual(semantic_roles.get("exception_type"), "Exception")
+        self.assertEqual(semantic_roles.get("exception_type_resolution"), "default_exception_type")
+        self.assertEqual(semantic_roles.get("base_delay_ms"), 0)
+        self.assertEqual(semantic_roles.get("backoff_multiplier"), 1.0)
+        self.assertEqual(semantic_roles.get("retry_delay_policy_resolution"), "default_no_delay_policy")
+
+    def test_wrap_retry_default_policy_metadata_is_materialized(self):
+        steps = [
+            "再試行する。以下の処理を繰り返す：",
+            "内容を表示する。",
+            "を終えて。",
+        ]
+        ir = self.generator.generate(steps)
+
+        semantic_roles = ir["logic_tree"][0].get("semantic_map", {}).get("semantic_roles", {})
+        self.assertEqual(ir["logic_tree"][0].get("semantic_map", {}).get("spec_role"), "WRAP")
+        self.assertEqual(semantic_roles.get("max_attempts"), 3)
+        self.assertEqual(semantic_roles.get("max_attempts_resolution"), "default_attempts")
+        self.assertEqual(semantic_roles.get("exception_type"), "Exception")
+        self.assertEqual(semantic_roles.get("exception_type_resolution"), "default_exception_type")
+        self.assertEqual(semantic_roles.get("base_delay_ms"), 0)
+        self.assertEqual(semantic_roles.get("backoff_multiplier"), 1.0)
+        self.assertEqual(semantic_roles.get("retry_delay_policy_resolution"), "default_no_delay_policy")
+
+    def test_wrap_explicit_timeout_metadata_is_preserved(self):
+        structured_spec = {
+            "steps": [
+                {
+                    "id": "step_1",
+                    "text": "以下の処理を行う：",
+                    "kind": "ACTION",
+                    "intent": "GENERAL",
+                    "explicit_intent": True,
+                    "target_entity": "Item",
+                    "input_refs": [],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                    "semantic_roles": {
+                        "wrapper_kind": "timeout",
+                        "timeout_ms": 5000,
+                    },
+                },
+                {
+                    "id": "step_2",
+                    "text": "内容を表示する。",
+                    "kind": "ACTION",
+                    "intent": "DISPLAY",
+                    "explicit_intent": True,
+                    "target_entity": "string",
+                    "input_refs": ["step_1"],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                },
+                {
+                    "id": "step_3",
+                    "text": "を終えて。",
+                    "kind": "ACTION",
+                    "intent": "GENERAL",
+                    "explicit_intent": True,
+                    "target_entity": "Item",
+                    "input_refs": ["step_2"],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                },
+            ],
+            "inputs": [],
+            "outputs": [],
+            "data_sources": [],
+        }
+        ir = self.generator.generate(structured_spec)
+
+        semantic_roles = ir["logic_tree"][0].get("semantic_map", {}).get("semantic_roles", {})
+        self.assertEqual(ir["logic_tree"][0].get("semantic_map", {}).get("spec_role"), "WRAP")
+        self.assertEqual(semantic_roles.get("wrapper_kind"), "timeout")
+        self.assertEqual(semantic_roles.get("timeout_ms"), 5000)
+        self.assertEqual(semantic_roles.get("timeout_resolution"), "explicit_timeout_ms")
+
+    def test_wrap_explicit_transaction_metadata_is_preserved(self):
+        structured_spec = {
+            "steps": [
+                {
+                    "id": "step_1",
+                    "text": "以下の処理を行う：",
+                    "kind": "ACTION",
+                    "intent": "GENERAL",
+                    "explicit_intent": True,
+                    "target_entity": "Item",
+                    "input_refs": [],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                    "semantic_roles": {
+                        "wrapper_kind": "transaction",
+                    },
+                },
+                {
+                    "id": "step_2",
+                    "text": "内容を表示する。",
+                    "kind": "ACTION",
+                    "intent": "DISPLAY",
+                    "explicit_intent": True,
+                    "target_entity": "string",
+                    "input_refs": ["step_1"],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                },
+                {
+                    "id": "step_3",
+                    "text": "を終えて。",
+                    "kind": "ACTION",
+                    "intent": "GENERAL",
+                    "explicit_intent": True,
+                    "target_entity": "Item",
+                    "input_refs": ["step_2"],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                },
+            ],
+            "inputs": [],
+            "outputs": [],
+            "data_sources": [],
+        }
+        ir = self.generator.generate(structured_spec)
+
+        semantic_roles = ir["logic_tree"][0].get("semantic_map", {}).get("semantic_roles", {})
+        self.assertEqual(ir["logic_tree"][0].get("semantic_map", {}).get("spec_role"), "WRAP")
+        self.assertEqual(semantic_roles.get("wrapper_kind"), "transaction")
+        self.assertEqual(semantic_roles.get("transaction_resolution"), "explicit_transaction_wrapper")
+
     def test_loop_second_sibling_prefers_previous_sibling_inside_block(self):
         steps = [
             "商品一覧を取得する。",
@@ -343,6 +545,9 @@ class TestIRGenerator(unittest.TestCase):
         semantic_roles = calc_node.get("semantic_map", {}).get("semantic_roles", {})
         self.assertEqual(semantic_roles.get("target_hint"), "DiscountedPrice")
         self.assertEqual(semantic_roles.get("property"), "DiscountedPrice")
+        self.assertEqual(semantic_roles.get("calculate_target_resolution"), "explicit_target")
+        self.assertEqual(semantic_roles.get("calculate_source_resolution"), "input_link_var")
+        self.assertEqual(semantic_roles.get("calculate_source_node_id"), "step_1")
 
     def test_calculate_target_entity_uses_schema_property_owner(self):
         generator = IRGenerator(
@@ -378,6 +583,7 @@ class TestIRGenerator(unittest.TestCase):
         self.assertEqual(calc_node.get("target_entity"), "Product")
         self.assertEqual(calc_roles.get("target_entity"), "Product")
         self.assertEqual(calc_roles.get("entity_resolution"), "unique_owner")
+        self.assertEqual(calc_roles.get("calculate_target_resolution"), "schema_property")
         self.assertEqual(display_node.get("target_entity"), "Product")
 
     def test_calculate_does_not_promote_without_target_hint(self):
@@ -432,6 +638,7 @@ class TestIRGenerator(unittest.TestCase):
         self.assertEqual(calc_node.get("target_entity"), "Item")
         self.assertEqual(calc_roles.get("target_entity"), "Item")
         self.assertEqual(calc_roles.get("entity_resolution"), "ambiguous")
+        self.assertEqual(calc_roles.get("calculate_target_resolution"), "explicit_target")
         self.assertEqual(display_node.get("target_entity"), "Item")
 
     def test_calculate_history_context_is_observed_as_history_fallback(self):
@@ -473,6 +680,51 @@ class TestIRGenerator(unittest.TestCase):
         self.assertEqual(calc_node.get("target_entity"), "Order")
         self.assertEqual(calc_roles.get("target_entity"), "Order")
         self.assertEqual(calc_roles.get("entity_resolution"), "history_fallback")
+        self.assertEqual(calc_roles.get("calculate_target_resolution"), "explicit_target")
+
+    def test_calculate_without_structural_source_keeps_default_scope_provenance(self):
+        structured_steps = [
+            {
+                "text": "DiscountedPriceを計算する。",
+                "semantic_roles": {
+                    "target_hint": "DiscountedPrice",
+                    "property": "DiscountedPrice",
+                }
+            }
+        ]
+
+        ir = self.generator.generate(structured_steps)
+
+        calc_node = ir["logic_tree"][0]
+        calc_roles = calc_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(calc_node.get("intent"), "CALC")
+        self.assertEqual(calc_node.get("semantic_map", {}).get("spec_role"), "CALCULATE")
+        self.assertEqual(calc_roles.get("calculate_source_resolution"), "default_scope_var")
+        self.assertEqual(calc_roles.get("calculate_target_resolution"), "explicit_target")
+        self.assertNotIn("calculate_source_node_id", calc_roles)
+
+    def test_calculate_generic_target_keeps_explicit_target_resolution_without_schema_upgrade(self):
+        structured_steps = [
+            {
+                "text": "結果を計算する。",
+                "semantic_roles": {
+                    "target_hint": "結果",
+                    "property": "結果",
+                }
+            }
+        ]
+
+        ir = self.generator.generate(structured_steps)
+
+        calc_node = ir["logic_tree"][0]
+        calc_roles = calc_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(calc_node.get("intent"), "CALC")
+        self.assertEqual(calc_node.get("semantic_map", {}).get("spec_role"), "CALCULATE")
+        self.assertEqual(calc_roles.get("property"), "結果")
+        self.assertEqual(calc_roles.get("calculate_target_resolution"), "explicit_target")
+        self.assertEqual(calc_roles.get("target_entity"), "Item")
 
     def test_display_with_calculation_word_does_not_promote_to_calc(self):
         structured_steps = [
@@ -649,6 +901,291 @@ class TestIRGenerator(unittest.TestCase):
         self.assertEqual(fetch_like_node.get("semantic_map", {}).get("spec_role"), "FETCH")
         self.assertIsNone(roles.get("predicate_resolution"))
         self.assertIsNone(roles.get("collection_resolution"))
+
+    def test_transform_with_ops_uses_input_link_source_metadata(self):
+        steps = [
+            "標準入力から1行取得する。",
+            {
+                "text": "取得した文字列をトリムし、大文字に変換する。",
+                "intent": "TRANSFORM",
+                "explicit_intent": True,
+                "semantic_roles": {"ops": ["trim_upper"]},
+            },
+        ]
+
+        ir = self.generator.generate(steps)
+
+        transform_node = ir["logic_tree"][1]
+        roles = transform_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(transform_node.get("semantic_map", {}).get("spec_role"), "TRANSFORM")
+        self.assertEqual(transform_node.get("input_link"), "step_1")
+        self.assertEqual(roles.get("transform_op_resolution"), "explicit_ops")
+        self.assertEqual(roles.get("transform_source_node_id"), "step_1")
+        self.assertEqual(roles.get("transform_source_resolution"), "input_link_var")
+
+    def test_transform_with_explicit_source_var_preserves_source_var_resolution(self):
+        steps = [
+            {
+                "text": "入力文字列をトリムし、大文字に変換する。",
+                "intent": "TRANSFORM",
+                "explicit_intent": True,
+                "semantic_roles": {
+                    "ops": ["trim_upper"],
+                    "source_var": "inputText",
+                },
+            },
+        ]
+
+        ir = self.generator.generate(steps)
+
+        transform_node = ir["logic_tree"][0]
+        roles = transform_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(roles.get("transform_op_resolution"), "explicit_ops")
+        self.assertEqual(roles.get("transform_source_resolution"), "source_var")
+        self.assertEqual(roles.get("source_var"), "inputText")
+        self.assertIsNone(roles.get("transform_source_node_id"))
+
+    def test_iterate_with_input_link_uses_collection_source_metadata(self):
+        steps = [
+            {
+                "text": "ユーザー一覧を取得する。",
+                "intent": "FETCH",
+                "explicit_intent": True,
+                "target_entity": "User",
+                "output_type": "IEnumerable<User>",
+            },
+            {
+                "text": "取得した各ユーザーに対して、以下の処理を行う：",
+                "kind": "LOOP",
+                "intent": "GENERAL",
+                "explicit_intent": True,
+                "input_refs": ["step_1"],
+            },
+            "名前を表示する。",
+            "を終えて。",
+        ]
+
+        ir = self.generator.generate(steps)
+
+        loop_node = ir["logic_tree"][1]
+        roles = loop_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(loop_node.get("type"), "LOOP")
+        self.assertEqual(loop_node.get("semantic_map", {}).get("spec_role"), "ITERATE")
+        self.assertEqual(loop_node.get("input_link"), "step_1")
+        self.assertEqual(loop_node.get("target_entity"), "User")
+        self.assertEqual(roles.get("structure_kind"), "loop")
+        self.assertEqual(roles.get("iteration_source_node_id"), "step_1")
+        self.assertEqual(roles.get("iteration_source_resolution"), "input_link_collection")
+        self.assertEqual(roles.get("iteration_item_entity"), "User")
+        self.assertEqual(roles.get("iteration_item_resolution"), "collection_inner")
+
+    def test_iterate_with_explicit_item_entity_propagates_to_nested_condition(self):
+        generator = IRGenerator(
+            self.config,
+            entity_schema={
+                "entities": [
+                    {"name": "User", "keywords": ["ユーザー"], "properties": ["Points:int", "Name:string"]},
+                ]
+            }
+        )
+        steps = [
+            {
+                "text": "対象一覧を取得する。",
+                "intent": "FETCH",
+                "explicit_intent": True,
+                "target_entity": "Item",
+                "output_type": "IEnumerable<object>",
+            },
+            {
+                "text": "各項目に対して、以下の処理を行う：",
+                "kind": "LOOP",
+                "intent": "GENERAL",
+                "explicit_intent": True,
+                "input_refs": ["step_1"],
+                "semantic_roles": {"item_entity": "User"},
+            },
+            "もし Points が 100 より大きいならば、以下の処理を行う：",
+            "名前を表示する。",
+            "を終えて。",
+            "を終えて。",
+        ]
+
+        ir = generator.generate(steps)
+
+        loop_node = ir["logic_tree"][1]
+        loop_roles = loop_node.get("semantic_map", {}).get("semantic_roles", {})
+        condition_node = loop_node.get("children", [])[0]
+        condition_map = condition_node.get("semantic_map", {})
+
+        self.assertEqual(loop_node.get("target_entity"), "User")
+        self.assertEqual(loop_roles.get("iteration_item_entity"), "User")
+        self.assertEqual(loop_roles.get("iteration_item_resolution"), "explicit_item_entity")
+        self.assertEqual(condition_node.get("target_entity"), "User")
+        self.assertEqual(condition_map.get("check_subject"), "Points")
+        self.assertEqual(condition_map.get("subject_resolution"), "schema_property")
+
+    def test_iterate_explicit_item_entity_promotes_nested_display_property(self):
+        generator = IRGenerator(
+            self.config,
+            entity_schema={
+                "entities": [
+                    {
+                        "name": "User",
+                        "keywords": ["ユーザー"],
+                        "properties": [
+                            {"name": "Name", "aliases": ["名前"]},
+                            {"name": "Points", "aliases": ["ポイント"]},
+                        ],
+                    },
+                ]
+            }
+        )
+        steps = [
+            {
+                "text": "対象一覧を取得する。",
+                "intent": "FETCH",
+                "explicit_intent": True,
+                "target_entity": "Item",
+                "output_type": "IEnumerable<object>",
+            },
+            {
+                "text": "各項目に対して、以下の処理を行う：",
+                "kind": "LOOP",
+                "intent": "GENERAL",
+                "explicit_intent": True,
+                "input_refs": ["step_1"],
+                "semantic_roles": {"item_entity": "User"},
+            },
+            "名前を表示する。",
+            "を終えて。",
+        ]
+
+        ir = generator.generate(steps)
+
+        loop_node = ir["logic_tree"][1]
+        display_node = loop_node.get("children", [])[0]
+        roles = display_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(display_node.get("target_entity"), "User")
+        self.assertEqual(display_node.get("semantic_map", {}).get("spec_role"), "DISPLAY")
+        self.assertEqual(roles.get("property"), "Name")
+        self.assertEqual(roles.get("display_property_resolution"), "schema_property")
+
+    def test_iterate_explicit_item_var_is_preserved(self):
+        generator = IRGenerator(
+            self.config,
+            entity_schema={
+                "entities": [
+                    {
+                        "name": "User",
+                        "keywords": ["ユーザー"],
+                        "properties": [
+                            {"name": "Name", "aliases": ["名前"]},
+                            {"name": "Points", "aliases": ["ポイント"]},
+                        ],
+                    },
+                ]
+            }
+        )
+        steps = [
+            {
+                "text": "対象一覧を取得する。",
+                "intent": "FETCH",
+                "explicit_intent": True,
+                "target_entity": "Item",
+                "output_type": "IEnumerable<object>",
+            },
+            {
+                "text": "各ユーザーに対して、以下の処理を行う：",
+                "kind": "LOOP",
+                "intent": "GENERAL",
+                "explicit_intent": True,
+                "input_refs": ["step_1"],
+                "semantic_roles": {"item_entity": "User", "item_var": "user"},
+            },
+            "もし Points が 100 より大きいならば、以下の処理を行う：",
+            "名前を表示する。",
+            "を終えて。",
+            "を終えて。",
+        ]
+
+        ir = generator.generate(steps)
+
+        loop_node = ir["logic_tree"][1]
+        loop_roles = loop_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(loop_roles.get("iteration_item_entity"), "User")
+        self.assertEqual(loop_roles.get("iteration_item_resolution"), "explicit_item_entity")
+        self.assertEqual(loop_roles.get("iteration_item_var"), "user")
+        self.assertEqual(loop_roles.get("iteration_item_var_resolution"), "explicit_item_var")
+
+    def test_return_true_literal_metadata_is_preserved_without_input_link(self):
+        steps = [
+            "ユーザーを取得する。",
+            "true を返す。"
+        ]
+
+        ir = self.generator.generate(steps)
+
+        return_node = ir["logic_tree"][1]
+        roles = return_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(return_node.get("intent"), "RETURN")
+        self.assertEqual(return_node.get("semantic_map", {}).get("spec_role"), "RETURN")
+        self.assertEqual(roles.get("return_value"), "true")
+        self.assertEqual(roles.get("return_value_resolution"), "literal_boolean")
+        self.assertIsNone(return_node.get("input_link"))
+
+    def test_return_null_literal_metadata_is_preserved(self):
+        steps = [
+            "ユーザーを取得する。",
+            "null を返す。"
+        ]
+
+        ir = self.generator.generate(steps)
+
+        return_node = ir["logic_tree"][1]
+        roles = return_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(return_node.get("intent"), "RETURN")
+        self.assertEqual(roles.get("return_value"), "null")
+        self.assertEqual(roles.get("return_value_resolution"), "literal_null")
+
+    def test_return_chained_value_uses_input_link_source_metadata(self):
+        steps = [
+            "ユーザーを取得する。",
+            "取得したユーザーを返す。"
+        ]
+
+        ir = self.generator.generate(steps)
+
+        return_node = ir["logic_tree"][1]
+        roles = return_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(return_node.get("intent"), "RETURN")
+        self.assertEqual(return_node.get("input_link"), "step_1")
+        self.assertEqual(roles.get("return_source_node_id"), "step_1")
+        self.assertEqual(roles.get("return_value_resolution"), "input_link_var")
+
+    def test_return_without_literal_or_input_link_keeps_weak_retention(self):
+        steps = [
+            "結果を返す。"
+        ]
+
+        ir = self.generator.generate(steps)
+
+        return_node = ir["logic_tree"][0]
+        roles = return_node.get("semantic_map", {}).get("semantic_roles", {})
+
+        self.assertEqual(return_node.get("intent"), "RETURN")
+        self.assertEqual(return_node.get("semantic_map", {}).get("spec_role"), "RETURN")
+        self.assertIsNone(return_node.get("input_link"))
+        self.assertIsNone(roles.get("return_value"))
+        self.assertIsNone(roles.get("return_value_resolution"))
+        self.assertIsNone(roles.get("return_source_node_id"))
 
 if __name__ == "__main__":
     unittest.main()

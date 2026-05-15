@@ -16,7 +16,7 @@ The `IREmitter` converts the structured Intermediate Representation (IR) tree ge
 ### Core Logic
 1.  **Recursive Traversal (`_emit_nodes`)**:
     -   Iterates through the list of IR nodes.
-    -   Dispatches to specific handlers (`_emit_loop`, `_emit_condition`, `_emit_wrapper`) or delegates to `CodeSynthesizer` for `ACTION` nodes.
+    -   Delegates most `ACTION` nodes to `CodeSynthesizer`, but intercepts structural wrapper nodes (`spec_role=WRAP`) before generic action synthesis so their child body is preserved.
     -   Prunes candidates to `beam_width` after each node processing to manage combinatorial explosion.
 
 2.  **State Preservation**:
@@ -40,8 +40,12 @@ The `IREmitter` converts the structured Intermediate Representation (IR) tree ge
         -   Generates the logic expression for `if`.
         -   Handles both `body` (if) and `else_body` blocks recursively.
     -   **Wrapper (`_emit_wrapper`)**:
-        -   Wraps the body in a resilience block (e.g., `Polly.Policy...`).
-        -   Adds necessary `using` statements and dependencies.
+        -   Treats `spec_role=WRAP` nodes as structural containers rather than generic actions.
+        -   Recursively emits the child body with the wrapper node marked as consumed.
+        -   Re-wraps the emitted child body as a structural statement.
+        -   For `wrapper_kind=retry`, emits a deterministic `retry` statement with `max_attempts`, `exception_type`, delay/backoff metadata, provenance fields (`max_attempts_resolution`, `exception_type_resolution`, `retry_delay_policy_resolution`), and nested `body`, so runtime semantics are preserved as code structure rather than marker comments.
+        -   For explicit `wrapper_kind=timeout`, emits a deterministic `timeout` statement with `timeout_ms`, `timeout_resolution`, and nested `body`, so wrapper semantics are still visible downstream without inventing non-explicit timeout policy from free text.
+        -   For explicit `wrapper_kind=transaction`, emits a deterministic `transaction` statement with `transaction_resolution` and nested `body`, so transaction structure is preserved without lexical inference.
 
 4.  **Intent & Context Propagation**:
     -   Injects `current_intent` into the path before processing actions.
@@ -51,12 +55,14 @@ The `IREmitter` converts the structured Intermediate Representation (IR) tree ge
 ### Test Cases
 -   **Nested Loop**: Verify that inner loop actions correctly identify variables from the outer loop scope.
 -   **Conditional Logic**: Ensure `if/else` blocks are correctly opened/closed and that variable scoping rules (hoisting) are respected.
--   **Wrapper Generation**: specific checking of `Polly` syntax generation.
+-   **Wrapper Generation**: verify that child body statements are retained and wrapped as a `retry`, explicit `timeout`, or explicit `transaction` statement instead of falling back to a generic action method.
 
 ## 3. Dependencies
 -   `CodeSynthesizer`: Shared logic for variable management (`_copy_path`, `_exit_scope`) and action processing (`_process_action_node`).
 -   `TypeSystem`: For type compatibility checks during source selection.
 
 ## 4. Review Notes
-- 2026-03-31: Reviewed against current implementation; specification remains valid.
+- 2026-05-11: Updated to reflect structural retry-statement emission for `spec_role=WRAP` and nested child body preservation.
+- 2026-05-13: Expanded wrapper consumer to preserve explicit `timeout` wrappers as structured `timeout` statements with `timeout_ms` provenance.
+- 2026-05-13: Expanded wrapper consumer further to preserve explicit `transaction` wrappers as structured `transaction` statements with `transaction_resolution`.
 

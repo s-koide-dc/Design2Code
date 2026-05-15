@@ -24,7 +24,7 @@
 
 ## 3. Relevant Code Path
 
-主要経路は [ir_generator.py](/C:/workspace/NLP/src/ir_generator/ir_generator.py:243) 以降にある。
+主要経路は [ir_generator.py](src/ir_generator/ir_generator.py:243) 以降にある。
 
 問題に直接関与しているのは次の 3 段階である。
 
@@ -45,7 +45,7 @@
 
 ### 4.2 ELSE 到達時
 
-`ELSE` 句に入ると、[ir_generator.py](/C:/workspace/NLP/src/ir_generator/ir_generator.py:405) 付近で次が起きる。
+`ELSE` 句に入ると、[ir_generator.py](src/ir_generator/ir_generator.py:405) 付近で次が起きる。
 
 - `block_stack` を逆順に走査
 - 直近の `CONDITION` を見つける
@@ -61,7 +61,7 @@
 
 ## 5. Why Misbinding Happens
 
-次の else 側実ノードを作るとき、通常の chaining 規則 [ir_generator.py](/C:/workspace/NLP/src/ir_generator/ir_generator.py:243) がそのまま適用される。
+次の else 側実ノードを作るとき、通常の chaining 規則 [ir_generator.py](src/ir_generator/ir_generator.py:243) がそのまま適用される。
 
 現在の条件は次の通りである。
 

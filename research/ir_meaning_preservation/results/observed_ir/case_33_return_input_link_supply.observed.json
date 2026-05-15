@@ -1,0 +1,53 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "ユーザーを取得する。",
+      "intent": "FETCH",
+      "role": "FETCH",
+      "cardinality": "SINGLE",
+      "target_entity": "Item",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item"
+        },
+        "spec_role": "FETCH"
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    },
+    {
+      "id": "step_2",
+      "type": "ACTION",
+      "original_text": "取得したユーザーを返す。",
+      "intent": "RETURN",
+      "role": "RETURN",
+      "cardinality": "SINGLE",
+      "target_entity": "Item",
+      "output_type": null,
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item",
+          "return_source_node_id": "step_1",
+          "return_value_resolution": "input_link_var"
+        },
+        "spec_role": "RETURN"
+      },
+      "input_link": "step_1",
+      "children": [],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

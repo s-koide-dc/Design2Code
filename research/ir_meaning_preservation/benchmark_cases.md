@@ -530,6 +530,40 @@
 
 - `research/ir_meaning_preservation/cases/case_13_calculate_without_target_hint.md`
 
+### Calculate Case C: Explicit Entity With Ambiguous Property Owner
+
+用途:
+
+- owner ambiguity があるが current exact scope は explicit metadata で決まっているケースを観測する
+- `entity_resolution` と `calculate_target_resolution` の役割分離を確認する
+
+主な確認点:
+
+- `entity_resolution=explicit_entity` に留まるか
+- `calculate_target_resolution=history_target` が独立に観測できるか
+- source 側は `input_link_var` を保持するか
+
+対応ケース:
+
+- `research/ir_meaning_preservation/cases/case_35_calculate_history_target_with_explicit_entity.md`
+
+### Calculate Case D: Default Target Retention
+
+用途:
+
+- `CALCULATE` role 自体は成立しているが target metadata が無いケースを独立観測する
+- `default_target` と `default_scope_var` の weak-retention 境界を確認する
+
+主な確認点:
+
+- `calculate_target_resolution=default_target` が保持されるか
+- `calculate_source_resolution=default_scope_var` が同時に保持されるか
+- property-aware concretization を発明しない境界を説明できるか
+
+対応ケース:
+
+- `research/ir_meaning_preservation/cases/case_36_calculate_default_target_retention.md`
+
 ## 16. Alias Coverage Tier 2 Cases
 
 `schema_alias_coverage_policy.md` の `Tier 2: Conditionally Allowed` を benchmark で閉じるため、次の 2 ケースを追加する。
@@ -673,3 +707,37 @@
 対応ケース:
 
 - `research/ir_meaning_preservation/cases/case_31_external_compatibility_threshold.md`
+
+### Return Provenance Contrast Case
+
+用途:
+
+- `RETURN` が literal return なのか upstream value return なのかを provenance field 上で分離できるかを確認する
+- branch 内で structural `input_link` と semantic return source を分けて保持できるかを観測する
+
+主な確認点:
+
+- `null を返す` が `return_value=null`, `return_value_resolution=literal_null` を持つか
+- `取得したユーザーを返す` が `return_value_resolution=input_link_var` を持つか
+- `return_source_node_id` が branch base の `CONDITION` ではなく upstream source node を指すか
+
+対応ケース:
+
+- `research/ir_meaning_preservation/cases/case_32_return_provenance_contrast.md`
+
+### Return Provenance Supply Contrast Cases
+
+用途:
+
+- `RETURN` provenance の supply success と weak retention を分けて観測する
+- `input_link_var` が free-text 推定ではなく structural upstream dependency に依存することを確認する
+
+主な確認点:
+
+- `取得したユーザーを返す` が `return_source_node_id` と `input_link_var` を持つか
+- `結果を返す` が provenance 無しの weak retention に留まるか
+
+対応ケース:
+
+- `research/ir_meaning_preservation/cases/case_33_return_input_link_supply.md`
+- `research/ir_meaning_preservation/cases/case_34_return_weak_retention.md`

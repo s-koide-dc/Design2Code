@@ -20,8 +20,10 @@
 - `resolution_provenance_model.md`
 - `cross_role_provenance_design.md`
 - `provenance_strength_policy_matrix.md`
+- `runtime_schema_policy_boundary.md`
 - `calculate_target_entity_ambiguity_rule.md`
 - `calculate_entity_resolution_policy.md`
+- `return_provenance_supply_model.md`
 
 ### 2. Archived Analysis
 
@@ -43,6 +45,9 @@
 - `calculate_promotion_rule.md`
 - `filter_promotion_rule.md`
 - `property_side_provenance_promotion_rule.md`
+- `wrap_retry_semantics_design.md`
+- `wrap_timeout_semantics_design.md`
+- `wrap_transaction_semantics_design.md`
 - `schema_alias_supply_model.md`
 - `schema_alias_coverage_policy.md`
 - `schema_alias_admission_threshold.md`
@@ -52,7 +57,7 @@
 
 個別 benchmark の期待 IR、観測結果、差分メモは `cases/` に置く。
 
-- `cases/case_01_...md` から `cases/case_32_...md`
+- `cases/case_01_...md` から `cases/case_34_...md`
 
 命名規則:
 
@@ -70,6 +75,8 @@
 - `results/role_mapping_matrix.md`
 - `results/structural_dependency_observation.md`
 - `results/calculate_case_observation.md`
+- `results/return_provenance_observation.md`
+- `results/return_provenance_supply_observation.md`
 - `results/schema_alias_admission_status_table.md`
 - `results/schema_alias_admission_regression_table.md`
 - `results/regression_run_2026_05_07_metadata_baseline.md`
@@ -83,6 +90,9 @@
 - `calculate_metadata_conservatism_summary.md`
 - `executive_summary.md`
 - `research_outcome_memo.md`
+- `remaining_open_inventory.md`
+- `runtime_schema_policy_boundary.md`
+- `report.md`
 - `claim_evidence_implementation_map.md`
 - `implementation_priority_from_claims.md`
 - `schema_alias_role_weakening_regression_checklist.md`

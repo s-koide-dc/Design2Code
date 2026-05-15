@@ -37,6 +37,8 @@
 - `case_13_calculate_without_target_hint.md`
 - `case_14_calculate_ambiguous_property_owner.md`
 - `case_15_calculate_history_fallback_gap.md`
+- `case_35_calculate_history_target_with_explicit_entity.md`
+- `case_36_calculate_default_target_retention.md`
 
 ## Supplemental Provenance Strength Boundary Cases
 
@@ -60,3 +62,6 @@
 - `case_29_cross_case_relevance_threshold.md`
 - `case_30_downstream_impact_threshold.md`
 - `case_31_external_compatibility_threshold.md`
+- `case_32_return_provenance_contrast.md`
+- `case_33_return_input_link_supply.md`
+- `case_34_return_weak_retention.md`

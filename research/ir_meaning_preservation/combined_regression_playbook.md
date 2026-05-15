@@ -111,6 +111,9 @@ regression table との照合時には
 推奨は、以下の helper を使ってまとめて流すこと。
 
 1. `python scripts/validate/run_ir_meaning_preservation_regression.py --run-file research/ir_meaning_preservation/results/<run_file>.md --test-suite <suite>`
+2. draft を保存したい場合は `--write-draft` を付ける
+3. 保存先を変えたい場合は `--draft-file <path>` を付ける
+4. run record を draft から in-place 更新したい場合は `--update-run-file` を付ける
 
 この helper は最低限次を順に実行する。
 
@@ -124,6 +127,11 @@ regression table との照合時には
 同じく、`Change Summary` と `Benchmark Coverage` の下書き block も出力される。
 加えて、`Affected Claims` と `Downstream Conservatism Check` の下書き block も出力される。
 最後に、`Output Path Check` と `Deliverables Produced` の下書き block も出力される。
+加えて、`Final Judgment` の候補 block も出力される。
+つまり current runner は、run record の本文全体を draft 候補として再掲できる。
+必要なら `--write-draft` で、その一式を markdown ファイルとして保存できる。
+既定の保存先は `<run_file>.runner_draft.md` である。
+`--update-run-file` を付けると、current runner が生成する draft block を使って target run file 自体を再構成して上書きする。
 
 実装変更がある場合は、さらに対象テストを実行する。
 
@@ -176,6 +184,7 @@ regression table との照合時には
 - `spec_role` bridge の補正
 - `CHECK` / `FILTER` / `CALCULATE` の dispatch 修正
 - structural role の保持確認
+- `WRAP` の retry semantics や explicit retry policy (`max_attempts`, `exception_type`, delay/backoff metadata) の保持確認
 
 ### When alias table is enough
 
@@ -202,6 +211,7 @@ regression table との照合時には
 - project consistency が通っている
 - regression run validator が通っている
 - 必要な tests が通っている
+- `WRAP` を触った場合は fallback renderer と `CodeBuilder` の両方で relevant retry policy が確認されている
 - changelog が更新されている
 - 出力経路を変えた場合は `stdout_output_policy.md` と source-level `.design.md` が同期している
 

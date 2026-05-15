@@ -31,6 +31,30 @@ from src.ir_generator.target_resolution import (
     resolve_property_provenance,
 )
 from src.ir_generator.spec_role_rules import infer_spec_role
+from src.ir_generator.return_resolution import (
+    infer_return_metadata,
+    has_literal_return_metadata,
+    attach_return_source_metadata,
+)
+from src.ir_generator.transform_resolution import (
+    infer_transform_metadata,
+    attach_transform_source_metadata,
+    has_transform_source_metadata,
+)
+from src.ir_generator.calculate_resolution import (
+    infer_calculate_metadata,
+    attach_calculate_target_metadata,
+    attach_calculate_source_metadata,
+    has_calculate_source_metadata,
+)
+from src.ir_generator.display_resolution import infer_display_property_metadata
+from src.ir_generator.iterate_resolution import (
+    infer_iterate_metadata,
+    attach_iterate_source_metadata,
+    has_iterate_source_metadata,
+    attach_iterate_item_metadata,
+)
+from src.ir_generator.wrapper_resolution import infer_wrapper_metadata, has_wrapper_metadata_hint
 
 class SynthesisIntentDetector:
     """自然言語の概念（セマンティック・クラス）を技術的インテントにマッピングするクラス"""
@@ -124,6 +148,14 @@ class IRGenerator:
                 clauses = [{"text": raw_text, "type": "ACTION", "has_body": False}]
             else:
                 clauses = self._extract_hierarchical_clauses(raw_text)
+            if (
+                isinstance(raw_step, dict)
+                and clauses
+                and has_wrapper_metadata_hint(raw_step.get("semantic_roles", {}) or {})
+                and clauses[0].get("type") == "ACTION"
+            ):
+                wrapper_tokens = self.morph_analyzer.tokenize(raw_text) if self.morph_analyzer else []
+                clauses[0]["has_body"] = clauses[0].get("has_body") or self._has_body_marker(raw_text, wrapper_tokens)
             if not clauses and isinstance(raw_step, dict) and raw_step.get("kind") in ["END", "ELSE"]:
                 clauses = [{"text": "", "type": raw_step.get("kind"), "has_body": True}]
             heuristics = self.ukb.get("entity_heuristics", {}) if (self.ukb and hasattr(self.ukb, 'get')) else {}
@@ -245,8 +277,39 @@ class IRGenerator:
                     input_link = step_entry["input_refs"][0]
             if final_intent == "RETURN":
                 tokens = analysis.get("tokens") or []
-                if self._is_literal_return(c_text, tokens):
+                semantic_roles = final_semantic_map.get("semantic_roles", {}) or {}
+                if has_literal_return_metadata(semantic_roles) or self._is_literal_return(c_text, tokens):
                     input_link = None
+                else:
+                    return_source_node_id = self._resolve_semantic_source_node_id(nodes, input_link)
+                    final_semantic_map["semantic_roles"] = attach_return_source_metadata(
+                        semantic_roles,
+                        return_source_node_id,
+                    )
+            elif final_intent == "TRANSFORM":
+                semantic_roles = final_semantic_map.get("semantic_roles", {}) or {}
+                if not has_transform_source_metadata(semantic_roles):
+                    transform_source_node_id = self._resolve_semantic_source_node_id(nodes, input_link)
+                    final_semantic_map["semantic_roles"] = attach_transform_source_metadata(
+                        semantic_roles,
+                        transform_source_node_id,
+                    )
+            elif final_intent == "CALC":
+                semantic_roles = final_semantic_map.get("semantic_roles", {}) or {}
+                if not has_calculate_source_metadata(semantic_roles):
+                    calculate_source_node_id = self._resolve_semantic_source_node_id(nodes, input_link)
+                    final_semantic_map["semantic_roles"] = attach_calculate_source_metadata(
+                        semantic_roles,
+                        calculate_source_node_id,
+                    )
+            elif node_type == "LOOP":
+                semantic_roles = final_semantic_map.get("semantic_roles", {}) or {}
+                if not has_iterate_source_metadata(semantic_roles):
+                    iterate_source_node_id = self._resolve_semantic_source_node_id(nodes, input_link)
+                    final_semantic_map["semantic_roles"] = attach_iterate_source_metadata(
+                        semantic_roles,
+                        iterate_source_node_id,
+                    )
 
             # Phase 5: Node emission and structural attachment
             # If explicit input_link exists, avoid forcing "{context}" content
@@ -352,6 +415,7 @@ class IRGenerator:
                 node.get("output_type"),
                 node.get("source_kind"),
                 node["id"],
+                node.get("semantic_map", {}).get("semantic_roles", {}),
             )
             last_node_id = node["id"]
         return {"logic_tree": nodes, "inputs": inputs or [], "outputs": outputs or [], "data_sources": data_sources}
@@ -379,15 +443,30 @@ class IRGenerator:
         output_type: Optional[str],
         source_kind: Optional[str],
         node_id: Optional[str] = None,
+        extra_semantics: Optional[Dict[str, Any]] = None,
     ) -> None:
-        context_history.append({
+        entry = {
             "text": text,
             "target_entity": target_entity,
             "cardinality": cardinality,
             "output_type": output_type,
             "source_kind": source_kind,
             "node_id": node_id,
-        })
+        }
+        if isinstance(extra_semantics, dict):
+            item_entity = str(extra_semantics.get("iteration_item_entity") or "").strip()
+            item_resolution = str(extra_semantics.get("iteration_item_resolution") or "").strip()
+            item_var = str(extra_semantics.get("iteration_item_var") or "").strip()
+            item_var_resolution = str(extra_semantics.get("iteration_item_var_resolution") or "").strip()
+            if item_entity:
+                entry["item_entity"] = item_entity
+            if item_resolution:
+                entry["item_resolution"] = item_resolution
+            if item_var:
+                entry["item_var"] = item_var
+            if item_var_resolution:
+                entry["item_var_resolution"] = item_var_resolution
+        context_history.append(entry)
 
     def _handle_else_clause(
         self,
@@ -438,6 +517,8 @@ class IRGenerator:
                 prev_node.get("cardinality"),
                 prev_node.get("output_type"),
                 prev_node.get("source_kind"),
+                None,
+                prev_map.get("semantic_roles", {}),
             )
             return prev_node.get("id")
         return None
@@ -594,14 +675,49 @@ class IRGenerator:
     ) -> Tuple[Dict[str, Any], Dict[str, Any], str]:
         if node_type == "LOOP":
             final_semantic_map["spec_role"] = "ITERATE"
-            final_semantic_map.setdefault("semantic_roles", {}).setdefault("structure_kind", "loop")
+            final_semantic_map["semantic_roles"] = infer_iterate_metadata(
+                final_semantic_map.get("semantic_roles", {}) or {},
+            )
+            semantic_roles = final_semantic_map.get("semantic_roles", {}) or {}
+            upstream_item_entity = None
+            item_resolution = None
+            explicit_item_entity = str(semantic_roles.get("iteration_item_entity") or "").strip()
+            explicit_item_resolution = str(semantic_roles.get("iteration_item_resolution") or "").strip()
+            if explicit_item_entity:
+                upstream_item_entity = explicit_item_entity
+                item_resolution = explicit_item_resolution or "explicit_item_entity"
+            elif context_history:
+                last_context = context_history[-1]
+                last_output_type = str(last_context.get("output_type") or "")
+                last_target_entity = str(last_context.get("target_entity") or "")
+                inner = self.type_system.extract_generic_inner(last_output_type)
+                if inner:
+                    upstream_item_entity = inner
+                    item_resolution = "collection_inner"
+                elif last_target_entity and last_target_entity not in weak_entities and last_context.get("cardinality") == "COLLECTION":
+                    upstream_item_entity = last_target_entity
+                    item_resolution = "history_collection_entity"
+            if upstream_item_entity:
+                final_semantic_map["semantic_roles"] = attach_iterate_item_metadata(
+                    semantic_roles,
+                    upstream_item_entity,
+                    item_resolution,
+                )
+                if target_entity in weak_entities:
+                    target_entity = upstream_item_entity
         elif node_type == "CONDITION":
             final_semantic_map["spec_role"] = "CHECK"
             final_semantic_map.setdefault("semantic_roles", {}).setdefault("structure_kind", "condition")
-        elif has_body and node_type == "ACTION" and self._is_retry_wrapper(analysis.get("tokens") or []):
+        elif has_body and node_type == "ACTION" and self._is_wrapper_action(
+            analysis.get("tokens") or [],
+            final_semantic_map.get("semantic_roles", {}) or {},
+        ):
             final_semantic_map["spec_role"] = "WRAP"
-            final_semantic_map.setdefault("semantic_roles", {}).setdefault("wrapper_kind", "retry")
-            final_semantic_map.setdefault("semantic_roles", {}).setdefault("structure_kind", "wrapper")
+            semantic_roles = infer_wrapper_metadata(
+                analysis.get("tokens") or [],
+                final_semantic_map.get("semantic_roles", {}) or {},
+            )
+            final_semantic_map["semantic_roles"] = semantic_roles
 
         if final_semantic_map.get("spec_role") == "CHECK":
             check_meta = self._infer_check_metadata(
@@ -629,6 +745,31 @@ class IRGenerator:
                     final_semantic_map["subject_resolution"] = "history_subject"
             target_entity = self._infer_check_target_entity(target_entity, check_meta, context_history, weak_entities)
 
+        if final_semantic_map.get("spec_role") == "RETURN":
+            final_semantic_map["semantic_roles"] = infer_return_metadata(
+                step_text,
+                analysis.get("tokens") or [],
+                final_semantic_map.get("semantic_roles", {}) or {},
+            )
+
+        if final_semantic_map.get("spec_role") == "TRANSFORM":
+            final_semantic_map["semantic_roles"] = infer_transform_metadata(
+                final_semantic_map.get("semantic_roles", {}) or {},
+            )
+
+        if final_semantic_map.get("spec_role") == "CALCULATE":
+            final_semantic_map["semantic_roles"] = infer_calculate_metadata(
+                final_semantic_map.get("semantic_roles", {}) or {},
+            )
+
+        if final_semantic_map.get("spec_role") == "DISPLAY":
+            final_semantic_map["semantic_roles"] = infer_display_property_metadata(
+                self.entity_schema,
+                analysis.get("tokens") or [],
+                final_semantic_map.get("semantic_roles", {}) or {},
+                target_entity,
+            )
+
         if self._should_promote_to_calculate(
             analysis.get("intent", "GENERAL"),
             node_type,
@@ -651,6 +792,15 @@ class IRGenerator:
             semantic_roles = final_semantic_map.setdefault("semantic_roles", {})
             semantic_roles["target_entity"] = target_entity
             semantic_roles["entity_resolution"] = entity_resolution
+            canonical_property, property_resolution = self._resolve_property_provenance(
+                semantic_roles.get("property") or semantic_roles.get("target_hint"),
+                target_entity,
+            )
+            final_semantic_map["semantic_roles"] = attach_calculate_target_metadata(
+                semantic_roles,
+                canonical_property,
+                property_resolution,
+            )
 
         return analysis, final_semantic_map, target_entity
 
@@ -834,6 +984,35 @@ class IRGenerator:
             "branch_last_id": None,
         })
 
+    def _find_node_by_id(self, nodes: List[Dict[str, Any]], node_id: Optional[str]) -> Optional[Dict[str, Any]]:
+        if not node_id:
+            return None
+        for node in nodes or []:
+            if node.get("id") == node_id:
+                return node
+            found = self._find_node_by_id(node.get("children", []), node_id)
+            if found:
+                return found
+            found = self._find_node_by_id(node.get("else_children", []), node_id)
+            if found:
+                return found
+        return None
+
+    def _resolve_semantic_source_node_id(
+        self,
+        nodes: List[Dict[str, Any]],
+        input_link: Optional[str],
+    ) -> Optional[str]:
+        if not input_link:
+            return None
+        linked = self._find_node_by_id(nodes, input_link)
+        if not linked:
+            return input_link
+        linked_spec_role = str(linked.get("semantic_map", {}).get("spec_role") or "").strip().upper()
+        if linked_spec_role == "CHECK" and linked.get("input_link"):
+            return str(linked.get("input_link"))
+        return input_link
+
     def _extract_hierarchical_clauses(self, text: str) -> List[Dict[str, Any]]:
         if not text:
             return []
@@ -929,7 +1108,17 @@ class IRGenerator:
         return False
 
     def _is_retry_wrapper(self, tokens: List[Dict[str, Any]]) -> bool:
-        return self._contains_surface(tokens, ["リトライ"]) or self._contains_base(tokens, ["再試行"])
+        return (
+            self._contains_surface(tokens, ["リトライ"])
+            or self._contains_base(tokens, ["再試行"])
+            or self._contains_sequence(tokens, ["再", "試行"], use_base=False)
+            or self._contains_sequence(tokens, ["再", "試行"])
+        )
+
+    def _is_wrapper_action(self, tokens: List[Dict[str, Any]], semantic_roles: Dict[str, Any]) -> bool:
+        if has_wrapper_metadata_hint(semantic_roles):
+            return True
+        return self._is_retry_wrapper(tokens)
 
     def _starts_with_digit(self, value: Optional[str]) -> bool:
         if value is None:
@@ -1250,12 +1439,14 @@ class IRGenerator:
         display_nouns = {"表示", "出力", "印刷", "表示", "見せる"}
         exists_nouns = {"存在", "有無", "有り", "有る"}
         transform_nouns = {"変換", "変形", "変化", "選択", "抽出"}
+        return_nouns = {"返却", "返戻", "返す"}
 
         fetch_verbs = {"取得", "読み込む", "読む", "検索する", "取得する", "取得", "取得する"}
         persist_verbs = {"保存する", "書き込む", "書き出す", "登録する", "更新する", "挿入する", "追加する"}
         display_verbs = {"表示する", "出力する", "印刷する"}
         exists_verbs = {"存在する", "ある", "有る"}
         transform_verbs = {"変換する", "変える", "抽出する", "選択する"}
+        return_verbs = {"返す", "返却する", "戻す"}
 
         def has_noun(noun_set: set) -> bool:
             return any(b in noun_set for b in bases)
@@ -1272,6 +1463,9 @@ class IRGenerator:
         elif (has_suru and has_noun(persist_nouns)) or has_verb(persist_verbs):
             intent = "PERSIST"
             role = "PERSIST"
+        elif (has_suru and has_noun(return_nouns)) or has_verb(return_verbs):
+            intent = "RETURN"
+            role = "RETURN"
         elif (has_suru and has_noun(fetch_nouns)) or has_verb(fetch_verbs):
             intent = "FETCH"
             role = "FETCH"
@@ -1316,10 +1510,12 @@ class IRGenerator:
         goals = self.logic_auditor.extract_assertion_goals([text])
         if goals:
             return True
+        if extract_first_quoted_literal(text) is not None:
+            return True
         if self._extract_first_number(text) is not None:
             return True
         for s in self._token_surfaces(tokens):
-            if str(s).lower() in ["true", "false"]:
+            if str(s).lower() in ["true", "false", "null"]:
                 return True
         return False
 

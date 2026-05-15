@@ -17,12 +17,22 @@ class CodeBuilderClient:
         self.json_end_marker = "__CODEBUILDER_JSON_END__"
 
     def _resolve_exe_path(self, root: str) -> str | None:
-        release = os.path.join(root, "tools", "csharp", "CodeBuilder", "bin", "Release", "net10.0", "CodeBuilder.exe")
-        debug = os.path.join(root, "tools", "csharp", "CodeBuilder", "bin", "Debug", "net10.0", "CodeBuilder.exe")
-        if os.path.exists(release):
-            return release
-        if os.path.exists(debug):
-            return debug
+        base_dir = os.path.join(root, "tools", "csharp", "CodeBuilder", "bin")
+        configs = []
+        for config_name in ["Release", "Debug"]:
+            config_dir = os.path.join(base_dir, config_name, "net10.0")
+            exe_path = os.path.join(config_dir, "CodeBuilder.exe")
+            dll_path = os.path.join(config_dir, "CodeBuilder.dll")
+            if not os.path.exists(exe_path):
+                continue
+            freshness = []
+            if os.path.exists(exe_path):
+                freshness.append(os.path.getmtime(exe_path))
+            if os.path.exists(dll_path):
+                freshness.append(os.path.getmtime(dll_path))
+            configs.append((max(freshness) if freshness else 0, exe_path))
+        if configs:
+            return max(configs, key=lambda item: item[0])[1]
         return None
 
     def _extract_json_payload(self, stdout: str) -> str:
@@ -137,12 +147,13 @@ class CodeBuilderClient:
             name = m.get("name", "Method")
             params = m.get("params", []) or []
             param_str = ", ".join([f"{p.get('type', 'object')} {p.get('name', 'arg')}" for p in params])
+            async_prefix = "async " if m.get("is_async") else ""
             lines.append("")
-            lines.append(f"        public {ret} {name}({param_str})")
+            lines.append(f"        public {async_prefix}{ret} {name}({param_str})")
             lines.append("        {")
             body = m.get("body", []) or []
             for stmt in body:
-                rendered = self._render_stmt(stmt)
+                rendered = self._render_stmt(stmt, is_async=bool(m.get("is_async")))
                 for bline in rendered.splitlines():
                     lines.append(f"            {bline}")
             lines.append("        }")
@@ -157,7 +168,7 @@ class CodeBuilderClient:
                     lines.append("")
         return "\n".join(lines)
 
-    def _render_stmt(self, stmt: dict) -> str:
+    def _render_stmt(self, stmt: dict, is_async: bool = False) -> str:
         if not isinstance(stmt, dict):
             return ""
         if "code" in stmt and stmt.get("code"):
@@ -187,7 +198,7 @@ class CodeBuilderClient:
             var_decl = var_type if var_type and var_type != "var" else "var"
             body_lines = []
             for b in stmt.get("body", []) or []:
-                rendered = self._render_stmt(b)
+                rendered = self._render_stmt(b, is_async=is_async)
                 for line in rendered.splitlines():
                     body_lines.append(f"    {line}")
             body_block = "\n".join(body_lines) if body_lines else "    // TODO: foreach body"
@@ -196,7 +207,7 @@ class CodeBuilderClient:
             cond = stmt.get("condition", "true")
             body_lines = []
             for b in stmt.get("body", []) or []:
-                rendered = self._render_stmt(b)
+                rendered = self._render_stmt(b, is_async=is_async)
                 for line in rendered.splitlines():
                     body_lines.append(f"    {line}")
             body_block = "\n".join(body_lines) if body_lines else "    // TODO: if body"
@@ -206,10 +217,143 @@ class CodeBuilderClient:
                 else_lines = []
                 else_lines.append("    // TODO: else")
                 for b in else_body:
-                    rendered = self._render_stmt(b)
+                    rendered = self._render_stmt(b, is_async=is_async)
                     for line in rendered.splitlines():
                         else_lines.append(f"    {line}")
                 else_block = "\n".join(else_lines) if else_lines else "    // TODO: else body"
                 code += f"\nelse\n{{\n{else_block}\n}}"
             return code
+        if s_type == "retry":
+            max_attempts = stmt.get("max_attempts", 3)
+            try:
+                max_attempts = int(max_attempts)
+            except (TypeError, ValueError):
+                max_attempts = 3
+            if max_attempts < 1:
+                max_attempts = 1
+            exception_type = str(stmt.get("exception_type", "Exception") or "Exception")
+            base_delay_ms = stmt.get("base_delay_ms", 0)
+            max_delay_ms = stmt.get("max_delay_ms", 0)
+            backoff_multiplier = stmt.get("backoff_multiplier", 1.0)
+            try:
+                base_delay_ms = max(0, int(base_delay_ms))
+            except (TypeError, ValueError):
+                base_delay_ms = 0
+            try:
+                max_delay_ms = max(0, int(max_delay_ms))
+            except (TypeError, ValueError):
+                max_delay_ms = 0
+            try:
+                backoff_multiplier = max(1.0, float(backoff_multiplier))
+            except (TypeError, ValueError):
+                backoff_multiplier = 1.0
+            body_lines = []
+            for b in stmt.get("body", []) or []:
+                rendered = self._render_stmt(b, is_async=is_async)
+                for line in rendered.splitlines():
+                    body_lines.append(f"        {line}")
+            body_block = "\n".join(body_lines) if body_lines else "        // TODO: retry body"
+            last_index = max_attempts - 1
+            declaration = f"for (var retryAttempt = 0; retryAttempt < {max_attempts}; retryAttempt++)"
+            catch_lines = [f"        if (retryAttempt == {last_index}) throw;"]
+            if base_delay_ms > 0:
+                declaration = (
+                    f"for (int retryAttempt = 0, retryDelayMs = {base_delay_ms}; "
+                    f"retryAttempt < {max_attempts}; retryAttempt++)"
+                )
+                if is_async:
+                    catch_lines.append("        await Task.Delay(retryDelayMs);")
+                else:
+                    catch_lines.append("        System.Threading.Thread.Sleep(retryDelayMs);")
+                if max_delay_ms > 0:
+                    if backoff_multiplier > 1.0:
+                        catch_lines.append(
+                            f"        retryDelayMs = Math.Min({max_delay_ms}, (int)Math.Ceiling(retryDelayMs * {backoff_multiplier}));"
+                        )
+                    else:
+                        catch_lines.append(f"        retryDelayMs = Math.Min({max_delay_ms}, retryDelayMs);")
+                elif backoff_multiplier > 1.0:
+                    catch_lines.append(
+                        f"        retryDelayMs = (int)Math.Ceiling(retryDelayMs * {backoff_multiplier});"
+                    )
+            return (
+                f"{declaration}\n"
+                "{\n"
+                "    try\n"
+                "    {\n"
+                f"{body_block}\n"
+                "        break;\n"
+                "    }\n"
+                f"    catch ({exception_type})\n"
+                "    {\n"
+                + "\n".join(catch_lines) + "\n"
+                "    }\n"
+                "}"
+            )
+        if s_type == "timeout":
+            timeout_ms = stmt.get("timeout_ms", 30000)
+            try:
+                timeout_ms = int(timeout_ms)
+            except (TypeError, ValueError):
+                timeout_ms = 30000
+            if timeout_ms < 1:
+                timeout_ms = 1
+            body_lines = []
+            for b in stmt.get("body", []) or []:
+                rendered = self._render_stmt(b, is_async=is_async)
+                for line in rendered.splitlines():
+                    body_lines.append(f"        {line}")
+            body_block = "\n".join(body_lines) if body_lines else "        // TODO: timeout body"
+            if is_async:
+                return (
+                    "{\n"
+                    f"    using var timeoutCts = new System.Threading.CancellationTokenSource(System.TimeSpan.FromMilliseconds({timeout_ms}));\n"
+                    "    var timeoutTask = System.Threading.Tasks.Task.Run(async () =>\n"
+                    "    {\n"
+                    f"{body_block}\n"
+                    "    }, timeoutCts.Token);\n"
+                    "    try\n"
+                    "    {\n"
+                    "        await timeoutTask.WaitAsync(timeoutCts.Token);\n"
+                    "    }\n"
+                    "    catch (System.OperationCanceledException)\n"
+                    "    {\n"
+                    f"        throw new System.TimeoutException(\"Operation timed out after {timeout_ms}ms.\");\n"
+                    "    }\n"
+                    "}"
+                )
+            return (
+                "{\n"
+                "    var timeoutTask = System.Threading.Tasks.Task.Run(() =>\n"
+                "    {\n"
+                f"{body_block}\n"
+                "    });\n"
+                f"    if (!timeoutTask.Wait(System.TimeSpan.FromMilliseconds({timeout_ms})))\n"
+                "    {\n"
+                f"        throw new System.TimeoutException(\"Operation timed out after {timeout_ms}ms.\");\n"
+                "    }\n"
+                "}"
+            )
+        if s_type == "transaction":
+            body_lines = []
+            for b in stmt.get("body", []) or []:
+                rendered = self._render_stmt(b, is_async=is_async)
+                for line in rendered.splitlines():
+                    body_lines.append(f"        {line}")
+            body_block = "\n".join(body_lines) if body_lines else "        // TODO: transaction body"
+            if is_async:
+                return (
+                    "{\n"
+                    "    using var transactionScope = new System.Transactions.TransactionScope(System.Transactions.TransactionScopeAsyncFlowOption.Enabled);\n"
+                    f"{body_block}\n"
+                    "    transactionScope.Complete();\n"
+                    "}"
+                )
+            return (
+                "{\n"
+                "    using var transactionScope = new System.Transactions.TransactionScope();\n"
+                f"{body_block}\n"
+                "    transactionScope.Complete();\n"
+                "}"
+            )
         return f"// TODO: {stmt.get('text', stmt.get('type', ''))}"

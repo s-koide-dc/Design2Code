@@ -1,0 +1,31 @@
+{
+  "logic_tree": [
+    {
+      "id": "step_1",
+      "type": "ACTION",
+      "original_text": "値を計算する。",
+      "intent": "CALC",
+      "role": "ACTION",
+      "cardinality": "SINGLE",
+      "target_entity": "Item",
+      "output_type": "decimal",
+      "source_kind": null,
+      "source_ref": null,
+      "semantic_map": {
+        "logic": [],
+        "semantic_roles": {
+          "target_entity": "Item",
+          "calculate_target_resolution": "default_target",
+          "calculate_source_resolution": "default_scope_var"
+        },
+        "spec_role": "CALCULATE"
+      },
+      "input_link": null,
+      "children": [],
+      "else_children": []
+    }
+  ],
+  "inputs": [],
+  "outputs": [],
+  "data_sources": []
+}

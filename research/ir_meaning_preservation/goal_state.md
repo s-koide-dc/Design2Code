@@ -103,23 +103,28 @@
 
 - Goal A: largely satisfied
 - Goal B: largely satisfied
-- Goal C: mostly satisfied
+- Goal C: largely satisfied
 - Goal D: satisfied at workflow-entry level
+
+補足:
+
+- `runtime_schema_policy_boundary.md` により、最終問いに含まれていた `runtime / schema / policy` の責務分担は、外向けに圧縮可能な形で明文化された
 
 したがって、今の研究は
 `まだ始まったばかり`
 ではなく、
-`done の輪郭が見えていて、残りは圧縮と整合化の段階`
+`主要 role はかなり閉じており、残りは open issue の棚卸しと圧縮の段階`
 にある。
 
 ## 7. Best Next Step
 
 この goal state を前提にすると、次にやるべきことは新論点の追加ではない。
 
-最も筋が良いのは次のどちらかである。
+最も筋が良いのは次のどれかである。
 
-1. ここまでの成果を外向け報告用にさらに圧縮する
-2. `claim -> evidence -> implementation -> checklist` の一貫性を最終点検する
+1. closed role 群の summary と open inventory を揃える
+2. ここまでの成果を外向け報告用にさらに圧縮する
+3. `claim -> evidence -> implementation -> checklist` の一貫性を最終点検する
 
 つまり今後は、
 `広げる`

@@ -42,11 +42,13 @@
 - `structural_dependency_rule.md`: 構造親依存と sibling 依存を分ける `input_link` 規則
 - `structural_role_bridge.md`: `WRAP`, `ITERATE`, `CALCULATE` の橋渡し方針
 - `check_role_refinement.md`: `CHECK` を `check_kind` 単位で細分化し、IR 保持項目と downstream 利用方針を定義
-- `resolution_provenance_model.md`: `CALCULATE` の解決由来 metadata を `CHECK` / `FILTER` へ拡張する共通モデル
-- `cross_role_provenance_design.md`: `CHECK`, `FILTER`, `CALCULATE` を `resolved value + provenance + policy` の共通枠組みで読むための横断設計
+- `resolution_provenance_model.md`: `CALCULATE` の解決由来 metadata を `CHECK` / `FILTER` / `RETURN` へ拡張する共通モデル
+- `cross_role_provenance_design.md`: `CHECK`, `FILTER`, `CALCULATE`, `RETURN` を `resolved value + provenance + policy` の共通枠組みで読むための横断設計
   - 初期実装として、`CALCULATE` に加えて `CHECK` / `FILTER` にも provenance-strength ベースの downstream conservatism を最小適用済み
   - `history_based` provenance についても、停止一辺倒ではなく exact-scope / generic-logic 限定の中間 policy を導入済み
-- `provenance_strength_policy_matrix.md`: provenance-strength を `CHECK` / `FILTER` / `CALCULATE` 横断で許可操作・禁止操作・exact-scope rule に対応付けた判定表
+- `provenance_strength_policy_matrix.md`: provenance-strength を `CHECK` / `FILTER` / `CALCULATE` / `RETURN` 横断で許可操作・禁止操作・exact-scope rule に対応付けた判定表
+- `runtime_schema_policy_boundary.md`: runtime metadata, schema knowledge, policy judgment の責務境界を 1 枚に圧縮した最終整理
+- `return_provenance_supply_model.md`: `RETURN` provenance を explicit/literal/input-link に限定して供給するための supply 境界モデル
 - `calculate_target_entity_ambiguity_rule.md`: `CALCULATE` の property owner が一意でない場合に `target_entity` を誤補正しない規則
 - `calculate_entity_resolution_policy.md`: `entity_resolution` の 4 類型を downstream でどう扱うかの統一方針
 
@@ -70,6 +72,10 @@
 - `schema_alias_coverage_policy.md`: alias をどこまで `entity_schema` に追加してよいか、その coverage 境界と admission/rejection rule
 - `schema_alias_admission_threshold.md`: owner-confined でも benchmark need が弱い alias をいつ admission するかの閾値定義
 - `schema_alias_admission_timing_matrix.md`: alias admission timing の 5 類型を横断比較する matrix
+- `wrap_retry_semantics_design.md`: `spec_role=WRAP` を marker ではなく deterministic な `retry` statement へ落とす最小 codegen 設計
+- `wrap_timeout_semantics_design.md`: explicit `wrapper_kind=timeout` を deterministic な `timeout` statement へ落とす最小 codegen 設計
+- `wrap_transaction_semantics_design.md`: explicit `wrapper_kind=transaction` を deterministic な `transaction` statement へ落とす最小 codegen 設計
+  - `max_attempts` は explicit metadata 優先、token sequence の `<number> + 回` でのみ補完し、`exception_type` は explicit metadata のみ受け付ける
 - `ir_generator_decomposition_plan.md`: 肥大化した `IRGenerator` を研究概念ごとに整理する段階的分割方針
 - 現在の分割進捗: `src/ir_generator/check_resolution.py`, `src/ir_generator/promotion_rules.py`, `src/ir_generator/target_resolution.py`, `src/ir_generator/spec_role_rules.py` まで module-level helper 化済み
 - structural dependency はまだ `generate()` 主経路に残しつつ、chaining / block attachment 判定まで in-file helper 化済み
@@ -94,6 +100,8 @@
 - `results/role_mapping_matrix.md`: 期待 `spec_role` と観測 `runtime_role` の対応整理
 - `results/structural_dependency_observation.md`: 構造親依存規則の観測結果
 - `results/calculate_case_observation.md`: `CALCULATE` 補助ケースの観測結果
+- `results/return_provenance_observation.md`: `RETURN` 補助ケースにおける literal return と upstream value return の provenance 観測結果
+- `results/return_provenance_supply_observation.md`: `RETURN` provenance の supply success / weak retention contrast を観測した結果
 - `results/provenance_case_observation.md`: provenance metadata 拡張ケースの初回観測結果
 - `results/provenance_strength_boundary_observation.md`: provenance-strength の `schema_backed` / `history_based` 境界を観測した結果
 - `results/schema_alias_supply_observation.md`: schema alias 供給あり/なし contrast を観測した結果
@@ -110,6 +118,9 @@
 - `calculate_metadata_conservatism_summary.md`: `CALCULATE` を題材に、IR metadata が downstream の保守性を制御できたことの中間まとめ
 - `midterm_synthesis.md`: 研究全体の現在地、主要知見、未解決課題、次段の論点を横断整理した中間統括
 - `research_outcome_memo.md`: `role / provenance / alias admission timing` の 3 層を 1 ページで要約した成果メモ
+- `remaining_open_inventory.md`: すでに閉じた role と、まだ open issue として残している論点の棚卸し
+- `runtime_schema_policy_boundary.md`: `runtime / schema / policy` の責務分担を 1 枚で固定した最終圧縮
+- `report.md`: 研究目的、方法、主要知見、実装接続、残課題、結論を通しでまとめた正式報告書
 - `executive_summary.md`: 外向け説明向けにさらに圧縮した短い要約
 - `claim_evidence_implementation_map.md`: 研究主張、観測根拠、実装箇所の対応表
 - `implementation_priority_from_claims.md`: claim/evidence/implementation の差分から導いた次の実装優先順位

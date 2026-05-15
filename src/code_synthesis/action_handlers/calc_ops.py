@@ -76,8 +76,11 @@ def process_csv_aggregate(action_synthesizer, node: Dict[str, Any], path: Dict[s
 def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) -> List[Dict[str, Any]]:
     semantic_roles = action_synthesizer._get_semantic_roles(node)
     entity_resolution = str(semantic_roles.get("entity_resolution") or "").strip().lower()
+    target_resolution = str(semantic_roles.get("calculate_target_resolution") or "").strip().lower()
     is_ambiguous_entity = entity_resolution == "ambiguous"
     allow_cross_entity_fallback = entity_resolution in ["", "unique_owner", "explicit_entity"]
+    weak_target_provenance = target_resolution in ["explicit_target", "default_target"]
+    allow_generic_target_property_fallback = not weak_target_provenance
     ops = semantic_roles.get("ops", []) or []
     if "aggregate_by_product" in ops:
         return process_csv_aggregate(action_synthesizer, node, path)
@@ -188,10 +191,22 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
     if rate_rules and isinstance(rate_rules, list):
         is_aggregation = False
 
-    var_name = path.get("active_scope_item")
+    preferred_source_var = action_synthesizer._resolve_calculate_source_var(node, path)
+    var_name = preferred_source_var or path.get("active_scope_item")
     collection_var = None
     collection_type = None
-    if not path.get("in_loop"):
+    if preferred_source_var and not path.get("in_loop"):
+        for vt, vs in reversed(list(path.get("type_to_vars", {}).items())):
+            if not any(k in vt for k in ["IEnumerable", "List", "[]"]) or vt == "string":
+                continue
+            for entry in reversed(vs or []):
+                if isinstance(entry, dict) and entry.get("var_name") == preferred_source_var:
+                    collection_var = preferred_source_var
+                    collection_type = vt
+                    break
+            if collection_var:
+                break
+    if not collection_var and not path.get("in_loop"):
         for vt, vs in reversed(list(path.get("type_to_vars", {}).items())):
             if any(k in vt for k in ["IEnumerable", "List", "[]"]) and vt != "string":
                 if vs:
@@ -357,7 +372,7 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
                     price_prop = pn
         if price_prop and qty_prop:
             expr = f"{var_name}.{price_prop} * {var_name}.{qty_prop}"
-    if not expr:
+    if not expr and allow_generic_target_property_fallback:
         numeric_props = []
         for pn, pt in props.items():
             if pt in ["int", "long", "decimal", "double", "float"]:
@@ -392,7 +407,7 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
         base_prop = None
         if props and hint_source:
             base_prop = action_synthesizer.semantic_binder._resolve_prop(str(hint_source), "numeric", props, node)
-        if not base_prop and props:
+        if not base_prop and props and allow_generic_target_property_fallback:
             numeric_props = [pn for pn, pt in props.items() if pt in ["int", "long", "decimal", "double", "float"]]
             preferred = None
             for key in ["total", "amount", "price", "sum", "discount", "points", "score", "count"]:
@@ -473,6 +488,13 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
             new_path["statements"].append({
                 "type": "raw",
                 "code": f'throw new NotImplementedException("TODO: Resolve ambiguous CALCULATE target for {hint_label}");',
+                "node_id": node.get("id")
+            })
+        elif weak_target_provenance and not actual_expr:
+            hint_label = target_hint or explicit_prop or "value"
+            new_path["statements"].append({
+                "type": "raw",
+                "code": f'throw new NotImplementedException("TODO: Resolve weak CALCULATE target for {hint_label}");',
                 "node_id": node.get("id")
             })
         else:

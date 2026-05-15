@@ -25,7 +25,7 @@
 ### 1. Role Layer
 
 - `spec_role` と `runtime_role` を分離した
-- `CHECK`, `FILTER`, `CALCULATE`, `WRAP`, `ITERATE` の role weakening を観測し、局所 PoC で改善した
+- `CHECK`, `FILTER`, `CALCULATE`, `RETURN`, `TRANSFORM`, `ITERATE`, `WRAP`, `DISPLAY` の role weakening / provenance under-capture を観測し、局所 PoC で改善した
 - role 保存は upstream IR quality の主問題であり、単なるコード生成後処理ではない
 
 代表文書:
@@ -67,7 +67,13 @@
 - `CHECK.subject_resolution`
 - `FILTER` promotion と property-side provenance
 - `CALCULATE` promotion と `entity_resolution`
+- `CALCULATE` source / target provenance
 - weak / ambiguous provenance に対する downstream conservatism
+- `RETURN` literal / source provenance
+- `TRANSFORM` source provenance
+- `ITERATE` collection / item continuity
+- `WRAP` retry / timeout / transaction consumer
+- `DISPLAY` property-side provenance
 - structural dependency の一般規則化
 - `IRGenerator` の研究概念ベース分解
 
@@ -88,13 +94,21 @@
 まだ完全ではない点も明確である。
 
 - role 横断の定量比較は薄い
-- provenance は `CALCULATE` で最も成熟しており、他 role への一般化は途上である
+- provenance は `CALCULATE` から `RETURN` / `TRANSFORM` / `ITERATE` / `WRAP` / `DISPLAY` まで広がったが、cross-role の定量比較はまだ薄い
 - alias policy は整理できたが、maintenance cost と運用フローの最終形は未確定である
+- wrapper kind の非明示推定や wrapper 一般化はまだ open issue である
+
+補足:
+
+- `runtime_schema_policy_boundary.md` により、`runtime / schema / policy` の責務境界そのものは 1 枚で説明できる状態になった
+- したがって残課題は、境界の未定義というより open issue の打ち切り条件をどう置くかに移っている
 
 ## Current Best Next Step
 
-次にやるべきことは、ここまでの 3 層を使って
-`research claim -> evidence -> implementation site`
-の対応表を作ることである。
+次にやるべきことは、新しい role を広げることではなく、
 
-それができると、中間報告だけでなく将来の論文・設計説明・実装保守の入口を 1 つに寄せられる。
+- closed role 群の横断 summary を揃える
+- open issue を inventory 化する
+- 必要なら外向け報告へさらに圧縮する
+
+の順で研究を閉じに行くことである。

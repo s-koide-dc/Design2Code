@@ -25,6 +25,11 @@
 - regression runner は `Change Summary` / `Benchmark Coverage` の下書き block も出力する。
 - regression runner は `Affected Claims` / `Downstream Conservatism Check` の下書き block も出力する。
 - regression runner は `Output Path Check` / `Deliverables Produced` の下書き block も出力する。
+- regression runner は `Final Judgment` の候補 block も出力する。
+- これで current runner は regression run record の本文全体を draft 候補として再掲できる。
+- `--write-draft` を付けると、これらの draft 群を markdown ファイルとして保存できる。
+- 既定の保存先は `<run_file>.runner_draft.md`。必要なら `--draft-file` で変更できる。
+- `--update-run-file` を付けると、runner が生成した draft 群を使って target run file を in-place 更新できる。
 
 ## Usage Rule
 
