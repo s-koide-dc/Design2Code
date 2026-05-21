@@ -10,7 +10,7 @@
     "【整合】code_synthesis 設計書の内容差分を段階的に精査して詳細更新する。"
   ],
   "concerns": [],
-  "last_updated_by_ai": "2026-05-15T09:47:26.074490",
+  "last_updated_by_ai": "2026-05-21T13:25:39.932592",
   "modules": [
     {
       "name": "action_executor",

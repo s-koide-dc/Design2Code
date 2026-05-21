@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
+from unittest.mock import MagicMock
 import json
 import os
 import numpy as np
@@ -62,7 +63,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
 
         # Mock config to use our temp store
         self.cm = MagicMock(spec=ConfigManager)
-        self.cm.workspace_root = os.getcwd()
+        self.cm.workspace_root = self.test_dir.name
         self.cm.method_store_path = self.store_path
         self.cm.storage_dir = self.test_dir.name
         self.cm.domain_dictionary_path = self.dd_path
@@ -1535,7 +1536,9 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("retryDelayMs = Math.Min(1000, (int)Math.Ceiling(retryDelayMs * 2.0));", code)
 
     def test_async_retry_blueprint_uses_task_delay_for_backoff(self):
-        client = CodeBuilderClient(self.cm)
+        real_cm = MagicMock()
+        real_cm.workspace_root = os.getcwd()
+        client = CodeBuilderClient(real_cm)
         blueprint = {
             "namespace": "Generated",
             "class_name": "RetryAsyncProcessor",
@@ -1634,7 +1637,9 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("System.TimeoutException(\"Operation timed out after 5000ms.\")", code)
 
     def test_async_timeout_blueprint_uses_wait_async(self):
-        client = CodeBuilderClient(self.cm)
+        real_cm = MagicMock()
+        real_cm.workspace_root = os.getcwd()
+        client = CodeBuilderClient(real_cm)
         blueprint = {
             "namespace": "Generated",
             "class_name": "TimeoutAsyncProcessor",
@@ -1728,7 +1733,9 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("Console.WriteLine", code)
 
     def test_async_transaction_blueprint_uses_transaction_scope_async_flow(self):
-        client = CodeBuilderClient(self.cm)
+        real_cm = MagicMock()
+        real_cm.workspace_root = os.getcwd()
+        client = CodeBuilderClient(real_cm)
         blueprint = {
             "namespace": "Generated",
             "class_name": "TransactionAsyncProcessor",

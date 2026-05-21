@@ -198,7 +198,8 @@ class TestActionExecutor(unittest.TestCase):
             "analysis": {
                 "intent": "CMD_RUN",
                 "entities": {"command": "echo test_cmd"}
-            }
+            },
+            "confirmation_granted": True
         }
         context["plan"] = {
             "action_method": "_run_command",
@@ -217,7 +218,8 @@ class TestActionExecutor(unittest.TestCase):
             "analysis": {
                 "intent": "CMD_RUN",
                 "entities": {"command": "del critical_file.py"}
-            }
+            },
+            "confirmation_granted": True
         }
         context["plan"] = {
             "action_method": "_run_command",

@@ -1,5 +1,7 @@
 # AI Changelog
 
+- **2026-05-21**: Fixed C# integration tests in `tests/unit/test_code_synthesizer_integration.py` by instantiating `CodeBuilderClient` with a mock config pointing to `os.getcwd()`, preventing test workspace isolation from hiding C# compilation assets.
+
 - **2026-05-15**: Added `research/ir_meaning_preservation/report.md` as the formal integrated report that connects the research objective, benchmark method, core findings, runtime/schema/policy boundary, implementation sites, operationalization, remaining open issues, and final conclusion into a single document, and synchronized the research indexes accordingly.
 
 - **2026-05-15**: Added `research/ir_meaning_preservation/runtime_schema_policy_boundary.md` to compress the final `runtime / schema / policy` responsibility split into a single statement, and synchronized the research README, document map, outcome memo, and goal-state summary so the closure phase now has an explicit boundary document.
