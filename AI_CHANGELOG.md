@@ -1,5 +1,7 @@
 # AI Changelog
 
+- **2026-05-28**: Updated `.github/workflows/python-ci.yml` from `actions/checkout@v4` / `actions/setup-python@v5` to `@v6`, aligning the CI workflow with GitHub's Node 24-compatible action releases and removing the runner deprecation warning path reported after commit.
+
 - **2026-05-28**: Expanded the `run_unit_smoke.py` profile documentation in `scripts/README.md` to list the exact test modules behind `core`, `parser`, and `synthesis`, and added a short source comment explaining why the smoke profile set stays explicit.
 
 - **2026-05-28**: Documented `python scripts/validate/run_unit_smoke.py --profile core --verbosity 2` in `scripts/README.md` as the shortest local smoke path, reflecting the new profile split with a concrete operator-facing command.
