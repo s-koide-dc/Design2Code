@@ -18,7 +18,6 @@ SMOKE_PROFILES = {
         "tests.unit.test_config_manager",
         "tests.unit.test_dependency_resolver",
         "tests.unit.test_method_store",
-        "tests.unit.test_vector_cache_required",
     ],
     "parser": [
         "tests.unit.test_design_doc_parser",
@@ -26,6 +25,9 @@ SMOKE_PROFILES = {
     ],
     "synthesis": [
         "tests.unit.test_code_synthesizer_integration",
+    ],
+    "assets": [
+        "tests.unit.test_vector_cache_required",
     ],
 }
 DEFAULT_PROFILES = ["core", "parser", "synthesis"]

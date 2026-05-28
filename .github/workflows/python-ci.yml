@@ -38,4 +38,4 @@ jobs:
         run: python scripts/validate_project_consistency.py
 
       - name: Run unit smoke regression
-        run: python scripts/validate/run_unit_smoke.py --verbosity 2
+        run: python scripts/validate/run_unit_smoke.py --profile core --profile parser --profile synthesis --verbosity 2

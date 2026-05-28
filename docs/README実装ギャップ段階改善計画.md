@@ -62,6 +62,7 @@
    - CI に `scripts/validate/run_unit_smoke.py --verbosity 2` を追加し、主要 unit smoke も継続検証対象にした。
    - `run_unit_smoke.py` の既定対象を軽量 unit 群まで広げ、config/design parser/dependency/json guard も smoke に含めた。
    - `run_unit_smoke.py` に `core` / `parser` / `synthesis` profile を追加し、CI は default のまま維持しつつローカルではカテゴリ単位に切り出せるようにした。
+   - CI 非依存化のため vector cache 確認を `assets` profile へ分離し、workflow では asset 非依存 profile だけを明示実行する形へ調整した。
    - `validate_project_consistency.py` に `ai_project_map.json` の source/design/test 参照先実在性チェックを追加し、同期漏れを stderr で検出できるようにした。
    - `README.md` / `scripts/README.md` / `docs/stdout_output_policy.md` のローカル参照実在性チェックを追加し、公開文書のリンクずれを validator で検出できるようにした。
 

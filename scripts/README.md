@@ -47,12 +47,14 @@
 - `scripts/validate/validate_ir_meaning_preservation_regression.py` : IR meaning preservation の regression run 記録と関連成果物の整合性検証
 - `scripts/validate/run_ir_meaning_preservation_regression.py` : IR meaning preservation の標準 regression 手順（sync / consistency / run-record validation / optional tests）を 1 コマンドで実行し、`Validation Run` 欄用 markdown、該当 `Regression Check`、`Change Summary` / `Affected Claims` / `Benchmark Coverage` / `Downstream Conservatism Check` / `Role Weakening Check` / `Alias Admission Check` / `Output Path Check` / `Deliverables Produced` / `Final Judgment` の下書き block を出力。`--write-draft` で markdown ファイルへ保存可能（既定: `<run_file>.runner_draft.md`、変更時は `--draft-file`）。`--update-run-file` を付けると、生成した draft block を使って target run file を in-place 更新する。
 - `scripts/validate/run_unit_smoke.py` : unitテストのスモーク（vector cache を含む）
-  - 既定では `config_manager`, `design_doc_parser`, `dependency_resolver`, `json_deserialize_guard`, `method_store`, `code_synthesizer_integration`, `vector_cache_required` を実行
-  - `--profile core|parser|synthesis` でカテゴリ単位に絞れる
-  - `core`: `test_config_manager`, `test_dependency_resolver`, `test_method_store`, `test_vector_cache_required`
+  - 既定では asset 非依存の `config_manager`, `design_doc_parser`, `dependency_resolver`, `json_deserialize_guard`, `method_store`, `code_synthesizer_integration` を実行
+  - `--profile core|parser|synthesis|assets` でカテゴリ単位に絞れる
+  - `core`: `test_config_manager`, `test_dependency_resolver`, `test_method_store`
   - `parser`: `test_design_doc_parser`, `test_json_deserialize_guard`
   - `synthesis`: `test_code_synthesizer_integration`
+  - `assets`: `test_vector_cache_required`
   - 最短のローカル健全性チェックとしては `python scripts/validate/run_unit_smoke.py --profile core --verbosity 2` が扱いやすい
+  - ローカル資産まで含めて確認したい場合は `python scripts/validate/run_unit_smoke.py --profile core --profile parser --profile synthesis --profile assets --verbosity 2`
   - `--test-target` は profile に追加する形で使える
 - `scripts/validate/run_tdd.py` : Advanced TDD の CLI 入口
 

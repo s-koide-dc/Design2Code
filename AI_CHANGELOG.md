@@ -1,5 +1,7 @@
 # AI Changelog
 
+- **2026-05-28**: Split `test_vector_cache_required` out of the default `run_unit_smoke.py` targets into a dedicated `assets` profile and changed the GitHub Actions workflow to run only `core`, `parser`, and `synthesis`, so CI no longer depends on local vector-cache assets that are absent on GitHub-hosted runners.
+
 - **2026-05-28**: Updated `.github/workflows/python-ci.yml` from `actions/checkout@v4` / `actions/setup-python@v5` to `@v6`, aligning the CI workflow with GitHub's Node 24-compatible action releases and removing the runner deprecation warning path reported after commit.
 
 - **2026-05-28**: Expanded the `run_unit_smoke.py` profile documentation in `scripts/README.md` to list the exact test modules behind `core`, `parser`, and `synthesis`, and added a short source comment explaining why the smoke profile set stays explicit.
