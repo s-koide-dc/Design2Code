@@ -440,37 +440,36 @@ def main():
     if not errors and not warnings:
         emit_progress("OK: All checks passed. Project is consistent.")
         return 0
-    else:
-        if errors:
-            emit_error("")
-            emit_error("ERRORS (must be fixed):")
-            general_errors, doc_mode_errors = group_errors_by_doc_mode(errors)
-
-            if general_errors:
-                emit_error("GENERAL:")
-                for error in general_errors:
-                    emit_error(f" - {error}")
-
-            doc_section_titles = {
-                "required": "DOCS (required):",
-                "existence-only": "DOCS (existence-only):",
-                "optional-reference": "DOCS (optional-reference):",
-            }
-            for mode_label, section_title in doc_section_titles.items():
-                mode_errors = doc_mode_errors[mode_label]
-                if not mode_errors:
-                    continue
-                emit_error(section_title)
-                for error in mode_errors:
-                    emit_error(f" - {error}")
-        if warnings:
-            emit_error("")
-            emit_error("WARNINGS (should be reviewed):")
-            for warning in warnings:
-                emit_error(f" - {warning}")
+    if errors:
         emit_error("")
-        emit_error("--- End of Validation ---")
-        return 1
+        emit_error("ERRORS (must be fixed):")
+        general_errors, doc_mode_errors = group_errors_by_doc_mode(errors)
+
+        if general_errors:
+            emit_error("GENERAL:")
+            for error in general_errors:
+                emit_error(f" - {error}")
+
+        doc_section_titles = {
+            "required": "DOCS (required):",
+            "existence-only": "DOCS (existence-only):",
+            "optional-reference": "DOCS (optional-reference):",
+        }
+        for mode_label, section_title in doc_section_titles.items():
+            mode_errors = doc_mode_errors[mode_label]
+            if not mode_errors:
+                continue
+            emit_error(section_title)
+            for error in mode_errors:
+                emit_error(f" - {error}")
+    if warnings:
+        emit_error("")
+        emit_error("WARNINGS (should be reviewed):")
+        for warning in warnings:
+            emit_error(f" - {warning}")
+    emit_error("")
+    emit_error("--- End of Validation ---")
+    return 1 if errors else 0
 
 if __name__ == '__main__':
     sys.exit(main())

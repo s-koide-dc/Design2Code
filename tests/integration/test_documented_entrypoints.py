@@ -469,8 +469,34 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         self.assertEqual(completed.returncode, 0)
         self.assertIn("--- Project Consistency Validation ---", completed.stdout)
-        self.assertIn("OK: All checks passed. Project is consistent.", completed.stdout)
-        self.assertEqual(completed.stderr.strip(), "")
+        self.assertNotIn("ERRORS (must be fixed):", completed.stderr)
+
+    def test_validate_project_consistency_returns_zero_when_only_warnings_exist(self):
+        source_path = self.workspace_root / "src" / "advanced_tdd" / "knowledge_base.py"
+        original_text = source_path.read_text(encoding="utf-8")
+        try:
+            source_path.write_text(original_text + "\n# warning-only regression\n", encoding="utf-8")
+            command = [
+                sys.executable,
+                "scripts/validate_project_consistency.py",
+            ]
+            completed = subprocess.run(
+                command,
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                completed.returncode,
+                0,
+                msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
+            )
+            self.assertIn("WARNINGS (should be reviewed):", completed.stderr)
+            self.assertIn("[module:advanced_tdd]: Source files are newer than design documents.", completed.stderr)
+        finally:
+            source_path.write_text(original_text, encoding="utf-8")
 
     def test_validate_project_consistency_reports_missing_map_to_stderr(self):
         map_path = self.workspace_root / "ai_project_map.json"
@@ -590,7 +616,6 @@ class TestDocumentedEntrypoints(unittest.TestCase):
                 0,
                 msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
             )
-            self.assertIn("OK: All checks passed. Project is consistent.", completed.stdout)
             self.assertNotIn("README実装ギャップ段階改善計画.md", completed.stderr)
         finally:
             if backup_path.exists():

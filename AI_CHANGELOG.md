@@ -1,5 +1,7 @@
 # AI Changelog
 
+- **2026-05-28**: Relaxed `scripts/validate_project_consistency.py` so warning-only runs now return exit code 0 while still reporting warnings on stderr, matching the intended separation between must-fix doc/consistency errors and review-only freshness drift; added an integration regression for the warning-only path.
+
 - **2026-05-28**: Hardened the CI-facing regression path by (1) making `validate_project_consistency.py` resolve stale absolute workspace links back into the current repo when possible while ignoring non-repo absolute artifacts, (2) narrowing inline path validation to committed source/doc-style extensions instead of generated assets like `txt` / `npy` / `db`, (3) suppressing warning-level logging during `run_unit_smoke.py`, and (4) forcing documented pipeline-entrypoint tests to rebuild intent vectors from an asset-free dummy vector engine instead of relying on local vector caches.
 
 - **2026-05-28**: Fixed the default-smoke regression to assert that `test_vector_cache_required` is excluded from CI-oriented default runs, and documented in `scripts/README.md` that GitHub Actions executes only asset-free smoke profiles because chiVe, caches, and `dictionary.db` are not committed.
