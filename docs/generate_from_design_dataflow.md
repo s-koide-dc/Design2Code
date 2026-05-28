@@ -1,5 +1,12 @@
 # generate_from_design dataflow (method-level)
 
+## Document Contract
+This document is a `required_docs` generation-flow reference managed by `config/doc_reference_policy.json`.
+
+1. README is responsible for the public entrypoint summary and verified usage examples.
+2. This document is responsible for the deeper method-level flow, verification steps, and inference / replanning boundaries behind `scripts/generate/generate_from_design.py`.
+3. When the generate pipeline, verification stages, or entrypoint flags change, update this document together with `README.md` and re-run `scripts/validate_project_consistency.py`.
+
 ## Scope
 This document covers the data flow triggered by `scripts/generate/generate_from_design.py` and the concrete methods it calls directly or indirectly during the design-to-code pipeline.
 

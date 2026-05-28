@@ -73,6 +73,46 @@ CLI 実行時の補助診断や異常系だけを出す。
 
 - `src/pipeline_core/pipeline_core.py`
   - `_emit_repl_response`
+- `scripts/validate/run_tdd.py`
+  - 正常系の JSON 結果出力
+- `scripts/generate/generate_from_design.py`
+  - 進行表示
+  - 生成成功メッセージ
+- `scripts/data/convert_vectors.py`
+  - キャッシュ生成の進行表示
+- `scripts/data/parse_jmdict.py`
+  - 辞書構築の進行表示
+- `scripts/data/fetch_jmdict.py`
+  - ダウンロード進行表示
+- `scripts/data/fetch_vectors.py`
+  - ダウンロード・展開の進行表示
+- `scripts/data/build_knowledge_base.py`
+  - 知識ベース更新の進行表示
+- `scripts/sync_project_map.py`
+  - 同期開始と完了
+- `scripts/sync/sync_project_dependencies.py`
+  - 依存関係同期の完了メッセージ
+- `scripts/validate/validate_method_store.py`
+  - 検証成功メッセージ
+- `scripts/validate/run_unit_smoke.py`
+  - unit smoke 成功時のテスト出力
+- `scripts/validate/run_ir_meaning_preservation_regression.py`
+  - runner の進行表示
+  - 成功時サマリー
+  - 生成ドラフト出力
+- `scripts/validate/validate_ir_meaning_preservation_regression.py`
+  - 検証成功メッセージ
+- `scripts/generate_ir_case_summary.py`
+  - 生成完了メッセージ
+- `scripts/tools/prune_backups.py`
+  - dry-run と prune 完了メッセージ
+- `scripts/tools/suggest_method_capabilities.py`
+  - 生成ファイル出力先
+- `scripts/tools/manage_vector_db.py`
+  - action 実行の進行表示
+  - seed / rebuild / harvest 成功結果
+- `scripts/validate_project_consistency.py`
+  - 成功時の整合性レポート
 - `src/cicd_integrator/quality_gate_checker.py`
   - `_emit_stdout`
   - `print_results`
@@ -82,6 +122,61 @@ CLI 実行時の補助診断や異常系だけを出す。
 
 - `src/pipeline_core/pipeline_core.py`
   - `_emit_repl_error`
+- `scripts/validate/run_tdd.py`
+  - 引数不足
+  - JSON 読込失敗
+  - 想定外例外
+- `scripts/generate/generate_from_design.py`
+  - 設計書未検出
+  - 安全ポリシー違反
+  - 仕様/コンパイル/設計整合の失敗
+- `scripts/data/convert_vectors.py`
+  - 入力ファイル未検出
+  - ベクトル未読込
+- `scripts/data/parse_jmdict.py`
+  - JMdict XML 未検出
+- `scripts/data/fetch_jmdict.py`
+  - ダウンロード失敗
+  - 展開失敗
+- `scripts/data/fetch_vectors.py`
+  - ダウンロード失敗
+  - 展開失敗
+  - 想定ファイル未検出時の警告
+- `scripts/data/build_knowledge_base.py`
+  - 辞書 DB 未検出の警告
+  - 既存 JSON 読込失敗
+  - 保存失敗
+- `scripts/sync_project_map.py`
+  - ai_project_map.json 未検出
+  - 同名モジュール衝突の警告
+- `scripts/sync/sync_project_dependencies.py`
+  - csproj 解析失敗の警告
+- `scripts/validate/validate_method_store.py`
+  - JSON 未検出
+  - 構造不正
+  - 警告一覧
+- `scripts/validate/run_unit_smoke.py`
+  - unit smoke 失敗時のテスト出力
+- `scripts/validate/run_ir_meaning_preservation_regression.py`
+  - run file 未検出
+  - step failure と失敗サマリー
+- `scripts/validate/validate_ir_meaning_preservation_regression.py`
+  - run file 未検出
+  - 構造検証エラー
+  - 構造検証 warning
+- `scripts/generate_ir_case_summary.py`
+  - ケースディレクトリ未検出
+- `scripts/tools/prune_backups.py`
+  - backup ディレクトリ未検出
+  - バックアップ削除失敗の警告
+- `scripts/tools/suggest_method_capabilities.py`
+  - method_store.json 未検出
+- `scripts/tools/manage_vector_db.py`
+  - analysis_output 未検出
+  - harvest 失敗
+- `scripts/validate_project_consistency.py`
+  - warning / error の一覧
+  - ai_project_map.json 読込失敗
 - `src/cicd_integrator/quality_gate_checker.py`
   - `_emit_stderr`
 

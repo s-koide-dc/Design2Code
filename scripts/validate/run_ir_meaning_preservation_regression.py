@@ -13,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.utils.cli_output import emit_error, emit_progress
 from scripts.validate.ir_meaning_preservation_regression_lib import (
     extract_run_record_draft_inputs,
     extract_run_record_targets,
@@ -155,9 +156,13 @@ def run_step(name: str, command: list[str]) -> StepResult:
         encoding="utf-8",
     )
     if completed.stdout:
-        print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
+        sys.stdout.write(completed.stdout)
+        if not completed.stdout.endswith("\n"):
+            sys.stdout.write("\n")
     if completed.stderr:
-        print(completed.stderr, file=sys.stderr, end="" if completed.stderr.endswith("\n") else "\n")
+        sys.stderr.write(completed.stderr)
+        if not completed.stderr.endswith("\n"):
+            sys.stderr.write("\n")
     return StepResult(
         name=name,
         command=command,
@@ -634,30 +639,30 @@ def main() -> int:
     run_file = resolve_run_file(args.run_file)
 
     if not run_file.exists():
-        print(f"ERROR: Run file not found: {run_file}")
+        emit_error(f"ERROR: Run file not found: {run_file}")
         return 1
 
-    print("--- IR Meaning Preservation Regression Runner ---")
-    print(f"Run file: {run_file.relative_to(PROJECT_ROOT)}")
-    print(f"Test suite: {args.test_suite}")
+    emit_progress("--- IR Meaning Preservation Regression Runner ---")
+    emit_progress(f"Run file: {run_file.relative_to(PROJECT_ROOT)}")
+    emit_progress(f"Test suite: {args.test_suite}")
 
     results: list[StepResult] = []
     for name, command in build_steps(run_file, args.test_suite):
-        print(f"\n>>> {name}: {' '.join(command)}")
+        emit_progress(f"\n>>> {name}: {' '.join(command)}")
         result = run_step(name, command)
         results.append(result)
         if result.return_code != 0:
-            print(f"\nFAILED: {name} exited with code {result.return_code}")
-            print("\n--- Regression Runner Summary ---")
+            emit_error(f"\nFAILED: {name} exited with code {result.return_code}")
+            emit_error("\n--- Regression Runner Summary ---")
             for item in results:
                 status = "OK" if item.return_code == 0 else "FAILED"
-                print(f"- {status}: {item.name} -> {display_command(item.command)}")
+                emit_error(f"- {status}: {item.name} -> {display_command(item.command)}")
             return result.return_code
 
-    print("\n--- Regression Runner Summary ---")
+    emit_progress("\n--- Regression Runner Summary ---")
     for item in results:
-        print(f"- OK: {item.name} -> {display_command(item.command)}")
-    print("OK: IR meaning-preservation regression workflow completed.")
+        emit_progress(f"- OK: {item.name} -> {display_command(item.command)}")
+    emit_progress("OK: IR meaning-preservation regression workflow completed.")
     print_regression_checks(run_file)
     print_summary_draft_snippet(run_file)
     print_claims_and_downstream_draft_snippet(run_file)
@@ -667,11 +672,11 @@ def main() -> int:
     print_markdown_snippet(results, run_file, args.test_suite)
     if args.update_run_file:
         update_run_file(run_file, results, args.test_suite)
-        print(f"\nRun file updated: {display_path(run_file)}")
+        emit_progress(f"\nRun file updated: {display_path(run_file)}")
     if args.write_draft:
         draft_file = resolve_draft_file(run_file, args.draft_file)
         write_draft_file(draft_file, results, run_file, args.test_suite)
-        print(f"\nDraft file written: {display_path(draft_file)}")
+        emit_progress(f"\nDraft file written: {display_path(draft_file)}")
     return 0
 
 

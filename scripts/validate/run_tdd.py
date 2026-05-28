@@ -12,6 +12,10 @@ import os
 import sys
 from typing import Any, Dict
 
+sys.path.append(os.getcwd())
+
+from src.utils.cli_output import emit_json_stdout, emit_stderr
+
 
 def load_json(path: str) -> Dict[str, Any]:
     if not path or not os.path.exists(path):
@@ -28,21 +32,31 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.test_failure and not args.goal:
-        parser.error("Either --test-failure or --goal must be provided.")
+        parser.print_usage(sys.stderr)
+        emit_stderr("エラー: --test-failure または --goal のどちらかを指定してください。")
+        return 2
 
-    sys.path.append(os.getcwd())
     from src.advanced_tdd.main import AdvancedTDDSupport
 
     tdd = AdvancedTDDSupport(args.workspace)
+    try:
+        if args.test_failure:
+            payload = load_json(args.test_failure)
+            result = tdd.analyze_and_fix_test_failure(payload)
+        else:
+            payload = load_json(args.goal)
+            result = tdd.execute_goal_driven_tdd(payload)
+    except FileNotFoundError as exc:
+        emit_stderr(f"エラー: 入力JSONが見つかりません: {exc}")
+        return 1
+    except json.JSONDecodeError as exc:
+        emit_stderr(f"エラー: 入力JSONの形式が不正です: {exc}")
+        return 1
+    except Exception as exc:
+        emit_stderr(f"エラー: TDD CLI の実行に失敗しました: {exc}")
+        return 1
 
-    if args.test_failure:
-        payload = load_json(args.test_failure)
-        result = tdd.analyze_and_fix_test_failure(payload)
-    else:
-        payload = load_json(args.goal)
-        result = tdd.execute_goal_driven_tdd(payload)
-
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    emit_json_stdout(result)
     return 0
 
 

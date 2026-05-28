@@ -1,9 +1,23 @@
 import os
 import json
 import re
-import hashlib
+import sys
 from pathlib import Path
 from datetime import datetime
+
+sys.path.append(os.getcwd())
+
+from src.utils.cli_output import emit_error, emit_progress
+
+MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+INLINE_CODE_PATTERN = re.compile(r"`([^`\n]+)`")
+FENCED_CODE_BLOCK_PATTERN = re.compile(r"```[\s\S]*?```", re.MULTILINE)
+PATHLIKE_INLINE_PATTERN = re.compile(
+    r"^(?:"
+    r"[A-Za-z]:[\\/].+"
+    r"|/?[A-Za-z0-9_.\-]+(?:[\\/][A-Za-z0-9_.\-]+)*[\\/][A-Za-z0-9_.\-]+\.(?:md|json|py|ps1|sh|cs|xml|txt|npy|db)"
+    r")$"
+)
 
 def get_last_modified_time(file_path):
     """Gets the last modified time of a file/directory."""
@@ -77,6 +91,156 @@ def to_snake_case(name):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
+def strip_fenced_code_blocks(content: str) -> str:
+    return FENCED_CODE_BLOCK_PATTERN.sub("", content)
+
+def looks_like_local_reference(raw_reference: str) -> bool:
+    candidate = raw_reference.strip()
+    if not candidate:
+        return False
+    lowered = candidate.lower()
+    if lowered.startswith(("http://", "https://", "mailto:", "#")):
+        return False
+    if "://" in candidate:
+        return False
+    return True
+
+def looks_like_inline_path(raw_reference: str) -> bool:
+    candidate = raw_reference.strip()
+    if not candidate or " " in candidate:
+        return False
+    return bool(PATHLIKE_INLINE_PATTERN.match(candidate))
+
+def resolve_local_reference(project_root: Path, doc_path: Path, raw_reference: str) -> Path:
+    reference = raw_reference.strip()
+    reference = reference.split("#", 1)[0].strip()
+    if not reference:
+        return doc_path
+
+    # App-rendering absolute markdown links appear as `/C:/workspace/...`.
+    if reference.startswith("/") and len(reference) >= 4 and reference[2] == ":":
+        return Path(reference[1:])
+
+    normalized = Path(reference.replace("/", os.sep).replace("\\", os.sep))
+    if normalized.is_absolute():
+        return normalized
+
+    project_relative = project_root / normalized
+    if project_relative.exists():
+        return project_relative
+    return doc_path.parent / normalized
+
+def _validate_policy_string_list(policy_path: Path, policy: dict, key: str) -> list[str] | None:
+    value = policy.get(key, [])
+    if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
+        return None
+    return value
+
+def load_document_reference_policy(project_root: Path) -> tuple[list[str], list[str], list[str], list[str]]:
+    policy_path = project_root / "config" / "doc_reference_policy.json"
+    if not policy_path.exists():
+        return [], [], [], [f"Document reference policy not found: {policy_path}"]
+
+    try:
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [], [], [], [f"Invalid document reference policy '{policy_path}': {exc}"]
+
+    required_docs = _validate_policy_string_list(policy_path, policy, "required_docs")
+    if required_docs is None:
+        return [], [], [], [f"Invalid document reference policy '{policy_path}': 'required_docs' must be a list of non-empty strings"]
+
+    existence_only_docs = _validate_policy_string_list(policy_path, policy, "existence_only_docs")
+    if existence_only_docs is None:
+        return [], [], [], [f"Invalid document reference policy '{policy_path}': 'existence_only_docs' must be a list of non-empty strings"]
+
+    optional_reference_docs = _validate_policy_string_list(policy_path, policy, "optional_reference_docs")
+    if optional_reference_docs is None:
+        optional_reference_docs = _validate_policy_string_list(policy_path, policy, "temporary_docs")
+        if optional_reference_docs is None:
+            return [], [], [], [f"Invalid document reference policy '{policy_path}': 'optional_reference_docs' must be a list of non-empty strings"]
+
+    return required_docs, existence_only_docs, optional_reference_docs, []
+
+def _format_doc_error(relative_doc_path: str, mode_label: str, detail: str) -> str:
+    return f"[doc:{relative_doc_path}][mode:{mode_label}]: {detail}"
+
+def group_errors_by_doc_mode(errors: list[str]) -> tuple[list[str], dict[str, list[str]]]:
+    mode_groups = {
+        "required": [],
+        "existence-only": [],
+        "optional-reference": [],
+    }
+    general_errors = []
+
+    for error in errors:
+        matched_mode = None
+        for mode_label in mode_groups:
+            if f"[mode:{mode_label}]" in error:
+                matched_mode = mode_label
+                break
+
+        if matched_mode is None:
+            general_errors.append(error)
+            continue
+
+        mode_groups[matched_mode].append(error)
+
+    return general_errors, mode_groups
+
+def collect_missing_documents(project_root: Path, relative_doc_paths: list[str], mode_label: str) -> list[str]:
+    errors = []
+    for relative_doc_path in relative_doc_paths:
+        doc_path = project_root / relative_doc_path
+        if not doc_path.exists():
+            errors.append(
+                _format_doc_error(
+                    relative_doc_path,
+                    mode_label,
+                    f"検証対象ドキュメントが存在しません: {relative_doc_path}",
+                )
+            )
+    return errors
+
+def collect_missing_document_references(project_root: Path, relative_doc_paths: list[str], mode_label: str) -> list[str]:
+    errors = []
+
+    for relative_doc_path in relative_doc_paths:
+        doc_path = project_root / relative_doc_path
+        if not doc_path.exists():
+            continue
+
+        content = doc_path.read_text(encoding="utf-8")
+        stripped_content = strip_fenced_code_blocks(content)
+
+        for _, target in MARKDOWN_LINK_PATTERN.findall(stripped_content):
+            if not looks_like_local_reference(target):
+                continue
+            resolved = resolve_local_reference(project_root, doc_path, target)
+            if not resolved.exists():
+                errors.append(
+                    _format_doc_error(
+                        relative_doc_path,
+                        mode_label,
+                        f"ローカル参照が存在しません: {target}",
+                    )
+                )
+
+        for inline_code in INLINE_CODE_PATTERN.findall(stripped_content):
+            if not looks_like_inline_path(inline_code):
+                continue
+            resolved = resolve_local_reference(project_root, doc_path, inline_code)
+            if not resolved.exists():
+                errors.append(
+                    _format_doc_error(
+                        relative_doc_path,
+                        mode_label,
+                        f"inline code のローカル参照が存在しません: {inline_code}",
+                    )
+                )
+
+    return errors
+
 def main():
     """
     Main function to validate project consistency.
@@ -88,6 +252,12 @@ def main():
     
     errors = []
     warnings = []
+    project_map_modules = set()
+    project_map_tools_ids = set()
+    project_map_tools_names = set()
+    all_known_entities = set()
+    required_docs, existence_only_docs, optional_reference_docs, policy_errors = load_document_reference_policy(project_root)
+    errors.extend(policy_errors)
 
     # 1. Load project map
     try:
@@ -103,7 +273,51 @@ def main():
 
     except (FileNotFoundError, json.JSONDecodeError) as e:
         errors.append(f"Error loading '{project_map_path}': {e}")
-        all_known_entities = set()
+
+    def validate_map_file_reference(owner_label: str, field_label: str, raw_path: str | None):
+        if not raw_path:
+            return
+        resolved = project_root / Path(raw_path)
+        if not resolved.exists():
+            errors.append(
+                f"[{owner_label}]: ai_project_map.json の {field_label} が存在しません: {raw_path}"
+            )
+
+    if 'project_map' in locals():
+        for module in project_map.get('modules', []):
+            if not isinstance(module, dict):
+                continue
+            module_name = module.get('name', 'unknown')
+            owner_label = f"module:{module_name}"
+
+            source_file = module.get('source_file') or {}
+            if isinstance(source_file, dict):
+                validate_map_file_reference(owner_label, "source_file.path", source_file.get('path'))
+
+            design_document = module.get('design_document') or {}
+            if isinstance(design_document, dict):
+                validate_map_file_reference(owner_label, "design_document.path", design_document.get('path'))
+
+            validate_map_file_reference(owner_label, "test_file", module.get('test_file'))
+
+        for tool in project_map.get('tools_catalog', []):
+            if not isinstance(tool, dict):
+                continue
+            tool_name = tool.get('name', 'unknown')
+            language = tool.get('language', 'unknown')
+            owner_label = f"tool:{language}/{tool_name}"
+
+            design_document = tool.get('design_document') or {}
+            if isinstance(design_document, dict):
+                validate_map_file_reference(owner_label, "design_document.path", design_document.get('path'))
+
+    if required_docs:
+        errors.extend(collect_missing_documents(project_root, required_docs, "required"))
+        errors.extend(collect_missing_document_references(project_root, required_docs, "required"))
+    if existence_only_docs:
+        errors.extend(collect_missing_documents(project_root, existence_only_docs, "existence-only"))
+    if optional_reference_docs:
+        errors.extend(collect_missing_document_references(project_root, optional_reference_docs, "optional-reference"))
 
     # Standard libraries and common utilities to ignore
     ignore_deps = {'json', 'os', 're', 'sys', 'datetime', 'shutil', 'subprocess', 'retry_with_backoff'}
@@ -196,20 +410,41 @@ def main():
                 warnings.append(f"[tool:{tool_full_name}]: Tool folder is newer than its design document. The documentation may be outdated.")
 
     # 4. Print results
-    print("--- Project Consistency Validation ---")
+    emit_progress("--- Project Consistency Validation ---")
     if not errors and not warnings:
-        print("OK: All checks passed. Project is consistent.")
+        emit_progress("OK: All checks passed. Project is consistent.")
+        return 0
     else:
         if errors:
-            print("\nERRORS (must be fixed):")
-            for error in errors:
-                print(f" - {error}")
+            emit_error("")
+            emit_error("ERRORS (must be fixed):")
+            general_errors, doc_mode_errors = group_errors_by_doc_mode(errors)
+
+            if general_errors:
+                emit_error("GENERAL:")
+                for error in general_errors:
+                    emit_error(f" - {error}")
+
+            doc_section_titles = {
+                "required": "DOCS (required):",
+                "existence-only": "DOCS (existence-only):",
+                "optional-reference": "DOCS (optional-reference):",
+            }
+            for mode_label, section_title in doc_section_titles.items():
+                mode_errors = doc_mode_errors[mode_label]
+                if not mode_errors:
+                    continue
+                emit_error(section_title)
+                for error in mode_errors:
+                    emit_error(f" - {error}")
         if warnings:
-            print("\nWARNINGS (should be reviewed):")
+            emit_error("")
+            emit_error("WARNINGS (should be reviewed):")
             for warning in warnings:
-                print(f" - {warning}")
-        print("\n--- End of Validation ---")
-        exit(1)
+                emit_error(f" - {warning}")
+        emit_error("")
+        emit_error("--- End of Validation ---")
+        return 1
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

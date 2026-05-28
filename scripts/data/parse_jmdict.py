@@ -5,6 +5,10 @@ import os
 import sys
 import sqlite3
 
+sys.path.append(os.getcwd())
+
+from src.utils.cli_output import emit_error, emit_progress
+
 # Mapping from JMdict entities to simplified POS tags for Janome
 POS_MAP = {
     "n": "名詞",
@@ -35,10 +39,11 @@ def parse_jmdict():
     output_db = os.path.join(os.getcwd(), 'resources', 'dictionary.db')
     
     if not os.path.exists(xml_path):
-        print(f"Error: {xml_path} not found. Run fetch_jmdict.py first.")
-        return
+        emit_error(f"エラー: JMdict XML が見つかりません: {xml_path}")
+        emit_error("先に fetch_jmdict.py を実行してください。")
+        return 1
 
-    print(f"Parsing {xml_path} and updating {output_db}...")
+    emit_progress(f"Parsing {xml_path} and updating {output_db}...")
     
     # SQLite Setup
     if os.path.exists(output_db):
@@ -99,7 +104,7 @@ def parse_jmdict():
             elem.clear()
             count += 1
             if count % 10000 == 0:
-                print(f"Processed {count} entries...")
+                emit_progress(f"Processed {count} entries...")
                 # Intermediate commit to save memory if needed, but here we'll just insert in chunks
                 cursor.executemany('INSERT OR REPLACE INTO dictionary VALUES (?, ?, ?, ?)', db_entries)
                 cursor.executemany('INSERT INTO dictionary_fts VALUES (?, ?)', [(e[0], e[1]) for e in db_entries])
@@ -110,14 +115,12 @@ def parse_jmdict():
         cursor.executemany('INSERT OR REPLACE INTO dictionary VALUES (?, ?, ?, ?)', db_entries)
         cursor.executemany('INSERT INTO dictionary_fts VALUES (?, ?)', [(e[0], e[1]) for e in db_entries])
 
-    print(f"Finished parsing {count} entries.")
+    emit_progress(f"Finished parsing {count} entries.")
     
     conn.commit()
     conn.close()
-    print("Success. Dictionary DB updated.")
+    emit_progress("Success. Dictionary DB updated.")
+    return 0
 
 if __name__ == "__main__":
-    parse_jmdict()
-
-if __name__ == "__main__":
-    parse_jmdict()
+    sys.exit(parse_jmdict())

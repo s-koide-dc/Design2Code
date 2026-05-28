@@ -4,12 +4,16 @@ import os
 import tempfile
 import shutil
 import time
+import subprocess
+import sys
+from pathlib import Path
 from src.action_executor.action_executor import ActionExecutor
 from src.log_manager.log_manager import LogManager
 
 class TestSecurityVulnerabilities(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
+        self.repo_root = Path(__file__).resolve().parents[2]
         self.log_manager = LogManager(log_dir=os.path.join(self.test_dir, "logs"))
         self.executor = ActionExecutor(self.log_manager, workspace_root=self.test_dir)
 
@@ -227,6 +231,93 @@ class TestSecurityVulnerabilities(unittest.TestCase):
         context = {"plan": {"action_method": "_run_command", "parameters": {"command": "ls ; rm -rf /"}}}
         context = self.executor.execute(context)
         self.assertIn("不正な文字が含まれています", context["action_result"].get("message", ""))
+
+    def _write_design_doc(self, file_name: str, core_logic_lines: list[str]) -> Path:
+        design_path = Path(self.test_dir) / file_name
+        content_lines = [
+            f"# {design_path.stem}",
+            "## 1. Purpose",
+            "security regression test",
+            "## 2. Structured Specification",
+            "### Input",
+            "- **Description**: none",
+            "- **Type/Format**: void",
+            "### Output",
+            "- **Description**: status",
+            "- **Type/Format**: bool",
+            "### Core Logic",
+            *core_logic_lines,
+            "### Test Cases",
+            "- **Scenario**: Default",
+            "- **Expected**: true",
+        ]
+        design_path.write_text("\n".join(content_lines) + "\n", encoding="utf-8")
+        return design_path
+
+    def _run_generate_from_design(self, design_path: Path, *extra_args: str) -> subprocess.CompletedProcess:
+        env = os.environ.copy()
+        env["SKIP_VECTOR_MODEL"] = "1"
+        return subprocess.run(
+            [
+                sys.executable,
+                "scripts/generate/generate_from_design.py",
+                "--design",
+                str(design_path),
+                "--output",
+                str(Path(self.test_dir) / "out.cs"),
+                *extra_args,
+            ],
+            cwd=self.repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+    def test_generate_from_design_blocks_destructive_intent_without_override(self):
+        design_path = self._write_design_doc(
+            "DangerousDelete.design.md",
+            [
+                "1. [ACTION|FILE_DELETE|string|void|NONE] [semantic_roles:{\"path\":\"victim.txt\"}] 'victim.txt' を削除する",
+            ],
+        )
+
+        completed = self._run_generate_from_design(design_path)
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("[*] Parsing design:", completed.stdout)
+        self.assertIn("Safety Policy 違反を検出しました", completed.stderr)
+        self.assertIn("FILE_DELETE", completed.stderr)
+        self.assertIn("--allow-unsafe", completed.stderr)
+
+    def test_generate_from_design_requires_confirm_for_allow_unsafe(self):
+        design_path = self._write_design_doc(
+            "DangerousDelete.design.md",
+            [
+                "1. [ACTION|FILE_DELETE|string|void|NONE] [semantic_roles:{\"path\":\"victim.txt\"}] 'victim.txt' を削除する",
+            ],
+        )
+
+        completed = self._run_generate_from_design(design_path, "--allow-unsafe")
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("Safety Policy の上書きが要求されましたが、確認指定がありません。", completed.stderr)
+        self.assertIn("--confirm", completed.stderr)
+
+    def test_generate_from_design_blocks_command_outside_safety_allowlist(self):
+        design_path = self._write_design_doc(
+            "DangerousCommand.design.md",
+            [
+                "1. [ACTION|CMD_RUN|string|void|NONE] [semantic_roles:{\"command\":\"powershell Remove-Item victim.txt\"}] コマンドを実行する",
+            ],
+        )
+
+        completed = self._run_generate_from_design(design_path, "--allow-unsafe", "--confirm")
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("Safety Policy 違反を検出しました（command）", completed.stderr)
+        self.assertIn("Command not in safety allowlist", completed.stderr)
+        self.assertIn("powershell", completed.stderr)
 
 if __name__ == "__main__":
     unittest.main()

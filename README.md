@@ -1,7 +1,7 @@
 # NLP プロジェクト README
 
-日本語の設計書を書くと、C#コードを自動生成するローカルAIです。
-クラウド不要・LLM不要で動作し、同じ入力から常に同じコードを生成します。
+日本語の設計書を解析して、C#コードを自動生成するローカルAIです。
+クラウド不要・LLM不要で動作し、設計書生成パイプラインは固定した辞書・ベクトル資産・設定の組み合わせを前提に再現可能な出力を目指します。
 
 このプロジェクトのコードと設計書は99%以上がAIで作成されており、各モジュールの設計書は日本語と英語が混在しています。  
 約3ヵ月程度で実装した実験的プロジェクトだということをご留意ください。
@@ -17,13 +17,28 @@
 
 - AI-Centric Specifications: The design documents are optimized for AI consumption, featuring a hybrid of Japanese and English to maximize machine interpretation accuracy.
 
+## 現在の温度感
+- **比較的安定している入口**
+  - `scripts/generate/generate_from_design.py` による設計書からの単体 C# 生成
+  - `scripts/validate/run_tdd.py` による TDD 支援 CLI
+  - `scripts/validate_project_consistency.py` による公開 docs / 設計書 / テスト参照の整合検証
+- **実験色が強い入口**
+  - `src/pipeline_core/pipeline_core.py` の対話パイプライン
+  - `--project` を使った複数ファイルのプロジェクト生成
+- **決定論性の前提**
+  - 同一入力でも、辞書・ベクトル・設定・設計書補完結果が変わると出力は変わります。
+  - 本 README では、現行実装で確認済みの導線だけを「動作例」として記載します。
+- **公開 docs の運用境界**
+  - 恒久 docs / 在庫表 docs / 任意 docs は `config/doc_reference_policy.json` の mode で分けて管理しています。
+  - docs 整合エラーは `scripts/validate_project_consistency.py` が `GENERAL` と mode 別節に分けて報告します。
+
 ## 特徴
 - **設計書ベースのコード生成**  
   自然言語の設計を解析し、構造化された処理としてコードに変換
 - **完全ローカル実行**  
   外部API・LLMに依存せず動作
-- **決定論的出力**  
-  同じ入力から常に同じコードを生成（再現性を担保）
+- **再現可能な生成パイプライン**  
+  固定した資産・設定のもとで、同じ設計書から同じコードを生成できるよう設計
 - **意味解析ベース**  
   形態素解析・辞書・ベクトル類似度に基づいて設計書の意味を解釈
 - **TDD支援・対話処理も内蔵**  
@@ -134,27 +149,33 @@ python scripts/data/fetch_jmdict.py
 python scripts/data/parse_jmdict.py
 ```
 
+`src/pipeline_core/pipeline_core.py` やベクトル検索を使う機能では、`resources/vectors/chive-1.3-mc90.txt` とその `.npy` キャッシュが必要です。
+一方で、設計書からの単体生成や一部テストは `is_test_mode=True` や既存キャッシュにより最小構成でも動く場合があります。
+
 ## 1. 入口（エントリポイント）
 - 設計書 → コード生成: `scripts/generate/generate_from_design.py`
 - 対話パイプライン: `src/pipeline_core/pipeline_core.py`
 - TDD 支援: `src/advanced_tdd/main.py`
+- 設定依存の見取り図: [config/README.md](/C:/workspace/NLP/config/README.md)
+- セットアップ後の生成物一覧: [resources/README.md](/C:/workspace/NLP/resources/README.md)
 
 ## 1.1 入口の実行例
 ```bash
 # 設計書 → コード生成
 python scripts/generate/generate_from_design.py --design scenarios/SampleProject.design.md --output cache/Impact.cs
 
-# 対話パイプライン（コマンド実行）
-python src/pipeline_core/pipeline_core.py
-# 例: 「今の時間は？」
+# 対話パイプライン（確認済みの例: 現在位置確認）
+python -c "from src.pipeline_core.pipeline_core import Pipeline; p = Pipeline(is_test_mode=True); r = p.run('カレントディレクトリを教えて'); print(r['response']['text'])"
+# 例: 現在の作業ディレクトリ: C:\workspace\NLP
 
-# TDD 支援（コマンド実行）
-# 1) パイプライン経由（自然言語コマンド）
-python src/pipeline_core/pipeline_core.py
-# 例: 「tests/MyProject.Tests のテストを実行して」
-# 例: 「失敗を分析して」
+# 対話パイプライン（確認済みの例: 一覧確認）
+python -c "from src.pipeline_core.pipeline_core import Pipeline; p = Pipeline(is_test_mode=True); r = p.run('このフォルダに何がある？'); print(r['response']['text'])"
+# 例: ディレクトリ '.' の内容:
+#      README.md
+#      src
+#      tests
 
-# 2) CLI 直接実行（JSON入力）
+# TDD 支援（CLI 直接実行）
 python scripts/validate/run_tdd.py --test-failure path/to/failure.json
 python scripts/validate/run_tdd.py --goal path/to/goal.json
 
@@ -162,7 +183,19 @@ python scripts/validate/run_tdd.py --goal path/to/goal.json
 python - << 'PY'
 from src.advanced_tdd.main import AdvancedTDDSupport
 tdd = AdvancedTDDSupport()
-print(tdd.analyze_and_fix_test_failure({}, {}))
+print(tdd.analyze_and_fix_test_failure({
+    "test_file": "tests/CalculatorTests.cs",
+    "test_method": "Add_ShouldReturnSum_WhenValidInput",
+    "error_type": "assertion_failure",
+    "error_message": "Expected: 5, Actual: 0",
+    "stack_trace": "at Calculator.Add(Int32 a, Int32 b) in Calculator.cs:line 15",
+    "line_number": 15,
+    "target_code": {
+        "file": "src/Calculator.cs",
+        "method": "Add",
+        "current_implementation": "public int Add(int a, int b) { return 0; }"
+    }
+}))
 PY
 ```
 
@@ -171,6 +204,29 @@ PY
 # 全体テスト（unit + integration）
 python -m unittest discover -s tests -p "test_*.py" -t .
 ```
+
+## 1.3 CLI 出力契約
+- 正式 CLI は、成功結果と進行表示を `stdout`、エラーと警告を `stderr` に分離します。
+- 対象の代表例:
+  - `scripts/generate/generate_from_design.py`
+  - `scripts/validate/run_tdd.py`
+  - `scripts/data/*.py`
+  - `scripts/validate/*.py` の主要入口
+  - `scripts/sync_project_map.py`
+  - `scripts/validate_project_consistency.py`
+  - `scripts/tools/manage_vector_db.py`
+  - `scripts/tools/prune_backups.py`
+  - `scripts/tools/suggest_method_capabilities.py`
+- 詳細な分類基準は [docs/stdout_output_policy.md](/C:/workspace/NLP/docs/stdout_output_policy.md) を参照してください。
+- `scripts/generate/demo_synthesis.py` のようなデモ用スクリプトは、この契約の保証対象外です。
+- docs 監視対象の切り替えは `config/doc_reference_policy.json` で管理します。
+
+## 1.4 docs 監視モード
+- `required_docs`: README から恒久的に案内する主要 docs。文書自体の存在とローカル参照整合を両方監視します。
+- `existence_only_docs`: 在庫表や生成物一覧のような docs。文書自体の存在だけを監視します。
+- `optional_reference_docs`: 作業計画メモのような任意 docs。なくてもよいですが、存在するならローカル参照整合を監視します。
+- `scripts/validate_project_consistency.py` の失敗時は、`GENERAL` と docs mode ごとの節に分けて `stderr` へ出力します。
+- mode の実体定義は [config/README.md](/C:/workspace/NLP/config/README.md) と `config/doc_reference_policy.json` を参照してください。
 
 ### TDD CLI 入力例
 ```json
@@ -230,16 +286,18 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 ※ ブループリントは `cache/blueprints/<run_id>/blueprint.json` に保存されます。
 
 ## 4. 重要な設計方針
-- **決定論性**: 同一入力に対して同一出力を前提とする
+- **決定論性**: 設計書からの生成は、固定した辞書・ベクトル・設定・補完済み設計書を前提に同一出力を目指す
 - **自然言語主導**: ルール増殖ではなく設計書の意味を解釈して生成
 - **構造化パースベース**: 形態素解析＋決定的ルールに基づく推論（ベクトル類似度は補助的に利用）
+- **段階的改善**: README に書く内容は「将来像」ではなく、現行実装で確認済みの挙動を優先する
 
 ## 5. 主要ドキュメント
-- プロジェクト全体像: `docs/project_overview.md`
-- 設計書→生成フロー: `docs/generate_from_design_dataflow.md`
-- MethodStore 仕様: `docs/method_store_spec.md`
-- リソース一覧: `resources/README.md`
-- 設定一覧: `config/README.md`
+- プロジェクト全体像: `docs/project_overview.md` (`required_docs`)
+- 設計書→生成フロー: `docs/generate_from_design_dataflow.md` (`required_docs`)
+- MethodStore 仕様: `docs/method_store_spec.md` (`required_docs`)
+- リソース一覧: `resources/README.md` (`existence_only_docs`)
+- 設定一覧: `config/README.md` (`required_docs`)
+- mode の意味は `1.4 docs 監視モード` を参照してください。
 
 ## 6. 変更履歴
 - 直近の更新: `AI_CHANGELOG.md`
@@ -268,4 +326,3 @@ This system also supports generating multi-file projects from design documents.
 
 ⚠️ This feature is currently experimental and not fully validated.
 It may produce inconsistent structures depending on the input.
-

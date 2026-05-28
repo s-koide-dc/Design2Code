@@ -7,10 +7,18 @@ Important:
 - It uses explicit, exact-match dictionaries (no regex, no keyword heuristics).
 - Do NOT auto-apply results; human review is required.
 """
+import argparse
 import json
 import os
+import sys
 from datetime import datetime
 from typing import Dict, Any, List, Optional
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from src.utils.cli_output import emit_error, emit_progress
 
 
 def load_json(path: str) -> Optional[Dict[str, Any]]:
@@ -182,16 +190,27 @@ def suggest_for_method(method: Dict[str, Any], rules: Dict[str, Any]) -> Optiona
     return method_rules[name]
 
 
-def main() -> int:
+def parse_args() -> argparse.Namespace:
     root = os.getcwd()
-    store_path = os.path.join(root, "resources", "method_store.json")
-    map_path = os.path.join(root, "resources", "method_capability_map.json")
-    out_dir = os.path.join(root, "cache")
+    parser = argparse.ArgumentParser(description="Generate exact-match method capability suggestions.")
+    parser.add_argument("--root", default=root, help="Project root containing resources/ and cache/.")
+    parser.add_argument("--store-path", help="Optional override for resources/method_store.json")
+    parser.add_argument("--map-path", help="Optional override for resources/method_capability_map.json")
+    parser.add_argument("--out-dir", help="Optional override for cache output directory")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    root = os.path.abspath(args.root)
+    store_path = args.store_path or os.path.join(root, "resources", "method_store.json")
+    map_path = args.map_path or os.path.join(root, "resources", "method_capability_map.json")
+    out_dir = args.out_dir or os.path.join(root, "cache")
     os.makedirs(out_dir, exist_ok=True)
 
     store = load_json(store_path)
     if store is None:
-        print(f"method_store.json not found at {store_path}")
+        emit_error(f"エラー: method_store.json が見つかりません: {store_path}")
         return 1
 
     existing_map = load_json(map_path) or {"methods": {}}
@@ -232,8 +251,8 @@ def main() -> int:
         for k, v in suggestions.items():
             f.write(f"- `{k}`: intent={v.get('intent')} capabilities={v.get('capabilities')}\n")
 
-    print(f"Wrote: {out_json}")
-    print(f"Wrote: {out_md}")
+    emit_progress(f"Wrote: {out_json}")
+    emit_progress(f"Wrote: {out_md}")
     return 0
 
 

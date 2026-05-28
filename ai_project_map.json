@@ -10,7 +10,7 @@
     "【整合】code_synthesis 設計書の内容差分を段階的に精査して詳細更新する。"
   ],
   "concerns": [],
-  "last_updated_by_ai": "2026-05-21T13:25:39.932592",
+  "last_updated_by_ai": "2026-05-28T13:00:50.664306",
   "modules": [
     {
       "name": "action_executor",
@@ -401,6 +401,25 @@
       "dependencies": [
         "log_manager"
       ]
+    },
+    {
+      "name": "cli_output",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "stdout_guard"
+      ],
+      "source_file": {
+        "path": "src\\utils\\cli_output.py",
+        "last_modified": "2026-05-22T13:00:35.435843",
+        "hash": "1eb031cbcd2407a62ea02419aeae7d029841fae5842cfed6725e438295112281"
+      },
+      "design_document": {
+        "path": "src\\utils\\cli_output.design.md",
+        "last_modified": "2026-05-22T13:00:35.437853",
+        "hash": "1b5cf521aa887c248c5a0a019cabd81713f4dc6b5b33483bbf965b9110e3159e"
+      },
+      "test_file": null
     },
     {
       "name": "code_builder_client",

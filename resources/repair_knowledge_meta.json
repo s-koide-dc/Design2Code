@@ -1,8 +1,0 @@
-[
-  {
-    "id": "idx_0",
-    "root_cause": "missing_test_data",
-    "error_message_regex": "NullReferenceException",
-    "fix_direction": "fix_test_arrange"
-  }
-]

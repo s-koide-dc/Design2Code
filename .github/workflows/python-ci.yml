@@ -1,0 +1,41 @@
+name: python-ci
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "codex/**"
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    env:
+      SKIP_VECTOR_MODEL: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path requirements.txt) { pip install -r requirements.txt }
+
+      - name: Run documented entrypoints regression
+        run: python -m unittest tests.integration.test_documented_entrypoints -v
+
+      - name: Run security regression
+        run: python -m unittest tests.security.test_security_vulnerabilities -v
+
+      - name: Run consistency validation
+        run: python scripts/validate_project_consistency.py
+
+      - name: Run unit smoke regression
+        run: python scripts/validate/run_unit_smoke.py --verbosity 2

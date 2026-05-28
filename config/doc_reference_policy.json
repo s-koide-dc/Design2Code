@@ -1,0 +1,17 @@
+{
+  "required_docs": [
+    "README.md",
+    "scripts/README.md",
+    "config/README.md",
+    "docs/stdout_output_policy.md",
+    "docs/project_overview.md",
+    "docs/generate_from_design_dataflow.md",
+    "docs/method_store_spec.md"
+  ],
+  "existence_only_docs": [
+    "resources/README.md"
+  ],
+  "optional_reference_docs": [
+    "docs/README実装ギャップ段階改善計画.md"
+  ]
+}

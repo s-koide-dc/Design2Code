@@ -1,6 +1,14 @@
+import argparse
 import os
 import re
 import glob
+import sys
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from src.utils.cli_output import emit_error, emit_progress
 
 def parse_case_file(content: str) -> dict:
     data = {
@@ -34,8 +42,11 @@ def parse_case_file(content: str) -> dict:
 
     return data
 
-def generate_summary(cases_dir: str, output_path: str):
+def generate_summary(cases_dir: str, output_path: str) -> int:
     case_files = glob.glob(os.path.join(cases_dir, "case_*.md"))
+    if not os.path.isdir(cases_dir):
+        emit_error(f"エラー: ケースディレクトリが見つかりません: {cases_dir}")
+        return 1
     
     parsed_data = []
     for file_path in case_files:
@@ -67,10 +78,25 @@ def generate_summary(cases_dir: str, output_path: str):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(table_lines) + "\n")
+    emit_progress(f"Summary generated at: {output_path}")
+    return 0
+
+
+def parse_args() -> argparse.Namespace:
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    parser = argparse.ArgumentParser(description="Generate the IR case summary markdown table.")
+    parser.add_argument(
+        "--cases-dir",
+        default=os.path.join(base_dir, "research", "ir_meaning_preservation", "cases"),
+        help="Directory containing case_*.md files.",
+    )
+    parser.add_argument(
+        "--output",
+        default=os.path.join(base_dir, "research", "ir_meaning_preservation", "results", "case_summary_table.md"),
+        help="Output markdown table path.",
+    )
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    cases_dir = os.path.join(base_dir, "research", "ir_meaning_preservation", "cases")
-    output_path = os.path.join(base_dir, "research", "ir_meaning_preservation", "results", "case_summary_table.md")
-    generate_summary(cases_dir, output_path)
-    print(f"Summary generated at: {output_path}")
+    args = parse_args()
+    raise SystemExit(generate_summary(args.cases_dir, args.output))

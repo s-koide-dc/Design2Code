@@ -3,6 +3,10 @@ import os
 import sys
 import numpy as np
 
+sys.path.append(os.getcwd())
+
+from src.utils.cli_output import emit_error, emit_progress
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert vector text file to cached .npy files.")
@@ -57,22 +61,22 @@ def save_cache(path: str, max_vocab: int, vocab: list[str], matrix: np.ndarray) 
     os.makedirs(os.path.dirname(vocab_cache_path), exist_ok=True)
     np.save(vocab_cache_path, np.array(vocab, dtype=object))
     np.save(matrix_cache_path, matrix)
-    print(f"Saved vocab cache: {vocab_cache_path}")
-    print(f"Saved matrix cache: {matrix_cache_path}")
+    emit_progress(f"Saved vocab cache: {vocab_cache_path}")
+    emit_progress(f"Saved matrix cache: {matrix_cache_path}")
 
 
 def main() -> int:
     args = parse_args()
     if not os.path.exists(args.input):
-        print(f"Error: input file not found: {args.input}")
+        emit_error(f"エラー: ベクトル入力ファイルが見つかりません: {args.input}")
         return 1
-    print(f"Loading vectors from {args.input} (max_vocab={args.max_vocab})...")
+    emit_progress(f"Loading vectors from {args.input} (max_vocab={args.max_vocab})...")
     vocab, matrix = load_vectors_text(args.input, args.max_vocab)
     if len(vocab) == 0 or matrix.size == 0:
-        print("Error: no vectors loaded.")
+        emit_error("エラー: ベクトルを読み込めませんでした。")
         return 1
     save_cache(args.input, args.max_vocab, vocab, matrix)
-    print(f"Done. Loaded {len(vocab)} vectors.")
+    emit_progress(f"Done. Loaded {len(vocab)} vectors.")
     return 0
 
 

@@ -2,6 +2,12 @@
 
 本資料は `resources/method_store.json` と `resources/vectors/vector_db/method_store_meta.json` の **構造仕様** を定義する。
 
+## Document Contract
+
+1. この文書は `config/doc_reference_policy.json` 上で `required_docs` 扱いの恒久仕様資料。
+2. README は MethodStore の存在だけを案内し、この文書は `method_store.json` と関連ベクトル資産の構造契約を担う。
+3. `method_store.json`、`method_store_meta.json`、`method_store_vectors.npy` の期待構造や運用ルールを変える場合は、この文書と関連 validator / sync 導線を同時に見直す。
+
 ## 対象ファイル
 1. `resources/method_store.json`
 2. `resources/vectors/vector_db/method_store_meta.json`

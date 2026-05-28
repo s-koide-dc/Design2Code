@@ -1,5 +1,10 @@
 import json
 import os
+import sys
+
+sys.path.append(os.getcwd())
+
+from src.utils.cli_output import emit_error, emit_progress
 
 OUTPUT_KB_PATH = os.path.join(os.getcwd(), 'resources', 'custom_knowledge.json')
 DB_PATH = os.path.join(os.getcwd(), 'resources', 'dictionary.db')
@@ -9,11 +14,12 @@ def build_knowledge_base():
     Maintains the custom_knowledge.json skeleton.
     Dictionary data is now handled separately via SQLite (dictionary.db).
     """
-    print("Custom Knowledge Base Maintenance")
-    print("-" * 30)
+    emit_progress("Custom Knowledge Base Maintenance")
+    emit_progress("-" * 30)
     
     if not os.path.exists(DB_PATH):
-        print(f"WARNING: {DB_PATH} not found. Run parse_jmdict.py to build the dictionary database.")
+        emit_error(f"警告: 辞書 DB が見つかりません: {DB_PATH}")
+        emit_error("先に parse_jmdict.py を実行して dictionary.db を作成してください。")
 
     curated_knowledge = {
         "knowledge": {}, 
@@ -28,7 +34,7 @@ def build_knowledge_base():
     # Load existing custom knowledge to preserve manual edits
     if os.path.exists(OUTPUT_KB_PATH):
         try:
-            print(f"Loading existing {OUTPUT_KB_PATH}...")
+            emit_progress(f"Loading existing {OUTPUT_KB_PATH}...")
             with open(OUTPUT_KB_PATH, 'r', encoding='utf-8') as f:
                 existing_kb = json.load(f)
                 # Merge existing data into our template
@@ -36,7 +42,7 @@ def build_knowledge_base():
                     if key in existing_kb:
                         curated_knowledge[key].update(existing_kb[key])
         except Exception as e:
-            print(f"Error loading existing custom_knowledge.json: {e}")
+            emit_error(f"エラー: 既存の custom_knowledge.json の読込に失敗しました: {e}")
 
     # Ensure critical terms are present if not already
     critical_terms = {
@@ -46,18 +52,20 @@ def build_knowledge_base():
     
     for term, data in critical_terms.items():
         if term not in curated_knowledge["knowledge"]:
-            print(f"Adding critical term: {term}")
+            emit_progress(f"Adding critical term: {term}")
             curated_knowledge["knowledge"][term] = data
 
     try:
         # Save the updated custom_knowledge.json
         with open(OUTPUT_KB_PATH, 'w', encoding='utf-8') as f:
             json.dump(curated_knowledge, f, ensure_ascii=False, indent=2)
-        print(f"Successfully maintained custom knowledge base at {OUTPUT_KB_PATH}")
-        print(f"Custom terms count: {len(curated_knowledge['knowledge'])}")
+        emit_progress(f"Successfully maintained custom knowledge base at {OUTPUT_KB_PATH}")
+        emit_progress(f"Custom terms count: {len(curated_knowledge['knowledge'])}")
+        return 0
 
     except Exception as e:
-        print(f"An unexpected error occurred while saving: {e}")
+        emit_error(f"エラー: custom knowledge base の保存に失敗しました: {e}")
+        return 1
 
 if __name__ == '__main__':
-    build_knowledge_base()
+    sys.exit(build_knowledge_base())

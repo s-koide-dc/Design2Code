@@ -5,7 +5,12 @@ import json
 import os
 import hashlib
 import re
+import sys
 from datetime import datetime
+
+sys.path.append(os.getcwd())
+
+from src.utils.cli_output import emit_error, emit_progress
 
 # This script synchronizes the ai_project_map.json with the filesystem.
 # Updated to support recursive module discovery and submodules.
@@ -134,13 +139,13 @@ def find_tool_projects(base_dir="tools"):
     return tool_projects
 
 def main():
-    print("Synchronizing 'ai_project_map.json'...")
+    emit_progress("Synchronizing 'ai_project_map.json'...")
     
     map_path = 'ai_project_map.json'
     
     if not os.path.exists(map_path):
-        print(f"Error: {map_path} not found.")
-        return
+        emit_error(f"エラー: {map_path} が見つかりません。")
+        return 1
 
     with open(map_path, 'r', encoding='utf-8') as f:
         project_map = json.load(f)
@@ -156,9 +161,9 @@ def main():
         
         # Check for name collisions
         if module_name in seen_names:
-            print(f"Warning: Module name collision detected for '{module_name}'.")
-            print(f"  Existing: {seen_names[module_name]}")
-            print(f"  New:      {mod['design_path']}")
+            emit_error(f"警告: モジュール名の衝突を検出しました: '{module_name}'")
+            emit_error(f"  Existing: {seen_names[module_name]}")
+            emit_error(f"  New:      {mod['design_path']}")
             # Skip duplicate for now to avoid map pollution
             continue
         
@@ -202,7 +207,7 @@ def main():
     updated_names = {m['name'] for m in updated_modules}
     removed_modules = [name for name in mapped_modules if name not in updated_names]
     if removed_modules:
-        print(f"Removing old modules from map: {', '.join(removed_modules)}")
+        emit_progress(f"Removing old modules from map: {', '.join(removed_modules)}")
 
     # Sort modules by name for consistency
     updated_modules.sort(key=lambda x: x['name'])
@@ -257,7 +262,8 @@ def main():
     with open(map_path, 'w', encoding='utf-8') as f:
         json.dump(project_map, f, indent=2, ensure_ascii=False)
         
-    print("Synchronization complete.")
+    emit_progress("Synchronization complete.")
+    return 0
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

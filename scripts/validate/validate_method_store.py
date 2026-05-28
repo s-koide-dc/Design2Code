@@ -1,9 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import argparse
 import json
 import os
 import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from src.utils.cli_output import emit_error, emit_progress
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORE_PATH = os.path.join(ROOT, "resources", "method_store.json")
@@ -108,10 +115,17 @@ def validate_method_entry(entry, index, strict=False):
     return errors, warnings
 
 
-def main():
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Validate method_store.json and method_store_meta.json")
+    parser.add_argument("--strict", action="store_true", help="Treat missing extended keys as errors")
+    return parser.parse_args()
+
+
+def main() -> int:
     errors = []
     warnings = []
-    strict = "--strict" in sys.argv
+    args = parse_args()
+    strict = args.strict
 
     store_data, err = load_json(STORE_PATH)
     if err:
@@ -121,23 +135,23 @@ def main():
         errors.append(err)
 
     if errors:
-        print("Method store validation failed:")
+        emit_error("Method store validation failed:")
         for e in errors:
-            print(f" - {e}")
+            emit_error(f" - {e}")
         return 1
 
     if not isinstance(store_data, dict) or "methods" not in store_data:
-        print("Method store validation failed:")
-        print(" - method_store.json must be an object with 'methods' list")
+        emit_error("Method store validation failed:")
+        emit_error(" - method_store.json must be an object with 'methods' list")
         return 1
     methods = store_data.get("methods", [])
     if not isinstance(methods, list):
-        print("Method store validation failed:")
-        print(" - method_store.json 'methods' must be a list")
+        emit_error("Method store validation failed:")
+        emit_error(" - method_store.json 'methods' must be a list")
         return 1
     if not isinstance(meta_data, list):
-        print("Method store validation failed:")
-        print(" - method_store_meta.json must be a list")
+        emit_error("Method store validation failed:")
+        emit_error(" - method_store_meta.json must be a list")
         return 1
 
     if len(meta_data) != len(methods):
@@ -159,19 +173,19 @@ def main():
         errors.append("duplicate ids detected in method_store.json")
 
     if errors:
-        print("Method store validation failed:")
+        emit_error("Method store validation failed:")
         for e in errors:
-            print(f" - {e}")
+            emit_error(f" - {e}")
         return 1
 
     if warnings:
-        print("Method store validation warnings:")
+        emit_error("Method store validation warnings:")
         for w in warnings:
-            print(f" - {w}")
-        print("OK: method store validation passed with warnings.")
+            emit_error(f" - {w}")
+        emit_progress("OK: method store validation passed with warnings.")
         return 0
 
-    print("OK: method store validation passed.")
+    emit_progress("OK: method store validation passed.")
     return 0
 
 

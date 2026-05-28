@@ -2,6 +2,11 @@
 
 このプロジェクトは、3つの入口を持つローカルAI基盤として構成されている。モジュールが細分化されているため、入口ごとの処理フローと責務を整理して、全体像を素早く辿れるようにする。
 
+**Document Contract**
+- この文書は `config/doc_reference_policy.json` 上で `required_docs` 扱いの恒久資料。
+- README では公開入口と主要導線を簡潔に案内し、この文書では内部構造と責務の広い地図を扱う。
+- 入口や参照先を更新した場合は、`README.md` と `scripts/validate_project_consistency.py` の監視前提も合わせて確認する。
+
 **Entry Points**
 - 設計書 → コード生成: `scripts/generate/generate_from_design.py`
 - 対話パイプライン: `src/pipeline_core/pipeline_core.py`

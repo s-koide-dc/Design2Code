@@ -7,7 +7,14 @@ Default policy:
 """
 import argparse
 import os
+import sys
 from datetime import datetime, timedelta
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from src.utils.cli_output import emit_error, emit_progress
 
 def _parse_timestamp(name: str) -> datetime | None:
     # Expected: <basename>.<YYYYMMDD_HHMMSS>.bak
@@ -35,7 +42,7 @@ def _group_backups(files: list[tuple[str, datetime]]) -> dict[str, list[tuple[st
 def prune_backups(root: str, days: int, max_per_source: int, dry_run: bool) -> int:
     backup_dir = os.path.join(root, "backup")
     if not os.path.isdir(backup_dir):
-        print(f"[!] backup directory not found: {backup_dir}")
+        emit_error(f"エラー: backup ディレクトリが見つかりません: {backup_dir}")
         return 1
 
     now = datetime.now()
@@ -63,15 +70,15 @@ def prune_backups(root: str, days: int, max_per_source: int, dry_run: bool) -> i
             if ts >= cutoff and path in keep_set:
                 continue
             if dry_run:
-                print(f"[DRYRUN] remove {path}")
+                emit_progress(f"[DRYRUN] remove {path}")
             else:
                 try:
                     os.remove(path)
                     removed += 1
                 except OSError as e:
-                    print(f"[!] failed to remove {path}: {e}")
+                    emit_error(f"警告: バックアップ削除に失敗しました: {path}: {e}")
 
-    print(f"[+] prune complete. removed={removed}")
+    emit_progress(f"[+] prune complete. removed={removed}")
     return 0
 
 def main() -> int:
@@ -79,9 +86,10 @@ def main() -> int:
     parser.add_argument("--days", type=int, default=30, help="Retention days (default: 30)")
     parser.add_argument("--max-per-source", type=int, default=50, help="Max backups per source file (default: 50)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be removed")
+    parser.add_argument("--root", default=os.getcwd(), help="Project root containing backup/ (default: current working directory)")
     args = parser.parse_args()
 
-    root = os.getcwd()
+    root = os.path.abspath(args.root)
     return prune_backups(root, args.days, args.max_per_source, args.dry_run)
 
 if __name__ == "__main__":

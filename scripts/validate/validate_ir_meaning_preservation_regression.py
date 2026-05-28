@@ -9,6 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.utils.cli_output import emit_error, emit_progress
 from scripts.validate.ir_meaning_preservation_regression_lib import (
     DOCS_ROOT,
     RESEARCH_ROOT,
@@ -287,11 +288,11 @@ def main() -> int:
     try:
         run_file = choose_run_file(args.run_file)
     except FileNotFoundError as exc:
-        print(f"ERROR: {exc}")
+        emit_error(f"ERROR: {exc}")
         return 1
 
     if not run_file.exists():
-        print(f"ERROR: Run file not found: {run_file}")
+        emit_error(f"ERROR: Run file not found: {run_file}")
         return 1
 
     validate_required_assets(issues)
@@ -299,27 +300,27 @@ def main() -> int:
     content = run_file.read_text(encoding="utf-8")
     validate_sections(run_file, content, issues)
 
-    print("--- IR Meaning Preservation Regression Validation ---")
-    print(f"Run file: {run_file.relative_to(PROJECT_ROOT)}")
+    emit_progress("--- IR Meaning Preservation Regression Validation ---")
+    emit_progress(f"Run file: {run_file.relative_to(PROJECT_ROOT)}")
 
     if not issues:
-        print("OK: Regression run record is structurally consistent.")
+        emit_progress("OK: Regression run record is structurally consistent.")
         return 0
 
     errors = [issue for issue in issues if issue.severity == "ERROR"]
     warnings = [issue for issue in issues if issue.severity == "WARNING"]
 
     if errors:
-        print("\nERRORS (must be fixed):")
+        emit_error("\nERRORS (must be fixed):")
         for issue in errors:
-            print(f" - {issue.message}")
+            emit_error(f" - {issue.message}")
 
     if warnings:
-        print("\nWARNINGS (should be reviewed):")
+        emit_error("\nWARNINGS (should be reviewed):")
         for issue in warnings:
-            print(f" - {issue.message}")
+            emit_error(f" - {issue.message}")
 
-    print("\n--- End of Validation ---")
+    emit_error("\n--- End of Validation ---")
     return 1 if errors else 0
 
 

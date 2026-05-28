@@ -19,6 +19,7 @@ from src.code_verification.compilation_verifier import CompilationVerifier
 from src.code_verification.execution_verifier import ExecutionVerifier
 from src.vector_engine.vector_engine import VectorEngine
 from src.replanner.replanner import Replanner
+from src.utils.cli_output import emit_stderr, emit_stdout
 from src.utils.nuget_client import NuGetClient
 from src.utils.spec_auditor import SpecAuditor
 from src.code_generation.project_generator import ProjectGenerator
@@ -27,6 +28,12 @@ from src.action_executor.action_executor import ActionExecutor
 from src.refactoring_analyzer.refactoring_analyzer import RefactoringAnalyzer
 
 def main() -> int:
+    def emit_progress(message: str) -> None:
+        emit_stdout(message)
+
+    def emit_error(message: str) -> None:
+        emit_stderr(message)
+
     parser = argparse.ArgumentParser(description="E2E Design-to-Code Generator")
     parser.add_argument("--design", required=True, help="Path to .design.md")
     parser.add_argument("--output", required=False, help="Output .cs path")
@@ -47,7 +54,7 @@ def main() -> int:
         os.environ["STRICT_SEMANTICS"] = "1"
 
     if not os.path.exists(args.design):
-        print(f"Error: Design document not found: {args.design}")
+        emit_error(f"エラー: 設計書が見つかりません: {args.design}")
         return 1
 
     config = ConfigManager()
@@ -373,7 +380,7 @@ def main() -> int:
             offset = 0
         if offset < 0:
             offset = 0
-        print("[*] Running SpecAuditor/Replanner on project methods...")
+        emit_progress("[*] Running SpecAuditor/Replanner on project methods...")
         audited = 0
         skipped = 0
         for method_name, method_spec in method_specs.items():
@@ -381,14 +388,14 @@ def main() -> int:
                 skipped += 1
                 continue
             if limit and audited >= limit:
-                print(f"[*] Project audit limit reached ({limit}).")
+                emit_progress(f"[*] Project audit limit reached ({limit}).")
                 break
             start_time = time.time()
             structured_spec = _build_structured_spec_from_method(method_name, method_spec, project_spec)
             try:
                 validate_structured_spec_or_raise(structured_spec)
             except Exception as e:
-                print(f"[!] Spec validation failed: {method_name}: {e}")
+                emit_error(f"[!] 仕様検証に失敗しました: {method_name}: {e}")
                 continue
             result = synthesize_structured_spec(
                 synthesizer,
@@ -401,16 +408,16 @@ def main() -> int:
                 max_retries=3,
             )
             if result.get("status") == "FAILED" or "code" not in result:
-                print(f"[!] Synthesis failed during audit: {method_name}")
+                emit_error(f"[!] 監査中の合成に失敗しました: {method_name}")
                 continue
             spec_issues = result.get("spec_issues", []) or []
             if spec_issues:
-                print(f"[!] Spec alignment issues: {method_name}")
+                emit_error(f"[!] 仕様整合の問題を検出しました: {method_name}")
                 for issue in spec_issues:
-                    print(f"    - {issue}")
+                    emit_error(f"    - {issue}")
             audited += 1
             if time.time() - start_time > timeout_sec:
-                print(f"[!] Project audit timeout reached for: {method_name}")
+                emit_error(f"[!] プロジェクト監査がタイムアウトしました: {method_name}")
                 break
 
     def build_action_executor() -> ActionExecutor:
@@ -434,9 +441,9 @@ def main() -> int:
             status = result.get("action_result", {}).get("status", "error")
             message = result.get("action_result", {}).get("message", "")
             if status == "success":
-                print("[+] C# analysis completed.")
+                emit_progress("[+] C# analysis completed.")
             else:
-                print(f"[!] C# analysis failed: {message}")
+                emit_error(f"[!] C# 解析に失敗しました: {message}")
 
         if args.post_refactor_analyze:
             analyzer = RefactoringAnalyzer(
@@ -447,11 +454,11 @@ def main() -> int:
             ref_result = analyzer.analyze_project(output_root, "csharp")
             if ref_result.get("status") == "success":
                 smell_count = len(ref_result.get("code_smells", []))
-                print(f"[+] Refactoring analysis completed. Smells: {smell_count}")
+                emit_progress(f"[+] Refactoring analysis completed. Smells: {smell_count}")
             else:
-                print(f"[!] Refactoring analysis failed: {ref_result.get('message')}")
+                emit_error(f"[!] リファクタリング解析に失敗しました: {ref_result.get('message')}")
 
-    print(f"[*] Parsing design: {args.design}")
+    emit_progress(f"[*] Parsing design: {args.design}")
 
     def _contains_pattern(text: str, pattern: str) -> bool:
         if not isinstance(text, str) or not isinstance(pattern, str):
@@ -483,9 +490,9 @@ def main() -> int:
         rule_errors = []
         rule_errors.extend(validate_design_path(args.design, project_name, project_rules))
         if rule_errors:
-            print("[!] Project rule violations detected:")
+            emit_error("[!] プロジェクト規約違反を検出しました:")
             for err in rule_errors:
-                print(f"    - {err}")
+                emit_error(f"    - {err}")
             return 1
 
         output_root = args.output or os.path.join(os.getcwd(), project_name)
@@ -498,16 +505,16 @@ def main() -> int:
         run_post_generation_checks(output_root, project_name)
         build_result = verifier.verify_project(output_root, project_name=project_name)
         if not build_result.get("valid", False):
-            print("[!] Project compilation failed:")
+            emit_error("[!] プロジェクトのコンパイルに失敗しました:")
             for err in build_result.get("errors", []):
                 code = err.get("code", "")
                 msg = err.get("message", "")
                 if code:
-                    print(f"    - {code}: {msg}")
+                    emit_error(f"    - {code}: {msg}")
                 else:
-                    print(f"    - {msg}")
+                    emit_error(f"    - {msg}")
             return 1
-        print(f"[+] Project generated at {output_root}")
+        emit_progress(f"[+] Project generated at {output_root}")
         return 0
 
     inference_result = infer_then_freeze_if_needed(
@@ -516,12 +523,12 @@ def main() -> int:
         vector_engine=vector_engine,
     )
     if inference_result.get("status") == "blocked":
-        print("[!] Design inference blocked generation:")
+        emit_error("[!] 設計書補完の結果、生成を停止しました:")
         for issue in inference_result.get("issues", []):
             step_idx = issue.get("step_index")
             reason = issue.get("reason")
             detail = issue.get("detail")
-            print(f"    - step {step_idx}: {reason} ({detail})")
+            emit_error(f"    - step {step_idx}: {reason} ({detail})")
         return 1
 
     inferred_design_path = inference_result.get("output_path") or args.design
@@ -535,21 +542,21 @@ def main() -> int:
     safety_policy = config.get_safety_policy() or {}
     flagged_intents = enforce_safety_policy(spec, safety_policy, args.allow_unsafe)
     if flagged_intents:
-        print("[!] Safety policy violation detected. Blocked intents:")
+        emit_error("[!] Safety Policy 違反を検出しました。禁止された intent:")
         for intent in flagged_intents:
-            print(f"    - {intent}")
-        print("[!] Use --allow-unsafe to bypass this check.")
+            emit_error(f"    - {intent}")
+        emit_error("[!] このチェックを回避するには --allow-unsafe を指定してください。")
         return 1
     if args.allow_unsafe and not args.confirm:
-        print("[!] Safety policy override requested, but confirmation is missing.")
-        print("[!] Re-run with --confirm to proceed.")
+        emit_error("[!] Safety Policy の上書きが要求されましたが、確認指定がありません。")
+        emit_error("[!] 続行するには --confirm を付けて再実行してください。")
         return 1
     safe_cmd_errors = validate_safe_commands(spec, safety_policy)
     if safe_cmd_errors:
-        print("[!] Safety policy violation detected (commands):")
+        emit_error("[!] Safety Policy 違反を検出しました（command）:")
         for err in safe_cmd_errors:
-            print(f"    - {err}")
-        print("[!] Update safety_policy.json or avoid unsafe commands.")
+            emit_error(f"    - {err}")
+        emit_error("[!] safety_policy.json を更新するか、危険な command を避けてください。")
         return 1
 
     # P0: Project rules enforcement
@@ -559,12 +566,12 @@ def main() -> int:
     rule_errors.extend(validate_output_path(output_path, module_name, project_rules))
     rule_errors.extend(validate_spec_paths(spec, project_rules))
     if rule_errors:
-        print("[!] Project rule violations detected:")
+        emit_error("[!] プロジェクト規約違反を検出しました:")
         for err in rule_errors:
-            print(f"    - {err}")
+            emit_error(f"    - {err}")
         return 1
 
-    print(f"[*] Starting synthesis for {module_name}...")
+    emit_progress(f"[*] Starting synthesis for {module_name}...")
     result = synthesize_structured_spec(
         synthesizer,
         spec,
@@ -580,7 +587,7 @@ def main() -> int:
     )
 
     if result.get("status") == "FAILED":
-        print(f"[!] Synthesis failed: {result.get('code')}")
+        emit_error(f"[!] 合成に失敗しました: {result.get('code')}")
         return 1
 
     code = result.get("code", "")
@@ -612,42 +619,42 @@ def main() -> int:
                 f.write("\n--- stderr ---\n")
                 f.write(exec_result.get("stderr"))
         if exec_result.get("success"):
-            print("[+] Execution verification succeeded.")
+            emit_progress("[+] Execution verification succeeded.")
         else:
             err_type = exec_result.get("error_type") or exec_result.get("error")
-            print(f"[!] Execution verification failed: {err_type}")
-        print(f"[*] Execution verification log saved: {log_path}")
+            emit_error(f"[!] 実行検証に失敗しました: {err_type}")
+        emit_progress(f"[*] Execution verification log saved: {log_path}")
 
     if resolved_deps:
-        print("[*] Resolved NuGet dependencies:")
+        emit_progress("[*] Resolved NuGet dependencies:")
         for dep in resolved_deps:
-            print(f"    - {dep.get('name')} ({dep.get('version', '*')})")
+            emit_progress(f"    - {dep.get('name')} ({dep.get('version', '*')})")
     else:
-        print("[*] Resolved NuGet dependencies: none")
+        emit_progress("[*] Resolved NuGet dependencies: none")
 
     if spec_issues:
-        print("[!] Spec alignment issues detected:")
+        emit_error("[!] 仕様整合の問題を検出しました:")
         for issue in spec_issues:
-            print(f"    - {issue}")
+            emit_error(f"    - {issue}")
         blocking_spec = any(str(issue).startswith("SPEC_INPUT_LINK_UNUSED") for issue in spec_issues)
         if blocking_spec and not args.retry:
-            print("[!] Blocking issue detected: SPEC_INPUT_LINK_UNUSED")
+            emit_error("[!] 生成を停止する問題を検出しました: SPEC_INPUT_LINK_UNUSED")
             return 1
 
     if "// TODO" in code:
-        print("[!] Warning: Generated code still contains TODOs after retries.")
+        emit_error("[!] 警告: 再試行後も生成コードに TODO が残っています。")
     elif v_result.get("valid", False):
-        print("[+] Synthesis successful!")
+        emit_progress("[+] Synthesis successful!")
 
     final_spec_issues = result.get("spec_issues", []) or []
     if any(str(issue).startswith("SPEC_INPUT_LINK_UNUSED") for issue in final_spec_issues):
-        print("[!] Blocking issue detected after retries: SPEC_INPUT_LINK_UNUSED")
+        emit_error("[!] 再試行後も生成を停止する問題が残っています: SPEC_INPUT_LINK_UNUSED")
         return 1
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(code)
     
-    print(f"[+] Result saved to {output_path}")
+    emit_progress(f"[+] Result saved to {output_path}")
     return 0
 
 if __name__ == "__main__":

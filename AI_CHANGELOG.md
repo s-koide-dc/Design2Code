@@ -1,5 +1,83 @@
 # AI Changelog
 
+- **2026-05-28**: Expanded the `run_unit_smoke.py` profile documentation in `scripts/README.md` to list the exact test modules behind `core`, `parser`, and `synthesis`, and added a short source comment explaining why the smoke profile set stays explicit.
+
+- **2026-05-28**: Documented `python scripts/validate/run_unit_smoke.py --profile core --verbosity 2` in `scripts/README.md` as the shortest local smoke path, reflecting the new profile split with a concrete operator-facing command.
+
+- **2026-05-28**: Added `core` / `parser` / `synthesis` profile selection to `scripts/validate/run_unit_smoke.py` while preserving the expanded default suite, documented the profile behavior, and fixed the `parser` profile success path with an integration regression.
+
+- **2026-05-28**: Broadened the default `scripts/validate/run_unit_smoke.py` suite with lightweight configuration/design/dependency guards (`test_config_manager`, `test_design_doc_parser`, `test_dependency_resolver`, `test_json_deserialize_guard`), documented the expanded default set, and added an integration regression that fixes the default-smoke stdout success path.
+
+- **2026-05-28**: Expanded `.github/workflows/python-ci.yml` to run `scripts/validate/run_unit_smoke.py --verbosity 2`, so the existing public-entrypoint/security/consistency checks are now complemented by the default unit smoke suite in CI; updated the staged improvement memo accordingly.
+
+- **2026-05-28**: Tightened the README's `現在の温度感` section to reflect the now-stable docs-validation boundary, explicitly listing `scripts/validate_project_consistency.py` as a stable entrypoint and noting the mode-based doc policy plus grouped validator reporting.
+
+- **2026-05-28**: Added a short operational checklist to `config/README.md` for `doc_reference_policy.json` changes, documenting the required validator run, integration regression run, and follow-up README/doc mode synchronization.
+
+- **2026-05-28**: Extended `config/README.md` so `doc_reference_policy.json` now documents the exact `validate_project_consistency.py` stderr section mapping from policy keys to `DOCS (...)` and `GENERAL`.
+
+- **2026-05-28**: Documented the new grouped docs-validator stderr layout in `README.md` and `scripts/README.md`, so operators can see that `validate_project_consistency.py` now separates `GENERAL` errors from the three document-mode sections.
+
+- **2026-05-28**: Grouped `scripts/validate_project_consistency.py` stderr output by `GENERAL`, `DOCS (required)`, `DOCS (existence-only)`, and `DOCS (optional-reference)` sections while preserving the per-line diagnostics, and synchronized the integration assertions for the new scan order.
+
+- **2026-05-28**: Updated `scripts/validate_project_consistency.py` to include doc-validation mode labels in stderr diagnostics, so missing or broken docs now explicitly report whether they failed under `required`, `existence-only`, or `optional-reference` handling; synchronized the corresponding integration assertions.
+
+- **2026-05-28**: Added matching document-contract notes to `docs/generate_from_design_dataflow.md` and `docs/method_store_spec.md`, aligning the whole `required_docs` set around a consistent statement of what each document owns relative to the README.
+
+- **2026-05-28**: Added a short document-contract note to `docs/project_overview.md`, clarifying that it is a `required_docs` overview tied to the README's public entrypoints while serving as the broader internal structure map.
+
+- **2026-05-28**: Annotated the README's main document list with doc-validation modes, so readers can immediately distinguish `required_docs` from `existence_only_docs` without cross-checking the policy file.
+
+- **2026-05-28**: Added direct links from the README entrypoint section to `config/README.md` and `resources/README.md`, so readers can move from each public entrypoint to its configuration dependencies and representative generated assets without searching the repository.
+
+- **2026-05-28**: Extended `config/README.md` with an entrypoint-to-config map, so the documented public and maintenance scripts now show which JSON settings they primarily depend on without requiring readers to inspect `ConfigManager` or each CLI source file.
+
+- **2026-05-28**: Extended `resources/README.md` with a setup-to-artifact map, so the bootstrap commands in `README.md` now trace directly to the representative files they create or refresh under `resources/`.
+
+- **2026-05-28**: Reworked `resources/README.md` into an explicit inventory document by separating stable reference assets from generated examples and aligning the vector filenames with the current `mc90` artifacts, so its `existence_only_docs` role is clearer and less misleading.
+
+- **2026-05-28**: Documented the doc-validation mode policy in `README.md` and `scripts/README.md`, so operators can tell when a document belongs in `required_docs`, `existence_only_docs`, or `optional_reference_docs` without reading only the raw policy JSON.
+
+- **2026-05-28**: Generalized doc validation modes again by introducing `optional_reference_docs` in `config/doc_reference_policy.json`; temporary planning docs can now be absent without failing validation, but if present their local references are still checked. Added regression coverage for broken links inside the staged-improvement plan doc.
+
+- **2026-05-28**: Added doc-validation modes to `config/doc_reference_policy.json` by introducing `existence_only_docs`, and placed `resources/README.md` under that mode so inventory-style docs are checked for presence without validating every listed generated asset; added regression coverage for both missing existence-only docs and ignored inventory entries.
+
+- **2026-05-28**: Expanded `config/doc_reference_policy.json` again so `config/README.md` is now enforced as a required public document, while explicitly leaving generated-asset inventory docs such as `resources/README.md` out of the required set for now; added regression coverage for a missing required config README.
+
+- **2026-05-28**: Expanded `config/doc_reference_policy.json` so `docs/project_overview.md`, `docs/generate_from_design_dataflow.md`, and `docs/method_store_spec.md` are now treated as required public docs alongside the README pair and stdout policy; added regression coverage for a missing required overview document.
+
+- **2026-05-28**: Added regression coverage for malformed `config/doc_reference_policy.json`, so `scripts/validate_project_consistency.py` now has a fixed stderr failure path when `required_docs` or `temporary_docs` stop being string arrays.
+
+- **2026-05-28**: Externalized the public-doc monitoring target list into `config/doc_reference_policy.json`, so `scripts/validate_project_consistency.py` now reads its required-doc set from configuration instead of hardcoding it; added regression coverage for both the default temporary-doc behavior and a config override that promotes the plan memo to a required doc.
+
+- **2026-05-28**: Relaxed the new doc-reference validation so `docs/README実装ギャップ段階改善計画.md` is treated as a temporary working note rather than a required public document; `validate_project_consistency.py` now enforces only durable public docs, and regression coverage confirms the temporary plan doc can be absent without failing validation.
+
+- **2026-05-28**: Extended `scripts/validate_project_consistency.py` to validate local references in `README.md`, `scripts/README.md`, and `docs/stdout_output_policy.md`, so broken public-document links now fail the consistency check with stderr diagnostics; added regression coverage for a broken README reference.
+
+- **2026-05-22**: Hardened `scripts/validate_project_consistency.py` for missing or invalid `ai_project_map.json` by initializing its empty-state sets before validation, and added regression coverage for the stderr error path instead of letting the script crash with `UnboundLocalError`.
+
+- **2026-05-22**: Extended the Phase 3 CLI contract to `scripts/sync_project_map.py` and `scripts/validate_project_consistency.py`, separating progress/success to stdout from warnings and errors on stderr, and added regression coverage for missing map files plus the clean success path.
+
+- **2026-05-22**: Extended the Phase 3 CLI contract to `scripts/data/build_knowledge_base.py`, separating maintenance progress to stdout from missing-dictionary warnings and persistence failures on stderr, and added regression coverage for the warning-while-continuing path.
+
+- **2026-05-22**: Extended the Phase 3 CLI contract to the network bootstrap scripts `scripts/data/fetch_jmdict.py` and `scripts/data/fetch_vectors.py`, adding stdout progress, Japanese stderr diagnostics, environment-based URL overrides for deterministic failure testing, and regression coverage for download failures.
+
+- **2026-05-22**: Extended the Phase 3 CLI output contract to `scripts/data/convert_vectors.py` and `scripts/data/parse_jmdict.py`, routing progress to stdout and missing-input failures to Japanese stderr diagnostics, and added regression coverage for those failure paths.
+
+- **2026-05-22**: Localized the main `scripts/generate/generate_from_design.py` stderr diagnostics into Japanese for public-facing failure paths such as missing design docs, policy violations, synthesis failures, and spec-alignment stops, while keeping the stdout/stderr contract added earlier.
+
+- **2026-05-22**: Continued Phase 3 CLI output unification by routing `scripts/generate/generate_from_design.py` progress/success messages to stdout while moving error and warning paths to stderr, and added regression coverage for missing design documents plus policy documentation for the split.
+
+- **2026-05-22**: Started Phase 3 CLI output unification by adding `src/utils/cli_output.py`, updating `scripts/validate/run_tdd.py` so successful runs emit formal JSON on stdout while argument/input failures emit Japanese diagnostics on stderr, and adding regression coverage plus policy documentation for that contract.
+
+- **2026-05-22**: Updated `README.md` to publish two verified conversational entrypoint examples through `Pipeline(is_test_mode=True)`: one for `GET_CWD` and one for `LIST_DIR`, keeping the README aligned with the tested natural-language paths.
+
+- **2026-05-22**: Continued Phase 2 by expanding the real `LIST_DIR` intent corpus with natural folder-listing phrasings and adding integration coverage in `tests/integration/test_documented_entrypoints.py`, so directory-list requests no longer depend on explicitly saying only `一覧`.
+
+- **2026-05-22**: Continued Phase 2 README/implementation alignment by expanding the real `GET_CWD` intent corpus with natural directory-query variants and adding integration coverage in `tests/integration/test_documented_entrypoints.py` so multiple README-safe phrasings stay executable through the pipeline.
+
+- **2026-05-21**: Started staged README/implementation alignment by rewriting `README.md` to reflect verified behavior instead of aspirational claims, adding `docs/README実装ギャップ段階改善計画.md` to sequence the remaining work, and introducing `tests/integration/test_documented_entrypoints.py` to keep the documented public entrypoints executable.
+
 - **2026-05-21**: Fixed C# integration tests in `tests/unit/test_code_synthesizer_integration.py` by instantiating `CodeBuilderClient` with a mock config pointing to `os.getcwd()`, preventing test workspace isolation from hiding C# compilation assets.
 
 - **2026-05-15**: Added `research/ir_meaning_preservation/report.md` as the formal integrated report that connects the research objective, benchmark method, core findings, runtime/schema/policy boundary, implementation sites, operationalization, remaining open issues, and final conclusion into a single document, and synchronized the research indexes accordingly.
@@ -1103,6 +1181,36 @@
 ## 2026-05-15
 - `midterm_synthesis`, `research_outcome_memo`, `goal_state` を更新し、`CHECK/FILTER/CALCULATE/RETURN/TRANSFORM/ITERATE/WRAP/DISPLAY` まで閉じた role 群として summary 層へ反映した。
 - `remaining_open_inventory.md` を追加し、closed role / stable but not focus / open issues を研究の現時点として棚卸しした。
+
+## 2026-05-22
+- `scripts/validate_project_consistency.py` に `ai_project_map.json` の `source_file.path` / `design_document.path` / `test_file` 実在性チェックを追加し、docs / design / tests の同期漏れを検出できるようにした。
+- `tests/integration/test_documented_entrypoints.py` に、`ai_project_map.json` 上の欠落 design 参照を validator が stderr へ出す回帰を追加した。
+- `.github/workflows/python-ci.yml` を追加し、`tests.integration.test_documented_entrypoints`, `tests.security.test_security_vulnerabilities`, `scripts/validate_project_consistency.py` を GitHub Actions で自動実行するようにした。
+- `.gitignore` を調整し、`.github/workflows` を追跡対象へ戻した。
+- `tests/integration/test_documented_entrypoints.py` に `ComplexLinqSearch.design.md` を使った単体生成の決定論性回帰を追加し、固定設計書から同一コードが出ることを比較で固定した。
+- `docs/README実装ギャップ段階改善計画.md` を更新し、Phase 4 の進捗として決定論性回帰と CI 導入を反映した。
+- `tests/security/test_security_vulnerabilities.py` に `generate_from_design.py` の Safety Policy 回帰を追加し、禁止 intent、`--allow-unsafe` 時の `--confirm` 必須、command allowlist 違反を固定した。
+- `docs/README実装ギャップ段階改善計画.md` を更新し、Phase 3 の残タスクだった安全ポリシー回帰の固定状況を反映した。
+- README と `scripts/README.md` に CLI の stdout/stderr 契約を追記し、正式 CLI とデモ用スクリプトの境界を明文化した。
+- `docs/README実装ギャップ段階改善計画.md` を更新し、Phase 3 の CLI 契約整理が概ね完了したことと残タスクを反映した。
+- Phase 3 の残りとして `scripts/tools/manage_vector_db.py` を実装準拠に修正し、壊れていた `seed_system_methods` 依存を除去した。
+- `manage_vector_db.py` は `--root` / `--analysis-path` を受け取り、`sync_method_store` の system method 定義を再利用して seed できるようにした。
+- `manage_vector_db.py` は進行表示を stdout、analysis_output 未検出や harvest failure を stderr に分離した。
+- `tests/integration/test_documented_entrypoints.py` に `manage_vector_db.py` の harvest failure と seed success 回帰を追加した。
+- Phase 3 の stdout/stderr 契約を `scripts/generate_ir_case_summary.py` と `scripts/tools/suggest_method_capabilities.py` へ拡張した。
+- `generate_ir_case_summary.py` は `--cases-dir` / `--output` を受け取り、生成成功を stdout、ケースディレクトリ未検出を stderr に分離した。
+- `suggest_method_capabilities.py` は `--root` / `--store-path` / `--map-path` / `--out-dir` を受け取り、生成結果を stdout、method_store 未検出を stderr に分離した。
+- `tests/integration/test_documented_entrypoints.py` に上記補助 CLI の回帰を追加した。
+- Phase 3 の stdout/stderr 契約を `scripts/validate/run_unit_smoke.py`, `scripts/validate/run_ir_meaning_preservation_regression.py`, `scripts/validate/validate_ir_meaning_preservation_regression.py` へ拡張した。
+- `run_unit_smoke.py` は `--test-target` を受け取り、成功時の unittest 出力を stdout、失敗時を stderr に分離するよう更新した。
+- `run_ir_meaning_preservation_regression.py` は run file 未検出と step failure を stderr に寄せ、成功時の runner 出力は stdout に残すよう更新した。
+- `validate_ir_meaning_preservation_regression.py` は成功レポートを stdout、run file 未検出や構造エラーを stderr に固定した。
+- `tests/integration/test_documented_entrypoints.py` に上記 validate 系 3 本の回帰を追加した。
+- Phase 3 の stdout/stderr 契約を `scripts/sync/sync_project_dependencies.py`, `scripts/validate/validate_method_store.py`, `scripts/tools/prune_backups.py` へ拡張した。
+- `sync_project_dependencies.py` は `--root` を受け取り、同期完了を stdout、csproj 解析失敗を stderr に分離するよう更新した。
+- `validate_method_store.py` は共通 CLI helper と `--strict` の argparse 化を導入し、失敗・警告を stderr、成功のみを stdout に固定した。
+- `prune_backups.py` は `--root` を受け取り、dry-run/完了を stdout、backup ディレクトリ未検出や削除失敗を stderr に分離した。
+- `tests/integration/test_documented_entrypoints.py` に上記 3 本の回帰を追加し、CLI 出力契約の維持を固定した。
 
 ## 2026-05-13
 - `CALCULATE` の target-side provenance 4値を benchmark 上で閉じるため、`case_36_calculate_default_target_retention` と対応 observed IR を追加した。

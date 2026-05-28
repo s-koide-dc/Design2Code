@@ -9,6 +9,25 @@
 - `scripts/validate_project_consistency.py`
   - モジュール/設計書/依存関係の整合性を検証する。
 
+## 1.1 stdout/stderr 契約
+
+- 正式 CLI は、成功結果と進行表示を `stdout`、異常系と警告を `stderr` に出す。
+- この契約は [docs/stdout_output_policy.md](/C:/workspace/NLP/docs/stdout_output_policy.md) で管理する。
+- 新しい正式 CLI を追加した場合は:
+  - `src/utils/cli_output.py` を使う。
+  - `docs/stdout_output_policy.md` を更新する。
+  - `tests/integration/test_documented_entrypoints.py` か適切な回帰テストで固定する。
+- 例外:
+  - `scripts/generate/demo_synthesis.py` のようなデモ・観察用途スクリプトは、正式 CLI 契約の対象外。
+
+## 1.2 docs 監視モード
+
+- `scripts/validate_project_consistency.py` の docs 監視対象は `config/doc_reference_policy.json` で管理する。
+- `required_docs`: 恒久公開 docs。存在とローカル参照整合を監視する。
+- `existence_only_docs`: 在庫表 docs。文書自体の存在だけを監視する。
+- `optional_reference_docs`: 任意 docs。存在は任意だが、存在するならローカル参照整合を監視する。
+- validator の失敗出力は `GENERAL`, `DOCS (required)`, `DOCS (existence-only)`, `DOCS (optional-reference)` の節でまとまる。
+
 ## 2. data (取得・変換・知識構築)
 
 - `scripts/data/fetch_jmdict.py` : JMdict の取得
@@ -28,6 +47,13 @@
 - `scripts/validate/validate_ir_meaning_preservation_regression.py` : IR meaning preservation の regression run 記録と関連成果物の整合性検証
 - `scripts/validate/run_ir_meaning_preservation_regression.py` : IR meaning preservation の標準 regression 手順（sync / consistency / run-record validation / optional tests）を 1 コマンドで実行し、`Validation Run` 欄用 markdown、該当 `Regression Check`、`Change Summary` / `Affected Claims` / `Benchmark Coverage` / `Downstream Conservatism Check` / `Role Weakening Check` / `Alias Admission Check` / `Output Path Check` / `Deliverables Produced` / `Final Judgment` の下書き block を出力。`--write-draft` で markdown ファイルへ保存可能（既定: `<run_file>.runner_draft.md`、変更時は `--draft-file`）。`--update-run-file` を付けると、生成した draft block を使って target run file を in-place 更新する。
 - `scripts/validate/run_unit_smoke.py` : unitテストのスモーク（vector cache を含む）
+  - 既定では `config_manager`, `design_doc_parser`, `dependency_resolver`, `json_deserialize_guard`, `method_store`, `code_synthesizer_integration`, `vector_cache_required` を実行
+  - `--profile core|parser|synthesis` でカテゴリ単位に絞れる
+  - `core`: `test_config_manager`, `test_dependency_resolver`, `test_method_store`, `test_vector_cache_required`
+  - `parser`: `test_design_doc_parser`, `test_json_deserialize_guard`
+  - `synthesis`: `test_code_synthesizer_integration`
+  - 最短のローカル健全性チェックとしては `python scripts/validate/run_unit_smoke.py --profile core --verbosity 2` が扱いやすい
+  - `--test-target` は profile に追加する形で使える
 - `scripts/validate/run_tdd.py` : Advanced TDD の CLI 入口
 
 ## 5. sync (同期/更新)
@@ -38,6 +64,8 @@
 ## 6. tools (補助ツール)
 
 - `scripts/tools/manage_vector_db.py` : ベクタDB管理
+  - `seed` / `rebuild` / `harvest` / `all` を提供
+  - `--root` で対象ワークスペース、`--analysis-path` で harvest 元を上書き可能
 - `scripts/tools/prune_backups.py` : backup/ の古いバックアップを整理
 - `scripts/tools/suggest_method_capabilities.py` : method capability の提案生成
 
