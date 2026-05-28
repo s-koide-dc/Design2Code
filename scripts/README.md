@@ -55,6 +55,7 @@
   - `assets`: `test_vector_cache_required`
   - 最短のローカル健全性チェックとしては `python scripts/validate/run_unit_smoke.py --profile core --verbosity 2` が扱いやすい
   - ローカル資産まで含めて確認したい場合は `python scripts/validate/run_unit_smoke.py --profile core --profile parser --profile synthesis --profile assets --verbosity 2`
+  - GitHub Actions では `core + parser + synthesis` だけを実行し、chiVe / cache / `dictionary.db` のような未コミット資産には依存しない
   - `--test-target` は profile に追加する形で使える
 - `scripts/validate/run_tdd.py` : Advanced TDD の CLI 入口
 

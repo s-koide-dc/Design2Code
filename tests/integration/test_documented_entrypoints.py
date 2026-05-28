@@ -874,6 +874,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         )
         self.assertIn("tests.unit.test_config_manager.TestConfigManager.test_load_valid_config", completed.stdout)
         self.assertIn("tests.unit.test_code_synthesizer_integration", completed.stdout)
+        self.assertNotIn("tests.unit.test_vector_cache_required", completed.stdout)
         self.assertIn("OK", completed.stdout)
         self.assertEqual(completed.stderr.strip(), "")
 
