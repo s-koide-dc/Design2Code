@@ -15,7 +15,7 @@ FENCED_CODE_BLOCK_PATTERN = re.compile(r"```[\s\S]*?```", re.MULTILINE)
 PATHLIKE_INLINE_PATTERN = re.compile(
     r"^(?:"
     r"[A-Za-z]:[\\/].+"
-    r"|/?[A-Za-z0-9_.\-]+(?:[\\/][A-Za-z0-9_.\-]+)*[\\/][A-Za-z0-9_.\-]+\.(?:md|json|py|ps1|sh|cs|xml|txt|npy|db)"
+    r"|/?[A-Za-z0-9_.\-]+(?:[\\/][A-Za-z0-9_.\-]+)*[\\/][A-Za-z0-9_.\-]+\.(?:md|json|py|ps1|sh|cs|xml)"
     r")$"
 )
 
@@ -111,24 +111,46 @@ def looks_like_inline_path(raw_reference: str) -> bool:
         return False
     return bool(PATHLIKE_INLINE_PATTERN.match(candidate))
 
-def resolve_local_reference(project_root: Path, doc_path: Path, raw_reference: str) -> Path:
+def _resolve_repo_suffix_path(project_root: Path, path_candidate: Path) -> Path | None:
+    parts = [part for part in path_candidate.parts if part not in {path_candidate.anchor, "/", "\\"}]
+    for start in range(len(parts)):
+        suffix = parts[start:]
+        if not suffix:
+            continue
+        resolved = project_root.joinpath(*suffix)
+        if resolved.exists():
+            return resolved
+    return None
+
+def resolve_local_reference(project_root: Path, doc_path: Path, raw_reference: str) -> tuple[Path | None, bool]:
     reference = raw_reference.strip()
     reference = reference.split("#", 1)[0].strip()
     if not reference:
-        return doc_path
+        return doc_path, True
 
     # App-rendering absolute markdown links appear as `/C:/workspace/...`.
     if reference.startswith("/") and len(reference) >= 4 and reference[2] == ":":
-        return Path(reference[1:])
+        absolute_path = Path(reference[1:])
+        if absolute_path.exists():
+            return absolute_path, True
+        repo_local = _resolve_repo_suffix_path(project_root, absolute_path)
+        if repo_local is not None:
+            return repo_local, True
+        return None, False
 
     normalized = Path(reference.replace("/", os.sep).replace("\\", os.sep))
     if normalized.is_absolute():
-        return normalized
+        if normalized.exists():
+            return normalized, True
+        repo_local = _resolve_repo_suffix_path(project_root, normalized)
+        if repo_local is not None:
+            return repo_local, True
+        return None, False
 
     project_relative = project_root / normalized
     if project_relative.exists():
-        return project_relative
-    return doc_path.parent / normalized
+        return project_relative, True
+    return doc_path.parent / normalized, True
 
 def _validate_policy_string_list(policy_path: Path, policy: dict, key: str) -> list[str] | None:
     value = policy.get(key, [])
@@ -216,8 +238,10 @@ def collect_missing_document_references(project_root: Path, relative_doc_paths: 
         for _, target in MARKDOWN_LINK_PATTERN.findall(stripped_content):
             if not looks_like_local_reference(target):
                 continue
-            resolved = resolve_local_reference(project_root, doc_path, target)
-            if not resolved.exists():
+            resolved, should_validate = resolve_local_reference(project_root, doc_path, target)
+            if not should_validate:
+                continue
+            if resolved is None or not resolved.exists():
                 errors.append(
                     _format_doc_error(
                         relative_doc_path,
@@ -229,8 +253,10 @@ def collect_missing_document_references(project_root: Path, relative_doc_paths: 
         for inline_code in INLINE_CODE_PATTERN.findall(stripped_content):
             if not looks_like_inline_path(inline_code):
                 continue
-            resolved = resolve_local_reference(project_root, doc_path, inline_code)
-            if not resolved.exists():
+            resolved, should_validate = resolve_local_reference(project_root, doc_path, inline_code)
+            if not should_validate:
+                continue
+            if resolved is None or not resolved.exists():
                 errors.append(
                     _format_doc_error(
                         relative_doc_path,

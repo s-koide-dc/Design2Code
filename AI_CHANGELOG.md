@@ -1,5 +1,7 @@
 # AI Changelog
 
+- **2026-05-28**: Hardened the CI-facing regression path by (1) making `validate_project_consistency.py` resolve stale absolute workspace links back into the current repo when possible while ignoring non-repo absolute artifacts, (2) narrowing inline path validation to committed source/doc-style extensions instead of generated assets like `txt` / `npy` / `db`, (3) suppressing warning-level logging during `run_unit_smoke.py`, and (4) forcing documented pipeline-entrypoint tests to rebuild intent vectors from an asset-free dummy vector engine instead of relying on local vector caches.
+
 - **2026-05-28**: Fixed the default-smoke regression to assert that `test_vector_cache_required` is excluded from CI-oriented default runs, and documented in `scripts/README.md` that GitHub Actions executes only asset-free smoke profiles because chiVe, caches, and `dictionary.db` are not committed.
 
 - **2026-05-28**: Split `test_vector_cache_required` out of the default `run_unit_smoke.py` targets into a dedicated `assets` profile and changed the GitHub Actions workflow to run only `core`, `parser`, and `synthesis`, so CI no longer depends on local vector-cache assets that are absent on GitHub-hosted runners.

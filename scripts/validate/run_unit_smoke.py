@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 import io
+import logging
 import os
 import sys
 import unittest
@@ -86,7 +87,12 @@ def main() -> int:
         suite.addTests(loader.loadTestsFromName(name))
     stream = io.StringIO()
     runner = unittest.TextTestRunner(stream=stream, verbosity=args.verbosity)
-    result = runner.run(suite)
+    previous_disable = logging.root.manager.disable
+    logging.disable(logging.WARNING)
+    try:
+        result = runner.run(suite)
+    finally:
+        logging.disable(previous_disable)
     rendered = stream.getvalue().strip()
     if rendered:
         if result.wasSuccessful():

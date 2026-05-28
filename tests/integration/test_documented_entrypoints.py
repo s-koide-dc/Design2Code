@@ -4,7 +4,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import hashlib
 from pathlib import Path
+
+import numpy as np
 
 from src.pipeline_core.pipeline_core import Pipeline
 
@@ -14,6 +17,53 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.workspace_root = Path(os.getcwd())
         self.cache_dir = self.workspace_root / "cache"
         self.cache_dir.mkdir(exist_ok=True)
+
+    def _make_asset_free_pipeline(self) -> Pipeline:
+        intent_cache = self.cache_dir / "intent_vectors.pkl"
+        backup_cache = self.cache_dir / "intent_vectors.pkl.integration_backup"
+        if backup_cache.exists():
+            backup_cache.unlink()
+        if intent_cache.exists():
+            intent_cache.replace(backup_cache)
+
+            def restore_intent_cache():
+                intent_cache.unlink(missing_ok=True)
+                if backup_cache.exists():
+                    backup_cache.replace(intent_cache)
+
+            self.addCleanup(restore_intent_cache)
+        else:
+            self.addCleanup(intent_cache.unlink, missing_ok=True)
+
+        class DummyVectorEngine:
+            def __init__(self, dim: int = 300):
+                self.is_ready = True
+                self._dim = dim
+
+            def get_sentence_vector(self, words):
+                if not words:
+                    return None
+                vec = np.zeros(self._dim, dtype=np.float32)
+                for word in words:
+                    token = str(word)
+                    digest = hashlib.sha256(token.encode("utf-8")).digest()
+                    idx = int.from_bytes(digest[:4], "little") % self._dim
+                    sign = 1.0 if (digest[4] & 1) == 0 else -1.0
+                    vec[idx] += sign
+                norm = np.linalg.norm(vec)
+                if norm > 0:
+                    vec /= norm
+                return vec
+
+            def vector_similarity(self, v1, v2):
+                if v1 is None or v2 is None:
+                    return 0.0
+                return float(np.dot(v1, v2))
+
+        pipeline = Pipeline(is_test_mode=True)
+        pipeline._vector_engine = DummyVectorEngine()
+        pipeline.action_executor.vector_engine = pipeline._vector_engine
+        return pipeline
 
     def test_readme_generate_from_design_example_runs(self):
         output_path = self.cache_dir / "ReadmeSampleImpact.cs"
@@ -103,7 +153,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertEqual(generated_a, generated_b)
 
     def test_readme_pipeline_example_returns_current_directory(self):
-        pipeline = Pipeline(is_test_mode=True)
+        pipeline = self._make_asset_free_pipeline()
         result = pipeline.run("カレントディレクトリを教えて")
 
         self.assertEqual(result.get("analysis", {}).get("intent"), "GET_CWD")
@@ -118,7 +168,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             "作業フォルダを表示して",
             "今いるフォルダを教えて",
         ]
-        pipeline = Pipeline(is_test_mode=True)
+        pipeline = self._make_asset_free_pipeline()
 
         for phrase in phrases:
             with self.subTest(phrase=phrase):
@@ -135,7 +185,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             "このフォルダに何がある？",
             "今いるディレクトリの一覧を見せて",
         ]
-        pipeline = Pipeline(is_test_mode=True)
+        pipeline = self._make_asset_free_pipeline()
 
         for phrase in phrases:
             with self.subTest(phrase=phrase):
