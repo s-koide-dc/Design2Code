@@ -36,7 +36,7 @@
 2. Core Logic の行に含まれる `[data_source|id|kind]` を抽出し、`data_sources` を形成する。
 3. 各ステップ行から `[KIND|INTENT|TARGET|OUTPUT|SIDE_EFFECT|SOURCE_REF|SOURCE_KIND]` メタデータ、`[refs:...]`、`[ops:...]`、`[semantic_roles:{...}]` を解析して `steps` に変換する。
 4. `source_ref` と `data_sources` を突合し、`source_kind` を補完する。`FETCH` で未指定の場合は `file` を既定値とする。
-5. `validate_structured_spec_or_raise` により構造の整合性を検証し、違反があれば例外を投げる。
+5. `validate_structured_spec_or_raise` により構造の整合性を検証し、違反があれば例外を投げる。`kind` / `intent` の高頻度比較は `src.utils.semantic_intents` の共通語彙を使う。
 6. `StructuredDesignParser` は `test_cases` を構造化し、`StructuredSpec` の `test_cases` に格納する。
 7. `ProjectSpecParser.parse_file/parse_content` は、ヘッダで区切られたセクションを解析して `tech` / `architecture` / `modules` / `entities` / `dtos` / `validation` / `method_specs` / `generation_hints` を辞書化する。
 8. **Infer-Then-Freeze (補完→固定化)** を適用する場合、設計書に不足するメタデータを決定的推論で補完し、`.design.md` へ明示的に書き戻した後に再パースする。以降の生成は書き戻し済みメタデータのみを使用する。
@@ -70,3 +70,4 @@
 
 ## 4. Review Notes
 - 2026-04-14: Infer-then-freeze の責務境界と固定化フローの記述を現行実装に合わせて再確認。
+- 2026-06-04: `validator` 側の `ACTION/CONDITION/LOOP/ELSE/END` と `FETCH/DATABASE_QUERY` 検証を `src.utils.semantic_intents` の共通定数へ寄せた。

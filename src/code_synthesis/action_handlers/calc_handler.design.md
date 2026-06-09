@@ -34,4 +34,5 @@
 
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
+- 2026-06-04: `CALC` の statement tagging を `src.utils.semantic_intents.INTENT_CALC` に統一した。
 

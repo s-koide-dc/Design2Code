@@ -8,6 +8,10 @@ from datetime import datetime
 sys.path.append(os.getcwd())
 
 from src.utils.cli_output import emit_error, emit_progress
+from src.utils.action_intents import *
+from src.utils.confirmation_response import *
+from src.utils.control_intents import *
+from src.utils.semantic_intents import *
 
 MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 INLINE_CODE_PATTERN = re.compile(r"`([^`\n]+)`")
@@ -18,6 +22,128 @@ PATHLIKE_INLINE_PATTERN = re.compile(
     r"|/?[A-Za-z0-9_.\-]+(?:[\\/][A-Za-z0-9_.\-]+)*[\\/][A-Za-z0-9_.\-]+\.(?:md|json|py|ps1|sh|cs|xml)"
     r")$"
 )
+
+RESOURCE_INTENT_ALLOWED = {
+    INTENT_ACTION,
+    INTENT_CALC,
+    INTENT_DATABASE_QUERY,
+    INTENT_DISPLAY,
+    INTENT_EXISTS,
+    INTENT_FETCH,
+    INTENT_FILE_IO,
+    INTENT_FILTER,
+    INTENT_GENERAL,
+    INTENT_HTTP_REQUEST,
+    INTENT_JSON_DESERIALIZE,
+    INTENT_LINQ,
+    INTENT_PERSIST,
+    INTENT_RETURN,
+    INTENT_TRANSFORM,
+    INTENT_RUN_LEARNING_CYCLE,
+    INTENT_FILE_APPEND,
+    INTENT_FILE_READ,
+    INTENT_FILE_CREATE,
+    INTENT_FILE_WRITE,
+    INTENT_FILE_DELETE,
+    INTENT_FILE_COPY,
+    INTENT_FILE_MOVE,
+    INTENT_CMD_RUN,
+    INTENT_LIST_DIR,
+    INTENT_GET_CWD,
+    INTENT_GENERATE_TESTS,
+    INTENT_MEASURE_COVERAGE,
+    INTENT_ANALYZE_COVERAGE_GAPS,
+    INTENT_GENERATE_COVERAGE_REPORT,
+    INTENT_ANALYZE_REFACTORING,
+    INTENT_SUGGEST_REFACTORING,
+    INTENT_APPLY_REFACTORING,
+    INTENT_CS_ANALYZE,
+    INTENT_CS_TEST_RUN,
+    INTENT_CS_QUERY_ANALYSIS,
+    INTENT_CS_IMPACT_SCOPE,
+    INTENT_ANALYZE_TEST_FAILURE,
+    INTENT_APPLY_CODE_FIX,
+    INTENT_EXECUTE_GOAL_DRIVEN_TDD,
+    INTENT_BACKUP_AND_DELETE,
+    INTENT_READ_AND_CREATE,
+    INTENT_MANAGE_KNOWLEDGE,
+    INTENT_REVERSE_DICTIONARY_SEARCH,
+    INTENT_DOC_GEN,
+    INTENT_DOC_REFINE,
+    INTENT_PROVIDE_CONTENT,
+    INTENT_PROVIDE_CRITERIA,
+    INTENT_SET_METHOD_NAME,
+    INTENT_SETUP_CICD,
+    INTENT_CONFIGURE_QUALITY_GATES,
+    INTENT_GENERATE_PIPELINE_CONFIG,
+    INTENT_RECOVERY_FROM_TEST_FAILURE,
+    INTENT_AGREE,
+    INTENT_DISAGREE,
+    INTENT_CLARIFICATION_RESPONSE,
+    INTENT_CORRECTION,
+    INTENT_DEFINITION,
+    INTENT_GREETING,
+    INTENT_PERSONAL_Q,
+    INTENT_BYE,
+    INTENT_TIME,
+    INTENT_WEATHER,
+    INTENT_CAPABILITY,
+    INTENT_EMOTIVE,
+    INTENT_SMALLTALK,
+    INTENT_FEEDBACK,
+}
+
+RESOURCE_ROLE_ALLOWED = {
+    ROLE_ACTION,
+    ROLE_CALC,
+    ROLE_CHECK,
+    ROLE_DISPLAY,
+    ROLE_FETCH,
+    ROLE_FILTER,
+    ROLE_ITERATE,
+    ROLE_PERSIST,
+    ROLE_READ,
+    ROLE_RETURN,
+    ROLE_TRANSFORM,
+    ROLE_WRITE,
+    "CHECK",
+    "READ",
+    "WRITE",
+    "content",
+    "data",
+    "result",
+    "logic",
+    "item",
+    "path",
+    "source",
+    "url",
+    "name",
+    "notification",
+    "input",
+    "INVOKE",
+    INTENT_EXISTS,
+    INTENT_HTTP_REQUEST,
+    INTENT_LINQ,
+}
+
+RESOURCE_CAPABILITY_ALLOWED = RESOURCE_INTENT_ALLOWED | {
+    "READ",
+    "WRITE",
+    "CHECK",
+    "EXPORT",
+    "DATABASE_ACCESS",
+    "DATA_FETCH",
+    "DATA_PERSIST",
+    "TRANSFORMATION",
+    "SERIALIZATION",
+    "JSON_SERIALIZE",
+    "HTTP_CONTROL",
+    "USER_INTERFACE",
+    "LOGGING",
+    "NOTIFICATION",
+}
+
+RESOURCE_ROLE_SYNONYM_ALLOWED = RESOURCE_CAPABILITY_ALLOWED | RESOURCE_ROLE_ALLOWED
 
 def get_last_modified_time(file_path):
     """Gets the last modified time of a file/directory."""
@@ -267,6 +393,127 @@ def collect_missing_document_references(project_root: Path, relative_doc_paths: 
 
     return errors
 
+def _load_json_file(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), None
+    except FileNotFoundError:
+        return None, f"Missing resource file: {path}"
+    except json.JSONDecodeError as exc:
+        return None, f"Invalid JSON in resource file '{path}': {exc}"
+
+def _validate_allowed_string(value, allowed: set[str], label: str, errors: list[str]):
+    if value is None:
+        return
+    if not isinstance(value, str):
+        errors.append(f"[resource:{label}]: expected string, got {type(value).__name__}")
+        return
+    if value not in allowed:
+        errors.append(f"[resource:{label}]: unknown vocabulary '{value}'")
+
+def _validate_allowed_string_list(values, allowed: set[str], label: str, errors: list[str]):
+    if values is None:
+        return
+    if not isinstance(values, list):
+        errors.append(f"[resource:{label}]: expected list[str]")
+        return
+    for index, value in enumerate(values):
+        _validate_allowed_string(value, allowed, f"{label}[{index}]", errors)
+
+def validate_resource_vocab(project_root: Path) -> list[str]:
+    errors: list[str] = []
+
+    action_patterns, err = _load_json_file(project_root / "resources" / "action_patterns.json")
+    if err:
+        return [err]
+    for index, pattern in enumerate(action_patterns.get("patterns", [])):
+        prefix = f"action_patterns.json:patterns[{index}]"
+        _validate_allowed_string(pattern.get("intent"), RESOURCE_INTENT_ALLOWED, f"{prefix}.intent", errors)
+        _validate_allowed_string_list(pattern.get("capabilities"), RESOURCE_CAPABILITY_ALLOWED, f"{prefix}.capabilities", errors)
+        _validate_allowed_string(pattern.get("role"), RESOURCE_ROLE_ALLOWED, f"{prefix}.role", errors)
+        for step_index, step in enumerate(pattern.get("steps", [])):
+            _validate_allowed_string(step.get("role"), RESOURCE_ROLE_ALLOWED, f"{prefix}.steps[{step_index}].role", errors)
+
+    canonical, err = _load_json_file(project_root / "resources" / "canonical_knowledge.json")
+    if err:
+        return [err]
+    for index, template in enumerate(canonical.get("templates", [])):
+        prefix = f"canonical_knowledge.json:templates[{index}]"
+        _validate_allowed_string(template.get("intent"), RESOURCE_INTENT_ALLOWED, f"{prefix}.intent", errors)
+        _validate_allowed_string_list(template.get("capabilities"), RESOURCE_CAPABILITY_ALLOWED, f"{prefix}.capabilities", errors)
+        _validate_allowed_string(template.get("role"), RESOURCE_ROLE_ALLOWED, f"{prefix}.role", errors)
+
+    for key in (canonical.get("common_patterns") or {}).keys():
+        _validate_allowed_string(key, RESOURCE_INTENT_ALLOWED, f"canonical_knowledge.json:common_patterns.{key}", errors)
+    for key in (canonical.get("intent_keywords") or {}).keys():
+        _validate_allowed_string(key, RESOURCE_INTENT_ALLOWED, f"canonical_knowledge.json:intent_keywords.{key}", errors)
+    for key in (canonical.get("intent_role_keywords") or {}).keys():
+        _validate_allowed_string(key, RESOURCE_INTENT_ALLOWED, f"canonical_knowledge.json:intent_role_keywords.{key}", errors)
+    for key, meta in (canonical.get("resolution_rules", {}).get("intent_metadata", {}) or {}).items():
+        _validate_allowed_string(key, RESOURCE_INTENT_ALLOWED, f"canonical_knowledge.json:resolution_rules.intent_metadata.{key}", errors)
+        if isinstance(meta, dict):
+            _validate_allowed_string(meta.get("role"), RESOURCE_ROLE_ALLOWED, f"canonical_knowledge.json:resolution_rules.intent_metadata.{key}.role", errors)
+
+    role_synonyms = canonical.get("role_synonyms") or {}
+    for key, values in role_synonyms.items():
+        _validate_allowed_string_list(values, RESOURCE_ROLE_SYNONYM_ALLOWED, f"canonical_knowledge.json:role_synonyms.{key}", errors)
+
+    spec_audit = canonical.get("spec_audit", {}) or {}
+    side_effects = spec_audit.get("side_effects", {}) or {}
+    for side_effect, config in side_effects.items():
+        if isinstance(config, dict):
+            _validate_allowed_string_list(config.get("intents"), RESOURCE_CAPABILITY_ALLOWED, f"canonical_knowledge.json:spec_audit.side_effects.{side_effect}.intents", errors)
+    _validate_allowed_string_list(spec_audit.get("async_intents"), RESOURCE_CAPABILITY_ALLOWED, "canonical_knowledge.json:spec_audit.async_intents", errors)
+
+    method_capability_map, err = _load_json_file(project_root / "resources" / "method_capability_map.json")
+    if err:
+        return [err]
+    for index, item in enumerate(method_capability_map.get("mappings", [])):
+        prefix = f"method_capability_map.json:mappings[{index}]"
+        _validate_allowed_string(item.get("intent"), RESOURCE_INTENT_ALLOWED, f"{prefix}.intent", errors)
+        _validate_allowed_string_list(item.get("capabilities"), RESOURCE_CAPABILITY_ALLOWED, f"{prefix}.capabilities", errors)
+
+    method_store, err = _load_json_file(project_root / "resources" / "method_store.json")
+    if err:
+        return [err]
+    for index, method in enumerate(method_store.get("methods", [])):
+        prefix = f"method_store.json:methods[{index}]"
+        _validate_allowed_string(method.get("intent"), RESOURCE_INTENT_ALLOWED, f"{prefix}.intent", errors)
+        _validate_allowed_string_list(method.get("capabilities"), RESOURCE_CAPABILITY_ALLOWED, f"{prefix}.capabilities", errors)
+        _validate_allowed_string(method.get("role"), RESOURCE_ROLE_ALLOWED, f"{prefix}.role", errors)
+
+    intent_corpus, err = _load_json_file(project_root / "resources" / "intent_corpus.json")
+    if err:
+        return [err]
+    for index, item in enumerate(intent_corpus.get("intents", [])):
+        _validate_allowed_string(
+            item.get("name"),
+            RESOURCE_INTENT_ALLOWED,
+            f"intent_corpus.json:intents[{index}].name",
+            errors,
+        )
+
+    task_definitions, err = _load_json_file(project_root / "resources" / "task_definitions.json")
+    if err:
+        return [err]
+    for task_name, definition in task_definitions.items():
+        prefix = f"task_definitions.json:{task_name}"
+        _validate_allowed_string(task_name, RESOURCE_INTENT_ALLOWED, prefix, errors)
+        if not isinstance(definition, dict):
+            errors.append(f"[resource:{prefix}]: expected object")
+            continue
+        for subtask_index, subtask in enumerate(definition.get("subtasks", [])):
+            if not isinstance(subtask, dict):
+                errors.append(f"[resource:{prefix}.subtasks[{subtask_index}]]: expected object")
+                continue
+            _validate_allowed_string(
+                subtask.get("name"),
+                RESOURCE_INTENT_ALLOWED,
+                f"{prefix}.subtasks[{subtask_index}].name",
+                errors,
+            )
+
+    return errors
+
 def main():
     """
     Main function to validate project consistency.
@@ -284,6 +531,7 @@ def main():
     all_known_entities = set()
     required_docs, existence_only_docs, optional_reference_docs, policy_errors = load_document_reference_policy(project_root)
     errors.extend(policy_errors)
+    errors.extend(validate_resource_vocab(project_root))
 
     # 1. Load project map
     try:

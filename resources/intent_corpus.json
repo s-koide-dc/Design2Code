@@ -523,7 +523,8 @@
         "おはよう",
         "ハロー",
         "うっす",
-        "こんにちは"
+        "こんにちは",
+        "やあ"
       ]
     },
     {
@@ -541,7 +542,8 @@
       "examples": [
         "元気ですか",
         "調子いい？",
-        "元気？"
+        "元気？",
+        "調子はどう？"
       ]
     },
     {
@@ -554,7 +556,9 @@
       ],
       "examples": [
         "バイバイ",
-        "またね"
+        "またね",
+        "じゃあね",
+        "さようなら"
       ]
     },
     {
@@ -584,6 +588,7 @@
       "examples": [
         "そうですね",
         "OK",
+        "了解",
         "はい、お願いします",
         "はい"
       ]
@@ -599,6 +604,7 @@
       "examples": [
         "違います",
         "ノー",
+        "キャンセル",
         "いいえ"
       ]
     },
@@ -613,7 +619,9 @@
       "examples": [
         "時間",
         "時計",
-        "今何時？"
+        "今何時？",
+        "時間教えて",
+        "今の時間"
       ]
     },
     {
@@ -645,12 +653,89 @@
         {
           "pattern": "へとへと",
           "confidence_score": 0.9
+        },
+        {
+          "pattern": "しんどい",
+          "confidence_score": 0.88
         }
       ],
       "examples": [
         "疲れました",
         "へとへとです",
-        "疲れたな"
+        "疲れたな",
+        "しんどい"
+      ]
+    },
+    {
+      "name": "SMALLTALK",
+      "patterns": [
+        {
+          "pattern": "雑談",
+          "confidence_score": 0.9
+        },
+        {
+          "pattern": "最近どう",
+          "confidence_score": 0.88
+        }
+      ],
+      "examples": [
+        "雑談しよう",
+        "最近どう？",
+        "ちょっと話そう"
+      ]
+    },
+    {
+      "name": "FEEDBACK",
+      "patterns": [
+        {
+          "pattern": "ありがとう",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "助かった",
+          "confidence_score": 0.9
+        }
+      ],
+      "examples": [
+        "ありがとう",
+        "助かったよ",
+        "いい感じです"
+      ]
+    },
+    {
+      "name": "WEATHER",
+      "patterns": [
+        {
+          "pattern": "天気",
+          "confidence_score": 0.9
+        },
+        {
+          "pattern": "気温",
+          "confidence_score": 0.85
+        }
+      ],
+      "examples": [
+        "今日の天気は？",
+        "天気を教えて",
+        "今日の気温は？"
+      ]
+    },
+    {
+      "name": "CAPABILITY",
+      "patterns": [
+        {
+          "pattern": "何ができる",
+          "confidence_score": 0.95
+        },
+        {
+          "pattern": "できること",
+          "confidence_score": 0.95
+        }
+      ],
+      "examples": [
+        "何ができる？",
+        "できることを教えて",
+        "何を手伝える？"
       ]
     },
     {

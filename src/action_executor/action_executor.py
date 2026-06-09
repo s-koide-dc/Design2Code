@@ -8,6 +8,35 @@ import json
 import shlex
 import shutil
 from datetime import datetime
+from src.utils.action_intents import (
+    INTENT_ANALYZE_COVERAGE_GAPS,
+    INTENT_ANALYZE_REFACTORING,
+    INTENT_APPLY_REFACTORING,
+    INTENT_BACKUP_AND_DELETE,
+    INTENT_CMD_RUN,
+    INTENT_CS_ANALYZE,
+    INTENT_CS_QUERY_ANALYSIS,
+    INTENT_CS_TEST_RUN,
+    INTENT_DOC_GEN,
+    INTENT_DOC_REFINE,
+    INTENT_EXECUTE_GOAL_DRIVEN_TDD,
+    INTENT_FILE_APPEND,
+    INTENT_FILE_COPY,
+    INTENT_FILE_CREATE,
+    INTENT_FILE_DELETE,
+    INTENT_FILE_MOVE,
+    INTENT_FILE_READ,
+    INTENT_GENERATE_COVERAGE_REPORT,
+    INTENT_GENERATE_TESTS,
+    INTENT_GET_CWD,
+    INTENT_LIST_DIR,
+    INTENT_MANAGE_KNOWLEDGE,
+    INTENT_MEASURE_COVERAGE,
+    INTENT_READ_AND_CREATE,
+    INTENT_REVERSE_DICTIONARY_SEARCH,
+    INTENT_RUN_LEARNING_CYCLE,
+    INTENT_SUGGEST_REFACTORING,
+)
 from src.file_operations.file_operations import FileOperations
 from src.csharp_operations.csharp_operations import CSharpOperations
 from src.test_operations.test_operations import TestAndCoverageOperations
@@ -134,6 +163,7 @@ class ActionExecutor:
         if action_method_name:
             self.log_manager.log_event("action_execution_start", {"action": action_method_name, "parameters": parameters}, level="INFO")
             result_ctx = self.execute_action(action_method_name, context, parameters)
+            self._augment_action_result_metadata(result_ctx, action_method_name, parameters)
             
             # Log completion status
             status = result_ctx.get("action_result", {}).get("status", "error")
@@ -499,6 +529,32 @@ class ActionExecutor:
             
         return context
 
+    def _augment_action_result_metadata(self, context: dict, action_method_name: str, parameters: dict) -> None:
+        action_result = context.get("action_result")
+        if not isinstance(action_result, dict):
+            return
+
+        dialogue_metadata = action_result.get("dialogue_metadata")
+        if not isinstance(dialogue_metadata, dict):
+            dialogue_metadata = {}
+            action_result["dialogue_metadata"] = dialogue_metadata
+
+        dialogue_metadata.setdefault("action_method", action_method_name)
+        dialogue_metadata.setdefault("intent", context.get("analysis", {}).get("intent"))
+
+        for key in ("filename", "source_filename", "destination_filename", "project_path", "goal_description"):
+            if key not in dialogue_metadata:
+                value = self._get_entity_value(parameters.get(key))
+                if value:
+                    dialogue_metadata[key] = value
+
+        if "target_name" not in action_result:
+            for key in ("filename", "project_path", "goal_description"):
+                value = self._get_entity_value(parameters.get(key))
+                if value:
+                    action_result["target_name"] = value
+                    break
+
     def _ensure_backup_for_action(self, action_method_name: str, parameters: dict, context: dict) -> bool:
         backup_dir = "backup"
         targets = []
@@ -691,65 +747,65 @@ class ActionExecutor:
         """
         Returns a list of entity keys required for a given intent to execute successfully.
         """
-        if intent == "FILE_CREATE":
+        if intent == INTENT_FILE_CREATE:
             return ["filename", "content"]
-        elif intent == "FILE_READ":
+        elif intent == INTENT_FILE_READ:
             return ["filename"]
-        elif intent == "FILE_APPEND":
+        elif intent == INTENT_FILE_APPEND:
             return ["filename", "content"]
-        elif intent == "FILE_DELETE":
+        elif intent == INTENT_FILE_DELETE:
             return ["filename"]
-        elif intent == "FILE_MOVE":
+        elif intent == INTENT_FILE_MOVE:
             return ["source_filename", "destination_filename"]
-        elif intent == "FILE_COPY":
+        elif intent == INTENT_FILE_COPY:
             return ["source_filename", "destination_filename"]
-        elif intent == "BACKUP_AND_DELETE":
+        elif intent == INTENT_BACKUP_AND_DELETE:
             return ["source_filename", "destination_filename"]
-        elif intent == "READ_AND_CREATE":
+        elif intent == INTENT_READ_AND_CREATE:
             return ["source_filename", "destination_filename", "content"]
-        elif intent == "LIST_DIR":
+        elif intent == INTENT_LIST_DIR:
             # 'directory' is optional, defaults to '.'
             return [] 
-        elif intent == "CMD_RUN":
+        elif intent == INTENT_CMD_RUN:
             return ["command"]
-        elif intent == "GET_CWD":
+        elif intent == INTENT_GET_CWD:
             return []
-        elif intent == "CS_ANALYZE":
+        elif intent == INTENT_CS_ANALYZE:
             return ["filename"]
-        elif intent == "CS_TEST_RUN":
+        elif intent == INTENT_CS_TEST_RUN:
             return ["project_path"]
-        elif intent == "GENERATE_TESTS":
+        elif intent == INTENT_GENERATE_TESTS:
             return ["filename"]
-        elif intent == "CS_QUERY_ANALYSIS":
+        elif intent == INTENT_CS_QUERY_ANALYSIS:
             # output_path and query_type are always required.
             # target_name is required for most query_types, but not for "unused_methods".
             # For simplicity, we'll keep target_name as required for the intent and handle its optionality in _query_csharp_analysis_results.
             return ["output_path", "query_type", "target_name"]
-        elif intent == "MEASURE_COVERAGE":
+        elif intent == INTENT_MEASURE_COVERAGE:
             return ["project_path", "language"]
-        elif intent == "ANALYZE_COVERAGE_GAPS":
+        elif intent == INTENT_ANALYZE_COVERAGE_GAPS:
             return ["project_path", "language"]
-        elif intent == "GENERATE_COVERAGE_REPORT":
+        elif intent == INTENT_GENERATE_COVERAGE_REPORT:
             return ["project_path", "language"]
-        elif intent == "ANALYZE_REFACTORING":
+        elif intent == INTENT_ANALYZE_REFACTORING:
             return ["project_path", "language"]
-        elif intent == "SUGGEST_REFACTORING":
+        elif intent == INTENT_SUGGEST_REFACTORING:
             return ["project_path", "language"]
-        elif intent == "APPLY_REFACTORING":
+        elif intent == INTENT_APPLY_REFACTORING:
             return ["project_path", "suggestion_id"]
         elif intent == "QUALITY_CHECK":
             return [] # metrics_file is optional
-        elif intent == "DOC_GEN":
+        elif intent == INTENT_DOC_GEN:
             return ["target_file"]
-        elif intent == "DOC_REFINE":
+        elif intent == INTENT_DOC_REFINE:
             return ["filename"]
-        elif intent == "RUN_LEARNING_CYCLE":
+        elif intent == INTENT_RUN_LEARNING_CYCLE:
             return []
-        elif intent == "MANAGE_KNOWLEDGE":
+        elif intent == INTENT_MANAGE_KNOWLEDGE:
             return ["operation"]
-        elif intent == "REVERSE_DICTIONARY_SEARCH":
+        elif intent == INTENT_REVERSE_DICTIONARY_SEARCH:
             return ["query"]
-        elif intent == "EXECUTE_GOAL_DRIVEN_TDD":
+        elif intent == INTENT_EXECUTE_GOAL_DRIVEN_TDD:
             return ["goal_description", "acceptance_criteria"]
         return []
 

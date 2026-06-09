@@ -16,7 +16,7 @@
 
 ### Core Logic
 1. `to_csharp_string_literal` は文字列を C# リテラルとしてエスケープする。
-2. `safe_copy_node` はノードを深いコピーで複製する。
+2. `safe_copy_node` はまず深いコピーを試し、複製不能な leaf を含む場合は dict/list/tuple/set を再帰複製しつつ opaque object は参照維持で退避する。
 3. `is_known_state_property` は状態系プロパティ名を判定する。
 4. `tag_intent_for_node` は `node_id` 一致のステートメントに intent を付与する。
 
@@ -30,3 +30,6 @@
 
 ## 3. Dependencies
 - **Internal**: `code_synthesis`
+
+## 4. Review Notes
+- 2026-06-04: `safe_copy_node` を、non-picklable leaf を含む IR ノードでも落ちない段階的コピーへ強化した。

@@ -1,5 +1,18 @@
 # -*- coding: utf-8 -*-
 from typing import Dict, Any, List, Set
+from src.utils.semantic_intents import (
+    INTENT_ACTION,
+    INTENT_DATABASE_QUERY,
+    INTENT_DISPLAY,
+    INTENT_EXISTS,
+    INTENT_FETCH,
+    INTENT_FILE_IO,
+    INTENT_GENERAL,
+    INTENT_HTTP_REQUEST,
+    INTENT_PERSIST,
+    NODE_ELSE,
+    NODE_END,
+)
 
 
 class SpecAuditor:
@@ -34,7 +47,7 @@ class SpecAuditor:
         emitted_node_ids.update(self._collect_node_ids(best_path.get("hoisted_statements", [])))
         for step in steps:
             step_id = step.get("id")
-            if step.get("kind") in ["END", "ELSE"]:
+            if step.get("kind") in [NODE_END, NODE_ELSE]:
                 continue
             if not isinstance(step_id, str):
                 continue
@@ -60,9 +73,9 @@ class SpecAuditor:
             node_type = node.get("type")
             if not isinstance(node_id, str) or not isinstance(intent, str):
                 continue
-            if node_type in ["ELSE", "END"]:
+            if node_type in [NODE_ELSE, NODE_END]:
                 continue
-            if intent in ["GENERAL", "ACTION"]:
+            if intent in [INTENT_GENERAL, INTENT_ACTION]:
                 continue
             if not self._is_intent_emitted(node_id, intent, stmt_intents_by_node):
                 issues.append(f"SPEC_INTENT_NOT_EMITTED|{node_id}|{intent}")
@@ -172,7 +185,7 @@ class SpecAuditor:
             if not isinstance(node_id, str) or not isinstance(input_link, str):
                 continue
             notification_roles = audit_cfg.get("notification_roles", ["notification"])
-            if node.get("intent") == "DISPLAY" and any(r in roles_by_node.get(node_id, set()) for r in notification_roles):
+            if node.get("intent") == INTENT_DISPLAY and any(r in roles_by_node.get(node_id, set()) for r in notification_roles):
                 continue
             upstream_outputs = set()
             upstream_outputs.update(outputs_by_node.get(input_link, set()))
@@ -195,13 +208,13 @@ class SpecAuditor:
                 issues.append(self._format_input_link_issue(node_id, input_link, upstream_outputs, node, last_used_by_node))
                 continue
             if not self._any_var_used_in_texts(upstream_outputs, node_texts):
-                if node.get("intent") == "DISPLAY":
+                if node.get("intent") == INTENT_DISPLAY:
                     semantic_roles = node.get("semantic_map", {}).get("semantic_roles", {}) or {}
                     display_scope = str(semantic_roles.get("display_scope") or "").lower()
                     if display_scope in ["after_loop", "afterloop", "post_loop", "postloop"]:
                         if accumulator_vars and self._any_var_used_in_texts(accumulator_vars, node_texts):
                             continue
-                if node.get("intent") == "EXISTS":
+                if node.get("intent") == INTENT_EXISTS:
                     if self._downstream_uses_upstream(node_id, upstream_outputs, downstream_by_input, text_by_node):
                         continue
                 if self._is_loop_node(input_link, stmt_types_by_node):
@@ -364,7 +377,7 @@ class SpecAuditor:
             input_refs = step.get("input_refs")
             if not isinstance(step_id, str) or not isinstance(input_refs, list) or not input_refs:
                 continue
-            if step.get("intent") == "DISPLAY":
+            if step.get("intent") == INTENT_DISPLAY:
                 notification_roles = audit_cfg.get("notification_roles", ["notification"])
                 if any(r in roles_by_node.get(step_id, set()) for r in notification_roles):
                     continue
@@ -603,13 +616,13 @@ class SpecAuditor:
                     return True
                 continue
             if side_effect == "DB":
-                if intent in ["DATABASE_QUERY", "PERSIST"] or source_kind == "db":
+                if intent in [INTENT_DATABASE_QUERY, INTENT_PERSIST] or source_kind == "db":
                     return True
             elif side_effect == "IO":
-                if intent in ["FETCH", "PERSIST", "FILE_IO", "WRITE"] or source_kind in ["file", "env", "stdin"]:
+                if intent in [INTENT_FETCH, INTENT_PERSIST, INTENT_FILE_IO, "WRITE"] or source_kind in ["file", "env", "stdin"]:
                     return True
             elif side_effect == "NETWORK":
-                if intent in ["HTTP_REQUEST"] or source_kind == "http":
+                if intent in [INTENT_HTTP_REQUEST] or source_kind == "http":
                     return True
         return False
 
@@ -642,7 +655,12 @@ class SpecAuditor:
         audit_cfg = self._load_spec_audit_config()
         async_markers = audit_cfg.get("async_markers", ["async", "非同期", "task"])
         async_side_effects = set(audit_cfg.get("async_side_effects", ["IO", "NETWORK", "DB"]))
-        async_intents = set(audit_cfg.get("async_intents", ["DATABASE_QUERY", "HTTP_REQUEST", "FETCH", "PERSIST", "FILE_IO"]))
+        async_intents = set(
+            audit_cfg.get(
+                "async_intents",
+                [INTENT_DATABASE_QUERY, INTENT_HTTP_REQUEST, INTENT_FETCH, INTENT_PERSIST, INTENT_FILE_IO],
+            )
+        )
 
         outputs = spec.get("outputs", []) if isinstance(spec.get("outputs"), list) else []
         if outputs:

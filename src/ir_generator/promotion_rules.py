@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 from typing import Dict, Any, List, Optional, Callable
+from src.utils.semantic_intents import (
+    INTENT_ACTION,
+    INTENT_FETCH,
+    INTENT_GENERAL,
+    INTENT_TRANSFORM,
+    NODE_ACTION,
+)
 
 
 def _token_bases(tokens: List[Dict[str, Any]]) -> List[str]:
@@ -100,7 +107,7 @@ def should_promote_to_filter(
     output_type_hint: Optional[str],
     is_collection_type: Callable[[Optional[str]], bool],
 ) -> bool:
-    if current_intent not in ["GENERAL", "FETCH", "TRANSFORM"]:
+    if current_intent not in [INTENT_GENERAL, INTENT_FETCH, INTENT_TRANSFORM]:
         return False
     if not has_filter_lexical_signal(step_text, tokens):
         return False
@@ -117,9 +124,9 @@ def should_promote_to_calculate(
     logic_goals: List[Dict[str, Any]],
     semantic_roles: Dict[str, Any],
 ) -> bool:
-    if node_type != "ACTION":
+    if node_type != NODE_ACTION:
         return False
-    if current_intent not in ["GENERAL", "ACTION", "TRANSFORM"]:
+    if current_intent not in [INTENT_GENERAL, INTENT_ACTION, INTENT_TRANSFORM]:
         return False
     if any(goal.get("type") == "calculation" for goal in (logic_goals or [])):
         return True

@@ -17,7 +17,7 @@ The `SpecAuditor` [Phase 23.4] is a quality assurance component that validates w
 #### 2.3.1 Step Coverage Audit
 1.  **Collection**: Traverse `best_path["statements"]` and `hoisted_statements` to collect all `node_id`s present in the final code.
 2.  **Verification**: Iterate through `spec["steps"]`.
-    -   Skip control flow markers (END, ELSE).
+    -   Skip control flow markers (`NODE_END`, `NODE_ELSE`) using `src.utils.semantic_intents` の共通語彙.
     -   Check if `step_id` (or a derived ID like `step_1_sub`) exists in the collected set.
     -   If missing, record `SPEC_STEP_NOT_EMITTED`.
 
@@ -29,6 +29,7 @@ The `SpecAuditor` [Phase 23.4] is a quality assurance component that validates w
         -   **DB**: `intent` in [DATABASE_QUERY, PERSIST] or `source_kind`="db".
         -   **IO**: `intent` in [FETCH, FILE_IO, WRITE] or `source_kind` in [file, env, stdin].
         -   **NETWORK**: `intent` in [HTTP_REQUEST] or `source_kind`="http".
+    -   semantic intent 比較には `src.utils.semantic_intents` の共通定数を使い、監査側で内部語彙を直書きしない。
     -   If mismatch/missing, record `SPEC_SIDE_EFFECT_MISSING`.
 
 #### 2.3.3 Output Type Compliance

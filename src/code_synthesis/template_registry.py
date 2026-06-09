@@ -3,6 +3,7 @@ import json
 import os
 import logging
 from typing import List, Dict, Any
+from src.utils.semantic_intents import INTENT_DATABASE_QUERY, INTENT_FETCH, INTENT_PERSIST
 
 class TemplateRegistry:
     def __init__(self, knowledge_path: str = None):
@@ -37,7 +38,7 @@ class TemplateRegistry:
                 continue
             
             # Special filter for DB
-            if (intent in ["DATABASE_QUERY", "FETCH", "PERSIST"] or "DATABASE_QUERY" in t_caps) and t.get("target") == "_dbConnection":
+            if (intent in [INTENT_DATABASE_QUERY, INTENT_FETCH, INTENT_PERSIST] or INTENT_DATABASE_QUERY in t_caps) and t.get("target") == "_dbConnection":
                 if not is_db_allowed:
                     continue
             

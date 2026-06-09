@@ -345,6 +345,29 @@ class TestActionExecutor(unittest.TestCase):
             self.assertEqual(kwargs['event_type'], "ACTION_FAILED")
             self.assertEqual(kwargs['data']['event'], "command_failed")
 
+    def test_execute_augments_action_result_dialogue_metadata(self):
+        def fake_action(context, parameters):
+            context["action_result"] = {"status": "success", "message": "ok"}
+            return context
+
+        setattr(self.executor, "_fake_action", fake_action)
+        context = {
+            "analysis": {"intent": "DOC_GEN"},
+            "plan": {
+                "action_method": "_fake_action",
+                "parameters": {"target_file": "src/sample.py", "goal_description": "設計書作成"},
+                "confirmation_needed": False,
+                "safety_check_status": "OK",
+            },
+        }
+
+        result = self.executor.execute(context)
+
+        metadata = result["action_result"]["dialogue_metadata"]
+        self.assertEqual(metadata["action_method"], "_fake_action")
+        self.assertEqual(metadata["intent"], "DOC_GEN")
+        self.assertEqual(metadata["goal_description"], "設計書作成")
+
 
 if __name__ == "__main__":
     unittest.main()

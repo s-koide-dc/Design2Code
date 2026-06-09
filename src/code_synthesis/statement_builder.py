@@ -1,5 +1,13 @@
 # -*- coding: utf-8 -*-
 from typing import List, Dict, Any, Optional, Tuple
+from src.utils.semantic_intents import (
+    INTENT_DATABASE_QUERY,
+    INTENT_FETCH,
+    INTENT_FILE_IO,
+    INTENT_HTTP_REQUEST,
+    INTENT_JSON_DESERIALIZE,
+    INTENT_PERSIST,
+)
 
 class StatementBuilder:
     """論理ステートメント（IR）から具体的な C# コード断片を構築するクラス"""
@@ -95,7 +103,7 @@ class StatementBuilder:
 
     def wrap_with_try_catch(self, stmt: Dict[str, Any], intent: str, method_name: str, path: Dict[str, Any]) -> Any:
         # 27.275: Phase 5 D-2 Wrapped with pre-rendering to handle indentation in raw blocks
-        resilient_intents = ["DATABASE_QUERY", "HTTP_REQUEST", "FILE_IO", "FETCH", "PERSIST", "JSON_DESERIALIZE"]
+        resilient_intents = [INTENT_DATABASE_QUERY, INTENT_HTTP_REQUEST, INTENT_FILE_IO, INTENT_FETCH, INTENT_PERSIST, INTENT_JSON_DESERIALIZE]
         if intent not in resilient_intents:
             return stmt
             

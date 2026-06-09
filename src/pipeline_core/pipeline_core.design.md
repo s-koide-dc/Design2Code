@@ -33,10 +33,12 @@
 7. `ClarificationManager` のしきい値は `config.json` の `clarification` セクションから読み込み、`Planner` の意図しきい値は `planner` セクションから読み込む。
 8. `run(text)` で初期 `context` を生成し、Stage を順に `execute(context, pipeline)` で実行する。
 9. Stage が `_early_exit` をセットした場合は以後のステージをスキップして終了する。
-10. 例外が発生した場合は `pipeline_stage_error` をログへ記録し、`_log_and_return_error` でエラー用 `context` を構築して返却する。
-11. `_log_and_return_error` は `pipeline_error` と `pipeline_end` を記録し、`AutonomousLearning` に `SESSION_COMPLETED` を通知する。
-12. `run` の終了時に `_persist_session_log` を呼び、`logs/pipeline_<timestamp>.json` へイベントを JSON Lines で保存する。  
+10. 保留中の承認プランがある間は、`INTENT_AGREE` / `INTENT_DISAGREE` を最優先で処理し、それ以外の入力でも元の確認メッセージを再提示して承認待ち状態を維持する。この状態は `src.utils.dialogue_state.PENDING_CONFIRMATION` として明示される。`INTENT_DISAGREE` の場合は保留プランとアクティブタスクを両方クリアし、次の依頼を新規タスクとして受け付ける。
+11. 例外が発生した場合は `pipeline_stage_error` をログへ記録し、`_log_and_return_error` でエラー用 `context` を構築して返却する。
+12. `_log_and_return_error` は `pipeline_error` と `pipeline_end` を記録し、`AutonomousLearning` に `SESSION_COMPLETED` を通知する。
+13. `run` の終了時に `_persist_session_log` を呼び、`logs/pipeline_<timestamp>.json` へイベントを JSON Lines で保存する。  
    - `[ACTION|PERSIST|dict|void|FILE] [semantic_roles:{"path":"logs/pipeline_<timestamp>.json"}]` イベントログを追記する。
+14. 自律修復プランの昇格では recovery task 名の比較にも `src.utils.action_intents.INTENT_RECOVERY_FROM_TEST_FAILURE` を使い、確認フローと同じ共通語彙で判定する。
 
 ### Test Cases
 - **Happy Path**:

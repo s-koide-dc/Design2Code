@@ -31,6 +31,34 @@ from src.code_synthesis.action_handlers import (
     to_csharp_string_literal,
     safe_copy_node,
 )
+from src.utils.semantic_intents import (
+    INTENT_ACTION,
+    INTENT_CALC,
+    INTENT_DATABASE_QUERY,
+    INTENT_DISPLAY,
+    INTENT_EXISTS,
+    INTENT_FETCH,
+    INTENT_FILE_IO,
+    INTENT_GENERAL,
+    INTENT_HTTP_REQUEST,
+    INTENT_JSON_DESERIALIZE,
+    INTENT_LINQ,
+    INTENT_PERSIST,
+    INTENT_RETURN,
+    INTENT_TRANSFORM,
+    NODE_ACTION,
+    NODE_CONDITION,
+    NODE_LOOP,
+    ROLE_CALC,
+    ROLE_CHECK,
+    ROLE_DISPLAY,
+    ROLE_FETCH,
+    ROLE_PERSIST,
+    ROLE_READ,
+    ROLE_RETURN,
+    ROLE_TRANSFORM,
+    ROLE_WRITE,
+)
 from src.utils.stdout_guard import debug_print
 class ActionSynthesizer:
     """[Phase 23.3: Pure Orchestration] Design-to-Code の具体的合成ロジックを担当。"""
@@ -67,37 +95,37 @@ class ActionSynthesizer:
         return None
 
     def _get_execution_intent(self, node: Dict[str, Any]) -> str:
-        intent = str(node.get("intent") or "GENERAL").strip().upper()
+        intent = str(node.get("intent") or INTENT_GENERAL).strip().upper()
         spec_role = self._get_spec_role(node)
         if spec_role == "DESERIALIZE":
-            return "JSON_DESERIALIZE"
+            return INTENT_JSON_DESERIALIZE
         if spec_role == "FILTER":
-            return "LINQ"
-        if spec_role == "TRANSFORM" and intent in ["GENERAL", "ACTION"]:
-            return "TRANSFORM"
-        if spec_role == "DISPLAY" and intent in ["GENERAL", "ACTION", "TRANSFORM"]:
-            return "DISPLAY"
+            return INTENT_LINQ
+        if spec_role == "TRANSFORM" and intent in [INTENT_GENERAL, INTENT_ACTION]:
+            return INTENT_TRANSFORM
+        if spec_role == "DISPLAY" and intent in [INTENT_GENERAL, INTENT_ACTION, INTENT_TRANSFORM]:
+            return INTENT_DISPLAY
         return intent
 
     def _get_effective_runtime_role(self, node: Dict[str, Any], fallback_role: Optional[str] = None) -> Optional[str]:
         spec_role = self._get_spec_role(node)
         role = fallback_role or node.get("role")
         if spec_role in ["DESERIALIZE", "SERIALIZE", "FILTER", "TRANSFORM"]:
-            return "TRANSFORM"
+            return ROLE_TRANSFORM
         if spec_role == "FETCH":
-            return "FETCH"
+            return ROLE_FETCH
         if spec_role == "PERSIST":
-            return "PERSIST"
+            return ROLE_PERSIST
         if spec_role == "DISPLAY":
-            return "DISPLAY"
+            return ROLE_DISPLAY
         if spec_role == "CHECK":
-            return "CHECK"
+            return ROLE_CHECK
         if spec_role == "CALCULATE":
-            return "CALC"
+            return ROLE_CALC
         return role
 
     def process_node(self, node: Dict[str, Any], path: Dict[str, Any], future_hint: str = None, consumed_ids: set = None) -> List[Dict[str, Any]]:
-        node_type = node.get("type", "ACTION")
+        node_type = node.get("type", NODE_ACTION)
         intent = self._get_execution_intent(node)
         runtime_node = safe_copy_node(node)
         runtime_node["intent"] = intent
@@ -119,13 +147,13 @@ class ActionSynthesizer:
             project_ops = self._process_project_ops(node, path, roles.get("ops") or [])
             if project_ops is not None:
                 return project_ops
-        if node_type == "LOOP":
+        if node_type == NODE_LOOP:
             return handle_loop(self, runtime_node, path, consumed_ids=consumed_ids)
-        if node_type == "CONDITION":
+        if node_type == NODE_CONDITION:
             return handle_condition(self, runtime_node, path, consumed_ids=consumed_ids)
-        if intent == "RETURN":
+        if intent == INTENT_RETURN:
             return handle_return(self, runtime_node, path)
-        if intent == "LINQ":
+        if intent == INTENT_LINQ:
             return handle_linq(self, runtime_node, path)
 
         stdin_paths = handle_fetch(self, runtime_node, path)
@@ -136,15 +164,15 @@ class ActionSynthesizer:
             return file_persist_paths
 
         if node.get("cardinality") == "COLLECTION" and not path.get("in_loop"):
-            is_transform_to_single = (intent == "TRANSFORM" and not any(k in str(node.get("output_type", "")).lower() for k in ["list", "enumerable", "[]"]))
-            if intent not in ["JSON_DESERIALIZE", "FETCH", "DATABASE_QUERY"] or is_transform_to_single:
-                if intent != "RETURN":
+            is_transform_to_single = (intent == INTENT_TRANSFORM and not any(k in str(node.get("output_type", "")).lower() for k in ["list", "enumerable", "[]"]))
+            if intent not in [INTENT_JSON_DESERIALIZE, INTENT_FETCH, INTENT_DATABASE_QUERY] or is_transform_to_single:
+                if intent != INTENT_RETURN:
                     return self._expand_to_synthetic_loop(runtime_node, path)
-        
-        if intent == "CALC":
+
+        if intent == INTENT_CALC:
             return handle_calc(self, runtime_node, path)
-        
-        if intent in ["DISPLAY", "TRANSFORM"]:
+
+        if intent in [INTENT_DISPLAY, INTENT_TRANSFORM]:
             res = handle_display_transform(self, runtime_node, path)
             if res is not None:
                 return res
@@ -153,17 +181,17 @@ class ActionSynthesizer:
         htn_plan = node.get("htn_plan")
         
         if path.get("in_loop") and htn_plan and len(htn_plan) > 1:
-            if any(s.get("task") in ["FETCH", "DATABASE_QUERY", "JSON_DESERIALIZE"] for s in htn_plan):
+            if any(s.get("task") in [INTENT_FETCH, INTENT_DATABASE_QUERY, INTENT_JSON_DESERIALIZE] for s in htn_plan):
                 htn_plan = None
         
         if htn_plan and len(htn_plan) > 1:
             return handle_htn_plan(self, runtime_node, path, htn_plan)
 
-        if intent == "DATABASE_QUERY":
+        if intent == INTENT_DATABASE_QUERY:
             return handle_io(self, runtime_node, path)
-        if intent == "HTTP_REQUEST":
+        if intent == INTENT_HTTP_REQUEST:
             return handle_io(self, runtime_node, path)
-        if intent == "JSON_DESERIALIZE":
+        if intent == INTENT_JSON_DESERIALIZE:
             return handle_json(self, runtime_node, path)
         
         candidates = gather_candidates(self, runtime_node, path, target_entity)
@@ -198,7 +226,7 @@ class ActionSynthesizer:
     def _process_condition_node(self, node, path, consumed_ids=None) -> List[Dict[str, Any]]:
         cond_expr = self.semantic_binder.generate_logic_expression(node.get("semantic_map", {}), node.get("target_entity", "Item"), path, node=node)
         check_kind = str(node.get("semantic_map", {}).get("check_kind") or "").strip().lower()
-        if node.get("intent") == "EXISTS" and check_kind == "exists_check":
+        if node.get("intent") == INTENT_EXISTS and check_kind == "exists_check":
             coll_var = None
             for vt, vs in reversed(list(path.get("type_to_vars", {}).items())):
                 if any(k in vt for k in ["IEnumerable", "List", "[]"]) and vt != "string":
@@ -252,11 +280,11 @@ class ActionSynthesizer:
         if not node.get("children"):
             child = copy.deepcopy(node)
             child["id"] = f"{node.get('id')}_inner"
-            child["type"] = "ACTION"
-            child_intent = node.get("intent", "GENERAL")
+            child["type"] = NODE_ACTION
+            child_intent = node.get("intent", INTENT_GENERAL)
             semantic_roles = self._get_semantic_roles(node)
-            if child_intent in ["GENERAL", "ACTION"] and "url" in semantic_roles:
-                child_intent = "HTTP_REQUEST"
+            if child_intent in [INTENT_GENERAL, INTENT_ACTION] and "url" in semantic_roles:
+                child_intent = INTENT_HTTP_REQUEST
                 child["source_kind"] = "http"
             child["intent"] = child_intent
             child["cardinality"] = "SINGLE"
@@ -388,41 +416,41 @@ class ActionSynthesizer:
                 for guard in guards:
                     guard_line = str(guard).strip()
                     if guard_line:
-                        new_p["statements"].append({"type": "raw", "code": guard_line, "node_id": node.get("id"), "intent": "ACTION"})
+                        new_p["statements"].append({"type": "raw", "code": guard_line, "node_id": node.get("id"), "intent": INTENT_ACTION})
                 continue
 
             if op == "null_guard":
                 guard_var = roles.get("guard_var") or roles.get("source_var") or new_p.get("active_scope_item") or "item"
                 return_value = roles.get("return_value") or "null"
-                new_p["statements"].append({"type": "raw", "code": f"if ({guard_var} == null) return {return_value};", "node_id": node.get("id"), "intent": "ACTION"})
+                new_p["statements"].append({"type": "raw", "code": f"if ({guard_var} == null) return {return_value};", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 continue
 
             if op == "repo_fetch_all":
                 if use_db:
                     sql_literal = to_csharp_string_literal(sql_text)
-                    new_p["statements"].append({"type": "raw", "code": f"return _db.Query<{entity}>({sql_literal}).ToList();", "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": f"return _db.Query<{entity}>({sql_literal}).ToList();", "node_id": node.get("id"), "intent": INTENT_ACTION})
                     new_p.setdefault("all_usings", set()).add("System.Linq")
                 else:
                     result_var = roles.get("result_var") or self.stmt_builder.get_semantic_var_name(node, f"IEnumerable<{entity}>", "items", new_p, role="data")
                     call = repo_method or "FetchAll"
-                    new_p["statements"].append({"type": "raw", "code": f"var {result_var} = _repo.{call}();", "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": f"var {result_var} = _repo.{call}();", "node_id": node.get("id"), "intent": INTENT_ACTION})
                     _register_var(result_var, f"IEnumerable<{entity}>", role="data")
                 continue
 
             if op == "repo_fetch_by_id":
                 if use_db:
                     sql_literal = to_csharp_string_literal(sql_text)
-                    new_p["statements"].append({"type": "raw", "code": f"return _db.QuerySingleOrDefault<{entity}>({sql_literal}, new {{ Id = id }});", "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": f"return _db.QuerySingleOrDefault<{entity}>({sql_literal}, new {{ Id = id }});", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 else:
                     result_var = roles.get("result_var") or self.stmt_builder.get_semantic_var_name(node, entity, "item", new_p, role="data")
                     call = repo_method or "FetchById"
-                    new_p["statements"].append({"type": "raw", "code": f"var {result_var} = _repo.{call}(id);", "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": f"var {result_var} = _repo.{call}(id);", "node_id": node.get("id"), "intent": INTENT_ACTION})
                     _register_var(result_var, entity, role="data")
                 continue
 
             if op == "to_entity":
                 result_var = roles.get("result_var") or self.stmt_builder.get_semantic_var_name(node, entity, "entity", new_p, role="data")
-                new_p["statements"].append({"type": "raw", "code": f"var {result_var} = req.ToEntity();", "node_id": node.get("id"), "intent": "ACTION"})
+                new_p["statements"].append({"type": "raw", "code": f"var {result_var} = req.ToEntity();", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 _register_var(result_var, entity, role="data")
                 continue
 
@@ -431,7 +459,7 @@ class ActionSynthesizer:
                 for assignment in update_assignments:
                     assignment_line = str(assignment).strip()
                     if assignment_line:
-                        new_p["statements"].append({"type": "raw", "code": assignment_line, "node_id": node.get("id"), "intent": "ACTION"})
+                        new_p["statements"].append({"type": "raw", "code": assignment_line, "node_id": node.get("id"), "intent": INTENT_ACTION})
                 new_p["active_scope_item"] = target_var
                 continue
 
@@ -439,13 +467,13 @@ class ActionSynthesizer:
                 source_var = roles.get("source_var") or new_p.get("active_scope_item") or "entity"
                 if use_db:
                     sql_literal = to_csharp_string_literal(f"{sql_text}; SELECT CAST(SCOPE_IDENTITY() as int);")
-                    new_p["statements"].append({"type": "raw", "code": f"const string sql = {sql_literal};", "node_id": node.get("id"), "intent": "ACTION"})
-                    new_p["statements"].append({"type": "raw", "code": f"var newId = _db.ExecuteScalar<int>(sql, {param_object});", "node_id": node.get("id"), "intent": "ACTION"})
-                    new_p["statements"].append({"type": "raw", "code": f"return new {entity} {{ Id = newId{init_object} }};", "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": f"const string sql = {sql_literal};", "node_id": node.get("id"), "intent": INTENT_ACTION})
+                    new_p["statements"].append({"type": "raw", "code": f"var newId = _db.ExecuteScalar<int>(sql, {param_object});", "node_id": node.get("id"), "intent": INTENT_ACTION})
+                    new_p["statements"].append({"type": "raw", "code": f"return new {entity} {{ Id = newId{init_object} }};", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 else:
                     result_var = roles.get("result_var") or self.stmt_builder.get_semantic_var_name(node, entity, "created", new_p, role="data")
                     call = repo_method or "Insert"
-                    new_p["statements"].append({"type": "raw", "code": f"var {result_var} = _repo.{call}({source_var});", "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": f"var {result_var} = _repo.{call}({source_var});", "node_id": node.get("id"), "intent": INTENT_ACTION})
                     _register_var(result_var, entity, role="data")
                 continue
 
@@ -453,20 +481,20 @@ class ActionSynthesizer:
                 source_var = roles.get("source_var") or new_p.get("active_scope_item") or "existing"
                 if use_db:
                     sql_literal = to_csharp_string_literal(sql_text)
-                    new_p["statements"].append({"type": "raw", "code": f"const string sql = {sql_literal};", "node_id": node.get("id"), "intent": "ACTION"})
-                    new_p["statements"].append({"type": "raw", "code": f"var rows = _db.Execute(sql, {param_object_with_id});", "node_id": node.get("id"), "intent": "ACTION"})
-                    new_p["statements"].append({"type": "raw", "code": "if (rows <= 0) return null;", "node_id": node.get("id"), "intent": "ACTION"})
-                    new_p["statements"].append({"type": "raw", "code": f"return new {entity} {{ Id = id{init_object} }};", "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": f"const string sql = {sql_literal};", "node_id": node.get("id"), "intent": INTENT_ACTION})
+                    new_p["statements"].append({"type": "raw", "code": f"var rows = _db.Execute(sql, {param_object_with_id});", "node_id": node.get("id"), "intent": INTENT_ACTION})
+                    new_p["statements"].append({"type": "raw", "code": "if (rows <= 0) return null;", "node_id": node.get("id"), "intent": INTENT_ACTION})
+                    new_p["statements"].append({"type": "raw", "code": f"return new {entity} {{ Id = id{init_object} }};", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 else:
                     result_var = roles.get("result_var") or self.stmt_builder.get_semantic_var_name(node, entity, "updated", new_p, role="data")
                     call = repo_method or "Update"
-                    new_p["statements"].append({"type": "raw", "code": f"var {result_var} = _repo.{call}(id, {source_var});", "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": f"var {result_var} = _repo.{call}(id, {source_var});", "node_id": node.get("id"), "intent": INTENT_ACTION})
                     _register_var(result_var, entity, role="data")
                 continue
 
             if op == "timestamp_assignment":
                 if timestamp_assignment:
-                    new_p["statements"].append({"type": "raw", "code": str(timestamp_assignment), "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": str(timestamp_assignment), "node_id": node.get("id"), "intent": INTENT_ACTION})
                 continue
 
             if op == "to_response":
@@ -477,46 +505,46 @@ class ActionSynthesizer:
                     code = f"return {source_var} == null ? new List<{response_dto}>() : {source_var}.Select({response_dto}.FromEntity).Where(r => r != null).Select(r => r!).ToList();"
                 else:
                     code = f"return {response_dto}.FromEntity({source_var});"
-                new_p["statements"].append({"type": "raw", "code": code, "node_id": node.get("id"), "intent": "ACTION"})
+                new_p["statements"].append({"type": "raw", "code": code, "node_id": node.get("id"), "intent": INTENT_ACTION})
                 continue
 
             if op == "repo_delete":
                 if use_db:
                     sql_literal = to_csharp_string_literal(sql_text)
-                    new_p["statements"].append({"type": "raw", "code": f"const string sql = {sql_literal};", "node_id": node.get("id"), "intent": "ACTION"})
-                    new_p["statements"].append({"type": "raw", "code": "var rows = _db.Execute(sql, new { Id = id });", "node_id": node.get("id"), "intent": "ACTION"})
-                    new_p["statements"].append({"type": "raw", "code": "return rows > 0;", "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": f"const string sql = {sql_literal};", "node_id": node.get("id"), "intent": INTENT_ACTION})
+                    new_p["statements"].append({"type": "raw", "code": "var rows = _db.Execute(sql, new { Id = id });", "node_id": node.get("id"), "intent": INTENT_ACTION})
+                    new_p["statements"].append({"type": "raw", "code": "return rows > 0;", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 else:
                     call = repo_method or "Delete"
-                    new_p["statements"].append({"type": "raw", "code": f"return _repo.{call}(id);", "node_id": node.get("id"), "intent": "ACTION"})
+                    new_p["statements"].append({"type": "raw", "code": f"return _repo.{call}(id);", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 continue
 
             if op == "controller_list":
                 call = service_call or "GetItems"
-                new_p["statements"].append({"type": "raw", "code": f"return Ok(_service.{call}());", "node_id": node.get("id"), "intent": "ACTION"})
+                new_p["statements"].append({"type": "raw", "code": f"return Ok(_service.{call}());", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 continue
 
             if op == "controller_get":
                 call = service_call or "GetItemById"
-                new_p["statements"].append({"type": "raw", "code": f"var result = _service.{call}(id);", "node_id": node.get("id"), "intent": "ACTION"})
-                new_p["statements"].append({"type": "raw", "code": "return result == null ? NotFound() : Ok(result);", "node_id": node.get("id"), "intent": "ACTION"})
+                new_p["statements"].append({"type": "raw", "code": f"var result = _service.{call}(id);", "node_id": node.get("id"), "intent": INTENT_ACTION})
+                new_p["statements"].append({"type": "raw", "code": "return result == null ? NotFound() : Ok(result);", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 continue
 
             if op == "controller_create":
                 call = service_call or "CreateItem"
-                new_p["statements"].append({"type": "raw", "code": f"var result = _service.{call}(req);", "node_id": node.get("id"), "intent": "ACTION"})
-                new_p["statements"].append({"type": "raw", "code": "return result == null ? BadRequest() : Ok(result);", "node_id": node.get("id"), "intent": "ACTION"})
+                new_p["statements"].append({"type": "raw", "code": f"var result = _service.{call}(req);", "node_id": node.get("id"), "intent": INTENT_ACTION})
+                new_p["statements"].append({"type": "raw", "code": "return result == null ? BadRequest() : Ok(result);", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 continue
 
             if op == "controller_update":
                 call = service_call or "UpdateItem"
-                new_p["statements"].append({"type": "raw", "code": f"var result = _service.{call}(id, req);", "node_id": node.get("id"), "intent": "ACTION"})
-                new_p["statements"].append({"type": "raw", "code": "return result == null ? NotFound() : Ok(result);", "node_id": node.get("id"), "intent": "ACTION"})
+                new_p["statements"].append({"type": "raw", "code": f"var result = _service.{call}(id, req);", "node_id": node.get("id"), "intent": INTENT_ACTION})
+                new_p["statements"].append({"type": "raw", "code": "return result == null ? NotFound() : Ok(result);", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 continue
 
             if op == "controller_delete":
                 call = service_call or "DeleteItem"
-                new_p["statements"].append({"type": "raw", "code": f"return _service.{call}(id) ? Ok() : NotFound();", "node_id": node.get("id"), "intent": "ACTION"})
+                new_p["statements"].append({"type": "raw", "code": f"return _service.{call}(id) ? Ok() : NotFound();", "node_id": node.get("id"), "intent": INTENT_ACTION})
                 continue
 
         new_p.setdefault("consumed_ids", set()).add(node.get("id"))
@@ -530,7 +558,7 @@ class ActionSynthesizer:
         semantic_roles = self._get_semantic_roles(node)
         return_expr = self._build_explicit_return_expression(semantic_roles, path)
         if return_expr is not None:
-            new_path["statements"].append({"type": "raw", "code": f"return {return_expr};", "node_id": node.get("id"), "intent": "RETURN"})
+            new_path["statements"].append({"type": "raw", "code": f"return {return_expr};", "node_id": node.get("id"), "intent": INTENT_RETURN})
         else:
             ret_var = None
             if desired_type:
@@ -543,12 +571,12 @@ class ActionSynthesizer:
                         ret_var = vs[-1]["var_name"]
                         break
             if ret_var:
-                new_path["statements"].append({"type": "raw", "code": f"return {ret_var};", "node_id": node.get("id"), "intent": "RETURN"})
+                new_path["statements"].append({"type": "raw", "code": f"return {ret_var};", "node_id": node.get("id"), "intent": INTENT_RETURN})
             else:
                 if desired_type == "bool":
-                    new_path["statements"].append({"type": "raw", "code": "return true;", "node_id": node.get("id"), "intent": "RETURN"})
+                    new_path["statements"].append({"type": "raw", "code": "return true;", "node_id": node.get("id"), "intent": INTENT_RETURN})
                 else:
-                    new_path["statements"].append({"type": "comment", "text": "TODO: Return target not found", "intent": "RETURN", "node_id": node.get("id")})
+                    new_path["statements"].append({"type": "comment", "text": "TODO: Return target not found", "intent": INTENT_RETURN, "node_id": node.get("id")})
         new_path.setdefault("consumed_ids", set()).add(node.get("id"))
         new_path["completed_nodes"] += 1
         return [new_path]
@@ -680,12 +708,12 @@ class ActionSynthesizer:
 
     def _expand_to_synthetic_loop(self, node, path) -> List[Dict[str, Any]]:
         synthetic_loop_node = copy.deepcopy(node)
-        synthetic_loop_node["type"] = "LOOP"
+        synthetic_loop_node["type"] = NODE_LOOP
         child_node = copy.deepcopy(node)
         child_node["id"] = f"{node.get('id')}_inner"
         child_node["cardinality"] = "SINGLE"
-        if child_node["intent"] not in ["DISPLAY", "TRANSFORM", "PERSIST", "FETCH", "FILE_IO", "DATABASE_QUERY", "HTTP_REQUEST", "CALC"]:
-            child_node["intent"] = "ACTION"
+        if child_node["intent"] not in [INTENT_DISPLAY, INTENT_TRANSFORM, INTENT_PERSIST, INTENT_FETCH, INTENT_FILE_IO, INTENT_DATABASE_QUERY, INTENT_HTTP_REQUEST, INTENT_CALC]:
+            child_node["intent"] = INTENT_ACTION
         synthetic_loop_node["children"] = [child_node]
         return self._process_loop_node(synthetic_loop_node, path)
 
@@ -742,7 +770,7 @@ class ActionSynthesizer:
                         "var_type": coll_type,
                         "intent": intent
                     })
-                    new_path.setdefault("type_to_vars", {}).setdefault(coll_type, []).append({"var_name": out_var, "node_id": node.get("id"), "intent": "LINQ", "target_entity": item_type})
+                    new_path.setdefault("type_to_vars", {}).setdefault(coll_type, []).append({"var_name": out_var, "node_id": node.get("id"), "intent": INTENT_LINQ, "target_entity": item_type})
                     new_path["active_scope_item"] = out_var
                     new_path.setdefault("consumed_ids", set()).add(node.get("id"))
                     new_path["completed_nodes"] += 1
@@ -794,7 +822,7 @@ class ActionSynthesizer:
                 "intent": intent
             })
             new_path.setdefault("type_to_vars", {}).setdefault(out_type, []).append({
-                "var_name": out_var, "node_id": node.get("id"), "intent": "LINQ", "target_entity": item_type
+                "var_name": out_var, "node_id": node.get("id"), "intent": INTENT_LINQ, "target_entity": item_type
             })
             new_path["active_scope_item"] = out_var
             new_path.setdefault("consumed_ids", set()).add(node.get("id"))
@@ -810,7 +838,7 @@ class ActionSynthesizer:
         new_path.setdefault("all_usings", set()).add("System.Linq")
         out_var = self.stmt_builder.get_semantic_var_name(node, coll_type, "filtered", new_path, role="data")
         new_path["statements"].append({"type": "raw", "code": f"var {out_var} = {coll_var}.Where({item_name} => {logic_expr}).ToList();", "node_id": node.get("id"), "out_var": out_var, "var_type": coll_type, "intent": intent})
-        new_path.setdefault("type_to_vars", {}).setdefault(coll_type, []).append({"var_name": out_var, "node_id": node.get("id"), "intent": "LINQ", "target_entity": item_type})
+        new_path.setdefault("type_to_vars", {}).setdefault(coll_type, []).append({"var_name": out_var, "node_id": node.get("id"), "intent": INTENT_LINQ, "target_entity": item_type})
         new_path["active_scope_item"] = out_var
         new_path.setdefault("consumed_ids", set()).add(node.get("id"))
         new_path["completed_nodes"] += 1
@@ -857,15 +885,15 @@ class ActionSynthesizer:
 
     def _synthesize_single_method(self, m: Dict[str, Any], node: Dict[str, Any], path: Dict[str, Any], target_entity: str, future_hint: str = None) -> Optional[Dict[str, Any]]:
         intent = node.get("intent")
-        if intent in ["CALC", "DISPLAY", "TRANSFORM"] and m.get("origin") == "template":
+        if intent in [INTENT_CALC, INTENT_DISPLAY, INTENT_TRANSFORM] and m.get("origin") == "template":
             return None
-        if intent in ["GENERAL", "ACTION"] and path.get("in_loop"):
+        if intent in [INTENT_GENERAL, INTENT_ACTION] and path.get("in_loop"):
             if not m.get("params") and not m.get("class") and not m.get("target"):
                 return None
         params = self.semantic_binder.bind_parameters(m, node, path)
         if params is None:
             return None
-        if node.get("intent") == "JSON_DESERIALIZE":
+        if node.get("intent") == INTENT_JSON_DESERIALIZE:
             if not params or str(params[0]).strip() == "null":
                 return None
             first = str(params[0]).strip()
@@ -874,7 +902,7 @@ class ActionSynthesizer:
                 string_vars = [v.get("var_name") for v in path.get("type_to_vars", {}).get("string", [])]
                 if not any(sv and (first == sv or contains_word(first, sv)) for sv in string_vars):
                     return None
-        if node.get("intent") == "DATABASE_QUERY" and isinstance(params, list) and len(params) >= 2:
+        if node.get("intent") == INTENT_DATABASE_QUERY and isinstance(params, list) and len(params) >= 2:
             sql_text = params[0] if isinstance(params[0], str) else ""
             matches = [p[1:] for p in extract_sql_params(sql_text)]
             if not matches:
@@ -927,7 +955,7 @@ class ActionSynthesizer:
         ret_type_raw = m.get("return_type", "void")
         output_type_hint = node.get("output_type")
         render_target = target_entity
-        if node.get("intent") == "JSON_DESERIALIZE" and isinstance(output_type_hint, str):
+        if node.get("intent") == INTENT_JSON_DESERIALIZE and isinstance(output_type_hint, str):
             inner = self.type_system.extract_generic_inner(output_type_hint)
             if inner:
                 render_target = inner
@@ -958,8 +986,8 @@ class ActionSynthesizer:
             unwrapped_ret = self.type_system.unwrap_task_type(ret_type) if is_async else ret_type
             if unwrapped_ret != "void":
                 method_ret = new_path.get("method_return_type") or path.get("method_return_type", "")
-                want_count_return = intent == "PERSIST" and method_ret in ["int", "long", "Task<int>", "Task<long>"]
-                is_side_effect_only = intent in ["DISPLAY"] or (intent == "PERSIST" and not want_count_return) or (node.get("side_effect") in ["IO", "DB"] and unwrapped_ret in ["int", "long"] and not want_count_return)
+                want_count_return = intent == INTENT_PERSIST and method_ret in ["int", "long", "Task<int>", "Task<long>"]
+                is_side_effect_only = intent in [INTENT_DISPLAY] or (intent == INTENT_PERSIST and not want_count_return) or (node.get("side_effect") in ["IO", "DB"] and unwrapped_ret in ["int", "long"] and not want_count_return)
                 if not is_side_effect_only:
                     var_role = self._get_effective_runtime_role(node, m.get("role")) or "data"
                     var_name = self.stmt_builder.get_semantic_var_name(node, unwrapped_ret, m.get("name"), new_path, role=var_role)
@@ -970,7 +998,7 @@ class ActionSynthesizer:
                     new_path["type_to_vars"].setdefault(unwrapped_ret, []).append({"var_name": var_name, "node_id": node.get("id"), "semantic_role": var_role, "target_entity": target_entity})
                     new_path["active_scope_item"] = var_name
                     call_cache = path.get("call_cache", {})
-                    cached = call_cache.get(call_expr) if intent in ["DATABASE_QUERY", "FETCH"] else None
+                    cached = call_cache.get(call_expr) if intent in [INTENT_DATABASE_QUERY, INTENT_FETCH] else None
                     if cached and cached.get("var_type") == unwrapped_ret:
                         reuse_path = self.synthesizer._copy_path(path)
                         reuse_path["active_scope_item"] = cached.get("var_name")
@@ -979,7 +1007,7 @@ class ActionSynthesizer:
                         return reuse_path
         semantic_roles = self._get_semantic_roles(node)
         ops = semantic_roles.get("ops", []) or []
-        if intent == "HTTP_REQUEST" and "use_api_key_header" in ops:
+        if intent == INTENT_HTTP_REQUEST and "use_api_key_header" in ops:
             input_defs = new_path.get("input_defs") or []
             if input_defs and input_defs[0].get("name"):
                 input_name = input_defs[0]["name"]
@@ -999,7 +1027,7 @@ class ActionSynthesizer:
                 new_path["statements"].append(s)
         else:
             new_path["statements"].append(wrapped_stmt)
-        if intent == "PERSIST" and new_path.get("in_loop") and new_path.get("method_return_type") in ["int", "Task<int>"]:
+        if intent == INTENT_PERSIST and new_path.get("in_loop") and new_path.get("method_return_type") in ["int", "Task<int>"]:
             counter_name = "updatedCount"
             if counter_name not in new_path.get("used_names", set()):
                 new_path.setdefault("hoisted_statements", []).append({"type": "raw", "code": f"int {counter_name} = 0;", "node_id": f"hoist_{node.get('id')}"})
@@ -1007,7 +1035,7 @@ class ActionSynthesizer:
                 new_path.setdefault("type_to_vars", {}).setdefault("int", []).append({"var_name": counter_name, "node_id": node.get("id"), "role": "data"})
             new_path["statements"].append({"type": "raw", "code": f"{counter_name}++;", "node_id": f"{node.get('id')}_count"})
             new_path["active_scope_item"] = counter_name
-        if intent == "PERSIST" and m.get("class") in ["File", "System.IO.File"] and m.get("name") == "WriteAllText":
+        if intent == INTENT_PERSIST and m.get("class") in ["File", "System.IO.File"] and m.get("name") == "WriteAllText":
             if new_path.get("method_return_type") in ["string", "Task<string>"] and params:
                 path_literal = params[0]
                 if isinstance(path_literal, str) and path_literal.startswith("\"") and path_literal.endswith("\""):
@@ -1021,7 +1049,7 @@ class ActionSynthesizer:
                     if not existing or existing[-1].get("var_name") != path_var:
                         new_path.setdefault("type_to_vars", {}).setdefault("string", []).append({"var_name": path_var, "node_id": node.get("id"), "role": "path", "target_entity": "string"})
                     new_path["active_scope_item"] = path_var
-        if intent == "JSON_DESERIALIZE" and stmt.get("out_var"):
+        if intent == INTENT_JSON_DESERIALIZE and stmt.get("out_var"):
             var_name = stmt.get("out_var")
             var_type = stmt.get("var_type", "")
             inner = self.type_system.extract_generic_inner(var_type)
@@ -1037,7 +1065,7 @@ class ActionSynthesizer:
             new_path["is_async_needed"] = True
         if target_entity and target_entity != "Item":
             self.stmt_builder.register_entity(target_entity, new_path)
-        if intent in ["DATABASE_QUERY", "FETCH"] and stmt.get("out_var"):
+        if intent in [INTENT_DATABASE_QUERY, INTENT_FETCH] and stmt.get("out_var"):
             new_path.setdefault("call_cache", {})[call_expr] = {"var_name": stmt.get("out_var"), "var_type": stmt.get("var_type")}
         return new_path
 
@@ -1068,7 +1096,7 @@ class ActionSynthesizer:
                 explicit_copy = copy.deepcopy(explicit_candidate)
                 explicit_copy["origin"] = "explicit"
                 return [explicit_copy]
-        if intent == "CALC":
+        if intent == INTENT_CALC:
             return []
         def _needs_json_deserialize(n: Dict[str, Any]) -> bool:
             out_type = str(n.get("output_type") or "")
@@ -1088,11 +1116,11 @@ class ActionSynthesizer:
             templates = [copy.deepcopy(t) for t in templates if intent in t.get("capabilities", [])]
             for t in templates:
                 t["intent"] = intent
-        if intent == "FETCH" and not source_kind:
-            templates = [t for t in templates if not t.get("source_kind") and t.get("intent") in ["FETCH", None, ""]]
+        if intent == INTENT_FETCH and not source_kind:
+            templates = [t for t in templates if not t.get("source_kind") and t.get("intent") in [INTENT_FETCH, None, ""]]
         for t in templates:
             t["origin"] = "template"
-        if intent in ["FETCH", "PERSIST", "FILE_IO", "DATABASE_QUERY", "HTTP_REQUEST"]:
+        if intent in [INTENT_FETCH, INTENT_PERSIST, INTENT_FILE_IO, INTENT_DATABASE_QUERY, INTENT_HTTP_REQUEST]:
             if source_kind == "db":
                 templates = [t for t in templates if t.get("target") == "_dbConnection"]
             elif source_kind == "file":
@@ -1100,7 +1128,7 @@ class ActionSynthesizer:
             elif source_kind == "http":
                 templates = [t for t in templates if t.get("target") == "_httpClient"]
         semantic_roles = self._get_semantic_roles(node)
-        wants_payload = intent == "HTTP_REQUEST" and (
+        wants_payload = intent == INTENT_HTTP_REQUEST and (
             "payload" in semantic_roles or "content" in semantic_roles
         )
         requested_role = effective_role
@@ -1127,15 +1155,15 @@ class ActionSynthesizer:
             role_mismatch = False
             if effective_role and c_role:
                 # 27.448: Strict role enforcement even for templates
-                if effective_role in ["READ", "FETCH"] and c_role in ["WRITE", "PERSIST"]:
+                if effective_role in [ROLE_READ, ROLE_FETCH] and c_role in [ROLE_WRITE, ROLE_PERSIST]:
                     role_mismatch = True
-                if effective_role in ["WRITE", "PERSIST"] and c_role in ["READ", "FETCH"]:
+                if effective_role in [ROLE_WRITE, ROLE_PERSIST] and c_role in [ROLE_READ, ROLE_FETCH]:
                     role_mismatch = True
             
             if role_mismatch:
                 continue
 
-            if intent == "JSON_DESERIALIZE":
+            if intent == INTENT_JSON_DESERIALIZE:
                 if c.get("steps"):
                     continue
                 is_json = ("JsonSerializer" in c_class) or ("Deserialize" in c_name) or ("deserialize" in str(c.get("id", "")).lower())
@@ -1151,19 +1179,19 @@ class ActionSynthesizer:
                     continue
 
             if c.get("steps"):
-                if any(step.get("task") == "JSON_DESERIALIZE" or step.get("intent") == "JSON_DESERIALIZE" for step in c.get("steps", [])):
+                if any(step.get("task") == INTENT_JSON_DESERIALIZE or step.get("intent") == INTENT_JSON_DESERIALIZE for step in c.get("steps", [])):
                     if not _needs_json_deserialize(node):
                         continue
 
-            if intent == "DATABASE_QUERY" or source_kind == "db":
+            if intent == INTENT_DATABASE_QUERY or source_kind == "db":
                 is_db_candidate = (c.get("target") == "_dbConnection" or "IDbConnection" in c_class or "Dapper" in c_class)
                 tag_list = c.get("tags", []) or []
                 is_query_like = ("sql" in tag_list or "query" in tag_list or "Query" in c.get("name", ""))
                 if not (is_db_candidate or is_query_like):
                     continue
             if c.get("origin") != "template":
-                c_intent = c.get("intent", "GENERAL")
-                if intent and intent not in ["GENERAL", "ACTION"] and c_intent not in [intent, "ACTION", "GENERAL"]:
+                c_intent = c.get("intent", INTENT_GENERAL)
+                if intent and intent not in [INTENT_GENERAL, INTENT_ACTION] and c_intent not in [intent, INTENT_ACTION, INTENT_GENERAL]:
                     continue
             filtered.append(c)
         if node.get("cardinality") == "COLLECTION":

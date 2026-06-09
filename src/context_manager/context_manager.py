@@ -54,6 +54,10 @@ class ContextManager:
         """Retrieves the plan that is awaiting user confirmation."""
         return self.pending_confirmation_plans.get(session_id)
 
+    def has_pending_confirmation_plan(self, session_id="default_session") -> bool:
+        """Returns True when the session is waiting for explicit approval."""
+        return session_id in self.pending_confirmation_plans
+
     def clear_pending_confirmation_plan(self, session_id="default_session"):
         """Clears the stored pending confirmation plan."""
         if session_id in self.pending_confirmation_plans:

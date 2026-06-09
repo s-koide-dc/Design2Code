@@ -2,6 +2,7 @@ from typing import List, Dict, Any
 
 from src.code_synthesis.action_handlers.action_utils import to_csharp_string_literal
 from src.utils.text_parser import extract_first_quoted_literal
+from src.utils.semantic_intents import INTENT_DISPLAY, INTENT_TRANSFORM
 
 
 def process_transform_ops(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any], ops: List[str]) -> List[Dict[str, Any]] | None:
@@ -82,11 +83,11 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
     display_scope = semantic_roles.get("display_scope")
     display_after_loop = str(display_scope).lower() in ["after_loop", "afterloop", "post_loop", "postloop"]
     ops = semantic_roles.get("ops", []) or []
-    if intent == "TRANSFORM" and ops:
+    if intent == INTENT_TRANSFORM and ops:
         res = process_transform_ops(action_synthesizer, node, path, ops)
         if res is not None:
             return res
-    if intent == "TRANSFORM":
+    if intent == INTENT_TRANSFORM:
         return_value = semantic_roles.get("return_value")
         if return_value:
             new_p = action_synthesizer.synthesizer._copy_path(path)
@@ -100,7 +101,7 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
             new_p["completed_nodes"] += 1
             return [new_p]
     explicit_message = semantic_roles.get("content") or semantic_roles.get("message") or semantic_roles.get("notification")
-    if intent == "DISPLAY" and explicit_message:
+    if intent == INTENT_DISPLAY and explicit_message:
         msg_literal = to_csharp_string_literal(explicit_message)
         new_p = action_synthesizer.synthesizer._copy_path(path)
         stmt = {"type": "raw", "code": f"Console.WriteLine({msg_literal});", "node_id": node.get("id"), "intent": intent, "semantic_role": "notification"}
@@ -113,7 +114,7 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
         new_p.setdefault("consumed_ids", set()).add(node.get("id"))
         new_p["completed_nodes"] += 1
         return [new_p]
-    if intent == "DISPLAY" and not explicit_message:
+    if intent == INTENT_DISPLAY and not explicit_message:
         literal = extract_first_quoted_literal(text)
         if literal:
             msg_literal = to_csharp_string_literal(literal)
@@ -128,7 +129,7 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
             new_p.setdefault("consumed_ids", set()).add(node.get("id"))
             new_p["completed_nodes"] += 1
             return [new_p]
-    if intent == "DISPLAY" and "display_names" in ops:
+    if intent == INTENT_DISPLAY and "display_names" in ops:
         new_p = action_synthesizer.synthesizer._copy_path(path)
         active_item = path.get("active_scope_item")
         if path.get("in_loop") and active_item:
@@ -207,7 +208,7 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
         if any(v.get("var_name") == var_to_display for v in vars_list):
             var_type = vt
             break
-    if intent == "DISPLAY" and is_notification and not explicit_message and output_type != "string":
+    if intent == INTENT_DISPLAY and is_notification and not explicit_message and output_type != "string":
         primitive_types = ["int", "long", "decimal", "double", "float", "bool", "string"]
         prefer_value = entity in primitive_types or output_type in primitive_types
         if prefer_value and var_to_display and var_to_display != "result":
@@ -241,7 +242,7 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
                 if "IEnumerable" in vt or "List" in vt or vt.endswith("[]"):
                     is_collection = True
                     break
-    if intent == "DISPLAY" and is_collection and var_to_display:
+    if intent == INTENT_DISPLAY and is_collection and var_to_display:
         if output_type == "string":
             new_p = action_synthesizer.synthesizer._copy_path(path)
             item_type = entity if entity in path.get("poco_defs", {}) else "var"
@@ -289,7 +290,7 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
         new_p.setdefault("consumed_ids", set()).add(node.get("id"))
         new_p["completed_nodes"] += 1
         return [new_p]
-    if intent == "DISPLAY" and var_to_display and output_type == "string":
+    if intent == INTENT_DISPLAY and var_to_display and output_type == "string":
         new_p = action_synthesizer.synthesizer._copy_path(path)
         if resolved_display_prop:
             stmt = {"type": "raw", "code": f"Console.WriteLine({var_to_display}.{resolved_display_prop});", "node_id": node.get("id"), "intent": intent}
@@ -304,7 +305,7 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
         new_p.setdefault("consumed_ids", set()).add(node.get("id"))
         new_p["completed_nodes"] += 1
         return [new_p]
-    if intent == "DISPLAY" and var_to_display:
+    if intent == INTENT_DISPLAY and var_to_display:
         new_p = action_synthesizer.synthesizer._copy_path(path)
         if resolved_display_prop:
             stmt = {"type": "raw", "code": f"Console.WriteLine({var_to_display}.{resolved_display_prop});", "node_id": node.get("id"), "intent": intent}
@@ -319,7 +320,7 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
         new_p.setdefault("consumed_ids", set()).add(node.get("id"))
         new_p["completed_nodes"] += 1
         return [new_p]
-    if intent == "TRANSFORM":
+    if intent == INTENT_TRANSFORM:
         new_p = action_synthesizer.synthesizer._copy_path(path)
         if var_type and var_type not in ["string", "object", None] and var_to_display:
             new_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "string", "result", new_p, role="content")

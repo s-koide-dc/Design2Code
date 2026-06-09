@@ -13,6 +13,24 @@ from src.code_generation.design_ops_resolver import DesignOpsResolver
 from src.morph_analyzer.morph_analyzer import MorphAnalyzer
 from src.design_parser.data_source_utils import parse_data_source_tag
 from src.utils.entity_inference import infer_target_entity
+from src.utils.semantic_intents import (
+    INTENT_CALC,
+    INTENT_DATABASE_QUERY,
+    INTENT_DISPLAY,
+    INTENT_FETCH,
+    INTENT_FILE_IO,
+    INTENT_GENERAL,
+    INTENT_HTTP_REQUEST,
+    INTENT_JSON_DESERIALIZE,
+    INTENT_LINQ,
+    INTENT_PERSIST,
+    INTENT_TRANSFORM,
+    NODE_CONDITION,
+    NODE_ELSE,
+    NODE_END,
+    NODE_LOOP,
+    NODE_ACTION,
+)
 
 
 @dataclass
@@ -83,13 +101,13 @@ class DesignInferenceEngine:
                 explicit_roles = self._extract_semantic_roles(line)
                 if not explicit_roles:
                     explicit_intent = self._extract_intent_from_line(line)
-                    if explicit_intent == "LINQ":
+                    if explicit_intent == INTENT_LINQ:
                         pass
                 updated_lines.append(line)
                 last_output_type = self._extract_output_type_from_line(line) or last_output_type
                 intent = self._extract_intent_from_line(line)
                 roles = self._extract_semantic_roles(line)
-                if intent == "PERSIST":
+                if intent == INTENT_PERSIST:
                     path_val = roles.get("path")
                     if isinstance(path_val, str) and path_val:
                         last_persist_path = path_val
@@ -120,7 +138,7 @@ class DesignInferenceEngine:
             if inferred:
                 intent = self._extract_intent_from_line(updated_lines[-1])
                 roles = self._extract_semantic_roles(updated_lines[-1])
-                if intent == "PERSIST":
+                if intent == INTENT_PERSIST:
                     path_val = roles.get("path")
                     if isinstance(path_val, str) and path_val:
                         last_persist_path = path_val
@@ -180,8 +198,8 @@ class DesignInferenceEngine:
         if not step_token:
             if is_last_step and output_format and output_format not in ["void", "none"] and last_persist_path:
                 meta = {
-                    "kind": "ACTION",
-                    "intent": "TRANSFORM",
+                    "kind": NODE_ACTION,
+                    "intent": INTENT_TRANSFORM,
                     "target_entity": "Item",
                     "output_type": self._normalize_output_type(output_format) or "void",
                     "side_effect": "NONE",
@@ -224,7 +242,7 @@ class DesignInferenceEngine:
                 has_filename = False
         env_sources, stdin_sources, http_sources, file_sources = self._collect_source_kinds()
 
-        if meta.get("intent") == "JSON_DESERIALIZE":
+        if meta.get("intent") == INTENT_JSON_DESERIALIZE:
             inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
             if inferred_entity and inferred_entity != "Item":
                 meta = dict(meta)
@@ -241,12 +259,12 @@ class DesignInferenceEngine:
                     filename_val = entities.get("destination_filename", {}).get("value")
                 if filename_val and self._is_likely_filename(str(filename_val)):
                     semantic_roles_tag = f'[semantic_roles:{{"path":{json.dumps(str(filename_val))}}}]'
-        if meta.get("intent") == "DISPLAY" and not semantic_roles_tag:
+        if meta.get("intent") == INTENT_DISPLAY and not semantic_roles_tag:
             display_prop = self._infer_display_property(line)
             if display_prop:
                 semantic_roles_tag = f'[semantic_roles:{{"property":{json.dumps(display_prop)}}}]'
         source_override_applied = False
-        if meta.get("intent") in ["HTTP_REQUEST", "FILE_IO", "FETCH"]:
+        if meta.get("intent") in [INTENT_HTTP_REQUEST, INTENT_FILE_IO, INTENT_FETCH]:
             source_override = self._select_source_override(
                 line,
                 step_idx,
@@ -262,17 +280,17 @@ class DesignInferenceEngine:
                 meta["source_kind"] = source_kind
                 if forced_intent:
                     meta["intent"] = forced_intent
-                meta["side_effect"] = "IO" if meta["intent"] in ["FETCH", "FILE_IO"] else meta.get("side_effect", "NONE")
-                if meta.get("intent") == "FETCH":
+                meta["side_effect"] = "IO" if meta["intent"] in [INTENT_FETCH, INTENT_FILE_IO] else meta.get("side_effect", "NONE")
+                if meta.get("intent") == INTENT_FETCH:
                     meta["output_type"] = meta.get("output_type") or "string"
                 source_override_applied = True
-        if meta.get("intent") in ["DATABASE_QUERY", "PERSIST"]:
+        if meta.get("intent") in [INTENT_DATABASE_QUERY, INTENT_PERSIST]:
             sql_literal = self._extract_sql_literal(line)
             if not sql_literal:
                 alt_token, alt_score = self.resolver.infer_step_with_score_excluding_intents(
                     line,
                     module_name,
-                    exclude_intents={"DATABASE_QUERY", "PERSIST"},
+                    exclude_intents={INTENT_DATABASE_QUERY, INTENT_PERSIST},
                 )
                 if alt_token and alt_score >= self.thresholds["intent_threshold"]:
                     step_token = alt_token
@@ -286,50 +304,50 @@ class DesignInferenceEngine:
                 meta = dict(meta)
                 meta["intent"] = sql_intent
                 meta["side_effect"] = "DB"
-                meta["output_type"] = "List<Item>" if sql_intent == "DATABASE_QUERY" else "void"
+                meta["output_type"] = "List<Item>" if sql_intent == INTENT_DATABASE_QUERY else "void"
             semantic_roles_tag = f'[semantic_roles:{{"sql":"{sql_literal}"}}]'
 
-        if meta.get("intent") in ["HTTP_REQUEST", "FILE_IO", "FETCH"] and not has_url and not has_filename:
-            if not http_sources and meta.get("intent") == "HTTP_REQUEST":
+        if meta.get("intent") in [INTENT_HTTP_REQUEST, INTENT_FILE_IO, INTENT_FETCH] and not has_url and not has_filename:
+            if not http_sources and meta.get("intent") == INTENT_HTTP_REQUEST:
                 alt_token, alt_score = self.resolver.infer_step_with_score_excluding_intents(
                     line,
                     module_name,
-                    exclude_intents={"HTTP_REQUEST", "DATABASE_QUERY", "PERSIST"},
+                    exclude_intents={INTENT_HTTP_REQUEST, INTENT_DATABASE_QUERY, INTENT_PERSIST},
                 )
                 if alt_token and alt_score >= self.thresholds["intent_threshold"]:
                     step_token = alt_token
                     meta = self._map_step_token_to_meta(step_token)
-            if meta.get("intent") == "FILE_IO":
+            if meta.get("intent") == INTENT_FILE_IO:
                 alt_token, alt_score = self.resolver.infer_step_with_score_excluding_intents(
                     line,
                     module_name,
-                    exclude_intents={"FILE_IO", "HTTP_REQUEST", "DATABASE_QUERY", "PERSIST"},
+                    exclude_intents={INTENT_FILE_IO, INTENT_HTTP_REQUEST, INTENT_DATABASE_QUERY, INTENT_PERSIST},
                 )
                 if alt_token and alt_score >= self.thresholds["intent_threshold"]:
                     step_token = alt_token
                     meta = self._map_step_token_to_meta(step_token)
                 elif not source_override_applied:
                     meta = dict(meta)
-                    meta["intent"] = "TRANSFORM"
+                    meta["intent"] = INTENT_TRANSFORM
                     meta["side_effect"] = "NONE"
                     meta["output_type"] = last_output_type or "string"
-            if meta.get("intent") == "FETCH":
+            if meta.get("intent") == INTENT_FETCH:
                 alt_token, alt_score = self.resolver.infer_step_with_score_excluding_intents(
                     line,
                     module_name,
-                    exclude_intents={"FETCH", "FILE_IO", "HTTP_REQUEST", "DATABASE_QUERY", "PERSIST"},
+                    exclude_intents={INTENT_FETCH, INTENT_FILE_IO, INTENT_HTTP_REQUEST, INTENT_DATABASE_QUERY, INTENT_PERSIST},
                 )
                 if alt_token and alt_score >= self.thresholds["intent_threshold"]:
                     step_token = alt_token
                     meta = self._map_step_token_to_meta(step_token)
                 elif not source_override_applied:
                     meta = dict(meta)
-                    meta["intent"] = "TRANSFORM"
+                    meta["intent"] = INTENT_TRANSFORM
                     meta["side_effect"] = "NONE"
                     meta["output_type"] = last_output_type or "string"
 
         if not semantic_roles_tag and is_last_step and output_format and output_format not in ["void", "none"] and last_persist_path:
-            if meta.get("intent") in ["TRANSFORM", "GENERAL", "DISPLAY"]:
+            if meta.get("intent") in [INTENT_TRANSFORM, INTENT_GENERAL, INTENT_DISPLAY]:
                 semantic_roles_tag = f'[semantic_roles:{{"return_value":{json.dumps(str(last_persist_path))}}}]'
         tag = self._build_step_meta_tag(meta)
         refs = self._build_refs_tag(step_idx)
@@ -362,13 +380,13 @@ class DesignInferenceEngine:
         for src in env_sources:
             src_id = src.get("id")
             if src_id and src_id in text:
-                return src_id, "env", "FETCH"
+                return src_id, "env", INTENT_FETCH
         if len(env_sources) == 1 and not http_sources and not file_sources and not stdin_sources:
             src = env_sources[0]
-            return src.get("id", "env"), "env", "FETCH"
+            return src.get("id", "env"), "env", INTENT_FETCH
         if step_idx == 1 and len(stdin_sources) == 1 and not http_sources and not file_sources:
             src = stdin_sources[0]
-            return src.get("id", "STDIN"), "stdin", "FETCH"
+            return src.get("id", "STDIN"), "stdin", INTENT_FETCH
         return None
 
     def _load_entity_schema(self) -> Dict[str, Any]:
@@ -388,8 +406,8 @@ class DesignInferenceEngine:
         domain, op = token.split(".", 1)
 
         meta = {
-            "kind": "ACTION",
-            "intent": "GENERAL",
+            "kind": NODE_ACTION,
+            "intent": INTENT_GENERAL,
             "target_entity": "Item",
             "output_type": "void",
             "side_effect": "NONE",
@@ -399,46 +417,46 @@ class DesignInferenceEngine:
             meta["source_ref"] = "db_main"
             meta["source_kind"] = "db"
             if op in ["fetch_all"]:
-                meta["intent"] = "DATABASE_QUERY"
+                meta["intent"] = INTENT_DATABASE_QUERY
                 meta["output_type"] = "List<Item>"
             elif op in ["fetch_by_id"]:
-                meta["intent"] = "DATABASE_QUERY"
+                meta["intent"] = INTENT_DATABASE_QUERY
                 meta["output_type"] = "Item"
             else:
-                meta["intent"] = "PERSIST"
+                meta["intent"] = INTENT_PERSIST
         elif domain == "service":
             if op == "list":
-                meta["intent"] = "DISPLAY"
+                meta["intent"] = INTENT_DISPLAY
                 meta["output_type"] = "void"
             elif op == "get":
-                meta["intent"] = "FETCH"
+                meta["intent"] = INTENT_FETCH
                 meta["output_type"] = "Item"
             elif op in ["create", "update", "delete"]:
-                meta["intent"] = "TRANSFORM"
+                meta["intent"] = INTENT_TRANSFORM
         elif domain == "calc":
-            meta["intent"] = "CALC"
+            meta["intent"] = INTENT_CALC
             meta["output_type"] = "decimal"
         elif domain == "intent":
             intent = op.upper()
             meta["intent"] = intent
-            if intent == "HTTP_REQUEST":
+            if intent == INTENT_HTTP_REQUEST:
                 meta["output_type"] = "string"
                 meta["side_effect"] = "NETWORK"
-            elif intent == "FETCH":
+            elif intent == INTENT_FETCH:
                 meta["output_type"] = "string"
                 meta["side_effect"] = "IO"
-            elif intent == "JSON_DESERIALIZE":
+            elif intent == INTENT_JSON_DESERIALIZE:
                 meta["output_type"] = "List<Item>"
-            elif intent == "FILE_IO":
+            elif intent == INTENT_FILE_IO:
                 meta["output_type"] = "string"
                 meta["side_effect"] = "IO"
-            elif intent == "DISPLAY":
+            elif intent == INTENT_DISPLAY:
                 meta["output_type"] = "void"
-            elif intent == "LINQ":
+            elif intent == INTENT_LINQ:
                 meta["output_type"] = "List<Item>"
-            elif intent == "TRANSFORM":
+            elif intent == INTENT_TRANSFORM:
                 meta["output_type"] = "void"
-            elif intent == "CALC":
+            elif intent == INTENT_CALC:
                 meta["output_type"] = "decimal"
         else:
             return None
@@ -446,8 +464,8 @@ class DesignInferenceEngine:
 
     def _build_step_meta_tag(self, meta: Dict[str, str]) -> str:
         parts = [
-            meta.get("kind", "ACTION"),
-            meta.get("intent", "GENERAL"),
+            meta.get("kind", NODE_ACTION),
+            meta.get("intent", INTENT_GENERAL),
             meta.get("target_entity", "Item"),
             meta.get("output_type", "void"),
             meta.get("side_effect", "NONE"),
@@ -511,9 +529,9 @@ class DesignInferenceEngine:
         if not parts:
             return None
         kind = parts[0].upper()
-        if kind in ["END", "ELSE"]:
+        if kind in [NODE_END, NODE_ELSE]:
             return None
-        if kind in ["LOOP", "CONDITION"] and len(parts) >= 3:
+        if kind in [NODE_LOOP, NODE_CONDITION] and len(parts) >= 3:
             return parts[2]
         if len(parts) >= 4:
             return parts[3]
@@ -663,7 +681,7 @@ class DesignInferenceEngine:
         cleaned = sql.strip().lower()
         for prefix in ["select", "with"]:
             if cleaned.startswith(prefix):
-                return "DATABASE_QUERY"
+                return INTENT_DATABASE_QUERY
         for prefix in ["insert", "update", "delete"]:
             if cleaned.startswith(prefix):
                 return "PERSIST"

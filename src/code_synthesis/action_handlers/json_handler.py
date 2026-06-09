@@ -1,4 +1,5 @@
 from typing import List, Dict, Any
+from src.utils.semantic_intents import INTENT_FILE_IO
 
 
 def handle_json(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -35,7 +36,7 @@ def handle_json(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) 
                     "type": "raw",
                     "code": f"var {json_var} = File.ReadAllText({params[0]});",
                     "node_id": node.get("id"),
-                    "intent": "FILE_IO"
+                    "intent": INTENT_FILE_IO
                 })
                 new_p.setdefault("type_to_vars", {}).setdefault("string", []).append({
                     "var_name": json_var,

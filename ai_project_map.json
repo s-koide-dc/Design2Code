@@ -10,7 +10,7 @@
     "【整合】code_synthesis 設計書の内容差分を段階的に精査して詳細更新する。"
   ],
   "concerns": [],
-  "last_updated_by_ai": "2026-05-28T13:00:50.664306",
+  "last_updated_by_ai": "2026-06-09T14:58:11.509693",
   "modules": [
     {
       "name": "action_executor",
@@ -21,15 +21,32 @@
       ],
       "source_file": {
         "path": "src\\action_executor\\action_executor.py",
-        "last_modified": "2026-04-14T13:35:49.054433",
-        "hash": "b2ed400368d69d2c61a2eca81165eb57ebf00c6ef67fafd71f43f644b0f0e12a"
+        "last_modified": "2026-06-04T11:06:10.346097",
+        "hash": "3aba7f08a7ebbf5f94a34defa3a5ef8a3da7a26d5ae878faad293817b9ba16dc"
       },
       "design_document": {
         "path": "src\\action_executor\\action_executor.design.md",
-        "last_modified": "2026-04-14T13:38:14.656901",
-        "hash": "19f90db3434bf1fe5418d3b393e216f09686ca3494d6c9293026a75c7e3c1cce"
+        "last_modified": "2026-06-04T11:07:58.055874",
+        "hash": "9bae8d51d50176996e9470367307dc0bd614783e2f4942ff56f53fa57bba9cb1"
       },
       "test_file": "tests\\unit\\test_action_executor.py"
+    },
+    {
+      "name": "action_intents",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\utils\\action_intents.py",
+        "last_modified": "2026-06-04T16:12:24.491144",
+        "hash": "86a42c1042b9f75dfa50ebbc9da1882295407ce66d6e49c217a0920aa1fa3863"
+      },
+      "design_document": {
+        "path": "src\\utils\\action_intents.design.md",
+        "last_modified": "2026-06-04T11:12:28.194304",
+        "hash": "4c00d43ae848bee4344af82257f896c4dd1f97d92f35aa1746ec380d76d66dd3"
+      },
+      "test_file": null
     },
     {
       "name": "action_synthesizer",
@@ -42,8 +59,8 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\action_synthesizer.py",
-        "last_modified": "2026-05-13T16:51:24.602365",
-        "hash": "d4997dba27a88e23a27b3251643cc04cb41f997fbf5093da946e031442372c54"
+        "last_modified": "2026-06-04T15:35:13.409307",
+        "hash": "6d813fea4ecb56a536048d1fdcc4c8454343c9fb6456075e569f783d904c7ae0"
       },
       "design_document": {
         "path": "src\\code_synthesis\\action_synthesizer.design.md",
@@ -61,13 +78,13 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\action_handlers\\action_utils.py",
-        "last_modified": "2026-03-25T13:31:26.221662",
-        "hash": "13bd426880c3b46ac49b23dad7cbb0e3d7bca85247b0b661e14228afe1ecc1e8"
+        "last_modified": "2026-06-04T11:33:15.376145",
+        "hash": "b14b274a2f1d9a6e15308f8c244093e6579ec4a2d1c9888b712eeb3d491bda70"
       },
       "design_document": {
         "path": "src\\code_synthesis\\action_handlers\\action_utils.design.md",
-        "last_modified": "2026-03-30T14:12:10.072489",
-        "hash": "7867a3ba12e13cc7861084e1afba5c605a78d3ca1db756e4f15c91ba4e05dd32"
+        "last_modified": "2026-06-04T15:49:24.217718",
+        "hash": "0f250f457b8aec2543aff1944e16437f561804b7dad0a674178330968462c5af"
       },
       "test_file": null
     },
@@ -81,8 +98,8 @@
       "source_file": null,
       "design_document": {
         "path": "src\\advanced_tdd\\advanced_tdd.design.md",
-        "last_modified": "2026-04-14T14:19:54.073245",
-        "hash": "ad942e7bc13245c7bb2d9692655e83225ac7b7019e53c4afbb32c452e1fd2d1e"
+        "last_modified": "2026-06-09T09:39:02.590552",
+        "hash": "785aab3c768ef7cfea5c5bc0cf8c21e84f70fed6748a6e65d8dc22d9c0b3c509"
       },
       "test_file": null
     },
@@ -92,8 +109,8 @@
       "status": "active",
       "source_file": {
         "path": "src\\task_manager\\approval_messages.py",
-        "last_modified": "2026-01-23T12:56:42.117148",
-        "hash": "ca163ff97be664fd94a85e33b7ac7ad3a17a92f2e06116a3a0fa6f51c82dbedc"
+        "last_modified": "2026-06-04T11:16:24.828566",
+        "hash": "597846c3fd21175bf30c9b24801babc971679c697a8b72df9196ee17ddf01314"
       },
       "design_document": {
         "path": "src\\task_manager\\approval_messages.design.md",
@@ -168,8 +185,8 @@
       },
       "design_document": {
         "path": "src\\autonomous_learning\\autonomous_learning.design.md",
-        "last_modified": "2026-05-07T15:51:15.833895",
-        "hash": "8cbf30e5a195caa38b8c2fa40913b77d0b3f55f45aa3e573d3088922a7990823"
+        "last_modified": "2026-06-04T10:29:17.908287",
+        "hash": "f80c56ea19f0a529a739a216e9fc2c074fccce4d9d501d0d694aa0c2674271d4"
       },
       "test_file": "tests\\unit\\test_autonomous_learning.py"
     },
@@ -186,13 +203,13 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\autonomous_synthesizer.py",
-        "last_modified": "2026-05-07T15:51:15.833895",
-        "hash": "f0f756c888f2c66f6469ec501544617776950e28d1404b8874ee0a58037d45ae"
+        "last_modified": "2026-06-04T16:12:24.494479",
+        "hash": "a0e463eb4afc5b51ea82876cd67ea345bfb7f03f6ac37da4ce8cc89739a58bf8"
       },
       "design_document": {
         "path": "src\\code_synthesis\\autonomous_synthesizer.design.md",
-        "last_modified": "2026-05-07T15:51:15.833895",
-        "hash": "14d949b1e027d25c4d8355e4a61c6b02c6dc3e006b1d23ce56a7d8acd4fcb361"
+        "last_modified": "2026-06-04T11:23:46.350612",
+        "hash": "4f30d07e43565fea286ad644bb8bb3f41cea98801dfc7bb516c17b544a1f2362"
       },
       "test_file": null
     },
@@ -260,13 +277,13 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\action_handlers\\calc_handler.py",
-        "last_modified": "2026-03-30T14:11:58.354847",
-        "hash": "206cc1a2bb50be672d378383d85dc9719d813336822a718307815d90ae168189"
+        "last_modified": "2026-06-04T15:43:48.847806",
+        "hash": "aa765b85234d5fb30cbf2cfb31402ed1994b8e467e426a5209df8fd3406c7320"
       },
       "design_document": {
         "path": "src\\code_synthesis\\action_handlers\\calc_handler.design.md",
-        "last_modified": "2026-03-31T11:51:07.466884",
-        "hash": "9068a982634b9970ed4c7aa9cc4ac98a8850bdda8628c694c5b5a0ac65628aac"
+        "last_modified": "2026-06-04T15:49:10.082124",
+        "hash": "970e496d3a788b29cdd5a6293a44625eb4bc9c01aec5dbaf5aa4f28ad82af83a"
       },
       "test_file": null
     },
@@ -389,13 +406,13 @@
       "status": "active",
       "source_file": {
         "path": "src\\clarification_manager\\clarification_manager.py",
-        "last_modified": "2026-05-07T09:49:16.232499",
-        "hash": "196774ea601a17cf721c8bacfccfdcefac758364506e4d3b42becff718acd98f"
+        "last_modified": "2026-06-04T11:11:36.180760",
+        "hash": "41cd6eb7e276f6e7e6d429ce561e13281a66d3723f28a263e1042f3f5c73209b"
       },
       "design_document": {
         "path": "src\\clarification_manager\\clarification_manager.design.md",
-        "last_modified": "2026-05-07T09:49:16.241092",
-        "hash": "ab119c081bfd533dd300732776c7c19573bf40a68ea742821c33bea54f2387ec"
+        "last_modified": "2026-06-04T11:12:28.198308",
+        "hash": "e65ad0b4816b9854654a795604499ebf15d999e4375fda221812a202b6a61abb"
       },
       "test_file": "tests\\unit\\test_clarification_manager.py",
       "dependencies": [
@@ -468,8 +485,8 @@
       "source_file": null,
       "design_document": {
         "path": "src\\code_synthesis\\code_synthesis.design.md",
-        "last_modified": "2026-05-13T17:12:06.493459",
-        "hash": "9d8bd79bfd61d22f5b52177159e3b8ba4331a705b1a3d5b4582a0262fecb4992"
+        "last_modified": "2026-06-04T11:23:46.348601",
+        "hash": "8085edd010bc13b4cd9629488bc42bb36c0612779a953952dd02e870e31b346a"
       },
       "test_file": null
     },
@@ -479,13 +496,13 @@
       "status": "active",
       "source_file": {
         "path": "src\\code_synthesis\\code_synthesizer.py",
-        "last_modified": "2026-04-09T10:26:56.139482",
-        "hash": "f49ef4b176cc4c47f5f95f0323b9dcc9bd58b1dfded3f154b228d6feddab8e06"
+        "last_modified": "2026-06-04T11:26:42.702704",
+        "hash": "3e319ff304bbdc78cdf21693450a1290bf410f1bb3ed5ab6e18c1478be0b8151"
       },
       "design_document": {
         "path": "src\\code_synthesis\\code_synthesizer.design.md",
-        "last_modified": "2026-03-31T16:33:57.853708",
-        "hash": "d9790c6ed7d54fcf205258eb93eafb3d9bab6951dc6ddf463ce26dbd657198fc"
+        "last_modified": "2026-06-04T16:14:51.233187",
+        "hash": "04e7b379c8837a61f4f25d5cf8307c2f61f98c403371e54a6bf7249aad20bd7a"
       },
       "test_file": null
     },
@@ -545,13 +562,13 @@
       ],
       "source_file": {
         "path": "src\\autonomous_learning\\compliance_auditor.py",
-        "last_modified": "2026-02-20T15:43:52.701410",
-        "hash": "b3598e013716770a97c5c2792a48659b9828076ce7bd741554e6234b3a4e9d47"
+        "last_modified": "2026-06-04T11:16:24.830563",
+        "hash": "69bd1631ff54b3a60080acc16bea24a20cdd021651667cc10fe68a142f8174d2"
       },
       "design_document": {
         "path": "src\\autonomous_learning\\compliance_auditor.design.md",
-        "last_modified": "2026-02-09T11:12:23.354984",
-        "hash": "78d51cf4f7df920e54ba8b4da989211be7d535e9c4ea74bcf0bcd08bb4a3bfde"
+        "last_modified": "2026-06-04T11:16:24.838897",
+        "hash": "4ec2a0d98c884796e6bd7a5de41b21f04063112cc5d0c0ec7cbf20cd916afd02"
       },
       "test_file": null
     },
@@ -622,6 +639,23 @@
       "test_file": "tests\\unit\\test_config_manager.py"
     },
     {
+      "name": "confirmation_response",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\utils\\confirmation_response.py",
+        "last_modified": "2026-06-04T10:19:37.537209",
+        "hash": "c9baedcfa8b27d63e91c4ff706342ade97603d2f059b0ce006a047a6466aae5d"
+      },
+      "design_document": {
+        "path": "src\\utils\\confirmation_response.design.md",
+        "last_modified": "2026-06-04T10:19:54.948178",
+        "hash": "b1744fc5fa9ad6f93cff1218be305ac9a7ac02b9bc1568e5ed86e7288dbd1b34"
+      },
+      "test_file": null
+    },
+    {
       "name": "context_manager",
       "summary": "対話の継続性を維持するための文脈管理。過去のターン情報、抽出されたエンティティ、および指示語（照応）解決を行います。",
       "status": "active",
@@ -630,13 +664,13 @@
       ],
       "source_file": {
         "path": "src\\context_manager\\context_manager.py",
-        "last_modified": "2026-01-30T10:10:23.154355",
-        "hash": "4d6065af9ff414df52db9dc0068915f7b02c610e2d48edb678f58eed67496431"
+        "last_modified": "2026-06-04T09:56:18.257133",
+        "hash": "f56d52ff6c86e236062cd0f3f484c8985e5c71bc8c263520305d462ef581148c"
       },
       "design_document": {
         "path": "src\\context_manager\\context_manager.design.md",
-        "last_modified": "2026-01-30T10:39:13.847595",
-        "hash": "15745e9c1923d5f34ba7b9e4c8876233204bb4f1b58ca21ecebc497c246414a5"
+        "last_modified": "2026-06-04T10:00:04.323691",
+        "hash": "2c3f28c81681f20c8d6172704db837ef3c0059a2044edcc52da6c1a82f726878"
       },
       "test_file": "tests\\unit\\test_context_manager.py"
     },
@@ -653,6 +687,23 @@
         "path": "src\\utils\\context_utils.design.md",
         "last_modified": "2026-03-31T09:19:23.744984",
         "hash": "d4402bf2116e253e81c67dfc8c65c04603e78ed8a2b29f0efe24b211cf9f26b2"
+      },
+      "test_file": null
+    },
+    {
+      "name": "control_intents",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\utils\\control_intents.py",
+        "last_modified": "2026-06-04T10:58:45.860084",
+        "hash": "5618d50020b737665274bb77721daf5b16137a779b12a07693a4132bd6f36679"
+      },
+      "design_document": {
+        "path": "src\\utils\\control_intents.design.md",
+        "last_modified": "2026-06-04T10:58:45.869535",
+        "hash": "1b14a119765c88583e91c8b2e79631b9b3cd3bb9988b9de9a8f5b0a418b2820f"
       },
       "test_file": null
     },
@@ -828,13 +879,13 @@
       ],
       "source_file": {
         "path": "src\\design_parser\\design_inference.py",
-        "last_modified": "2026-04-09T16:32:04.124342",
-        "hash": "e40d2463164898579471906d5048e79f1b4058d79627ff493ecd7a005fd29fd9"
+        "last_modified": "2026-06-04T11:28:53.308726",
+        "hash": "93c2e6971f704d33c754e22753f05c87232b6dc705b5265669cc188c7762e270"
       },
       "design_document": {
         "path": "src\\design_parser\\design_inference.design.md",
-        "last_modified": "2026-05-07T09:11:13.339340",
-        "hash": "4bd1f8fbd436a9226a96de52d8b5d475e14e65dbbd07932def9f6ffe71b3ce13"
+        "last_modified": "2026-06-04T11:34:48.052560",
+        "hash": "7cd9030533d53d5ef2b125eac0af60da8f275f7e8f00abb21b3eec53ebadd6cf"
       },
       "test_file": null
     },
@@ -874,8 +925,8 @@
       "source_file": null,
       "design_document": {
         "path": "src\\design_parser\\design_parser.design.md",
-        "last_modified": "2026-04-14T14:19:31.665265",
-        "hash": "d951bb83d1b927d09fb8e017725f7c56d5a9fe8d1a58f71e805082957bd61d28"
+        "last_modified": "2026-06-04T15:46:22.425427",
+        "hash": "5c8d6f3fe7ca7be9f4176d80af204067d5d876769e744a376c23536db76c916a"
       },
       "test_file": null
     },
@@ -895,6 +946,23 @@
         "path": "src\\utils\\design_sync_util.design.md",
         "last_modified": "2026-05-07T10:08:18.167928",
         "hash": "fbe9684c9e73f7b92894cba72a80d4cae6b8f12cff7af0f42df054c60629b403"
+      },
+      "test_file": null
+    },
+    {
+      "name": "dialogue_state",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\utils\\dialogue_state.py",
+        "last_modified": "2026-06-04T10:08:39.813669",
+        "hash": "ca732a1782e42265ac79a8b7e03a5a050ae3129a97699bb7fbb26707d93378c9"
+      },
+      "design_document": {
+        "path": "src\\utils\\dialogue_state.design.md",
+        "last_modified": "2026-06-04T10:14:50.725826",
+        "hash": "2afa6fc8df8691421e5f2e1eb397b7bfc14a7a2a62f536df0458a59271472de9"
       },
       "test_file": null
     },
@@ -948,13 +1016,13 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\action_handlers\\display_transform_ops.py",
-        "last_modified": "2026-05-12T09:44:16.406937",
-        "hash": "50bd527b6851a002850a931078dc1b6f9952b4e9f800b6a065a0c39b1f5d7447"
+        "last_modified": "2026-06-04T15:44:55.469081",
+        "hash": "67ba7c5ef5818e828244ea5c26a5380994cf1c16a3bf7de458d37159ef6b733e"
       },
       "design_document": {
         "path": "src\\code_synthesis\\action_handlers\\display_transform_ops.design.md",
-        "last_modified": "2026-05-13T10:14:58.841350",
-        "hash": "03772b90ea02a2ee617b5883e838a75466358b890700afea39f0067a6b787a76"
+        "last_modified": "2026-06-04T15:48:56.961107",
+        "hash": "357b78cbfb98036bde8d9d628f5498afaf9ed8c0a2dbd75f85cb082ce8e92261"
       },
       "test_file": null
     },
@@ -1080,13 +1148,13 @@
       "status": "active",
       "source_file": {
         "path": "src\\advanced_tdd\\failure_analyzer.py",
-        "last_modified": "2026-02-10T13:49:35.670984",
-        "hash": "7eee99ea9a0a13268bdeee7f8863f5b3a9c707a382650c9db0e8a7d73f6de914"
+        "last_modified": "2026-05-28T17:27:26.015061",
+        "hash": "d2af936ab185906ab4a81c01a4ed54a5e0a2182b9cb04ff717b142d523325f1b"
       },
       "design_document": {
         "path": "src\\advanced_tdd\\failure_analyzer.design.md",
-        "last_modified": "2026-02-10T16:09:58.462233",
-        "hash": "ee5d589e8a51e90f4192f427ae5ab2abef86697be6517c295878de47fb5e5fbc"
+        "last_modified": "2026-05-28T17:31:18.621919",
+        "hash": "7cda3098ef42fcf8460de9fd18ee0fdf96536c12373a47ebca5034b6be0d0676"
       },
       "test_file": null
     },
@@ -1099,13 +1167,13 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\action_handlers\\fallbacks.py",
-        "last_modified": "2026-03-25T11:49:09.836020",
-        "hash": "14968dbe4563586b31c60a19df4f80b6072f2e15634da07ea228cb9833be445d"
+        "last_modified": "2026-06-04T15:44:03.168138",
+        "hash": "eee040d117194de9c4b0c6a6884b782181184d1aad7a8c649a6c6575882551ab"
       },
       "design_document": {
         "path": "src\\code_synthesis\\action_handlers\\fallbacks.design.md",
-        "last_modified": "2026-03-30T14:04:13.631584",
-        "hash": "ebdae107590f47ab7fc9df36a2ab5e09b0f4f338a3c41392208fe1d63bf9a4e6"
+        "last_modified": "2026-06-04T15:48:13.585401",
+        "hash": "ddfcab4a89ee2fde7da278a0546a27780aecb554bb9ff292e7ecf1eb582dbbde"
       },
       "test_file": null
     },
@@ -1118,13 +1186,13 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\action_handlers\\fetch_handler.py",
-        "last_modified": "2026-04-07T14:15:11.605372",
-        "hash": "6f4674e83cdbe3180045b8c38b18a9361db83f816c4ff7ce192bfacea6150dbb"
+        "last_modified": "2026-06-04T15:44:15.922404",
+        "hash": "7cf0c689ea48cfc7d6cf740f7494d55dc48681433bd9eb602e84320a3a8f2106"
       },
       "design_document": {
         "path": "src\\code_synthesis\\action_handlers\\fetch_handler.design.md",
-        "last_modified": "2026-03-30T14:04:21.791727",
-        "hash": "cbc5eae4de6f0d3a5ebb643109120028aac347884c8ea0331e2e29354725d16e"
+        "last_modified": "2026-06-04T15:47:57.612256",
+        "hash": "588a920a73789818f8b87a546f8e826956681178fd55a81ed940087aff0affa8"
       },
       "test_file": null
     },
@@ -1157,13 +1225,13 @@
       ],
       "source_file": {
         "path": "src\\advanced_tdd\\fix_engine.py",
-        "last_modified": "2026-03-04T11:39:35.992486",
-        "hash": "4e9d2014cedc487138787e42e85a3ef6ee6549ca8aae2c48fe70ebe41132b564"
+        "last_modified": "2026-05-28T17:32:57.318910",
+        "hash": "d04703adaf74ca939ab3fae8d0acf4c596c6f1fb286446e459f01cd2c7bc6e98"
       },
       "design_document": {
         "path": "src\\advanced_tdd\\fix_engine.design.md",
-        "last_modified": "2026-02-04T15:42:20.756309",
-        "hash": "232f299a20e0265d08cc11f369ddebb96778345d6283249420c2fc7551be20ad"
+        "last_modified": "2026-05-28T17:34:28.146834",
+        "hash": "b8c52b6cb5313ab041abea4f19be5e94aea87171dfaaaabcd3ae29d837012be9"
       },
       "test_file": null
     },
@@ -1241,15 +1309,15 @@
       "status": "active",
       "source_file": {
         "path": "src\\intent_detector\\intent_detector.py",
-        "last_modified": "2026-05-07T09:52:55.808865",
-        "hash": "52ae8a36349d6e6b5ce349abb65b6a490ef8baf3adccbe0f01562b9bd3072527"
+        "last_modified": "2026-06-09T14:13:59.662801",
+        "hash": "ababadd681265fd4d04564fe979f7ca476e2cdd683def852531fc026cc23b845"
       },
       "design_document": {
         "path": "src\\intent_detector\\intent_detector.design.md",
-        "last_modified": "2026-05-07T09:52:55.824296",
-        "hash": "26a5319c4bbbd4cc8f7ac33106024dcc0150e5192778d9c16906f97c88b7d6fb"
+        "last_modified": "2026-06-09T14:15:20.023186",
+        "hash": "28a51e60055d1ea2bf7cdf28642d86e1c757cac757827db4ce4f798741690ea6"
       },
-      "test_file": null,
+      "test_file": "tests\\unit\\test_intent_detector.py",
       "dependencies": [
         "config_manager"
       ]
@@ -1263,13 +1331,13 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\action_handlers\\io_handler.py",
-        "last_modified": "2026-04-07T14:15:22.487830",
-        "hash": "acbea3b9f2d8751f546942f454b35e86d9348a1b403286634d6f2ea92bda60b9"
+        "last_modified": "2026-06-04T15:44:27.621481",
+        "hash": "03c66c699a327d60585e5790957928ff1d0fcd081f124b031d94c692c877cf0d"
       },
       "design_document": {
         "path": "src\\code_synthesis\\action_handlers\\io_handler.design.md",
-        "last_modified": "2026-03-30T14:04:38.451965",
-        "hash": "0d72ce1c24d07cd70cd5c5b30383df701994bec1779b2697b7d5b89ff9cd98ae"
+        "last_modified": "2026-06-04T15:48:27.111926",
+        "hash": "82816f4b4f44b248cce26a53eb29b5345f2c63b7aee67ae62614c350ce53da22"
       },
       "test_file": null
     },
@@ -1301,13 +1369,13 @@
       ],
       "source_file": {
         "path": "src\\ir_generator\\ir_generator.py",
-        "last_modified": "2026-05-13T17:02:53.954937",
-        "hash": "fe164e68fb3b0b473a62428f7d75f9f384c2bcccf76421ebeb369a91f30ffa9b"
+        "last_modified": "2026-06-04T11:30:14.913333",
+        "hash": "4b52d56816696b1460f603f39ba07c726437558475b9803a710bbb3df6b4c899"
       },
       "design_document": {
         "path": "src\\ir_generator\\ir_generator.design.md",
-        "last_modified": "2026-05-13T16:53:22.563496",
-        "hash": "f1fe7db89d0c2d1180679100d3b8012d7985550134abbfe6d71592597c095546"
+        "last_modified": "2026-06-04T15:39:43.432849",
+        "hash": "bb55dd0c8d50799292d82839d264a320cb987c0419d38778a4f3195b330e953f"
       },
       "test_file": "tests\\unit\\test_ir_generator.py"
     },
@@ -1335,8 +1403,8 @@
       "dependencies": [],
       "source_file": {
         "path": "src\\ir_generator\\ir_validator.py",
-        "last_modified": "2026-04-07T15:10:02.991370",
-        "hash": "3857189193edc93ea3abffb1eaf67e40dfcba341c0da837af12b1ca5e3907134"
+        "last_modified": "2026-06-04T15:31:38.197582",
+        "hash": "70449287bb72b190ba565a294512dd7c7d4569514efa0b5170317f42f9fe1fe5"
       },
       "design_document": {
         "path": "src\\ir_generator\\ir_validator.design.md",
@@ -1394,13 +1462,13 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\action_handlers\\json_handler.py",
-        "last_modified": "2026-04-09T15:01:23.175680",
-        "hash": "9be557c7ee586b9cb7a9670ea6149d845fd101e889583676c35da8c136e7b6a7"
+        "last_modified": "2026-06-04T15:44:38.318048",
+        "hash": "9444dfaeb8c5e46c5bb3da03ed4afffc2247e55913f42cab63fbe5097423429a"
       },
       "design_document": {
         "path": "src\\code_synthesis\\action_handlers\\json_handler.design.md",
-        "last_modified": "2026-03-30T14:04:53.224781",
-        "hash": "6d7525efa21c7155092f8b792ecd962036312f754a04a13a93668445706504aa"
+        "last_modified": "2026-06-04T15:48:41.995527",
+        "hash": "bd84da67061d5429c7344d04746bff42d64fc00132c828a89a760a497d258802"
       },
       "test_file": null
     },
@@ -1410,13 +1478,13 @@
       "status": "active",
       "source_file": {
         "path": "src\\advanced_tdd\\knowledge_base.py",
-        "last_modified": "2026-04-21T14:34:52.658854",
-        "hash": "4938e2c3e0d45c8983dd7a2e4f6245998e85d4f4fa51d4185dd3a31488dfef2b"
+        "last_modified": "2026-06-04T16:18:52.702933",
+        "hash": "535d861ea7e78894b5bb101a7eb67954b0cffb10b9d9894f0e258cb2f338fc72"
       },
       "design_document": {
         "path": "src\\advanced_tdd\\knowledge_base.design.md",
-        "last_modified": "2026-04-21T14:35:08.475014",
-        "hash": "3e363905d567703375541aca6e195479f9e7df8ed77890e6c0881bf79d83c7b5"
+        "last_modified": "2026-06-09T09:39:02.592948",
+        "hash": "eb8843618179dd65282950a89a21e4441f94d70ddc140ad43c6211708e104fd7"
       },
       "test_file": null
     },
@@ -1478,8 +1546,8 @@
       "status": "active",
       "source_file": {
         "path": "src\\autonomous_learning\\log_analyzer.py",
-        "last_modified": "2026-02-06T17:32:02.530549",
-        "hash": "c5f104837b8ce386b48206eae8e2d2be58a9f6527014337312010871469041bf"
+        "last_modified": "2026-06-04T10:22:22.515669",
+        "hash": "89c298f60dde2ea5955063902de638d1dd2d6dcaa3b11db9664623e041d7dc80"
       },
       "design_document": {
         "path": "src\\autonomous_learning\\log_analyzer.design.md",
@@ -1513,8 +1581,8 @@
       "status": "active",
       "source_file": {
         "path": "src\\utils\\logic_auditor.py",
-        "last_modified": "2026-04-07T14:11:29.697500",
-        "hash": "e3aa75f8e92590232b040dcbc7bfa1b90dd87d68e12835cb79632f0922d85f71"
+        "last_modified": "2026-06-04T15:43:17.089761",
+        "hash": "92c40e4ab3c505f5a608d6db199761be4c259cd6e7980d7804801243558f80f8"
       },
       "design_document": {
         "path": "src\\utils\\logic_auditor.design.md",
@@ -1570,13 +1638,13 @@
       ],
       "source_file": {
         "path": "src\\advanced_tdd\\main.py",
-        "last_modified": "2026-05-07T09:49:16.232499",
-        "hash": "03ae3aef122bc6fff91924eb87c1372441af8bc885cbf79967f8de72e1550a78"
+        "last_modified": "2026-05-28T17:33:05.431555",
+        "hash": "8599a235875ebedd56168bfa5b14198b11ca342a35f40f9e9314f49833a26adf"
       },
       "design_document": {
         "path": "src\\advanced_tdd\\main.design.md",
-        "last_modified": "2026-05-07T09:49:16.232499",
-        "hash": "5c0c9de74a4368e1fa63f8dcea74a89b56c97e4f647bd035cf0d674c23179cce"
+        "last_modified": "2026-05-28T17:34:38.194868",
+        "hash": "995b69d78410bd120fc86ac832a669eda4df66d497364d69f6c99d2d2b5c10a0"
       },
       "test_file": null
     },
@@ -1756,8 +1824,8 @@
       },
       "design_document": {
         "path": "src\\pipeline_core\\pipeline_core.design.md",
-        "last_modified": "2026-05-07T09:56:58.862379",
-        "hash": "4fe87e361a2fad973a72201300bfdd2866124f7f8f09fbbf33a0ffe55a474c08"
+        "last_modified": "2026-06-04T16:14:51.240229",
+        "hash": "280ced434bc97c8a3d359a13e2407894640de8fa8d9a2851759e8752fe0a824c"
       },
       "test_file": null
     },
@@ -1767,13 +1835,13 @@
       "status": "active",
       "source_file": {
         "path": "src\\planner\\planner.py",
-        "last_modified": "2026-04-13T14:02:03.012854",
-        "hash": "275ac02f89237335af588c96c76756acbde28609b6167f64a65f83d4e17eaa65"
+        "last_modified": "2026-06-04T11:06:10.328000",
+        "hash": "8341dbdb273e4286536fb1cc94b5995b56adfeed16b21c4636671f0c1ac02a47"
       },
       "design_document": {
         "path": "src\\planner\\planner.design.md",
-        "last_modified": "2026-04-14T14:18:15.396254",
-        "hash": "d20f6fe96bed66b5ceb7b6b09f1c4dcbc6f0a8587413abafb9fdbcf45c8d3504"
+        "last_modified": "2026-06-04T11:06:54.888732",
+        "hash": "1c47dd5732b8e60ccd9107d660a270f2856b63b3ed2ebed1bb5c690fed132960"
       },
       "test_file": "tests\\unit\\test_planner.py"
     },
@@ -1844,8 +1912,8 @@
       "dependencies": [],
       "source_file": {
         "path": "src\\ir_generator\\promotion_rules.py",
-        "last_modified": "2026-05-01T14:51:27.601779",
-        "hash": "88857b831a700f8b2ed535fa7b28ded219ab103ebbcc0ac352bf61d4202e6b12"
+        "last_modified": "2026-06-04T15:32:12.728921",
+        "hash": "86e8d890511e6d996a21573e1bd005fe2e69df07391c51de15ebcd85e3f0f893"
       },
       "design_document": {
         "path": "src\\ir_generator\\promotion_rules.design.md",
@@ -2054,13 +2122,13 @@
       ],
       "source_file": {
         "path": "src\\response_generator\\response_generator.py",
-        "last_modified": "2026-05-07T10:08:18.159794",
-        "hash": "2c9edc6c6a9f3b1b2f5a55a6d01a4513ce69fe93f79af6001e235a62a99f2f90"
+        "last_modified": "2026-06-04T11:06:54.888732",
+        "hash": "7f7970b9688023356d54765cfc7e36485b811466913097be208d459a2e2ba828"
       },
       "design_document": {
         "path": "src\\response_generator\\response_generator.design.md",
-        "last_modified": "2026-05-07T10:08:18.165504",
-        "hash": "ca0eee05f11b3b9fbf899950f931e2bbe64e8c67e29dc96f54761e5f07954bc9"
+        "last_modified": "2026-06-04T11:06:54.888732",
+        "hash": "b591cc6310a12c0c211801b91b31207e2119c02e49a56d4c5d66dc3c5891a31e"
       },
       "test_file": "tests\\unit\\test_response_generator.py"
     },
@@ -2126,8 +2194,8 @@
       "source_file": null,
       "design_document": {
         "path": "src\\safety\\safety.design.md",
-        "last_modified": "2026-03-31T09:19:37.384901",
-        "hash": "633eee4882a76a341d4da2ffe63a6b786f6597a0a12bad99fee2be98911bde07"
+        "last_modified": "2026-06-04T11:12:28.201308",
+        "hash": "0fbdd71505afde4d721f415427d3a98fc2804557b44f09aa921fec8653335711"
       },
       "test_file": "tests\\unit\\test_safety.py"
     },
@@ -2156,13 +2224,13 @@
       ],
       "source_file": {
         "path": "src\\safety\\safety_policy_validator.py",
-        "last_modified": "2026-04-13T14:02:27.799309",
-        "hash": "8c36de6fa6f5c56d8f8fedc6128aa2826180a309ace7342e9a5daf39aa645340"
+        "last_modified": "2026-06-04T11:11:36.180760",
+        "hash": "9b83120d958b586565db4e06e94f06081b651ab2ac60c08b889648031bc953aa"
       },
       "design_document": {
         "path": "src\\safety\\safety_policy_validator.design.md",
-        "last_modified": "2026-04-13T14:02:48.142523",
-        "hash": "de12ae24bfe9dec05e69409248273d393a05e3c9825994210f9962762b6f27be"
+        "last_modified": "2026-06-04T11:12:28.200302",
+        "hash": "d55879c0aedd87c7637cc7babb96babad1663b299ed932bd1596c4256c623500"
       },
       "test_file": null
     },
@@ -2213,13 +2281,13 @@
       ],
       "source_file": {
         "path": "src\\semantic_analyzer\\semantic_analyzer.py",
-        "last_modified": "2026-03-19T11:32:23.587873",
-        "hash": "a08e036abca1c465444f13636ba2fc73ee076e2ad28895c5ad76e6fb821e111e"
+        "last_modified": "2026-06-04T11:11:36.180760",
+        "hash": "7ad42cd88e666b3c16b39b22ba51beeee022bf830e0e4481020efbbe33de04b7"
       },
       "design_document": {
         "path": "src\\semantic_analyzer\\semantic_analyzer.design.md",
-        "last_modified": "2026-03-31T09:15:22.646250",
-        "hash": "525d44a9f7a713e151f133bc650bcb005a5500ed65efe195ec399edbc50995ad"
+        "last_modified": "2026-06-04T11:12:28.196302",
+        "hash": "c482f3e436c86a3004791a3a5421cee12b9ce675bb8a5ccbbfd437bf160f95d5"
       },
       "test_file": "tests\\unit\\test_semantic_analyzer.py"
     },
@@ -2250,13 +2318,30 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\semantic_binder.py",
-        "last_modified": "2026-05-01T10:30:08.833087",
-        "hash": "c5d34acb142ebf1fb162657ee3f7ee3108d2fa074bad189d630a2dee9cd75be0"
+        "last_modified": "2026-06-04T15:36:34.754812",
+        "hash": "b5268db554ff416078322942a8d6fa243cb631ac3afbbece6454fa234312cb96"
       },
       "design_document": {
         "path": "src\\code_synthesis\\semantic_binder.design.md",
-        "last_modified": "2026-05-07T09:12:12.201427",
-        "hash": "1810f9b1ee1e949ef840a7d263d4620c42c55bffbfe676de9a5025390b13567e"
+        "last_modified": "2026-06-04T15:50:06.526503",
+        "hash": "36ab2321ccf05b7043a7767a9a338fc5fea26c5a8701adbb1c8f38878804c9d9"
+      },
+      "test_file": null
+    },
+    {
+      "name": "semantic_intents",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [],
+      "source_file": {
+        "path": "src\\utils\\semantic_intents.py",
+        "last_modified": "2026-06-04T11:26:11.972767",
+        "hash": "f8a9cc3004010fd42dd1313756ab4443e768c8f7d8faa508d56c1edf22922147"
+      },
+      "design_document": {
+        "path": "src\\utils\\semantic_intents.design.md",
+        "last_modified": "2026-06-04T11:34:24.258211",
+        "hash": "3770754d1d2b25b5452de8c1325bc394cc112f94734b91a401a3f03c5f0ee355"
       },
       "test_file": null
     },
@@ -2431,13 +2516,13 @@
       "dependencies": [],
       "source_file": {
         "path": "src\\utils\\spec_auditor.py",
-        "last_modified": "2026-04-09T11:40:16.225459",
-        "hash": "5048983841c9e7d70587dc52a33290a253e16b0bdb55323759e6affc96b17650"
+        "last_modified": "2026-06-04T15:43:37.489706",
+        "hash": "507dbbbae7b730dc759f8a90a32efaadefc8a4f6d64c2b9dd3d0e22c04bb4d6b"
       },
       "design_document": {
         "path": "src\\utils\\spec_auditor.design.md",
-        "last_modified": "2026-03-17T14:16:07.956940",
-        "hash": "a0b58f0e134195442eb7f07ed8966797cc007378ec43c4a8cc6f8df1cd2f790b"
+        "last_modified": "2026-06-04T11:35:49.641251",
+        "hash": "adbb22394369017054067b4eb15d08b89ef7041023576939603f13031ae9a468"
       },
       "test_file": null
     },
@@ -2482,8 +2567,8 @@
       "dependencies": [],
       "source_file": {
         "path": "src\\ir_generator\\spec_role_rules.py",
-        "last_modified": "2026-05-01T10:02:18.662935",
-        "hash": "a99a671d957643aa96139002f5ffe06c46e7a0fe8d3e30df0fec4b7dbcd14106"
+        "last_modified": "2026-06-04T15:32:00.631105",
+        "hash": "e784a97610e0ef0ef22d34ecc2cc44aa445034b81b40e9c2a6f4fa9c06422d6a"
       },
       "design_document": {
         "path": "src\\ir_generator\\spec_role_rules.design.md",
@@ -2499,13 +2584,13 @@
       "dependencies": [],
       "source_file": {
         "path": "src\\pipeline_core\\stages.py",
-        "last_modified": "2026-04-13T10:51:53.216280",
-        "hash": "de881c43427af43dc94ee9052a31fed34020f493947d1dd45feb25e844eb1cb9"
+        "last_modified": "2026-06-04T16:12:24.499019",
+        "hash": "888d7297a1210daa18cc5ea757c54d99a2eaf756b4492cd80d7921c217088561"
       },
       "design_document": {
         "path": "src\\pipeline_core\\stages.design.md",
-        "last_modified": "2026-04-13T13:44:31.272141",
-        "hash": "fbf75e6ca9897b35c34a2fb1da103c4513b0984c4e4f8f0be985b04a0e2fe176"
+        "last_modified": "2026-06-04T10:58:45.875116",
+        "hash": "b6f43a52d11ed2390dcfb8e2074776bef2d506217f201ae69063ba8dafda96ae"
       },
       "test_file": null
     },
@@ -2516,13 +2601,13 @@
       "dependencies": [],
       "source_file": {
         "path": "src\\code_synthesis\\statement_builder.py",
-        "last_modified": "2026-04-07T13:46:45.961956",
-        "hash": "1cefa07a6bb1a198c289112b6670497f9f8d1aa14b718d9d7955f03f45a6266e"
+        "last_modified": "2026-06-04T15:35:36.574857",
+        "hash": "db4804c88df4ebc7bc3a350f93a47fe4d759bfc02dc7d18699d0b0f3017961f1"
       },
       "design_document": {
         "path": "src\\code_synthesis\\statement_builder.design.md",
-        "last_modified": "2026-03-31T11:51:07.465885",
-        "hash": "e9d101df7d38c92ae5c49c4c5e8d3a3693043154db95d4a282810a1d3b98dced"
+        "last_modified": "2026-06-04T15:50:17.676309",
+        "hash": "d173084d2afead4546c86580d98c2ebae11e498ee8dc158350cdb58144c50ad4"
       },
       "test_file": null
     },
@@ -2575,13 +2660,13 @@
       ],
       "source_file": {
         "path": "src\\design_parser\\structured_parser.py",
-        "last_modified": "2026-04-09T14:28:30.743850",
-        "hash": "39e967ff12e94fd791172a78f33a48af33e074b8adb5777f7745633d7e914179"
+        "last_modified": "2026-06-04T11:26:29.162214",
+        "hash": "281fc0e480c6bec7b5640a86aedb7b808516aa6162c8eb509559bd8d0bce8f90"
       },
       "design_document": {
         "path": "src\\design_parser\\structured_parser.design.md",
-        "last_modified": "2026-03-31T09:14:54.007221",
-        "hash": "891f552252ae0a92a957f14cbaa782b1bb1349f1c5e01fe76fbf8a1b64f19581"
+        "last_modified": "2026-06-04T11:34:35.339675",
+        "hash": "bd14971307070d5ec8fd676028cb100b80b99bf134413aea98f27867f8439136"
       },
       "test_file": null
     },
@@ -2699,13 +2784,13 @@
       ],
       "source_file": {
         "path": "src\\task_manager\\task_manager.py",
-        "last_modified": "2026-05-07T09:52:55.824296",
-        "hash": "fc3852aa312bc151d89c048ee3d4b8aa9d170c07099e47f61ed388add20a1e27"
+        "last_modified": "2026-06-04T16:12:24.496917",
+        "hash": "fe6c054afb0811af81b7d88d431184acbb5b870e86271c742ee846807d5548ac"
       },
       "design_document": {
         "path": "src\\task_manager\\task_manager.design.md",
-        "last_modified": "2026-05-07T09:52:55.833890",
-        "hash": "c246a561b2aeeb52af16b64844a84e1b24b51ced07e6e73e4ca0405ffff2bdfb"
+        "last_modified": "2026-06-04T16:14:51.240229",
+        "hash": "5ae2baa33748ba96659d7914049a69739bb24268a6d9eb43b991ad19dda9419e"
       },
       "test_file": "tests\\unit\\test_task_manager.py"
     },
@@ -2735,15 +2820,15 @@
       ],
       "source_file": {
         "path": "src\\tdd_operations\\tdd_operations.py",
-        "last_modified": "2026-05-07T10:08:18.161565",
-        "hash": "b346cab20f23a56cd9aee5c7852609b792f76b4de51a2c493aa42a607695d1e1"
+        "last_modified": "2026-05-28T17:33:23.027271",
+        "hash": "5baa02ec8f0aa27252b9925e11211522ab47f43c253bd6d8cc2b56ddcd408813"
       },
       "design_document": {
         "path": "src\\tdd_operations\\tdd_operations.design.md",
-        "last_modified": "2026-05-07T10:08:18.166753",
-        "hash": "ff2b7239bf8f2dad32f6c34f5b0d54efcea72141c6cdd26362f86a661d964ef9"
+        "last_modified": "2026-05-28T17:34:48.295041",
+        "hash": "b4b00a0c47ef210f72a58d0fa5bc5dc5152bac021c1649c12b5917c4c6d71c5d"
       },
-      "test_file": null
+      "test_file": "tests\\unit\\test_tdd_operations.py"
     },
     {
       "name": "template_engine",
@@ -2769,13 +2854,13 @@
       "dependencies": [],
       "source_file": {
         "path": "src\\code_synthesis\\template_registry.py",
-        "last_modified": "2026-05-07T10:03:25.006984",
-        "hash": "3093edb175213abf968d22c45bbaca107c3031258736eb66e8ed2a0bbe289484"
+        "last_modified": "2026-06-04T15:35:47.287459",
+        "hash": "f4b58a44fd4b83a936831d8c7fbcf03973b5466a8ab4cdc2c9888f11f3eb2d1f"
       },
       "design_document": {
         "path": "src\\code_synthesis\\template_registry.design.md",
-        "last_modified": "2026-05-07T10:03:25.013013",
-        "hash": "a034dfc0c96ab7319dd6496934faba2715f8c0b5b1a4f344655439d2c3ec2057"
+        "last_modified": "2026-06-04T15:50:30.225717",
+        "hash": "b70ac783a032d9704ad8f527bdea7e103db9bb8479c927824659c60e7ddd9e96"
       },
       "test_file": null
     },
@@ -2878,13 +2963,13 @@
       "dependencies": [],
       "source_file": {
         "path": "src\\code_synthesis\\unified_knowledge_base.py",
-        "last_modified": "2026-05-07T10:03:25.008024",
-        "hash": "1b5be7ca6896e7ba1d5529d1e78931af718ab1734039cce118ca6ddfa26c5b2c"
+        "last_modified": "2026-06-04T15:37:27.003107",
+        "hash": "d732cc19d24c015447f57fc2814c3c5ca685b33d6438911cab5230670d0edb5d"
       },
       "design_document": {
         "path": "src\\code_synthesis\\unified_knowledge_base.design.md",
-        "last_modified": "2026-05-07T10:03:25.013013",
-        "hash": "2774a5c7b4d0614af6477017dcfb559b2b74a297f52ec61f3f2357695408eca4"
+        "last_modified": "2026-06-04T15:50:41.576058",
+        "hash": "c7549f61b8a93b975d3d11fad8d95d548f58f0786ba4d9a1117a8ea0e1826177"
       },
       "test_file": null
     },
@@ -2894,8 +2979,8 @@
       "status": "active",
       "design_document": {
         "path": "src\\utils\\utils.design.md",
-        "last_modified": "2026-04-14T14:20:54.891766",
-        "hash": "1c1fa7f2c592f4227e8c2820ec82e82d6bc2f3354f3fdd7d6fb8d9430fb297e2"
+        "last_modified": "2026-06-04T16:14:51.243309",
+        "hash": "879aed1dc01f9a4325d24f211a836c6ff470f14864b33459a3e29d5903791a26"
       },
       "source_file": null,
       "test_file": "tests\\unit\\test_utils.py",
@@ -2929,8 +3014,8 @@
       ],
       "source_file": {
         "path": "src\\design_parser\\validator.py",
-        "last_modified": "2026-03-24T15:22:24.908368",
-        "hash": "7ecc46fa80eb9230839eedc9f0d671ee656e182c6be6455ca203796d928754b5"
+        "last_modified": "2026-06-04T15:42:43.091680",
+        "hash": "80dbe4f73fc92b0577992a5f79002328f493af34b4d64564895438fea24aca5a"
       },
       "design_document": {
         "path": "src\\design_parser\\validator.design.md",

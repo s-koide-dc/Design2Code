@@ -17,6 +17,15 @@ from src.code_synthesis.semantic_binder import SemanticBinder
 from src.code_synthesis.action_synthesizer import ActionSynthesizer
 
 from src.utils.logic_auditor import LogicAuditor
+from src.utils.semantic_intents import (
+    INTENT_FETCH,
+    INTENT_GENERAL,
+    INTENT_JSON_DESERIALIZE,
+    INTENT_PERSIST,
+    INTENT_RETURN,
+    INTENT_TRANSFORM,
+    NODE_ACTION,
+)
 
 class CodeSynthesizer:
     """[Phase 23.3: Pure Orchestration] Design-to-Code の中心的なオーケストレータークラス。"""
@@ -92,8 +101,8 @@ class CodeSynthesizer:
                 "steps": [
                     {
                         "id": f"step_{i}",
-                        "kind": "ACTION",
-                        "intent": "GENERAL",
+                        "kind": NODE_ACTION,
+                        "intent": INTENT_GENERAL,
                         "target_entity": "Item",
                         "input_refs": [f"step_{i-1}"] if i > 1 else [],
                         "output_type": "void",
@@ -132,8 +141,8 @@ class CodeSynthesizer:
                 explicit_id = name_to_id.get(text.lower())
                 structured_steps.append({
                     "id": f"step_{i}",
-                    "kind": "ACTION",
-                    "intent": "GENERAL",
+                    "kind": NODE_ACTION,
+                    "intent": INTENT_GENERAL,
                     "target_entity": "Item",
                     "input_refs": [f"step_{i-1}"] if i > 1 else [],
                     "output_type": "void",
@@ -206,7 +215,7 @@ class CodeSynthesizer:
                     return_type = out_type.strip()
         if not return_type and steps:
             last_step = steps[-1]
-            if isinstance(last_step, dict) and last_step.get("intent") in ["FETCH", "JSON_DESERIALIZE", "TRANSFORM"]:
+            if isinstance(last_step, dict) and last_step.get("intent") in [INTENT_FETCH, INTENT_JSON_DESERIALIZE, INTENT_TRANSFORM]:
                 return_type = last_step.get("output_type")
 
         entity_schema = getattr(self.method_store, 'entity_schema', self.entity_schema)

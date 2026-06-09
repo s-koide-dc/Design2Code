@@ -206,6 +206,16 @@ class TestFailureAnalyzer:
                     root_cause = logic_analysis['refined_root_cause']
 
             fix_direction = self._determine_fix_direction(root_cause, test_failure)
+            stack_trace_analysis = self._analyze_stack_trace(test_failure.stack_trace)
+            analysis_summary = self._build_analysis_summary(
+                test_failure=test_failure,
+                error_type=error_type,
+                root_cause=root_cause,
+                fix_direction=fix_direction,
+                stack_trace_analysis=stack_trace_analysis,
+                logic_analysis=logic_analysis,
+                semantic_mismatch=semantic_mismatch,
+            )
             
             return {
                 'status': 'success', 
@@ -215,16 +225,45 @@ class TestFailureAnalyzer:
                 'confidence': 0.9,
                 'logic_analysis': logic_analysis,
                 'semantic_mismatch': semantic_mismatch, # NEW
+                'analysis_summary': analysis_summary,
                 'analysis_details': {
                     'error_message': test_failure.error_message,
                     'line_number': test_failure.line_number,
-                    'stack_trace_analysis': self._analyze_stack_trace(test_failure.stack_trace),
+                    'stack_trace_analysis': stack_trace_analysis,
                     'test_context': {'test_file': test_failure.test_file, 'test_method': test_failure.test_method}
                 }
             }
         except Exception as e:
             self.logger.error(f"分析中にエラーが発生: {e}")
             return {'status': 'error', 'error': str(e)}
+
+    def _build_analysis_summary(
+        self,
+        test_failure: TestFailure,
+        error_type: str,
+        root_cause: str,
+        fix_direction: str,
+        stack_trace_analysis: Dict[str, Any],
+        logic_analysis: Optional[Dict[str, Any]],
+        semantic_mismatch: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        primary_location = stack_trace_analysis.get('primary_location') or {}
+        target_file = primary_location.get('file') or test_failure.test_file
+        summary = {
+            'test_method': test_failure.test_method,
+            'error_type': error_type,
+            'root_cause': root_cause,
+            'fix_direction': fix_direction,
+            'target_file': target_file,
+            'line_number': primary_location.get('line') or test_failure.line_number,
+            'has_logic_analysis': bool(logic_analysis),
+            'has_semantic_mismatch': bool(semantic_mismatch),
+        }
+        if logic_analysis and logic_analysis.get('branch_condition'):
+            summary['branch_condition'] = logic_analysis.get('branch_condition')
+        if semantic_mismatch and semantic_mismatch.get('message'):
+            summary['semantic_mismatch_message'] = semantic_mismatch.get('message')
+        return summary
 
     def _analyze_logic_mismatch(self, test_failure: TestFailure, roslyn_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Roslynデータを用いてロジックの不一致を詳細分析 (Deep Stack Analysis対応)"""

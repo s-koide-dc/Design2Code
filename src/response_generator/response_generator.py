@@ -3,6 +3,18 @@ import os
 import random
 import datetime
 import logging
+from src.utils.action_intents import (
+    INTENT_CS_ANALYZE,
+    INTENT_CS_IMPACT_SCOPE,
+    INTENT_GENERATE_TESTS,
+)
+from src.utils.dialogue_state import PENDING_CONFIRMATION
+from src.utils.control_intents import (
+    INTENT_CAPABILITY,
+    INTENT_DEFINITION,
+    INTENT_GENERAL,
+    INTENT_TIME,
+)
 
 class ResponseGenerator:
     def __init__(self, vector_engine=None, log_manager=None, task_manager=None):
@@ -14,22 +26,25 @@ class ResponseGenerator:
             log_manager: Optional LogManager instance.
             task_manager: Optional TaskManager instance to share task definitions.
         """
+        self.logger = logging.getLogger(__name__)
         kb = self._load_knowledge_base()
         self.knowledge = kb.get("knowledge", {})
         self.default_responses = kb.get("default_responses", {})
         self.default_response = self.default_responses.get("general_unknown", "ごめんなさい、よく分かりません。")
         self.intent_responses = kb.get("intent_responses", {})
+        self.dialogue_templates = kb.get("dialogue_templates", {})
+        self.recommended_action_labels = kb.get("recommended_action_labels", {})
+        self.recommended_action_descriptions = kb.get("recommended_action_descriptions", {})
         
         # Explicitly remove CAPABILITY from intent_responses loaded from knowledge_base.json
         # to ensure the hardcoded CAPABILITY response in generate() takes precedence.
-        if "CAPABILITY" in self.intent_responses:
-            del self.intent_responses["CAPABILITY"]
+        if INTENT_CAPABILITY in self.intent_responses:
+            del self.intent_responses[INTENT_CAPABILITY]
 
         self.concept_responses = kb.get("concept_responses", {})
         self.vector_engine = vector_engine
         self.log_manager = log_manager
         self.task_manager = task_manager
-        self.logger = logging.getLogger(__name__)
         
         # Load local definitions only if no task_manager is provided
         self._local_task_definitions = None
@@ -70,6 +85,283 @@ class ResponseGenerator:
                     self.logger.error("Error loading %s: %s", filename, e)
         return {}
 
+    def _normalize_topics(self, topics_data):
+        """Normalize topics to dict form so both str and dict inputs are supported."""
+        normalized_topics = []
+        for topic in topics_data:
+            if isinstance(topic, dict):
+                normalized_topics.append(topic)
+            elif isinstance(topic, str):
+                normalized_topics.append({"text": topic, "lemma": topic, "pos": ""})
+        return normalized_topics
+
+    def _select_template(self, key, default_text):
+        template = self.dialogue_templates.get(key, default_text)
+        if isinstance(template, list):
+            return template[0] if template else default_text
+        return template
+
+    def _format_template(self, key, default_text, **kwargs):
+        template = self._select_template(key, default_text)
+        try:
+            return template.format(**kwargs)
+        except KeyError:
+            self.logger.warning("Missing template parameter for key '%s': %s", key, kwargs)
+            return default_text.format(**kwargs) if "{" in default_text else default_text
+
+    def _get_recommended_action_label(self, action_code):
+        if not action_code:
+            return ""
+        return self.recommended_action_labels.get(action_code, action_code)
+
+    def _get_recommended_action_description(self, action_code):
+        if not action_code:
+            return ""
+        return self.recommended_action_descriptions.get(action_code, "")
+
+    def _build_recommended_action_guidance(self, action_code, suffix=""):
+        if not action_code:
+            return ""
+
+        label = self._get_recommended_action_label(action_code)
+        description = self._get_recommended_action_description(action_code)
+        if description:
+            return f" 次は {label} を進めてください。{description}"
+        if suffix:
+            return f" 次は {label} {suffix}"
+        return f" 次は {label} を進めてください。"
+
+    def _resolve_confirmation_recommended_action(self, plan):
+        if not isinstance(plan, dict):
+            return ""
+
+        recommended_action = plan.get("recommended_action", "")
+        if recommended_action:
+            return recommended_action
+
+        action_method = plan.get("action_method", "")
+        action_method_map = {
+            "_apply_code_fix": "apply_code_fix",
+        }
+        return action_method_map.get(action_method, "")
+
+    def _build_recommended_action_confirmation(self, action_code, target_label=None):
+        if not action_code:
+            return ""
+
+        label = self._get_recommended_action_label(action_code)
+        description = self._get_recommended_action_description(action_code)
+        target_hint = f"対象は {target_label} です。 " if target_label else ""
+
+        if description:
+            return f"{label}を行います。{target_hint}{description}よろしいですか？"
+        return f"{label}を行います。{target_hint}よろしいですか？"
+
+    def _get_task_display_name(self, task_info, intent):
+        task_name = task_info.get("display_name") or task_info.get("title")
+        if task_name:
+            return task_name
+        return task_info.get("name") or intent or "現在の処理"
+
+    def _extract_parameter_value(self, value):
+        if isinstance(value, dict):
+            return value.get("value") or value.get("text")
+        return value
+
+    def _extract_target_label(self, task_info, action_result):
+        for key in ("target_name", "target", "filename", "source_filename", "destination_filename", "project_path"):
+            value = self._extract_parameter_value(action_result.get(key))
+            if value:
+                return value
+
+        parameters = task_info.get("parameters", {})
+        for key in ("filename", "target_name", "project_path", "source_filename", "destination_filename"):
+            value = self._extract_parameter_value(parameters.get(key))
+            if value:
+                return value
+        return None
+
+    def _collect_generated_files(self, action_result):
+        generated_files = action_result.get("generated_files", [])
+        if not generated_files:
+            details = action_result.get("details", {})
+            if isinstance(details, dict):
+                generated_files = details.get("generated_files", [])
+
+        relative_paths = []
+        for path in generated_files:
+            if not isinstance(path, str):
+                continue
+            try:
+                relative_paths.append(os.path.relpath(path, os.getcwd()))
+            except ValueError:
+                relative_paths.append(path)
+        return relative_paths
+
+    def _explain_error(self, action_result):
+        error_type = action_result.get("type")
+        message = action_result.get("message", "")
+
+        if error_type == "FileNotFoundError":
+            return "対象のファイルまたはコマンドが見つかりませんでした。指定したパスや名前を確認してください。"
+        if error_type == "TimeoutExpired":
+            return "処理時間の上限を超えたため、途中で停止しました。入力条件を絞るか、処理対象を小さくしてください。"
+
+        known_exception_explanations = {
+            "NullReferenceException": "値が入っていないオブジェクトを参照したため、処理を続行できませんでした。",
+            "IndexOutOfRangeException": "配列またはリストの範囲外を参照したため、処理を続行できませんでした。",
+            "KeyError": "必要なキーが見つからず、入力データを正しく解釈できませんでした。",
+            "PermissionError": "必要なアクセス権が不足しているため、対象へアクセスできませんでした。",
+        }
+        for exception_name, explanation in known_exception_explanations.items():
+            if exception_name in message:
+                return explanation
+
+        if message.startswith("Safety Policy"):
+            return "安全性ポリシーに抵触するため、その操作は実行できません。"
+        if "コンパイル" in message:
+            return "コンパイルに失敗しました。コードまたは参照設定に不整合があります。"
+
+        return message or "処理中にエラーが発生しました。"
+
+    def _build_action_result_message(self, task_info, action_result, intent):
+        status = action_result.get("status")
+        if status not in ["success", "error"]:
+            return ""
+
+        dialogue_metadata = action_result.get("dialogue_metadata", {})
+        phase = dialogue_metadata.get("phase")
+        task_label = self._get_task_display_name(task_info, intent)
+        target_label = self._extract_target_label(task_info, action_result) or "対象"
+        raw_message = action_result.get("message", "")
+
+        if status == "success":
+            if phase == "goal_driven_tdd":
+                goal_description = dialogue_metadata.get("goal_description", target_label)
+                iteration_count = dialogue_metadata.get("iteration_count", 0)
+                generated_code_count = dialogue_metadata.get("generated_code_count", 0)
+                generated_test_count = dialogue_metadata.get("generated_test_count", 0)
+                return (
+                    f"{goal_description} のTDD実行が完了しました。"
+                    f" 反復回数は {iteration_count} 回で、コード {generated_code_count} 件、"
+                    f"テスト {generated_test_count} 件を生成しました。"
+                )
+
+            if phase == "failure_analysis":
+                failure_count = dialogue_metadata.get("failure_count", 0)
+                suggestion_count = dialogue_metadata.get("suggestion_count", 0)
+                failed_test_names = dialogue_metadata.get("failed_test_names", [])
+                primary_target = dialogue_metadata.get("primary_target_file", target_label)
+                reason = dialogue_metadata.get("primary_reason", "")
+                recommended_action = dialogue_metadata.get("primary_recommended_action", "")
+                target_summary = dialogue_metadata.get("primary_target_summary", "")
+                test_hint = f" 代表的な失敗テスト: {failed_test_names[0]}。" if failed_test_names else ""
+                reason_hint = f" 原因要約: {reason}" if reason else ""
+                target_hint = f" 対象: {target_summary}。" if target_summary else ""
+                next_hint = self._build_recommended_action_guidance(
+                    recommended_action,
+                    suffix="を進めるのが適切です。"
+                )
+                return (
+                    f"テスト失敗分析が完了しました。"
+                    f" {failure_count} 件の失敗を確認し、{primary_target} を中心に {suggestion_count} 件の修正案をまとめました。"
+                    f"{test_hint}{target_hint}{reason_hint}{next_hint}"
+                )
+
+            if phase == "code_fix":
+                applied_count = dialogue_metadata.get("applied_count", 0)
+                modified_files = dialogue_metadata.get("modified_files", [])
+                primary_target = modified_files[0] if modified_files else target_label
+                reason = dialogue_metadata.get("reason", "")
+                recommended_action = dialogue_metadata.get("recommended_action", "")
+                reason_hint = f" {reason}" if reason else ""
+                next_hint = self._build_recommended_action_guidance(recommended_action)
+                return (
+                    f"コード修正の適用が完了しました。"
+                    f" {applied_count} 件を {primary_target} を含む {len(modified_files)} ファイルへ反映しました。"
+                    f"{reason_hint}{next_hint}"
+                )
+
+            success_text = raw_message
+            if not success_text:
+                success_text = self._format_template(
+                    "action_success",
+                    "{task_name}が完了しました。対象: {target}。",
+                    task_name=task_label,
+                    target=target_label,
+                )
+
+            generated_files = self._collect_generated_files(action_result)
+            if generated_files:
+                generated_text = self._format_template(
+                    "generated_files",
+                    "生成物: {files}",
+                    files=", ".join(generated_files),
+                )
+                success_text = f"{success_text}\n{generated_text}"
+            return success_text
+
+        error_detail = self._explain_error(action_result)
+        if phase == "goal_driven_tdd":
+            goal_description = dialogue_metadata.get("goal_description", target_label)
+            return f"{goal_description} のTDD実行中に問題が発生しました。詳細: {error_detail}"
+        if phase == "failure_analysis":
+            primary_target = dialogue_metadata.get("primary_target_file", target_label)
+            recommended_action = dialogue_metadata.get(
+                "primary_recommended_action",
+                dialogue_metadata.get("next_action", "")
+            )
+            next_hint = self._build_recommended_action_guidance(recommended_action)
+            return f"テスト失敗分析を進めましたが、{primary_target} に対する有効な修正案を確定できませんでした。詳細: {error_detail}{next_hint}"
+        if phase == "code_fix":
+            recommended_action = dialogue_metadata.get(
+                "recommended_action",
+                dialogue_metadata.get("next_action", "")
+            )
+            next_hint = self._build_recommended_action_guidance(recommended_action)
+            return f"コード修正の適用後に検証で問題が見つかりました。詳細: {error_detail}{next_hint}"
+        return self._format_template(
+            "action_error",
+            "{task_name}の実行中に問題が発生しました。対象: {target}。詳細: {error_detail}",
+            task_name=task_label,
+            target=target_label,
+            error_detail=error_detail,
+        )
+
+    def _build_task_status_message(self, task_info, intent):
+        if not task_info:
+            return ""
+
+        task_name = self._get_task_display_name(task_info, intent)
+        target_label = self._extract_target_label(task_info, {}) or "対象"
+
+        if task_info.get("clarification_needed"):
+            if task_info.get("clarification_type") == "APPROVAL":
+                return self._format_template(
+                    "awaiting_approval",
+                    "{task_name}を進める前に承認が必要です。対象: {target}。",
+                    task_name=task_name,
+                    target=target_label,
+                )
+            if task_info.get("clarification_type") == "MISSING_ENTITY":
+                awaiting_entity = task_info.get("awaiting_entity", "必要情報")
+                return self._format_template(
+                    "awaiting_input",
+                    "{task_name}を進めるために {awaiting_entity} の指定が必要です。",
+                    task_name=task_name,
+                    awaiting_entity=awaiting_entity,
+                )
+
+        if task_info.get("state") == "IN_PROGRESS":
+            return self._format_template(
+                "task_in_progress",
+                "{task_name}を進めています。対象: {target}。",
+                task_name=task_name,
+                target=target_label,
+            )
+
+        return ""
+
     def generate(self, context: dict) -> dict:
         """
         Generates a response based on extracted topics and related concepts.
@@ -84,9 +376,9 @@ class ResponseGenerator:
             return self._finalize_response(context, f"エラーが発生しました: {safety_errors[0]}")
         # ------------------------------------------------
 
-        topics_data = context.get("analysis", {}).get("topics", [])
+        topics_data = self._normalize_topics(context.get("analysis", {}).get("topics", []))
 
-        intent = context.get("analysis", {}).get("intent", "GENERAL")
+        intent = context.get("analysis", {}).get("intent", INTENT_GENERAL)
         response_text = None
 
         # --- Stage 1: Specific Intent Checks (that don't strictly require topics) ---
@@ -96,10 +388,10 @@ class ResponseGenerator:
                 response_text = random.choice(options)
             else:
                 response_text = options
-        elif intent == "TIME":
+        elif intent == INTENT_TIME:
             now = datetime.datetime.now()
             response_text = f"現在の時刻は {now.strftime('%H時%M分')} です。"
-        elif intent == "CAPABILITY":
+        elif intent == INTENT_CAPABILITY:
             response_text = "私はAIアシスタントです。ファイル操作やコードの解析、タスク管理を支援できます。"
         # Add other simple conversational intents here as needed
 
@@ -110,7 +402,7 @@ class ResponseGenerator:
         # --- Stage 2: Topic-based Response Generation (requires topics) ---
         # If topics are missing and intent is not definition, we might not have enough info
         if not topics_data:
-            if intent == "DEFINITION": # DEFINITION intent absolutely needs topics
+            if intent == INTENT_DEFINITION: # DEFINITION intent absolutely needs topics
                 context["errors"].append({
                     "module": "response_generator",
                     "message": "応答を生成するためのトピックがありません。意味解析が先に行われている必要があります。"
@@ -142,7 +434,7 @@ class ResponseGenerator:
                         response_text = self.concept_responses[best_match]
 
         # 2.2. Definition Intent Handling (requires topics_data and if not already handled)
-        if response_text is None and intent == "DEFINITION" and topics_data:
+        if response_text is None and intent == INTENT_DEFINITION and topics_data:
             key_term = None
             tokens = context.get("analysis", {}).get("tokens", [])
 
@@ -243,11 +535,14 @@ class ResponseGenerator:
         if not intent and task_name:
             intent = task_name
 
+        dynamic_task_text = self._build_task_status_message(task_info, intent)
+
         if action_result.get("status") in ["success", "error"]:
+            raw_action_message = action_result.get("message", "")
             action_msg = action_result.get("message", "")
             
             # --- NEW: Specific visualization for Impact Scope ---
-            if intent == "CS_IMPACT_SCOPE" and action_result.get("status") == "success":
+            if intent == INTENT_CS_IMPACT_SCOPE and action_result.get("status") == "success":
                 impacted = action_result.get("impacted_methods", [])
                 target = action_result.get("target_name", "Target")
                 if impacted:
@@ -265,7 +560,7 @@ class ResponseGenerator:
             # --------------------------------------------------
 
             # Special handling for C# Analysis results to make them more readable
-            if (intent == "CS_ANALYZE" or task_name == "CS_ANALYZE") and \
+            if (intent == INTENT_CS_ANALYZE or task_name == INTENT_CS_ANALYZE) and \
                action_result.get("status") == "success" and "analysis" in action_result:
                 
                 analysis = action_result["analysis"]
@@ -295,19 +590,30 @@ class ResponseGenerator:
             elif task_info.get("state") == "COMPLETED" and task_info.get("type") == "COMPOUND_TASK":
                 action_msg = "完了しました。"
 
-            if action_msg:
-                # Add info about generated files if available (e.g., for GENERATE_TESTS)
-                if intent == "GENERATE_TESTS" and action_result.get("status") == "success":
-                    gen_files = action_result.get("generated_files", [])
-                    if gen_files:
-                        rel_paths = [os.path.relpath(p, os.getcwd()) for p in gen_files]
-                        action_msg += f"\n\n保存先: {', '.join(rel_paths)}"
+            # Add info about generated files if available (e.g., for GENERATE_TESTS)
+            if intent == INTENT_GENERATE_TESTS and action_result.get("status") == "success":
+                gen_files = action_result.get("generated_files", [])
+                if gen_files and action_msg:
+                    rel_paths = [os.path.relpath(p, os.getcwd()) for p in gen_files]
+                    action_msg += f"\n\n保存先: {', '.join(rel_paths)}"
 
+            dynamic_action_text = self._build_action_result_message(task_info, action_result, intent)
+            if dynamic_action_text:
+                if action_result.get("status") == "error":
+                    action_msg = dynamic_action_text
+                elif action_msg and action_msg != raw_action_message:
+                    action_msg = f"{dynamic_action_text}\n\n{action_msg}"
+                else:
+                    action_msg = dynamic_action_text
+
+            if action_msg:
                 # If the initial response was just a default or placeholder, use the action message as the primary response
                 if response_text == self.default_response or response_text is None:
                     final_response_text = action_msg
                 else:
                     final_response_text = f"{response_text}\n\n{action_msg}"
+        elif dynamic_task_text and response_text == self.default_response:
+            final_response_text = dynamic_task_text
         
         context["response"] = {"text": final_response_text}
         
@@ -315,7 +621,11 @@ class ResponseGenerator:
         if context.get("task_interruption") and context.get("task", {}).get("clarification_message"):
             resumption_msg = context["task"]["clarification_message"]
             if resumption_msg not in final_response_text:
-                context["response"]["text"] = f"{final_response_text} {resumption_msg}"
+                resume_prefix = self._format_template(
+                    "task_resumption",
+                    "元の作業に戻るため、次の確認をお願いします。"
+                )
+                context["response"]["text"] = f"{final_response_text} {resume_prefix} {resumption_msg}"
         # -------------------------------------------------------------
 
         context["pipeline_history"].append("response_generator")
@@ -338,6 +648,7 @@ class ResponseGenerator:
         """
         task_info = context.get("task", {})
         clarification_msg_type = task_info.get("clarification_message")
+        context["dialogue_state"] = PENDING_CONFIRMATION
 
         action_description = ""
         confirmation_message = ""
@@ -442,6 +753,23 @@ class ResponseGenerator:
                         return context
                     except KeyError:
                         pass
+
+            recommended_action = self._resolve_confirmation_recommended_action(plan)
+            if recommended_action:
+                target_label = (
+                    self._extract_parameter_value(parameters.get("filename"))
+                    or self._extract_parameter_value(parameters.get("target_file"))
+                    or self._extract_parameter_value(parameters.get("project_path"))
+                    or self._extract_parameter_value(parameters.get("goal_description"))
+                )
+                confirmation_message = self._build_recommended_action_confirmation(
+                    recommended_action,
+                    target_label=target_label,
+                )
+                context["response"] = {"text": confirmation_message}
+                context["pipeline_history"].append("response_generator_confirmation")
+                context["pipeline_history"].append("soft_block_confirmation")
+                return context
 
             if action_method == "_create_file":
                 filename_data = parameters.get("filename")

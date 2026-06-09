@@ -7,6 +7,16 @@ from typing import Dict, Any, Optional
 import json
 import os
 import shlex
+from src.utils.action_intents import (
+    INTENT_APPLY_CODE_FIX,
+    INTENT_APPLY_REFACTORING,
+    INTENT_BACKUP_AND_DELETE,
+    INTENT_CMD_RUN,
+    INTENT_FILE_APPEND,
+    INTENT_FILE_CREATE,
+    INTENT_FILE_DELETE,
+    INTENT_FILE_MOVE,
+)
 from src.utils.context_utils import normalize_path
 
 class RiskLevel(Enum):
@@ -57,10 +67,10 @@ class SafetyPolicyValidator:
         else:
             # Default values in case file loading fails
             self.destructive_intents = {
-                "FILE_DELETE", "FILE_MOVE", "BACKUP_AND_DELETE",
-                "APPLY_CODE_FIX", "APPLY_REFACTORING", "FILE_APPEND", "CMD_RUN"
+                INTENT_FILE_DELETE, INTENT_FILE_MOVE, INTENT_BACKUP_AND_DELETE,
+                INTENT_APPLY_CODE_FIX, INTENT_APPLY_REFACTORING, INTENT_FILE_APPEND, INTENT_CMD_RUN
             }
-            self.cautionary_intents = {"FILE_CREATE"}
+            self.cautionary_intents = {INTENT_FILE_CREATE}
             self.blocked_metacharacters = ['&', '|', ';', '>', '<', '`', '$']
             self.disallowed_args = {}
             self.allowed_subcommands = {}
@@ -90,7 +100,7 @@ class SafetyPolicyValidator:
 
         # 1. ActionExecutorのホワイトリストと単純な整合性チェック
         # ActionExecutorのsafe_commandsにあるコマンドかどうかをCMD_RUNの場合にチェック
-        if intent == "CMD_RUN":
+        if intent == INTENT_CMD_RUN:
             command_str = parameters.get("command", "")
             if not command_str:
                 return SafetyCheckResult(SafetyCheckStatus.BLOCK, "コマンドが空です。", RiskLevel.HIGH)
@@ -220,7 +230,7 @@ class SafetyPolicyValidator:
         elif intent in self.cautionary_intents:
             risk_level = RiskLevel.MEDIUM
             message = "注意が必要な操作が含まれています。"
-        elif intent == "BACKUP_AND_DELETE":
+        elif intent == INTENT_BACKUP_AND_DELETE:
             risk_level = RiskLevel.HIGH
             message = "バックアップ付き削除が必要な操作です。"
 

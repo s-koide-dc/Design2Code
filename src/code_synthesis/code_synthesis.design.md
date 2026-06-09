@@ -43,8 +43,8 @@
    - 再合成後に `spec_auditor` と `verifier` を再実行する。
 7. 最終結果に `spec_issues` / `verification` / `resolved_dependencies` を付与して返却する。
 8. runtime bridge では `ActionSynthesizer` と `IREmitter` が役割分担する。
-   - 弱い `spec_role=TRANSFORM` は `ActionSynthesizer` が `TRANSFORM` intent へ補正して specialized handler に渡す。
-   - `spec_role=ITERATE` は `ActionSynthesizer` が `LOOP` node を主に消費しつつ、exact upstream collection と deterministic item entity を metadata から優先する。
+   - 弱い `spec_role=TRANSFORM` は `ActionSynthesizer` が `src.utils.semantic_intents` の `INTENT_TRANSFORM` へ補正して specialized handler に渡す。
+   - `spec_role=ITERATE` は `ActionSynthesizer` が `NODE_LOOP` を主に消費しつつ、exact upstream collection と deterministic item entity を metadata から優先する。
    - `spec_role=WRAP` は `IREmitter` が structural consumer として child body を保持し、`wrapper_kind` に応じて `retry`, explicit `timeout`, explicit `transaction` statement へ再構成する。
    - `spec_role=CALCULATE` は `ActionSynthesizer` / `calc_ops` が `entity_resolution`, `calculate_target_resolution`, `calculate_source_resolution` を読み、exact source と target/property の強さに応じて concretization を制御する。
 

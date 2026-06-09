@@ -16,8 +16,9 @@
 
 ### Core Logic
 1. 設定を読み込み、`TestFailureAnalyzer` と `CodeFixSuggestionEngine` を初期化する。
-2. `analyze_and_fix_test_failure` は失敗情報を構造化して分析し、修正提案を返す。
+2. `analyze_and_fix_test_failure` は失敗情報を構造化して分析し、`analysis_summary` と `reason` / `recommended_action` / `target_summary` を保持した修正提案を返す。
 3. `execute_goal_driven_tdd` は `AutonomousSynthesizer` を使って合成を実行する。
+4. `_suggestion_to_dict` は `CodeFixSuggestion` の `impact_analysis` に加え、`target_file`、`conversation_hint`、`reason`、`recommended_action`、`target_summary` を会話層向けに露出する。
 
 ### Test Cases
 - **Happy Path**:

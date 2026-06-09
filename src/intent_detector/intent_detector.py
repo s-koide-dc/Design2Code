@@ -2,6 +2,30 @@ import json
 import os
 import logging
 
+from src.utils.confirmation_response import INTENT_AGREE, INTENT_DISAGREE
+from src.utils.action_intents import (
+    INTENT_BACKUP_AND_DELETE,
+    INTENT_APPLY_CODE_FIX,
+    INTENT_CMD_RUN,
+    INTENT_FILE_COPY,
+    INTENT_FILE_CREATE,
+    INTENT_FILE_DELETE,
+    INTENT_FILE_MOVE,
+    INTENT_FILE_READ,
+    INTENT_GENERATE_TESTS,
+    INTENT_LIST_DIR,
+    INTENT_PROVIDE_CONTENT,
+)
+from src.utils.control_intents import (
+    INTENT_CAPABILITY,
+    INTENT_BYE,
+    INTENT_DEFINITION,
+    INTENT_GENERAL,
+    INTENT_GREETING,
+    INTENT_PERSONAL_Q,
+    INTENT_TIME,
+    INTENT_WEATHER,
+)
 from src.utils.stdout_guard import debug_print
 
 class IntentDetector:
@@ -166,11 +190,11 @@ class IntentDetector:
         
         text = context.get("original_text", "")
         if not text:
-            context["analysis"]["intent"] = "GENERAL"
+            context["analysis"]["intent"] = INTENT_GENERAL
             context["analysis"]["intent_confidence"] = 0.5 # Default low confidence
             return context
 
-        detected_intent = "GENERAL"
+        detected_intent = INTENT_GENERAL
         detected_confidence = 0.5 # Default low confidence
 
         # Get current task context for state-dependent intent detection
@@ -179,7 +203,7 @@ class IntentDetector:
         task_state = current_task.get("state")
         
         # 1. Semantic Match (High Priority)
-        # Prioritize AGREE/DISAGREE only when awaiting explicit approval (not missing-entity clarification)
+        # Prioritize explicit approval / rejection only when awaiting explicit approval (not missing-entity clarification)
         is_awaiting_conf = current_task and current_task.get("clarification_needed") and current_task.get("clarification_type") == "APPROVAL"
         if not is_awaiting_conf:
              # Double check in active_tasks directly to be sure
@@ -198,20 +222,43 @@ class IntentDetector:
             
             if query_vec is not None:
                 best_score = 0.0
-                best_intent = "GENERAL"
+                best_intent = INTENT_GENERAL
                 threshold = 0.60 # Baseline threshold (from design doc, now 0.60)
                 
                 # Intent Priority logic: Actions should outrank greetings if scores are reasonably high
-                action_intents = ["FILE_CREATE", "FILE_READ", "LIST_DIR", "CMD_RUN", "AGREE", "DISAGREE", "APPLY_CODE_FIX", "GENERATE_TESTS"]
+                action_intents = [
+                    INTENT_BACKUP_AND_DELETE,
+                    INTENT_APPLY_CODE_FIX,
+                    INTENT_CMD_RUN,
+                    INTENT_FILE_COPY,
+                    INTENT_FILE_CREATE,
+                    INTENT_FILE_DELETE,
+                    INTENT_FILE_MOVE,
+                    INTENT_FILE_READ,
+                    INTENT_GENERATE_TESTS,
+                    INTENT_LIST_DIR,
+                    INTENT_AGREE,
+                    INTENT_DISAGREE,
+                ]
+                short_conversational_intents = [
+                    INTENT_CAPABILITY,
+                    INTENT_GREETING,
+                    INTENT_BYE,
+                    INTENT_DEFINITION,
+                    INTENT_PERSONAL_Q,
+                    INTENT_TIME,
+                    INTENT_WEATHER,
+                ]
+                is_short_utterance = len(query_words) <= 3
                 
                 for name, vectors in self.intent_vectors.items():
                     # Apply state-dependent boost to best_score for vector matching
                     state_boost = 0.0
-                    if task_name == "FILE_CREATE" and task_state == "AWAITING_CONTENT" and name == "PROVIDE_CONTENT":
+                    if task_name == INTENT_FILE_CREATE and task_state == "AWAITING_CONTENT" and name == INTENT_PROVIDE_CONTENT:
                         state_boost = 0.1 # Small boost
                 
                     # Confirmation Context Boost for Vector Match
-                    if is_awaiting_conf and name in ["AGREE", "DISAGREE"]:
+                    if is_awaiting_conf and name in [INTENT_AGREE, INTENT_DISAGREE]:
                         state_boost = 0.2 # Significant boost during confirmation
                 
                     for vec in vectors:
@@ -223,8 +270,19 @@ class IntentDetector:
                             adjusted_score += 0.05
                             
                         # High confidence for specific greetings if they're close enough
-                        if name == "GREETING" and adjusted_score > 0.8:
+                        if name == INTENT_GREETING and adjusted_score > 0.8:
                             adjusted_score += 0.1
+
+                        # Short conversational utterances tend to have sparse vectors.
+                        # Apply a small, general boost so brief turns like greetings,
+                        # farewells, personal questions, and time queries are less
+                        # likely to collapse into GENERAL when they are already close.
+                        if (
+                            is_short_utterance
+                            and name in short_conversational_intents
+                            and adjusted_score > 0.5
+                        ):
+                            adjusted_score += 0.08
                         
                         adjusted_score += state_boost # Apply state-dependent boost
                             

@@ -4,7 +4,46 @@
 import os
 import json
 
+from src.utils.action_intents import (
+    FILE_MUTATION_INTENTS,
+    INTENT_ANALYZE_COVERAGE_GAPS,
+    INTENT_ANALYZE_REFACTORING,
+    INTENT_ANALYZE_TEST_FAILURE,
+    INTENT_APPLY_CODE_FIX,
+    INTENT_APPLY_REFACTORING,
+    INTENT_BACKUP_AND_DELETE,
+    INTENT_CMD_RUN,
+    INTENT_CS_ANALYZE,
+    INTENT_CS_IMPACT_SCOPE,
+    INTENT_CS_QUERY_ANALYSIS,
+    INTENT_CS_TEST_RUN,
+    INTENT_DOC_GEN,
+    INTENT_DOC_REFINE,
+    INTENT_EXECUTE_GOAL_DRIVEN_TDD,
+    INTENT_FILE_APPEND,
+    INTENT_FILE_COPY,
+    INTENT_FILE_CREATE,
+    INTENT_FILE_DELETE,
+    INTENT_FILE_MOVE,
+    INTENT_FILE_READ,
+    INTENT_GENERATE_COVERAGE_REPORT,
+    INTENT_GENERATE_TESTS,
+    INTENT_GET_CWD,
+    INTENT_LIST_DIR,
+    INTENT_MANAGE_KNOWLEDGE,
+    INTENT_MEASURE_COVERAGE,
+    PROJECT_LANGUAGE_DEFAULT_INTENTS,
+    INTENT_REVERSE_DICTIONARY_SEARCH,
+    INTENT_RUN_LEARNING_CYCLE,
+    INTENT_SUGGEST_REFACTORING,
+)
+from src.utils.confirmation_response import INTENT_AGREE, INTENT_DISAGREE
 from src.utils.context_utils import _get_context_summary
+from src.utils.control_intents import (
+    INTENT_DEFINITION,
+    INTENT_GENERAL,
+    INTENT_RETRY,
+)
 from src.safety.safety_policy_validator import SafetyPolicyValidator, SafetyCheckStatus, RiskLevel
 
 class Planner:
@@ -30,35 +69,43 @@ class Planner:
 
         # Define mapping from intent to ActionExecutor method names
         self.intent_to_action_method = {
-            "FILE_CREATE": "_create_file",
-            "FILE_READ": "_read_file",
-            "FILE_APPEND": "_append_file",
-            "FILE_DELETE": "_delete_file",
-            "FILE_MOVE": "_move_file",
-            "FILE_COPY": "_copy_file",
-            "LIST_DIR": "_list_dir",
-            "GET_CWD": "_get_cwd",
-            "CMD_RUN": "_run_command",
-            "CS_TEST_RUN": "_run_dotnet_test",
-            "CS_ANALYZE": "_analyze_csharp",
-            "GENERATE_TESTS": "_generate_test_cases",
-            "CS_QUERY_ANALYSIS": "_query_csharp_analysis_results",
-            "CS_IMPACT_SCOPE": "_query_csharp_analysis_results",
-            "MEASURE_COVERAGE": "_measure_coverage",
-            "ANALYZE_COVERAGE_GAPS": "_analyze_coverage_gaps",
-            "GENERATE_COVERAGE_REPORT": "_generate_coverage_report",
-            "ANALYZE_REFACTORING": "_analyze_refactoring",
-            "SUGGEST_REFACTORING": "_suggest_refactoring",
-            "APPLY_REFACTORING": "_apply_refactoring",
-            "ANALYZE_TEST_FAILURE": "_analyze_test_failure",
-            "EXECUTE_GOAL_DRIVEN_TDD": "_execute_goal_driven_tdd",
-            "APPLY_CODE_FIX": "_apply_code_fix",
-            "RUN_LEARNING_CYCLE": "_run_learning_cycle",
-            "MANAGE_KNOWLEDGE": "_manage_knowledge",
-            "REVERSE_DICTIONARY_SEARCH": "_reverse_dictionary_lookup",
-            "DOC_GEN": "_generate_design_doc",
-            "DOC_REFINE": "_refine_design_doc",
+            INTENT_FILE_CREATE: "_create_file",
+            INTENT_FILE_READ: "_read_file",
+            INTENT_FILE_APPEND: "_append_file",
+            INTENT_FILE_DELETE: "_delete_file",
+            INTENT_FILE_MOVE: "_move_file",
+            INTENT_FILE_COPY: "_copy_file",
+            INTENT_LIST_DIR: "_list_dir",
+            INTENT_GET_CWD: "_get_cwd",
+            INTENT_CMD_RUN: "_run_command",
+            INTENT_CS_TEST_RUN: "_run_dotnet_test",
+            INTENT_CS_ANALYZE: "_analyze_csharp",
+            INTENT_GENERATE_TESTS: "_generate_test_cases",
+            INTENT_CS_QUERY_ANALYSIS: "_query_csharp_analysis_results",
+            INTENT_CS_IMPACT_SCOPE: "_query_csharp_analysis_results",
+            INTENT_MEASURE_COVERAGE: "_measure_coverage",
+            INTENT_ANALYZE_COVERAGE_GAPS: "_analyze_coverage_gaps",
+            INTENT_GENERATE_COVERAGE_REPORT: "_generate_coverage_report",
+            INTENT_ANALYZE_REFACTORING: "_analyze_refactoring",
+            INTENT_SUGGEST_REFACTORING: "_suggest_refactoring",
+            INTENT_APPLY_REFACTORING: "_apply_refactoring",
+            INTENT_ANALYZE_TEST_FAILURE: "_analyze_test_failure",
+            INTENT_EXECUTE_GOAL_DRIVEN_TDD: "_execute_goal_driven_tdd",
+            INTENT_APPLY_CODE_FIX: "_apply_code_fix",
+            INTENT_RUN_LEARNING_CYCLE: "_run_learning_cycle",
+            INTENT_MANAGE_KNOWLEDGE: "_manage_knowledge",
+            INTENT_REVERSE_DICTIONARY_SEARCH: "_reverse_dictionary_lookup",
+            INTENT_DOC_GEN: "_generate_design_doc",
+            INTENT_DOC_REFINE: "_refine_design_doc",
         }
+        self.intent_to_recommended_action = {
+            INTENT_ANALYZE_TEST_FAILURE: "analyze_test_failure",
+            INTENT_EXECUTE_GOAL_DRIVEN_TDD: "execute_goal_driven_tdd",
+            INTENT_APPLY_CODE_FIX: "apply_code_fix",
+        }
+
+    def _get_recommended_action_for_intent(self, intent: str) -> str:
+        return self.intent_to_recommended_action.get(intent, "")
 
     def _load_retry_rules(self, filepath: str) -> list:
         """Loads retry rules from a JSON file."""
@@ -94,7 +141,7 @@ class Planner:
         adjustments = {}
         
         # 1. Naming Convention Check (File Create/Rename)
-        if intent in ["FILE_CREATE", "FILE_MOVE", "FILE_COPY"]:
+        if intent in FILE_MUTATION_INTENTS:
             # Retrieve filename from potential parameter keys
             filename = parameters.get("filename") or parameters.get("destination_filename")
             if filename:
@@ -177,19 +224,15 @@ class Planner:
             
             # --- NEW: Entity Key Mapping ---
             # If the intent requires 'filename' but we have 'project_path', map it.
-            if intent == "CS_ANALYZE" and "project_path" in merged_entities and "filename" not in merged_entities:
+            if intent == INTENT_CS_ANALYZE and "project_path" in merged_entities and "filename" not in merged_entities:
                 merged_entities["filename"] = merged_entities["project_path"]
             
             # If the intent requires 'project_path' but we have 'filename', map it.
-            if intent == "CS_TEST_RUN" and "filename" in merged_entities and "project_path" not in merged_entities:
+            if intent == INTENT_CS_TEST_RUN and "filename" in merged_entities and "project_path" not in merged_entities:
                 merged_entities["project_path"] = merged_entities["filename"]
             
             # Default language to 'csharp' for project analysis intents if not specified
-            project_intents_requiring_lang = [
-                "MEASURE_COVERAGE", "ANALYZE_COVERAGE_GAPS", "GENERATE_COVERAGE_REPORT",
-                "ANALYZE_REFACTORING", "SUGGEST_REFACTORING"
-            ]
-            if intent in project_intents_requiring_lang and "language" not in merged_entities:
+            if intent in PROJECT_LANGUAGE_DEFAULT_INTENTS and "language" not in merged_entities:
                 merged_entities["language"] = {"value": "csharp", "confidence": 1.0}
             # -------------------------------
 
@@ -198,7 +241,7 @@ class Planner:
 
 
         # --- 2. Pre-planning checks and special cases ---
-        if intent == "DEFINITION":
+        if intent == INTENT_DEFINITION:
             self.log_manager.log_event("planner_definition_intent_bypass", {"session_id": context.get("session_id")}, level="DEBUG")
             return context
         
@@ -236,7 +279,7 @@ class Planner:
         if previous_action_result.get("status") == "error":
             # ONLY trigger healing if intent is same as failing task OR a generic RETRY intent
             last_failed_intent = context.get("history", [{}])[-1].get("analysis", {}).get("intent")
-            should_heal = intent == last_failed_intent or intent in ["RETRY", "GENERAL", "AGREE", "DISAGREE"]
+            should_heal = intent == last_failed_intent or intent in [INTENT_RETRY, INTENT_GENERAL, INTENT_AGREE, INTENT_DISAGREE]
             
             if should_heal:
                 # 1. Try specialized self-healing first
@@ -281,8 +324,8 @@ class Planner:
             return context
 
         action_method_name = self.intent_to_action_method.get(intent)
-        if intent == "FILE_DELETE":
-            action_method_name = self.intent_to_action_method.get("BACKUP_AND_DELETE", action_method_name)
+        if intent == INTENT_FILE_DELETE:
+            action_method_name = self.intent_to_action_method.get(INTENT_BACKUP_AND_DELETE, action_method_name)
         required_entities = self.action_executor.get_required_entities_for_intent(intent)
         
         plan_parameters = {}
@@ -322,7 +365,7 @@ class Planner:
         # -----------------------------------------------
 
         # --- NEW: Impact Scope Query Type and Target Recovery ---
-        if intent == "CS_IMPACT_SCOPE":
+        if intent == INTENT_CS_IMPACT_SCOPE:
             plan_parameters["query_type"] = "impact_scope_method"
             if "target_name" not in plan_parameters and "target_name" in entities:
                 val = entities["target_name"]
@@ -370,10 +413,14 @@ class Planner:
             return context
         if task_type == "COMPOUND_TASK":
             context["plan"]["parent_task"] = current_task["name"]
+
+        recommended_action = self._get_recommended_action_for_intent(intent)
+        if recommended_action:
+            context["plan"]["recommended_action"] = recommended_action
         
         # --- NEW: Impact Analysis Integration ---
         # If we are applying a fix or explicitly asking for impact scope, try to find impacted methods and suggest tests
-        if intent in ["APPLY_CODE_FIX", "CS_IMPACT_SCOPE"] and "output_path" in plan_parameters:
+        if intent in [INTENT_APPLY_CODE_FIX, INTENT_CS_IMPACT_SCOPE] and "output_path" in plan_parameters:
             self._refine_plan_with_impact_analysis(context, plan_parameters)
         # ----------------------------------------
 

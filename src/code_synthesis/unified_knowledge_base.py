@@ -9,6 +9,25 @@ from typing import List, Dict, Any, Optional
 from src.code_synthesis.method_store import MethodStore
 from src.autonomous_learning.structural_memory import StructuralMemory
 from src.code_synthesis.type_system import TypeSystem
+from src.utils.semantic_intents import (
+    INTENT_CALC,
+    INTENT_DATABASE_QUERY,
+    INTENT_DISPLAY,
+    INTENT_EXISTS,
+    INTENT_FETCH,
+    INTENT_FILE_IO,
+    INTENT_GENERAL,
+    INTENT_HTTP_REQUEST,
+    INTENT_JSON_DESERIALIZE,
+    INTENT_LINQ,
+    INTENT_PERSIST,
+    INTENT_RETURN,
+    INTENT_TRANSFORM,
+    ROLE_FETCH,
+    ROLE_PERSIST,
+    ROLE_READ,
+    ROLE_WRITE,
+)
 
 class UnifiedKnowledgeBase:
     """
@@ -18,17 +37,17 @@ class UnifiedKnowledgeBase:
     
     # 意図（Intent）と能力（Capability）の論理的整合性マップ
     INTENT_CAPABILITY_MAP = {
-        "FETCH": ["DATA_FETCH", "FETCH", "READ", "FILE_IO", "HTTP_REQUEST", "DATABASE_ACCESS", "DATABASE_QUERY", "JSON_DESERIALIZE"],
-        "PERSIST": ["DATA_PERSIST", "PERSIST", "WRITE", "FILE_IO", "DATABASE_ACCESS", "DATABASE_QUERY"],
-        "DATABASE_QUERY": ["DATABASE_ACCESS", "DATABASE_QUERY", "DATA_FETCH", "FETCH", "PERSIST"],
-        "HTTP_REQUEST": ["HTTP_REQUEST", "DATA_FETCH", "FETCH"],
-        "FILE_IO": ["FILE_IO", "READ", "WRITE", "PERSIST", "FETCH"],
-        "TRANSFORM": ["TRANSFORM", "TRANSFORMATION", "SERIALIZATION", "JSON_DESERIALIZE", "LINQ"],
-        "LINQ": ["LINQ", "TRANSFORM", "TRANSFORMATION"],
-        "DISPLAY": ["DISPLAY", "LOGGING", "USER_INTERFACE"],
-        "EXISTS": ["EXISTS", "FILE_IO"],
-        "CALC": ["CALCULATION", "CALC"],
-        "RETURN": ["RETURN"]
+        INTENT_FETCH: ["DATA_FETCH", INTENT_FETCH, "READ", INTENT_FILE_IO, INTENT_HTTP_REQUEST, "DATABASE_ACCESS", INTENT_DATABASE_QUERY, INTENT_JSON_DESERIALIZE],
+        INTENT_PERSIST: ["DATA_PERSIST", INTENT_PERSIST, "WRITE", INTENT_FILE_IO, "DATABASE_ACCESS", INTENT_DATABASE_QUERY],
+        INTENT_DATABASE_QUERY: ["DATABASE_ACCESS", INTENT_DATABASE_QUERY, "DATA_FETCH", INTENT_FETCH, INTENT_PERSIST],
+        INTENT_HTTP_REQUEST: [INTENT_HTTP_REQUEST, "DATA_FETCH", INTENT_FETCH],
+        INTENT_FILE_IO: [INTENT_FILE_IO, "READ", "WRITE", INTENT_PERSIST, INTENT_FETCH],
+        INTENT_TRANSFORM: [INTENT_TRANSFORM, "TRANSFORMATION", "SERIALIZATION", INTENT_JSON_DESERIALIZE, INTENT_LINQ],
+        INTENT_LINQ: [INTENT_LINQ, INTENT_TRANSFORM, "TRANSFORMATION"],
+        INTENT_DISPLAY: [INTENT_DISPLAY, "LOGGING", "USER_INTERFACE"],
+        INTENT_EXISTS: [INTENT_EXISTS, INTENT_FILE_IO],
+        INTENT_CALC: ["CALCULATION", INTENT_CALC],
+        INTENT_RETURN: [INTENT_RETURN]
     }
 
     def __init__(self, config_manager, method_store: MethodStore, structural_memory: StructuralMemory):
@@ -124,7 +143,7 @@ class UnifiedKnowledgeBase:
         pattern_candidates = []
         if intent and not exclude_patterns:
             # LINQ と CALC は定石パターンよりも個別のメソッド（および SemanticBinder）を優先すべき
-            if intent not in ["LINQ", "CALC"]:
+            if intent not in [INTENT_LINQ, INTENT_CALC]:
                 for p in self.patterns:
                     match = (p.get("intent") == intent or any(cap in (self.INTENT_CAPABILITY_MAP.get(intent, [])) for cap in p.get("capabilities", [])))
                     if match:
@@ -219,7 +238,7 @@ class UnifiedKnowledgeBase:
             is_internal = item.get('origin') == 'internal'
             m_role = item.get('role') or item.get('intent')
 
-            if intent and intent != "GENERAL" and allowed_caps:
+            if intent and intent != INTENT_GENERAL and allowed_caps:
                 if not item_caps:
                     # No keyword-based inference; require explicit role match if capabilities are missing.
                     if m_role not in allowed_caps:
@@ -230,7 +249,7 @@ class UnifiedKnowledgeBase:
             # --- 3. アーキテクチャ階層（Tier）優先 ---
             tier = item.get('tier', 3)
             tier_priority = 0
-            if intent in ["HTTP_REQUEST", "DATABASE_QUERY", "FILE_IO"]:
+            if intent in [INTENT_HTTP_REQUEST, INTENT_DATABASE_QUERY, INTENT_FILE_IO]:
                 if tier == 3: tier_priority = 3 
                 elif tier == 2: tier_priority = 2
                 else: tier_priority = 1
@@ -251,9 +270,9 @@ class UnifiedKnowledgeBase:
             role_priority = 0
             if item.get('role') == item.get('requested_role'): # ActionSynthesizer needs to pass this
                 role_priority = 5
-            elif item.get('role') in ["WRITE", "PERSIST"] and item.get('requested_role') == "WRITE":
+            elif item.get('role') in [ROLE_WRITE, ROLE_PERSIST] and item.get('requested_role') == ROLE_WRITE:
                 role_priority = 4
-            elif item.get('role') in ["READ", "FETCH"] and item.get('requested_role') == "READ":
+            elif item.get('role') in [ROLE_READ, ROLE_FETCH] and item.get('requested_role') == ROLE_READ:
                 role_priority = 4
 
             # --- 5. エンティティ一致 ---

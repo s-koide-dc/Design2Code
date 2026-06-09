@@ -19,10 +19,15 @@
     5. **修正方針の決定**: 
        - **統計的判断**: `RepairKnowledgeBase` の統計を参照し、過去に成功率が高かった方針を選択。
        - **ルールベース**: 統計がない場合は、事前定義された原因-方針マッピングを使用。
+    6. **分析サマリ固定化**: `target_file` / `line_number` / `root_cause` / `fix_direction` / 分岐条件の有無を `analysis_summary` として返し、後段の対話層が再推論せず利用できるようにします。
 
 ### 2.2. コンパイル失敗分析 (`analyze_compilation_failure`)
 - **Input**: MSBuild エラーリスト。
 - **Logic**: `CS1503`, `CS0029` 等のエラーコードから型不一致を検出し、`ToString()` 追加などの具体的な推奨案を生成します。
+
+### 2.3. 実行時失敗分析 (`analyze_runtime_failure`)
+- **Input**: 例外情報 (`type`, `message`)。
+- **Logic**: 例外型に応じて `AddFileCheck` / `AddJsonValidation` / `AddNetworkRetry` 等の推奨アクションへ写像します。
 
 ## 3. Dependencies
 - `RepairKnowledgeBase`, `models.TestFailure`

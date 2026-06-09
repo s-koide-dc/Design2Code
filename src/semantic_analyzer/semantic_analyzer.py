@@ -8,6 +8,21 @@ import sqlite3
 from typing import Optional, List, Dict
 
 from src.utils.text_parser import extract_urls
+from src.utils.action_intents import (
+    INTENT_BACKUP_AND_DELETE,
+    INTENT_CS_QUERY_ANALYSIS,
+    INTENT_CS_TEST_RUN,
+    INTENT_DOC_REFINE,
+    INTENT_EXECUTE_GOAL_DRIVEN_TDD,
+    INTENT_FILE_APPEND,
+    INTENT_FILE_COPY,
+    INTENT_FILE_CREATE,
+    INTENT_FILE_DELETE,
+    INTENT_FILE_MOVE,
+    INTENT_MANAGE_KNOWLEDGE,
+    INTENT_PROVIDE_CRITERIA,
+    INTENT_REVERSE_DICTIONARY_SEARCH,
+)
 class SemanticAnalyzer:
     def __init__(self, task_manager, knowledge_file_path=None, config_manager=None, morph_analyzer=None):
         self.task_manager = task_manager
@@ -155,7 +170,7 @@ class SemanticAnalyzer:
         # We REMOVE {dotted_name} from the automatic extraction to avoid matching code.
         single_fn_pattern = rf'(?:{fn_in_quotes}|(?:(?:名前は|ファイル名が|ファイル)\s*){dotted_name}|{fn_with_ext})'
 
-        if intent in ["FILE_MOVE", "FILE_COPY", "BACKUP_AND_DELETE"]:
+        if intent in [INTENT_FILE_MOVE, INTENT_FILE_COPY, INTENT_BACKUP_AND_DELETE]:
             # Source and Destination (e.g., "A を B に移動")
             from src.utils.context_utils import normalize_path
             parts = re.split(r'を|から', filename_search_text)
@@ -181,7 +196,7 @@ class SemanticAnalyzer:
                         if val: extracted["destination_filename"] = {"value": normalize_path(val), "confidence": base_conf}
                     except IndexError: pass
 
-        if not extracted.get("filename") and not extracted.get("source_filename") and intent not in ["FILE_MOVE", "FILE_COPY", "BACKUP_AND_DELETE"]:
+        if not extracted.get("filename") and not extracted.get("source_filename") and intent not in [INTENT_FILE_MOVE, INTENT_FILE_COPY, INTENT_BACKUP_AND_DELETE]:
             from src.utils.context_utils import normalize_path
             m = re.search(single_fn_pattern, filename_search_text, re.UNICODE)
             if m:
@@ -204,7 +219,7 @@ class SemanticAnalyzer:
         explicit_content = re.search(r'(?:中身|内容)は\s*[『"「“]([^』"」”]+)[』"」”]', text)
         if explicit_content:
              extracted["content"] = {"value": explicit_content.group(1), "confidence": 0.9}
-        elif intent in ["FILE_CREATE", "FILE_APPEND"]:
+        elif intent in [INTENT_FILE_CREATE, INTENT_FILE_APPEND]:
             # Heuristic: If we already have a filename, and there are other quoted strings, one of them is content.
             all_quoted = re.findall(r'[「『"“”]([^」』"“”]+)[」』"“”]', text)
             filename_val = extracted.get("filename", {}).get("value")
@@ -236,7 +251,7 @@ class SemanticAnalyzer:
                 awaiting = context.get("analysis", {}).get("awaiting_entity")
                 if awaiting in ["filename", "source_filename", "destination_filename", "project_path"]:
                     extracted[awaiting] = {"value": val, "confidence": 1.0}
-                elif task_name == "FILE_MOVE":
+                elif task_name == INTENT_FILE_MOVE:
                     t_params = current_task.get("parameters", {})
                     if t_params.get("source_filename"):
                         extracted["destination_filename"] = {"value": val, "confidence": base_conf}
@@ -247,7 +262,7 @@ class SemanticAnalyzer:
 
         # 6. Anaphora
         if not (extracted.get("filename") or extracted.get("source_filename")):
-            if re.search(r'(それ|そのファイル|さっきの|例のファイル)', text) or intent == "FILE_DELETE":
+            if re.search(r'(それ|そのファイル|さっきの|例のファイル)', text) or intent == INTENT_FILE_DELETE:
                 res = self._resolve_from_history(history, "filename") or self._resolve_from_history(history, "source_filename")
                 if res: extracted["filename"] = res
 
@@ -255,7 +270,7 @@ class SemanticAnalyzer:
         lang_match = re.search(r'\b(python|csharp|javascript)\b', text, re.IGNORECASE)
         if lang_match: extracted["language"] = {"value": lang_match.group(1).lower().replace("c#", "csharp"), "confidence": base_conf}
         
-        if intent == "CS_TEST_RUN" and not extracted.get("project_path"):
+        if intent == INTENT_CS_TEST_RUN and not extracted.get("project_path"):
             fn = extracted.get("filename")
             if fn:
                 extracted["project_path"] = fn
@@ -268,7 +283,7 @@ class SemanticAnalyzer:
         if cmd_match: extracted["command"] = {"value": cmd_match.group(1), "confidence": base_conf}
 
         # 8. Specific Intent Extractions (CS_QUERY_ANALYSIS, MANAGE_KNOWLEDGE, etc.)
-        if intent == "CS_QUERY_ANALYSIS":
+        if intent == INTENT_CS_QUERY_ANALYSIS:
             query_match = re.search(r'(.+?)(?:の)?(?:要約|詳細|呼び出し元|が呼び出し)', text)
             if query_match:
                 target = query_match.group(1).strip()
@@ -278,7 +293,7 @@ class SemanticAnalyzer:
                 elif "呼び出し元" in text: extracted["query_type"] = {"value": "called_by", "confidence": 1.0}
                 elif "呼び出し" in text: extracted["query_type"] = {"value": "method_calls", "confidence": 1.0}
 
-        if intent == "MANAGE_KNOWLEDGE":
+        if intent == INTENT_MANAGE_KNOWLEDGE:
             if re.search(r'(一覧|表示|見せて|状況|データ)', text):
                 extracted["operation"] = {"value": "list", "confidence": 1.0}
             search_match = re.search(r'(.+?)(?:に関連する|に関係する|の)?コード(?:を)?(?:検索|探して|見つけて)', text)
@@ -286,18 +301,18 @@ class SemanticAnalyzer:
                 extracted["operation"] = {"value": "search_code", "confidence": 1.0}
                 extracted["query"] = {"value": search_match.group(1).strip(), "confidence": 0.9}
 
-        if intent == "DOC_REFINE" and not extracted.get("filename"):
+        if intent == INTENT_DOC_REFINE and not extracted.get("filename"):
             doc_match = re.search(r'([\w\./\\]+design\.md)', text)
             if doc_match:
                 from src.utils.context_utils import normalize_path
                 extracted["filename"] = {"value": normalize_path(doc_match.group(1)), "confidence": 1.0}
 
-        if intent == "REVERSE_DICTIONARY_SEARCH":
+        if intent == INTENT_REVERSE_DICTIONARY_SEARCH:
             m = re.search(r'(.+?)(?:という|の)?意味(?:を)?持つ(?:言葉|単語|記号)', text)
             if not m: m = re.search(r'(.+?)(?:ような|といった|な)(?:言葉|単語|記号)', text)
             if m: extracted["query"] = {"value": m.group(1).strip(), "confidence": 1.0}
 
-        if intent == "EXECUTE_GOAL_DRIVEN_TDD" or intent == "PROVIDE_CRITERIA":
+        if intent == INTENT_EXECUTE_GOAL_DRIVEN_TDD or intent == INTENT_PROVIDE_CRITERIA:
             ac_match = re.search(r'受け入れ条件は[、\s]*(.+)', text)
             if ac_match: extracted["acceptance_criteria"] = {"value": [ac_match.group(1).strip()], "confidence": 1.0}
 

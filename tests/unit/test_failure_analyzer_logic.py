@@ -213,5 +213,24 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
         result_success = self.analyzer._evaluate_complex_condition(condition, 20, test_failure=failure_success)
         self.assertTrue(result_success['is_satisfied']) # 20 >= 18 is True
 
+    def test_analyze_test_failure_adds_analysis_summary(self):
+        from src.advanced_tdd.models import TestFailure
+        failure = TestFailure(
+            test_file="CalculatorTests.cs",
+            test_method="CalculatorTests.Add_ShouldReturnSum",
+            error_type="assertion_failure",
+            error_message="Expected: 5, Actual: 0",
+            stack_trace="   at MyApp.Calculator.Add(Int32 a, Int32 b) in C:\\MyApp\\Calculator.cs:line 12"
+        )
+
+        result = self.analyzer.analyze_test_failure(failure)
+
+        self.assertEqual(result["status"], "success")
+        summary = result["analysis_summary"]
+        self.assertEqual(summary["test_method"], "CalculatorTests.Add_ShouldReturnSum")
+        self.assertEqual(summary["root_cause"], "method_returns_default_value")
+        self.assertEqual(summary["target_file"], "C:\\MyApp\\Calculator.cs")
+        self.assertEqual(summary["line_number"], 12)
+
 if __name__ == '__main__':
     unittest.main()

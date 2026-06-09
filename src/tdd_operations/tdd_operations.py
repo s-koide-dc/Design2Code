@@ -17,6 +17,21 @@ class TDDOperations:
         self.ae = action_executor
         self.logger = logging.getLogger(__name__)
 
+    def _relativize_path(self, path_text: str) -> str:
+        if not path_text:
+            return ""
+        try:
+            if os.path.isabs(path_text):
+                return os.path.relpath(path_text, self.ae.workspace_root)
+        except ValueError:
+            return path_text
+        return path_text
+
+    def _build_dialogue_metadata(self, phase: str, **kwargs) -> Dict[str, Any]:
+        metadata = {"phase": phase}
+        metadata.update({k: v for k, v in kwargs.items() if v not in [None, "", [], {}]})
+        return metadata
+
     def analyze_test_failure(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """テスト失敗を分析して修正提案を生成"""
         parameters = context.get("plan", {}).get("parameters", {})
@@ -160,10 +175,26 @@ class TDDOperations:
             debug_info = f" (Failure count: {len(error_details)})"
             if all_analyses:
                  debug_info += f" (Analyses: {len(all_analyses)}, first status: {all_analyses[0].get('status')})"
+
+            primary_failure = error_details[0] if error_details else {}
+            primary_target = self._relativize_path(primary_failure.get("file", ""))
             
             context["action_result"] = {
                 "status": "error",
-                "message": f"{len(error_details)}件の失敗を分析しましたが、修正案を生成できませんでした。{debug_info}"
+                "message": f"{len(error_details)}件の失敗を分析しましたが、修正案を生成できませんでした。{debug_info}",
+                "dialogue_metadata": self._build_dialogue_metadata(
+                    "failure_analysis",
+                    failure_count=len(error_details),
+                    suggestion_count=0,
+                    primary_error_type=primary_failure.get("error_type") or primary_failure.get("message", ""),
+                    primary_target_file=primary_target,
+                    next_action="inspect_failure_context"
+                ),
+                "failure_summary": {
+                    "failure_count": len(error_details),
+                    "suggestion_count": 0,
+                    "primary_target_file": primary_target
+                }
             }
             return context
 
@@ -183,6 +214,31 @@ class TDDOperations:
         if len(all_suggestions) > 5:
             message_parts.append(f"...他 {len(all_suggestions) - 5} 件の提案があります。")
 
+        primary_target_file = ""
+        primary_conversation_hint = ""
+        primary_reason = ""
+        primary_recommended_action = ""
+        primary_target_summary = ""
+        if all_suggestions:
+            primary_target_file = self._relativize_path(all_suggestions[0].get("target_file", ""))
+            primary_conversation_hint = all_suggestions[0].get("conversation_hint", "")
+            primary_reason = all_suggestions[0].get("reason", "")
+            primary_recommended_action = all_suggestions[0].get("recommended_action", "")
+            primary_target_summary = all_suggestions[0].get("target_summary", "")
+        if not primary_target_file:
+            for failure in error_details:
+                primary_target_file = self._relativize_path(failure.get("file", ""))
+                if primary_target_file:
+                    break
+
+        failed_test_names = [failure.get("method", "") for failure in error_details if failure.get("method")]
+        primary_error_type = ""
+        if all_analyses:
+            summary = all_analyses[0].get("analysis_summary", {})
+            primary_error_type = summary.get("error_type") or all_analyses[0].get("root_cause", "")
+            if not primary_target_file:
+                primary_target_file = self._relativize_path(summary.get("target_file", ""))
+
         context["action_result"] = {
             "status": "success",
             "message": "\n".join(message_parts),
@@ -190,6 +246,30 @@ class TDDOperations:
                 "status": "success",
                 "analyses": all_analyses,
                 "fix_suggestions": all_suggestions
+            },
+            "dialogue_metadata": self._build_dialogue_metadata(
+                "failure_analysis",
+                failure_count=len(error_details),
+                suggestion_count=len(all_suggestions),
+                failed_test_names=failed_test_names[:3],
+                primary_target_file=primary_target_file,
+                primary_error_type=primary_error_type,
+                primary_conversation_hint=primary_conversation_hint,
+                primary_reason=primary_reason,
+                primary_recommended_action=primary_recommended_action,
+                primary_target_summary=primary_target_summary,
+                next_action="apply_code_fix"
+            ),
+            "failure_summary": {
+                "failure_count": len(error_details),
+                "suggestion_count": len(all_suggestions),
+                "failed_test_names": failed_test_names,
+                "primary_target_file": primary_target_file,
+                "primary_error_type": primary_error_type,
+                "primary_conversation_hint": primary_conversation_hint,
+                "primary_reason": primary_reason,
+                "primary_recommended_action": primary_recommended_action,
+                "primary_target_summary": primary_target_summary
             }
         }
         return context
@@ -222,10 +302,11 @@ class TDDOperations:
                 cycle_results = result['tdd_cycle_results']
                 artifacts = result['generated_artifacts']
                 metrics = result['quality_metrics']
+                goal_description = goal_data['description']
                 
                 message_parts = [
                     f"ゴール駆動型TDDが完了しました。",
-                    f"目標: {goal_data['description']}",
+                    f"目標: {goal_description}",
                     f"実行イテレーション: {cycle_results['total_iterations']}回",
                     f"成功率: {cycle_results['success_rate']:.1%}",
                     f"実行時間: {cycle_results['total_time_seconds']:.1f}秒"
@@ -255,19 +336,47 @@ class TDDOperations:
                 context["action_result"] = {
                     "status": "success",
                     "message": "\n".join(message_parts),
-                    "tdd_result": result
+                    "tdd_result": result,
+                    "target_name": goal_description,
+                    "dialogue_metadata": self._build_dialogue_metadata(
+                        "goal_driven_tdd",
+                        goal_description=goal_description,
+                        iteration_count=cycle_results.get("total_iterations"),
+                        success_rate=cycle_results.get("success_rate"),
+                        generated_code_count=code_count,
+                        generated_test_count=test_count,
+                        next_action="review_generated_artifacts"
+                    ),
+                    "tdd_summary": {
+                        "goal_description": goal_description,
+                        "iteration_count": cycle_results.get("total_iterations"),
+                        "success_rate": cycle_results.get("success_rate"),
+                        "generated_code_count": code_count,
+                        "generated_test_count": test_count
+                    }
                 }
             else:
                 context["action_result"] = {
                     "status": "error",
-                    "message": f"ゴール駆動型TDD実行に失敗しました: {result.get('error', '不明なエラー')}"
+                    "message": f"ゴール駆動型TDD実行に失敗しました: {result.get('error', '不明なエラー')}",
+                    "target_name": goal_data['description'],
+                    "dialogue_metadata": self._build_dialogue_metadata(
+                        "goal_driven_tdd",
+                        goal_description=goal_data['description'],
+                        next_action="inspect_tdd_error"
+                    )
                 }
                 
         except Exception as e:
             self.ae.log_manager.log_event("tdd_execution_error", {"message": f"ゴール駆動型TDD実行中にエラーが発生: {e}"}, level="ERROR")
             context["action_result"] = {
                 "status": "error",
-                "message": f"ゴール駆動型TDD実行中にエラーが発生しました: {str(e)}"
+                "message": f"ゴール駆動型TDD実行中にエラーが発生しました: {str(e)}",
+                "dialogue_metadata": self._build_dialogue_metadata(
+                    "goal_driven_tdd",
+                    goal_description=goal_data.get('description', ''),
+                    next_action="inspect_tdd_error"
+                )
             }
         
         return context
@@ -485,22 +594,52 @@ class TDDOperations:
                 should_rollback = False
 
             if applied_count > 0 and (all_valid or not should_rollback):
+                modified_files_list = sorted(self._relativize_path(path) for path in files_modified)
                 context["action_result"] = {
                     "status": "success",
                     "message": f"一括コード修正を完了しました。\n適用成功: {applied_count}件, スキップ: {failed_count}件\n修正ファイル: {', '.join(files_modified)}",
-                    "applied_fixes": {"count": applied_count, "files": list(files_modified)}
+                    "applied_fixes": {"count": applied_count, "files": list(files_modified)},
+                    "generated_files": modified_files_list,
+                    "target_name": modified_files_list[0] if modified_files_list else None,
+                    "dialogue_metadata": self._build_dialogue_metadata(
+                        "code_fix",
+                        applied_count=applied_count,
+                        skipped_count=failed_count,
+                        modified_files=modified_files_list,
+                        reason="修正提案をコードへ反映し、構文検証を通過しました。",
+                        recommended_action="run_related_tests",
+                        target_summary=modified_files_list[0] if modified_files_list else "",
+                        next_action="run_related_tests"
+                    )
                 }
             elif should_rollback:
                 for t_path, b_path in backups.items():
                     shutil.copy2(b_path, t_path)
                 context["action_result"] = {
                     "status": "error",
-                    "message": f"修正後の検証でエラーが発生したためロールバックしました。\n詳細: {error_msg}"
+                    "message": f"修正後の検証でエラーが発生したためロールバックしました。\n詳細: {error_msg}",
+                    "dialogue_metadata": self._build_dialogue_metadata(
+                        "code_fix",
+                        applied_count=applied_count,
+                        skipped_count=failed_count,
+                        reason="修正後の検証で不整合が見つかったため、変更を巻き戻しました。",
+                        recommended_action="inspect_validation_error",
+                        next_action="inspect_validation_error"
+                    )
                 }
         except Exception as e:
             for t_path, b_path in backups.items():
                 if os.path.exists(b_path): shutil.copy2(b_path, t_path)
-            context["action_result"] = {"status": "error", "message": f"一括修正適用中に予期せぬエラーが発生しました: {e}"}
+            context["action_result"] = {
+                "status": "error",
+                "message": f"一括修正適用中に予期せぬエラーが発生しました: {e}",
+                "dialogue_metadata": self._build_dialogue_metadata(
+                    "code_fix",
+                    reason="修正適用処理そのものが失敗しました。",
+                    recommended_action="inspect_fix_application_error",
+                    next_action="inspect_fix_application_error"
+                )
+            }
         
         return context
     

@@ -37,3 +37,6 @@
   - `text_parser`
   - `type_system`
 - **External**: なし
+
+## 4. Review Notes
+- 2026-06-04: `DATABASE_QUERY` / `FETCH` / `PERSIST` / `HTTP_REQUEST` / `EXISTS` と READ/WRITE/PERSIST/FETCH/TRANSFORM の高頻度比較を `src.utils.semantic_intents` の共通語彙へ寄せた。

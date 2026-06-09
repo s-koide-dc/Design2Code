@@ -8,6 +8,7 @@
   - `ai_project_map.json` を同期する。
 - `scripts/validate_project_consistency.py`
   - モジュール/設計書/依存関係の整合性を検証する。
+  - `resources/` 配下の主要 JSON 資産について、intent / capability / role 語彙が共通定数境界に収まっているかも検証する。
 
 ## 1.1 stdout/stderr 契約
 

@@ -4,6 +4,23 @@ import shutil
 import sys
 import json
 from src.pipeline_core.pipeline_core import Pipeline
+from src.safety.safety_policy_validator import RiskLevel, SafetyCheckStatus, SafetyCheckResult
+from src.utils.confirmation_response import (
+    INTENT_AGREE,
+    INTENT_CLARIFICATION_RESPONSE,
+    INTENT_DISAGREE,
+    STATE_AGREED,
+    STATE_DISAGREED,
+)
+from src.utils.control_intents import (
+    INTENT_BYE,
+    INTENT_CAPABILITY,
+    INTENT_DEFINITION,
+    INTENT_GREETING,
+    INTENT_PERSONAL_Q,
+    INTENT_TIME,
+    INTENT_WEATHER,
+)
 
 class TestConversationScenarios(unittest.TestCase):
     @classmethod
@@ -33,27 +50,27 @@ class TestConversationScenarios(unittest.TestCase):
                     {
                         "name": "GREETING",
                         "patterns": [ {"pattern": "^(?:こんにちは|おはよ[うう]|こんばん[はわ]|ハロー|うっす)[！!？?]*$", "confidence_score": 0.95} ],
-                        "examples": ["おはよう", "ハロー", "こんにちは"]
+                        "examples": ["おはよう", "ハロー", "こんにちは", "やあ"]
                     },
                     {
                         "name": "BYE",
                         "patterns": [ {"pattern": "^(?:さようなら|バイバイ|またね|じゃあね)[！!？?]*$", "confidence_score": 0.95} ],
-                        "examples": ["バイバイ", "またね"]
+                        "examples": ["バイバイ", "またね", "じゃあね", "さようなら"]
                     },
                     {
                         "name": "AGREE",
                         "patterns": [ {"pattern": "^(?:はい|お願いします|了解|りょ|OK|おk)$", "confidence_score": 0.9} ],
-                        "examples": ["そうですね", "OK", "はい"]
+                        "examples": ["そうですね", "OK", "はい", "了解"]
                     },
                     {
                         "name": "DISAGREE",
                         "patterns": [ {"pattern": "^(?:いいえ|違います|ノー|ダメ|拒否)$", "confidence_score": 0.9} ],
-                        "examples": ["違います", "ノー", "いいえ"]
+                        "examples": ["違います", "ノー", "いいえ", "キャンセル"]
                     },
                     {
-                        "name": "TIME",
+                        "name": INTENT_TIME,
                         "patterns": [ {"pattern": "今何時？", "confidence_score": 0.9} ],
-                        "examples": ["時間", "時計", "今何時？"]
+                        "examples": ["時間", "時計", "今何時？", "時間教えて", "今の時間"]
                     },
                     {
                         "name": "FILE_CREATE",
@@ -70,7 +87,55 @@ class TestConversationScenarios(unittest.TestCase):
                             {"pattern": "元気？", "confidence_score": 0.9},
                             {"pattern": "調子はどう", "confidence_score": 0.9}
                         ],
-                        "examples": ["元気ですか", "調子いい？"]
+                        "examples": ["元気ですか", "調子いい？", "調子はどう？"]
+                    },
+                    {
+                        "name": "EMOTIVE",
+                        "patterns": [
+                            {"pattern": "疲れた", "confidence_score": 0.9},
+                            {"pattern": "しんどい", "confidence_score": 0.88}
+                        ],
+                        "examples": ["疲れたな", "しんどい", "へとへとです"]
+                    },
+                    {
+                        "name": "SMALLTALK",
+                        "patterns": [
+                            {"pattern": "雑談", "confidence_score": 0.9},
+                            {"pattern": "最近どう", "confidence_score": 0.88}
+                        ],
+                        "examples": ["雑談しよう", "最近どう？", "ちょっと話そう"]
+                    },
+                    {
+                        "name": "FEEDBACK",
+                        "patterns": [
+                            {"pattern": "ありがとう", "confidence_score": 0.95},
+                            {"pattern": "助かった", "confidence_score": 0.9}
+                        ],
+                        "examples": ["ありがとう", "助かったよ", "いい感じです"]
+                    },
+                    {
+                        "name": "WEATHER",
+                        "patterns": [
+                            {"pattern": "天気", "confidence_score": 0.9},
+                            {"pattern": "気温", "confidence_score": 0.85}
+                        ],
+                        "examples": ["今日の天気は？", "天気を教えて", "今日の気温は？"]
+                    },
+                    {
+                        "name": "CAPABILITY",
+                        "patterns": [
+                            {"pattern": "何ができる", "confidence_score": 0.95},
+                            {"pattern": "できること", "confidence_score": 0.95}
+                        ],
+                        "examples": ["何ができる？", "できることを教えて", "何を手伝える？"]
+                    },
+                    {
+                        "name": "DEFINITION",
+                        "patterns": [
+                            {"pattern": ".+とは(?:何|なに|なん|何か|なんだ)", "confidence_score": 0.95},
+                            {"pattern": ".+(?:の)?定義", "confidence_score": 0.9}
+                        ],
+                        "examples": ["AIとは何？", "クラスとは何？", "形態素解析の定義を教えて"]
                     },
                     {
                         "name": "FILE_READ",
@@ -114,6 +179,30 @@ class TestConversationScenarios(unittest.TestCase):
                             {"pattern": "実行", "confidence_score": 0.9}
                         ],
                         "examples": ["lsを実行して", "pwdコマンドを実行", "コマンドを実行して"]
+                    },
+                    {
+                        "name": "EXECUTE_GOAL_DRIVEN_TDD",
+                        "patterns": [
+                            {"pattern": "TDDを実行", "confidence_score": 0.99},
+                            {"pattern": "TDDで実装", "confidence_score": 0.99}
+                        ],
+                        "examples": ["TDDを実行して", "注文割引ロジックをTDDで実装して"]
+                    },
+                    {
+                        "name": "ANALYZE_TEST_FAILURE",
+                        "patterns": [
+                            {"pattern": "失敗テストを分析", "confidence_score": 0.99},
+                            {"pattern": "テスト失敗を分析", "confidence_score": 0.99}
+                        ],
+                        "examples": ["失敗テストを分析して", "テスト失敗を分析して"]
+                    },
+                    {
+                        "name": "APPLY_CODE_FIX",
+                        "patterns": [
+                            {"pattern": "修正案を適用", "confidence_score": 0.99},
+                            {"pattern": "コード修正を適用", "confidence_score": 0.99}
+                        ],
+                        "examples": ["修正案を適用して", "コード修正を適用して"]
                     }
                 ]
             }
@@ -297,18 +386,68 @@ class TestConversationScenarios(unittest.TestCase):
                         "filename": "解析対象のC#ファイル名を教えていただけますか？"
                     }
                 },
-                "CLARIFICATION_RESPONSE": {
-                    "states": ["INIT", "AGREED", "DISAGREED", "COMPLETED"],
+                "EXECUTE_GOAL_DRIVEN_TDD": {
+                    "states": ["INIT", "AWAITING_CRITERIA", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+                    "required_entities": ["goal_description", "acceptance_criteria"],
+                    "transitions": {
+                        "INIT": [
+                            {
+                                "condition": {
+                                    "type": "all_of",
+                                    "predicates": [
+                                        { "type": "entity_exists", "key": "goal_description" },
+                                        { "type": "entity_exists", "key": "acceptance_criteria" }
+                                    ]
+                                },
+                                "next_state": "READY_FOR_EXECUTION"
+                            },
+                            {
+                                "condition": { "type": "entity_exists", "key": "goal_description" },
+                                "next_state": "AWAITING_CRITERIA"
+                            }
+                        ],
+                        "AWAITING_CRITERIA": [
+                            {
+                                "condition": { "type": "entity_exists", "key": "acceptance_criteria" },
+                                "next_state": "READY_FOR_EXECUTION"
+                            }
+                        ]
+                    },
+                    "clarification_messages": {
+                        "goal_description": "TDDで実装したい内容を教えていただけますか？",
+                        "acceptance_criteria": "受け入れ条件を教えていただけますか？"
+                    }
+                },
+                "ANALYZE_TEST_FAILURE": {
+                    "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+                    "required_entities": [],
+                    "transitions": {
+                        "INIT": [
+                            { "condition": { "type": "always_true" }, "next_state": "READY_FOR_EXECUTION" }
+                        ]
+                    }
+                },
+                "APPLY_CODE_FIX": {
+                    "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+                    "required_entities": [],
+                    "transitions": {
+                        "INIT": [
+                            { "condition": { "type": "always_true" }, "next_state": "READY_FOR_EXECUTION" }
+                        ]
+                    }
+                },
+                INTENT_CLARIFICATION_RESPONSE: {
+                    "states": ["INIT", STATE_AGREED, STATE_DISAGREED, "COMPLETED"],
                     "required_entities": ["user_response"],
                     "transitions": {
                         "INIT": [
                             {
-                                "condition": { "type": "entity_value_is", "key": "user_response", "value": "AGREE" },
-                                "next_state": "AGREED"
+                                "condition": { "type": "entity_value_is", "key": "user_response", "value": INTENT_AGREE },
+                                "next_state": STATE_AGREED
                             },
                             {
-                                "condition": { "type": "entity_value_is", "key": "user_response", "value": "DISAGREE" },
-                                "next_state": "DISAGREED"
+                                "condition": { "type": "entity_value_is", "key": "user_response", "value": INTENT_DISAGREE },
+                                "next_state": STATE_DISAGREED
                             }
                         ]
                     }
@@ -409,6 +548,187 @@ class TestConversationScenarios(unittest.TestCase):
             if "check_file" in step:
                 file_path = os.path.join(self.test_ws, step["check_file"])
                 self.assertTrue(os.path.exists(file_path), f"File {step['check_file']} should exist.")
+
+    def _run_tdd_interruption_conversation_flow(
+        self,
+        first_user_input,
+        first_intent,
+        first_entities,
+        expected_confirmation_text,
+        expected_recommended_action,
+        approved_result,
+        expected_final_text,
+        interruption_input="今何時？",
+        interruption_intent=INTENT_TIME,
+        interruption_entities=None,
+        approval_input="はい"
+    ):
+        original_detect = self.pipeline.intent_detector.detect
+        original_analyze = self.pipeline.semantic_analyzer.analyze
+        original_validate = self.pipeline.planner.safety_validator.validate_action
+        original_execute = self.pipeline.action_executor.execute
+        session_id = "default_session"
+
+        def detect_side_effect(context):
+            if context["original_text"] == approval_input:
+                context["analysis"] = {
+                    "intent": INTENT_AGREE,
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            elif context["original_text"] == interruption_input:
+                context["analysis"] = {
+                    "intent": interruption_intent,
+                    "intent_confidence": 0.99,
+                    "entities": interruption_entities or {}
+                }
+            else:
+                context["analysis"] = {
+                    "intent": first_intent,
+                    "intent_confidence": 0.99,
+                    "entities": dict(first_entities)
+                }
+            return context
+
+        def validate_side_effect(action_method_name, plan_parameters, intent):
+            if intent == first_intent:
+                return SafetyCheckResult(
+                    status=SafetyCheckStatus.OK,
+                    risk_level=RiskLevel.HIGH,
+                    message="承認が必要です。"
+                )
+            return original_validate(action_method_name, plan_parameters, intent)
+
+        def execute_side_effect(context):
+            return {
+                **context,
+                "action_result": dict(approved_result)
+            }
+
+        self.pipeline.intent_detector.detect = detect_side_effect
+        self.pipeline.semantic_analyzer.analyze = lambda context: context
+        self.pipeline.planner.safety_validator.validate_action = validate_side_effect
+        self.pipeline.action_executor.execute = execute_side_effect
+
+        try:
+            first_result = self.pipeline.run(first_user_input)
+            self.assertTrue(first_result.get("clarification_needed", False))
+            self.assertEqual(first_result["task"]["recommended_action"], expected_recommended_action)
+            self.assertEqual(first_result["plan"]["recommended_action"], expected_recommended_action)
+            self.assertIn(expected_confirmation_text, first_result.get("response", {}).get("text", ""))
+
+            interruption_result = self.pipeline.run(interruption_input)
+            self.assertTrue(interruption_result.get("clarification_needed", False))
+            self.assertIn(expected_confirmation_text, interruption_result.get("response", {}).get("text", ""))
+            self.assertEqual(
+                self.pipeline.task_manager.active_tasks[session_id]["recommended_action"],
+                expected_recommended_action
+            )
+
+            approval_result = self.pipeline.run(approval_input)
+            self.assertFalse(bool(approval_result.get("clarification_needed", False)))
+            self.assertEqual(approval_result["plan"]["recommended_action"], expected_recommended_action)
+            self.assertIn(expected_final_text, approval_result.get("response", {}).get("text", ""))
+        finally:
+            self.pipeline.intent_detector.detect = original_detect
+            self.pipeline.semantic_analyzer.analyze = original_analyze
+            self.pipeline.planner.safety_validator.validate_action = original_validate
+            self.pipeline.action_executor.execute = original_execute
+            self.pipeline.task_manager.reset_task(session_id)
+            self.pipeline.context_manager.clear_pending_confirmation_plan(session_id)
+
+    def _run_tdd_cancel_then_switch_conversation_flow(
+        self,
+        first_user_input,
+        first_intent,
+        first_entities,
+        expected_confirmation_text,
+        expected_recommended_action,
+        switch_filename="resume.txt",
+        switch_content="ok",
+        reject_input="いいえ"
+    ):
+        original_detect = self.pipeline.intent_detector.detect
+        original_analyze = self.pipeline.semantic_analyzer.analyze
+        original_validate = self.pipeline.planner.safety_validator.validate_action
+        session_id = "default_session"
+
+        def detect_side_effect(context):
+            original_text = context["original_text"]
+            if original_text == reject_input:
+                context["analysis"] = {
+                    "intent": INTENT_DISAGREE,
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            elif original_text == "ファイルを作って":
+                context["analysis"] = {
+                    "intent": "FILE_CREATE",
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            elif original_text == switch_filename:
+                context["analysis"] = {
+                    "intent": "FILE_CREATE",
+                    "intent_confidence": 0.99,
+                    "entities": {"filename": {"value": switch_filename, "confidence": 0.99}}
+                }
+            elif original_text == f"内容は「{switch_content}」です":
+                context["analysis"] = {
+                    "intent": "PROVIDE_CONTENT",
+                    "intent_confidence": 0.99,
+                    "entities": {"content": {"value": switch_content, "confidence": 0.99}}
+                }
+            else:
+                context["analysis"] = {
+                    "intent": first_intent,
+                    "intent_confidence": 0.99,
+                    "entities": dict(first_entities)
+                }
+            return context
+
+        def validate_side_effect(action_method_name, plan_parameters, intent):
+            if intent == first_intent:
+                return SafetyCheckResult(
+                    status=SafetyCheckStatus.OK,
+                    risk_level=RiskLevel.HIGH,
+                    message="承認が必要です。"
+                )
+            return original_validate(action_method_name, plan_parameters, intent)
+
+        self.pipeline.intent_detector.detect = detect_side_effect
+        self.pipeline.semantic_analyzer.analyze = lambda context: context
+        self.pipeline.planner.safety_validator.validate_action = validate_side_effect
+
+        try:
+            first_result = self.pipeline.run(first_user_input)
+            self.assertTrue(first_result.get("clarification_needed", False))
+            self.assertEqual(first_result["task"]["recommended_action"], expected_recommended_action)
+            self.assertIn(expected_confirmation_text, first_result.get("response", {}).get("text", ""))
+
+            reject_result = self.pipeline.run(reject_input)
+            self.assertIn("キャンセル", reject_result.get("response", {}).get("text", ""))
+            self.assertIsNone(self.pipeline.context_manager.get_pending_confirmation_plan(session_id))
+            self.assertNotIn(session_id, self.pipeline.task_manager.active_tasks)
+
+            new_task_result = self.pipeline.run("ファイルを作って")
+            self.assertTrue(new_task_result.get("clarification_needed", False))
+            self.assertIn("ファイル名を教えていただけますか？", new_task_result.get("response", {}).get("text", ""))
+
+            filename_result = self.pipeline.run(switch_filename)
+            self.assertTrue(filename_result.get("clarification_needed", False))
+            self.assertIn("ファイルの内容を教えていただけますか？", filename_result.get("response", {}).get("text", ""))
+
+            final_result = self.pipeline.run(f"内容は「{switch_content}」です")
+            self.assertFalse(final_result.get("clarification_needed", False))
+            self.assertIn("作成しました", final_result.get("response", {}).get("text", ""))
+            self.assertEqual(final_result["task"]["name"], "FILE_CREATE")
+        finally:
+            self.pipeline.intent_detector.detect = original_detect
+            self.pipeline.semantic_analyzer.analyze = original_analyze
+            self.pipeline.planner.safety_validator.validate_action = original_validate
+            self.pipeline.task_manager.reset_task(session_id)
+            self.pipeline.context_manager.clear_pending_confirmation_plan(session_id)
 
     def test_scenario_1_slot_filling(self):
         """
@@ -541,6 +861,575 @@ class TestConversationScenarios(unittest.TestCase):
         # Verify: destination file exists and source file is deleted
         self.assertTrue(os.path.exists(os.path.join(self.test_ws, "compound_dest.txt")), "Destination file should exist.")
         self.assertFalse(os.path.exists(os.path.join(self.test_ws, "compound_src.txt")), "Source file should be deleted.")
+
+    def test_scenario_10_tdd_interruption_and_resume(self):
+        """Scenario 10: Goal-driven TDD confirmation survives conversational interruption."""
+        self._run_tdd_interruption_conversation_flow(
+            first_user_input="TDDを実行して",
+            first_intent="EXECUTE_GOAL_DRIVEN_TDD",
+            first_entities={
+                "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.99},
+                "acceptance_criteria": {"value": "合計金額に応じて割引率が変わる", "confidence": 0.99}
+            },
+            expected_confirmation_text="目標駆動TDDの実行を行います。",
+            expected_recommended_action="execute_goal_driven_tdd",
+            approved_result={
+                "status": "success",
+                "message": "TDDを実行しました",
+                "dialogue_metadata": {
+                    "phase": "goal_driven_tdd",
+                    "goal_description": "注文割引ロジックを実装",
+                    "iteration_count": 2,
+                    "generated_code_count": 1,
+                    "generated_test_count": 1
+                }
+            },
+            expected_final_text="注文割引ロジックを実装 のTDD実行が完了しました。"
+        )
+
+    def test_scenario_11_failure_analysis_interruption_and_resume(self):
+        """Scenario 11: Failure analysis confirmation survives conversational interruption."""
+        self._run_tdd_interruption_conversation_flow(
+            first_user_input="失敗テストを分析して",
+            first_intent="ANALYZE_TEST_FAILURE",
+            first_entities={},
+            expected_confirmation_text="テスト失敗分析を行います。",
+            expected_recommended_action="analyze_test_failure",
+            approved_result={
+                "status": "success",
+                "message": "失敗テストを分析しました",
+                "dialogue_metadata": {
+                    "phase": "failure_analysis",
+                    "primary_reason": "null参照が発生しています",
+                    "primary_recommended_action": "apply_code_fix"
+                }
+            },
+            expected_final_text="テスト失敗分析が完了しました。"
+        )
+
+    def test_scenario_12_apply_code_fix_interruption_and_resume(self):
+        """Scenario 12: Code-fix confirmation survives conversational interruption."""
+        self._run_tdd_interruption_conversation_flow(
+            first_user_input="修正案を適用して",
+            first_intent="APPLY_CODE_FIX",
+            first_entities={},
+            expected_confirmation_text="修正案の適用",
+            expected_recommended_action="apply_code_fix",
+            approved_result={
+                "status": "success",
+                "message": "修正案を適用しました",
+                "dialogue_metadata": {
+                    "phase": "code_fix",
+                    "primary_reason": "境界条件の分岐が不足しています",
+                    "primary_recommended_action": "run_related_tests"
+                }
+            },
+            expected_final_text="コード修正の適用が完了しました。"
+        )
+
+    def test_scenario_13_tdd_new_task_request_does_not_replace_confirmation(self):
+        """Scenario 13: Goal-driven TDD confirmation survives an explicit new task request."""
+        self._run_tdd_interruption_conversation_flow(
+            first_user_input="TDDを実行して",
+            first_intent="EXECUTE_GOAL_DRIVEN_TDD",
+            first_entities={
+                "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.99},
+                "acceptance_criteria": {"value": "合計金額に応じて割引率が変わる", "confidence": 0.99}
+            },
+            expected_confirmation_text="目標駆動TDDの実行を行います。",
+            expected_recommended_action="execute_goal_driven_tdd",
+            approved_result={
+                "status": "success",
+                "message": "TDDを実行しました",
+                "dialogue_metadata": {
+                    "phase": "goal_driven_tdd",
+                    "goal_description": "注文割引ロジックを実装",
+                    "iteration_count": 2,
+                    "generated_code_count": 1,
+                    "generated_test_count": 1
+                }
+            },
+            expected_final_text="注文割引ロジックを実装 のTDD実行が完了しました。",
+            interruption_input="ファイルを作って",
+            interruption_intent="FILE_CREATE",
+            interruption_entities={}
+        )
+
+    def test_scenario_14_failure_analysis_new_task_request_does_not_replace_confirmation(self):
+        """Scenario 14: Failure analysis confirmation survives an explicit new task request."""
+        self._run_tdd_interruption_conversation_flow(
+            first_user_input="失敗テストを分析して",
+            first_intent="ANALYZE_TEST_FAILURE",
+            first_entities={},
+            expected_confirmation_text="テスト失敗分析を行います。",
+            expected_recommended_action="analyze_test_failure",
+            approved_result={
+                "status": "success",
+                "message": "失敗テストを分析しました",
+                "dialogue_metadata": {
+                    "phase": "failure_analysis",
+                    "primary_reason": "null参照が発生しています",
+                    "primary_recommended_action": "apply_code_fix"
+                }
+            },
+            expected_final_text="テスト失敗分析が完了しました。",
+            interruption_input="ファイルを作って",
+            interruption_intent="FILE_CREATE",
+            interruption_entities={}
+        )
+
+    def test_scenario_15_apply_code_fix_new_task_request_does_not_replace_confirmation(self):
+        """Scenario 15: Code-fix confirmation survives an explicit new task request."""
+        self._run_tdd_interruption_conversation_flow(
+            first_user_input="修正案を適用して",
+            first_intent="APPLY_CODE_FIX",
+            first_entities={},
+            expected_confirmation_text="修正案の適用",
+            expected_recommended_action="apply_code_fix",
+            approved_result={
+                "status": "success",
+                "message": "修正案を適用しました",
+                "dialogue_metadata": {
+                    "phase": "code_fix",
+                    "primary_reason": "境界条件の分岐が不足しています",
+                    "primary_recommended_action": "run_related_tests"
+                }
+            },
+            expected_final_text="コード修正の適用が完了しました。",
+            interruption_input="ファイルを作って",
+            interruption_intent="FILE_CREATE",
+            interruption_entities={}
+        )
+
+    def test_scenario_16_tdd_disagree_then_switch_to_new_task(self):
+        """Scenario 16: Rejecting TDD confirmation allows a fresh file task to start."""
+        self._run_tdd_cancel_then_switch_conversation_flow(
+            first_user_input="TDDを実行して",
+            first_intent="EXECUTE_GOAL_DRIVEN_TDD",
+            first_entities={
+                "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.99},
+                "acceptance_criteria": {"value": "合計金額に応じて割引率が変わる", "confidence": 0.99}
+            },
+            expected_confirmation_text="目標駆動TDDの実行を行います。",
+            expected_recommended_action="execute_goal_driven_tdd"
+        )
+
+    def test_scenario_17_failure_analysis_disagree_then_switch_to_new_task(self):
+        """Scenario 17: Rejecting failure analysis confirmation allows a fresh file task to start."""
+        self._run_tdd_cancel_then_switch_conversation_flow(
+            first_user_input="失敗テストを分析して",
+            first_intent="ANALYZE_TEST_FAILURE",
+            first_entities={},
+            expected_confirmation_text="テスト失敗分析を行います。",
+            expected_recommended_action="analyze_test_failure"
+        )
+
+    def test_scenario_18_apply_code_fix_disagree_then_switch_to_new_task(self):
+        """Scenario 18: Rejecting code-fix confirmation allows a fresh file task to start."""
+        self._run_tdd_cancel_then_switch_conversation_flow(
+            first_user_input="修正案を適用して",
+            first_intent="APPLY_CODE_FIX",
+            first_entities={},
+            expected_confirmation_text="修正案の適用",
+            expected_recommended_action="apply_code_fix"
+        )
+
+    def test_scenario_19_compound_task_new_task_request_does_not_replace_confirmation(self):
+        """Scenario 19: Compound-task approval survives an explicit new task request."""
+        with open(os.path.join(self.test_ws, "compound_src.txt"), "w", encoding="utf-8") as f:
+            f.write("source content")
+
+        first_result = self.pipeline.run("compound_src.txt を compound_dest.txt にバックアップして削除して")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("バックアップして削除します。よろしいですか？", first_result.get("response", {}).get("text", ""))
+        self.assertEqual(self.pipeline.task_manager.active_tasks["default_session"]["name"], "BACKUP_AND_DELETE")
+
+        interruption_result = self.pipeline.run("ファイルを作って")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("バックアップして削除します。よろしいですか？", interruption_result.get("response", {}).get("text", ""))
+        self.assertEqual(self.pipeline.task_manager.active_tasks["default_session"]["name"], "BACKUP_AND_DELETE")
+
+    def test_scenario_20_compound_task_disagree_then_switch_to_new_task(self):
+        """Scenario 20: Rejecting compound-task approval allows a fresh file task to start."""
+        with open(os.path.join(self.test_ws, "compound_src.txt"), "w", encoding="utf-8") as f:
+            f.write("source content")
+
+        first_result = self.pipeline.run("compound_src.txt を compound_dest.txt にバックアップして削除して")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("バックアップして削除します。よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        reject_result = self.pipeline.run("いいえ")
+        self.assertIn("キャンセル", reject_result.get("response", {}).get("text", ""))
+        self.assertNotIn("default_session", self.pipeline.task_manager.active_tasks)
+
+        new_task_result = self.pipeline.run("ファイルを作って")
+        self.assertTrue(new_task_result.get("clarification_needed", False))
+        self.assertIn("ファイル名を教えていただけますか？", new_task_result.get("response", {}).get("text", ""))
+
+        filename_result = self.pipeline.run("resume.txt")
+        self.assertTrue(filename_result.get("clarification_needed", False))
+        self.assertIn("ファイルの内容を教えていただけますか？", filename_result.get("response", {}).get("text", ""))
+
+        final_result = self.pipeline.run("内容は「ok」です")
+        self.assertFalse(bool(final_result.get("clarification_needed", False)))
+        self.assertIn("作成しました", final_result.get("response", {}).get("text", ""))
+        self.assertEqual(final_result["task"]["name"], "FILE_CREATE")
+
+    def test_scenario_21_compound_task_agree_variant_executes_with_ryokai(self):
+        """Scenario 21: Compound-task approval accepts the agree variant '了解'."""
+        with open(os.path.join(self.test_ws, "variant_src.txt"), "w", encoding="utf-8") as f:
+            f.write("source content")
+
+        first_result = self.pipeline.run("variant_src.txt を variant_dest.txt にバックアップして削除して")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("バックアップして削除します。よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        approve_result = self.pipeline.run("了解")
+        self.assertFalse(bool(approve_result.get("clarification_needed", False)))
+        self.assertIn("完了しました。", approve_result.get("response", {}).get("text", ""))
+        self.assertTrue(os.path.exists(os.path.join(self.test_ws, "variant_dest.txt")))
+        self.assertFalse(os.path.exists(os.path.join(self.test_ws, "variant_src.txt")))
+
+    def test_scenario_22_compound_task_disagree_variant_cancels_with_no(self):
+        """Scenario 22: Compound-task approval accepts the disagree variant 'ノー'."""
+        with open(os.path.join(self.test_ws, "variant_src_no.txt"), "w", encoding="utf-8") as f:
+            f.write("source content")
+
+        first_result = self.pipeline.run("variant_src_no.txt を variant_dest_no.txt にバックアップして削除して")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("バックアップして削除します。よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        reject_result = self.pipeline.run("ノー")
+        self.assertIn("キャンセル", reject_result.get("response", {}).get("text", ""))
+        self.assertNotIn("default_session", self.pipeline.task_manager.active_tasks)
+        self.assertTrue(os.path.exists(os.path.join(self.test_ws, "variant_src_no.txt")))
+        self.assertFalse(os.path.exists(os.path.join(self.test_ws, "variant_dest_no.txt")))
+
+    def test_scenario_23_cmd_run_agree_variant_executes_with_ryokai(self):
+        """Scenario 23: Command confirmation accepts the agree variant '了解'."""
+        cmd = "dir" if sys.platform == 'win32' else "ls -l"
+        flow = [
+            {"user": f"コマンド「{cmd}」を実行", "expected_ai": "よろしいですか？", "confirm_needed": True},
+            {"user": "了解", "expected_ai": "コマンド実行結果", "confirm_needed": False}
+        ]
+        self.run_conversation(flow)
+
+    def test_scenario_24_cmd_run_disagree_variant_cancels_with_cancel(self):
+        """Scenario 24: Command confirmation accepts the disagree variant 'キャンセル'."""
+        cmd = "dir" if sys.platform == 'win32' else "ls -l"
+        flow = [
+            {"user": f"コマンド「{cmd}」を実行", "expected_ai": "よろしいですか？", "confirm_needed": True},
+            {"user": "キャンセル", "expected_ai": "キャンセル", "confirm_needed": False}
+        ]
+        self.run_conversation(flow)
+
+    def test_scenario_25_tdd_agree_variant_executes_with_ryokai(self):
+        """Scenario 25: Goal-driven TDD confirmation accepts the agree variant '了解'."""
+        self._run_tdd_interruption_conversation_flow(
+            first_user_input="TDDを実行して",
+            first_intent="EXECUTE_GOAL_DRIVEN_TDD",
+            first_entities={
+                "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.99},
+                "acceptance_criteria": {"value": "合計金額に応じて割引率が変わる", "confidence": 0.99}
+            },
+            expected_confirmation_text="目標駆動TDDの実行を行います。",
+            expected_recommended_action="execute_goal_driven_tdd",
+            approved_result={
+                "status": "success",
+                "message": "TDDを実行しました",
+                "dialogue_metadata": {
+                    "phase": "goal_driven_tdd",
+                    "goal_description": "注文割引ロジックを実装",
+                    "iteration_count": 2,
+                    "generated_code_count": 1,
+                    "generated_test_count": 1
+                }
+            },
+            expected_final_text="注文割引ロジックを実装 のTDD実行が完了しました。",
+            approval_input="了解"
+        )
+
+    def test_scenario_26_failure_analysis_agree_variant_executes_with_ryokai(self):
+        """Scenario 26: Failure analysis confirmation accepts the agree variant '了解'."""
+        self._run_tdd_interruption_conversation_flow(
+            first_user_input="失敗テストを分析して",
+            first_intent="ANALYZE_TEST_FAILURE",
+            first_entities={},
+            expected_confirmation_text="テスト失敗分析を行います。",
+            expected_recommended_action="analyze_test_failure",
+            approved_result={
+                "status": "success",
+                "message": "失敗テストを分析しました",
+                "dialogue_metadata": {
+                    "phase": "failure_analysis",
+                    "primary_reason": "null参照が発生しています",
+                    "primary_recommended_action": "apply_code_fix"
+                }
+            },
+            expected_final_text="テスト失敗分析が完了しました。",
+            approval_input="了解"
+        )
+
+    def test_scenario_27_apply_code_fix_agree_variant_executes_with_ryokai(self):
+        """Scenario 27: Code-fix confirmation accepts the agree variant '了解'."""
+        self._run_tdd_interruption_conversation_flow(
+            first_user_input="修正案を適用して",
+            first_intent="APPLY_CODE_FIX",
+            first_entities={},
+            expected_confirmation_text="修正案の適用",
+            expected_recommended_action="apply_code_fix",
+            approved_result={
+                "status": "success",
+                "message": "修正案を適用しました",
+                "dialogue_metadata": {
+                    "phase": "code_fix",
+                    "primary_reason": "境界条件の分岐が不足しています",
+                    "primary_recommended_action": "run_related_tests"
+                }
+            },
+            expected_final_text="コード修正の適用が完了しました。",
+            approval_input="了解"
+        )
+
+    def test_scenario_28_tdd_disagree_variant_cancels_with_cancel(self):
+        """Scenario 28: Goal-driven TDD confirmation accepts the disagree variant 'キャンセル'."""
+        self._run_tdd_cancel_then_switch_conversation_flow(
+            first_user_input="TDDを実行して",
+            first_intent="EXECUTE_GOAL_DRIVEN_TDD",
+            first_entities={
+                "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.99},
+                "acceptance_criteria": {"value": "合計金額に応じて割引率が変わる", "confidence": 0.99}
+            },
+            expected_confirmation_text="目標駆動TDDの実行を行います。",
+            expected_recommended_action="execute_goal_driven_tdd",
+            reject_input="キャンセル"
+        )
+
+    def test_scenario_29_file_create_survives_greeting_variant_interruption(self):
+        """Scenario 29: Active file-creation clarification survives a greeting variant."""
+        flow = [
+            {"user": "ファイルを作って", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "ハロー", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "variant_greeting.txt", "expected_ai": "ファイルの内容を教えていただけますか？", "confirm_needed": True},
+            {"user": "内容は「hello」です", "expected_ai": "作成しました", "confirm_needed": False, "check_file": "variant_greeting.txt"}
+        ]
+        self.run_conversation(flow)
+
+    def test_scenario_30_file_create_survives_time_variant_interruption(self):
+        """Scenario 30: Active file-creation clarification survives a time-query variant."""
+        flow = [
+            {"user": "ファイルを作って", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "時間教えて", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "variant_time.txt", "expected_ai": "ファイルの内容を教えていただけますか？", "confirm_needed": True},
+            {"user": "内容は「clock」です", "expected_ai": "作成しました", "confirm_needed": False, "check_file": "variant_time.txt"}
+        ]
+        self.run_conversation(flow)
+
+    def test_scenario_31_cmd_run_confirmation_survives_greeting_variant(self):
+        """Scenario 31: Command confirmation survives a greeting variant and still executes after approval."""
+        cmd = "dir" if sys.platform == 'win32' else "ls -l"
+        first_result = self.pipeline.run(f"コマンド「{cmd}」を実行")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        interruption_result = self.pipeline.run("ハロー")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", interruption_result.get("response", {}).get("text", ""))
+
+        analysis = interruption_result.get("analysis", {})
+        self.assertEqual(analysis.get("intent"), INTENT_GREETING)
+
+        approve_result = self.pipeline.run("了解")
+        self.assertFalse(bool(approve_result.get("clarification_needed", False)))
+        self.assertIn("コマンド実行結果", approve_result.get("response", {}).get("text", ""))
+
+    def test_scenario_32_compound_confirmation_survives_time_variant(self):
+        """Scenario 32: Compound-task confirmation survives a time-query variant and still executes after approval."""
+        with open(os.path.join(self.test_ws, "variant_time_src.txt"), "w", encoding="utf-8") as f:
+            f.write("source content")
+
+        first_result = self.pipeline.run("variant_time_src.txt を variant_time_dest.txt にバックアップして削除して")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("バックアップして削除します。よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        interruption_result = self.pipeline.run("時間教えて")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("バックアップして削除します。よろしいですか？", interruption_result.get("response", {}).get("text", ""))
+
+        analysis = interruption_result.get("analysis", {})
+        self.assertEqual(analysis.get("intent"), INTENT_TIME)
+
+        approve_result = self.pipeline.run("了解")
+        self.assertFalse(bool(approve_result.get("clarification_needed", False)))
+        self.assertIn("完了しました。", approve_result.get("response", {}).get("text", ""))
+        self.assertTrue(os.path.exists(os.path.join(self.test_ws, "variant_time_dest.txt")))
+        self.assertFalse(os.path.exists(os.path.join(self.test_ws, "variant_time_src.txt")))
+
+    def test_scenario_33_file_create_survives_personal_q_variant_interruption(self):
+        """Scenario 33: Active file-creation clarification survives a personal-question variant."""
+        flow = [
+            {"user": "ファイルを作って", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "調子はどう？", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "variant_personal.txt", "expected_ai": "ファイルの内容を教えていただけますか？", "confirm_needed": True},
+            {"user": "内容は「status」です", "expected_ai": "作成しました", "confirm_needed": False, "check_file": "variant_personal.txt"}
+        ]
+        self.run_conversation(flow)
+
+    def test_scenario_34_file_create_survives_bye_variant_interruption(self):
+        """Scenario 34: Active file-creation clarification survives a bye variant."""
+        flow = [
+            {"user": "ファイルを作って", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "バイバイ", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "variant_bye.txt", "expected_ai": "ファイルの内容を教えていただけますか？", "confirm_needed": True},
+            {"user": "内容は「bye」です", "expected_ai": "作成しました", "confirm_needed": False, "check_file": "variant_bye.txt"}
+        ]
+        self.run_conversation(flow)
+
+    def test_scenario_35_cmd_run_confirmation_survives_personal_q_variant(self):
+        """Scenario 35: Command confirmation survives a personal-question variant."""
+        cmd = "dir" if sys.platform == 'win32' else "ls -l"
+        first_result = self.pipeline.run(f"コマンド「{cmd}」を実行")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        interruption_result = self.pipeline.run("調子はどう？")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", interruption_result.get("response", {}).get("text", ""))
+        self.assertEqual(interruption_result.get("analysis", {}).get("intent"), INTENT_PERSONAL_Q)
+
+        approve_result = self.pipeline.run("了解")
+        self.assertFalse(bool(approve_result.get("clarification_needed", False)))
+        self.assertIn("コマンド実行結果", approve_result.get("response", {}).get("text", ""))
+
+    def test_scenario_36_cmd_run_confirmation_survives_bye_variant(self):
+        """Scenario 36: Command confirmation survives a bye variant."""
+        cmd = "dir" if sys.platform == 'win32' else "ls -l"
+        first_result = self.pipeline.run(f"コマンド「{cmd}」を実行")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        interruption_result = self.pipeline.run("バイバイ")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", interruption_result.get("response", {}).get("text", ""))
+        self.assertEqual(interruption_result.get("analysis", {}).get("intent"), INTENT_BYE)
+
+        approve_result = self.pipeline.run("了解")
+        self.assertFalse(bool(approve_result.get("clarification_needed", False)))
+        self.assertIn("コマンド実行結果", approve_result.get("response", {}).get("text", ""))
+
+    def test_scenario_37_file_create_survives_weather_variant_interruption(self):
+        """Scenario 37: Active file-creation clarification survives a weather variant."""
+        flow = [
+            {"user": "ファイルを作って", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "今日の天気は？", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "variant_weather.txt", "expected_ai": "ファイルの内容を教えていただけますか？", "confirm_needed": True},
+            {"user": "内容は「sunny」です", "expected_ai": "作成しました", "confirm_needed": False, "check_file": "variant_weather.txt"}
+        ]
+        self.run_conversation(flow)
+
+    def test_scenario_38_file_create_survives_capability_variant_interruption(self):
+        """Scenario 38: Active file-creation clarification survives a capability variant."""
+        flow = [
+            {"user": "ファイルを作って", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "何ができる？", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "variant_capability.txt", "expected_ai": "ファイルの内容を教えていただけますか？", "confirm_needed": True},
+            {"user": "内容は「skills」です", "expected_ai": "作成しました", "confirm_needed": False, "check_file": "variant_capability.txt"}
+        ]
+        self.run_conversation(flow)
+
+    def test_scenario_39_file_create_survives_definition_variant_interruption(self):
+        """Scenario 39: Active file-creation clarification survives a definition variant."""
+        flow = [
+            {"user": "ファイルを作って", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "AIとは何？", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
+            {"user": "variant_definition.txt", "expected_ai": "ファイルの内容を教えていただけますか？", "confirm_needed": True},
+            {"user": "内容は「meaning」です", "expected_ai": "作成しました", "confirm_needed": False, "check_file": "variant_definition.txt"}
+        ]
+        self.run_conversation(flow)
+
+    def test_scenario_40_cmd_run_confirmation_survives_weather_variant(self):
+        """Scenario 40: Command confirmation survives a weather variant."""
+        cmd = "dir" if sys.platform == 'win32' else "ls -l"
+        first_result = self.pipeline.run(f"コマンド「{cmd}」を実行")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        interruption_result = self.pipeline.run("今日の天気は？")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", interruption_result.get("response", {}).get("text", ""))
+        self.assertEqual(interruption_result.get("analysis", {}).get("intent"), INTENT_WEATHER)
+
+        approve_result = self.pipeline.run("了解")
+        self.assertFalse(bool(approve_result.get("clarification_needed", False)))
+        self.assertIn("コマンド実行結果", approve_result.get("response", {}).get("text", ""))
+
+    def test_scenario_41_cmd_run_confirmation_survives_capability_variant(self):
+        """Scenario 41: Command confirmation survives a capability variant."""
+        cmd = "dir" if sys.platform == 'win32' else "ls -l"
+        first_result = self.pipeline.run(f"コマンド「{cmd}」を実行")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        interruption_result = self.pipeline.run("何ができる？")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", interruption_result.get("response", {}).get("text", ""))
+        self.assertEqual(interruption_result.get("analysis", {}).get("intent"), INTENT_CAPABILITY)
+
+        approve_result = self.pipeline.run("了解")
+        self.assertFalse(bool(approve_result.get("clarification_needed", False)))
+        self.assertIn("コマンド実行結果", approve_result.get("response", {}).get("text", ""))
+
+    def test_scenario_42_cmd_run_confirmation_survives_definition_variant(self):
+        """Scenario 42: Command confirmation survives a definition variant."""
+        cmd = "dir" if sys.platform == 'win32' else "ls -l"
+        first_result = self.pipeline.run(f"コマンド「{cmd}」を実行")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        interruption_result = self.pipeline.run("AIとは何？")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", interruption_result.get("response", {}).get("text", ""))
+        self.assertEqual(interruption_result.get("analysis", {}).get("intent"), INTENT_DEFINITION)
+
+        approve_result = self.pipeline.run("了解")
+        self.assertFalse(bool(approve_result.get("clarification_needed", False)))
+        self.assertIn("コマンド実行結果", approve_result.get("response", {}).get("text", ""))
+
+    def test_scenario_43_file_create_survives_emotive_variant_with_response(self):
+        """Scenario 43: Active file-creation clarification survives an emotive turn and returns the emotive response."""
+        first_result = self.pipeline.run("ファイルを作って")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("ファイル名を教えていただけますか？", first_result.get("response", {}).get("text", ""))
+
+        interruption_result = self.pipeline.run("疲れたな")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("ファイル名を教えていただけますか？", interruption_result.get("response", {}).get("text", ""))
+        self.assertEqual(interruption_result.get("analysis", {}).get("intent"), "EMOTIVE")
+        self.assertIn("元の作業に戻るため", interruption_result.get("response", {}).get("text", ""))
+
+    def test_scenario_44_cmd_run_confirmation_survives_smalltalk_variant_with_response(self):
+        """Scenario 44: Command confirmation survives a smalltalk turn and re-shows the confirmation prompt."""
+        cmd = "dir" if sys.platform == 'win32' else "ls -l"
+        first_result = self.pipeline.run(f"コマンド「{cmd}」を実行")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        interruption_result = self.pipeline.run("雑談しよう")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", interruption_result.get("response", {}).get("text", ""))
+        self.assertEqual(interruption_result.get("analysis", {}).get("intent"), "SMALLTALK")
+
+    def test_scenario_45_cmd_run_confirmation_survives_feedback_variant_with_response(self):
+        """Scenario 45: Command confirmation survives feedback and re-shows the confirmation prompt."""
+        cmd = "dir" if sys.platform == 'win32' else "ls -l"
+        first_result = self.pipeline.run(f"コマンド「{cmd}」を実行")
+        self.assertTrue(first_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", first_result.get("response", {}).get("text", ""))
+
+        interruption_result = self.pipeline.run("ありがとう")
+        self.assertTrue(interruption_result.get("clarification_needed", False))
+        self.assertIn("よろしいですか？", interruption_result.get("response", {}).get("text", ""))
+        self.assertEqual(interruption_result.get("analysis", {}).get("intent"), "FEEDBACK")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

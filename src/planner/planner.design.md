@@ -12,6 +12,8 @@
 - **タスク状態管理**: 単純タスクと複合タスクの状態遷移管理
 - **エンティティ検証**: 必須パラメータの存在確認と信頼度チェック
 - **履歴からのエラー検出**: 過去のアクション結果からの自動回復
+- **承認応答の正規化**: `src.utils.confirmation_response` の共通定数を使って承認/拒否ターンも自己修復判定へ含める
+- **action intent 定数化**: `src.utils.action_intents` の共通定数を使って action 分岐と補助集合を共有する
 
 ## 2. Architecture Overview
 
@@ -77,7 +79,7 @@
 6. **デフォルト値設定**: language='csharp'等の自動補完
 
 #### Phase 2: Pre-Planning Checks
-1. **DEFINITION意図のバイパス**: 定義要求は即座にリターン
+1. **INTENT_DEFINITION のバイパス**: 定義要求は即座にリターン
 2. **プロジェクトルール検証**: 命名規則、ディレクトリ構造のチェック
 3. **自動補正適用**: 違反がある場合、エンティティ値を自動修正
 4. **履歴からのエラー検出**: 前回アクション結果の確認
@@ -105,9 +107,10 @@
 #### Phase 6: Plan Generation
 1. **プラン辞書作成**: action_method, parameters, confirmation_needed
 2. **安全性情報追加**: safety_check_status, safety_message
-3. **親タスク情報追加**: 複合タスクの場合、parent_task
-4. **影響分析情報追加**: impacted_methods, suggested_tests
-5. **コンテキスト更新**: context['plan']に設定
+3. **TDD対話メタデータ追加**: `ANALYZE_TEST_FAILURE` / `EXECUTE_GOAL_DRIVEN_TDD` / `APPLY_CODE_FIX` では `recommended_action` を明示設定
+4. **親タスク情報追加**: 複合タスクの場合、parent_task
+5. **影響分析情報追加**: impacted_methods, suggested_tests
+6. **コンテキスト更新**: context['plan']に設定
 
 ## 3. Structured Specification
 
@@ -268,8 +271,8 @@
    - プロジェクト分析意図（MEASURE_COVERAGE等）で`language`が存在しない場合:
      - `merged_entities["language"] = {"value": "csharp", "confidence": 1.0}`
 
-7. **DEFINITION意図のバイパス**:
-   - `intent == "DEFINITION"`の場合、即座にリターン
+7. **INTENT_DEFINITION のバイパス**:
+   - `intent == INTENT_DEFINITION` の場合、即座にリターン
 
 8. **プロジェクトルール検証**:
    - `_apply_project_rules(intent, raw_params_for_validation)`を呼び出し
@@ -320,6 +323,7 @@
       - `confirmation_needed`: 承認要求フラグ
       - `safety_check_status`: 安全性チェック結果
       - `safety_message`: 安全性メッセージ
+    - TDD対話対象 intent の場合、`recommended_action`を追加
     - 複合タスクの場合、`parent_task`を追加
 
 16. **影響分析統合**:
@@ -701,6 +705,10 @@
 - **APPLY_REFACTORING**: リファクタリング適用
 - **ANALYZE_TEST_FAILURE**: テスト失敗分析
 - **APPLY_CODE_FIX**: コード修正適用
+- **recommended_action**:
+  - `ANALYZE_TEST_FAILURE` → `analyze_test_failure`
+  - `EXECUTE_GOAL_DRIVEN_TDD` → `execute_goal_driven_tdd`
+  - `APPLY_CODE_FIX` → `apply_code_fix`
 - **RUN_LEARNING_CYCLE**: 学習サイクル実行
 - **MANAGE_KNOWLEDGE**: 知識管理
 - **DOC_GEN**: 設計書生成
@@ -1100,3 +1108,18 @@
   - `previous_action_result`が履歴から取得される
   - `_plan_self_healing`が呼び出される
   - 回復プランが生成される
+
+### TC13: TDD Plan Recommended Action
+- **Scenario**: TDD 系 intent のプラン生成
+- **Input**:
+  ```json
+  {
+    "analysis": {
+      "intent": "APPLY_CODE_FIX",
+      "intent_confidence": 0.95,
+      "entities": {}
+    }
+  }
+  ```
+- **Expected Output**:
+  - プラン生成: `{"action_method": "_apply_code_fix", "recommended_action": "apply_code_fix"}`

@@ -6,6 +6,7 @@ import numpy as np
 import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+from src.utils.action_intents import INTENT_DOC_GEN, INTENT_DOC_REFINE
 
 class ComplianceAuditor:
     """プロジェクト規約と構造の整合性を自律的に監査するクラス"""
@@ -178,14 +179,14 @@ class ComplianceAuditor:
             return {
                 "summary": f"不足している設計書の作成 ({top['file']})",
                 "message": f"モジュールの設計書 '{top['file']}' が不足しています。現在の実装から自動生成しますか？",
-                "action_type": "DOC_GEN",
+                "action_type": INTENT_DOC_GEN,
                 "finding": top
             }
         elif top['type'] == 'DOCUMENT_INCOMPLETE':
             return {
                 "summary": f"設計書の詳細追記 ({top['file']})",
                 "message": f"設計書 '{top['file']}' に未記入の項目があります。AIがロジックを分析して補完を試みますか？",
-                "action_type": "DOC_REFINE",
+                "action_type": INTENT_DOC_REFINE,
                 "finding": top
             }
         

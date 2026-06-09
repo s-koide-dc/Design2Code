@@ -5,6 +5,18 @@ from abc import ABC, abstractmethod
 import time
 import os
 from src.utils.context_utils import _get_context_summary
+from src.utils.confirmation_response import INTENT_AGREE, INTENT_DISAGREE
+from src.utils.action_intents import INTENT_RECOVERY_FROM_TEST_FAILURE
+from src.utils.control_intents import (
+    CONVERSATIONAL_INTENTS,
+    INTENT_CANCEL_TASK,
+    INTENT_CORRECTION,
+    INTENT_FEEDBACK_RECEIVED,
+)
+from src.utils.dialogue_state import (
+    FEEDBACK_COLLECTION,
+    PENDING_CONFIRMATION,
+)
 
 class PipelineStage(ABC):
     @abstractmethod
@@ -36,7 +48,7 @@ class SetupStage(PipelineStage):
             pipeline.context_manager.set_awaiting_feedback(session_id, False)
             pipeline.autonomous_learning.record_user_feedback(finding_id=session_id, feedback=text)
             context["pipeline_history"].append("feedback_collection")
-            context["analysis"] = {"intent": "FEEDBACK_RECEIVED"}
+            context["analysis"] = {"intent": INTENT_FEEDBACK_RECEIVED}
             context["response"] = {"text": "ありがとうございます。フィードバックを記録し、学習しました。"}
             context["_early_exit"] = True
             return context
@@ -88,23 +100,37 @@ class IntentDetectionStage(PipelineStage):
         
         current_intent = context["analysis"].get("intent")
 
-        if current_intent == "CORRECTION":
+        if current_intent == INTENT_CORRECTION:
             pipeline.context_manager.set_awaiting_feedback(session_id, True)
             context["response"]["text"] = "申し訳ありません。どのように間違っていましたか？（正解や理由を教えてください）"
+            context["dialogue_state"] = FEEDBACK_COLLECTION
             context["_early_exit"] = True
             return context
 
         # Confirmation Shortcut
         pending_plan = pipeline.context_manager.get_pending_confirmation_plan(session_id)
-        if pending_plan and current_intent == "AGREE":
+        if pending_plan and current_intent == INTENT_AGREE:
             context["plan"] = pending_plan
             context["plan"]["confirmation_needed"] = False
             context["confirmation_granted"] = True
+            context["dialogue_state"] = None
             pipeline.context_manager.clear_pending_confirmation_plan(session_id)
             context["_skip_initial_pipeline_steps"] = True
-        elif pending_plan and current_intent == "DISAGREE":
+        elif pending_plan and current_intent == INTENT_DISAGREE:
             pipeline.context_manager.clear_pending_confirmation_plan(session_id)
+            pipeline.task_manager.reset_task(session_id)
+            context["dialogue_state"] = None
             context["response"]["text"] = "アクションはキャンセルされました。"
+            context["_early_exit"] = True
+            return context
+        elif pending_plan and current_intent != INTENT_CANCEL_TASK:
+            # Keep an outstanding confirmation as the highest-priority dialogue state.
+            # This prevents a new request from silently replacing a risky action that
+            # is still waiting for explicit approval or rejection.
+            context["plan"] = pending_plan
+            context["clarification_needed"] = True
+            context["dialogue_state"] = PENDING_CONFIRMATION
+            context = pipeline.response_generator.generate_confirmation_message(context)
             context["_early_exit"] = True
             return context
 
@@ -137,9 +163,8 @@ class TaskManagementStage(PipelineStage):
         if not context.get("_skip_initial_pipeline_steps", False) and not context.get("_is_healing_mode"):
             context = pipeline.task_manager.manage_task_state(context)
             
-            conversational_intents = ["GREETING", "PERSONAL_Q", "EMOTIVE", "SMALLTALK", "FEEDBACK", "WEATHER", "TIME", "CAPABILITY", "BYE", "DEFINITION", "GENERAL"]
             current_intent = context["analysis"].get("intent")
-            if current_intent in conversational_intents and context.get("task_interruption"):
+            if current_intent in CONVERSATIONAL_INTENTS and context.get("task_interruption"):
                 context = pipeline.response_generator.generate(context)
                 pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "response_generation", "context_summary": _get_context_summary(context)}, level="DEBUG")
                 context["_early_exit"] = True
@@ -156,10 +181,13 @@ class ClarificationStage(PipelineStage):
         
         if context.get("clarification_needed") and not context.get("_is_healing_mode"):
             current_intent = context["analysis"].get("intent")
-            is_conversational = current_intent in ["GREETING", "PERSONAL_Q", "EMOTIVE", "SMALLTALK", "FEEDBACK", "WEATHER", "TIME", "CAPABILITY", "BYE", "DEFINITION", "GENERAL"]
+            is_conversational = current_intent in CONVERSATIONAL_INTENTS
             
             if not context.get("response", {}).get("text"):
-                context = pipeline.response_generator.generate(context)
+                if context.get("dialogue_state") == PENDING_CONFIRMATION:
+                    context = pipeline.response_generator.generate_confirmation_message(context)
+                else:
+                    context = pipeline.response_generator.generate(context)
                 pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "response_generation", "context_summary": _get_context_summary(context)}, level="DEBUG")
             
             # If it's NOT a simple conversational intent, exit early.
@@ -174,7 +202,7 @@ class ExecutionStage(PipelineStage):
         if context.get("_early_exit"): return context
         
         current_intent = context["analysis"].get("intent")
-        is_conversational = current_intent in ["GREETING", "PERSONAL_Q", "EMOTIVE", "SMALLTALK", "FEEDBACK", "WEATHER", "TIME", "CAPABILITY", "BYE", "DEFINITION", "GENERAL"]
+        is_conversational = current_intent in CONVERSATIONAL_INTENTS
         if is_conversational:
             return context
 
@@ -203,7 +231,7 @@ class ExecutionStage(PipelineStage):
                 plan = context.get("plan", {})
                 if plan and plan.get("healing_type") in ["KNOWLEDGE_BASE_RECOVERY", "RETRY_RULE_MATCH"]:
                     current_task = pipeline.task_manager.active_tasks.get(session_id)
-                    if not current_task or current_task["name"] != "RECOVERY_FROM_TEST_FAILURE":
+                    if not current_task or current_task["name"] != INTENT_RECOVERY_FROM_TEST_FAILURE:
                         if pipeline.task_manager.is_recovery_limit_reached(session_id):
                             pipeline.log_manager.log_event("pipeline_recovery_limit_reached", {"session_id": session_id}, level="WARN")
                             context["response"]["text"] = "自律修復を数回試みましたが、問題が解決しませんでした。状況を整理しますので、手動での確認をお願いします。"
@@ -228,6 +256,7 @@ class ExecutionStage(PipelineStage):
                 pipeline.context_manager.set_pending_confirmation_plan(context["plan"], session_id)
                 context = pipeline.response_generator.generate_confirmation_message(context)
                 context["clarification_needed"] = True
+                context["dialogue_state"] = PENDING_CONFIRMATION
                 # Redundant log removed to avoid test confusion if multiple modules log this
                 # pipeline.log_manager.log_event("clarification_needed", {"message": context.get("response", {}).get("text")}, level="INFO")
                 context["_early_exit"] = True

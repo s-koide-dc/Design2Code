@@ -3,7 +3,7 @@
     "type": "class",
     "name": "ActionExecutor",
     "file": "src\\action_executor\\action_executor.py",
-    "summary": "Class ActionExecutor in src\\action_executor\\action_executor.py. Contains methods: __init__, compliance_auditor, execute, execute_action, _run_learning_cycle, _manage_knowledge, _reverse_dictionary_lookup, _generate_design_doc, _refine_design_doc, _create_file, _append_file, _delete_file, _read_file, _list_dir, _run_command, _ensure_backup_for_action, _extract_non_option_args, _extract_python_script_path, _is_allowed_python_script, _is_whitelisted_python_script, _is_allowed_read_path, _is_blocked_read_path, _matches_blocked_rules, _split_tokens, _safe_join, _move_file, _copy_file, _analyze_csharp, _run_dotnet_test, _parse_dotnet_test_result, _get_cwd, get_required_entities_for_intent, _load_error_patterns, _handle_exception_with_patterns, _get_entity_value, _generate_test_cases, _load_csharp_analysis_results, _recursively_find_callers, _query_csharp_analysis_results, _measure_coverage, _analyze_coverage_gaps, _generate_coverage_report, _analyze_refactoring, _suggest_refactoring, _apply_refactoring, _setup_cicd_pipeline, _configure_quality_gates, _generate_cicd_config, _find_latest_report, _analyze_test_failure, _execute_goal_driven_tdd, _apply_code_fix, _validate_code_syntax, _check_quality_gates. ",
+    "summary": "Class ActionExecutor in src\\action_executor\\action_executor.py. Contains methods: __init__, compliance_auditor, execute, execute_action, _run_learning_cycle, _manage_knowledge, _reverse_dictionary_lookup, _generate_design_doc, _refine_design_doc, _create_file, _append_file, _delete_file, _read_file, _list_dir, _run_command, _augment_action_result_metadata, _ensure_backup_for_action, _extract_non_option_args, _extract_python_script_path, _is_allowed_python_script, _is_whitelisted_python_script, _is_allowed_read_path, _is_blocked_read_path, _matches_blocked_rules, _split_tokens, _safe_join, _move_file, _copy_file, _analyze_csharp, _run_dotnet_test, _parse_dotnet_test_result, _get_cwd, get_required_entities_for_intent, _load_error_patterns, _handle_exception_with_patterns, _get_entity_value, _generate_test_cases, _load_csharp_analysis_results, _recursively_find_callers, _query_csharp_analysis_results, _measure_coverage, _analyze_coverage_gaps, _generate_coverage_report, _analyze_refactoring, _suggest_refactoring, _apply_refactoring, _setup_cicd_pipeline, _configure_quality_gates, _generate_cicd_config, _find_latest_report, _analyze_test_failure, _execute_goal_driven_tdd, _apply_code_fix, _validate_code_syntax, _check_quality_gates. ",
     "properties": {},
     "id": "ActionExecutor"
   },
@@ -111,6 +111,13 @@
     "file": "src\\action_executor\\action_executor.py",
     "summary": "Function _run_command in src\\action_executor\\action_executor.py. ",
     "id": "_run_command"
+  },
+  {
+    "type": "function",
+    "name": "_augment_action_result_metadata",
+    "file": "src\\action_executor\\action_executor.py",
+    "summary": "Function _augment_action_result_metadata in src\\action_executor\\action_executor.py. ",
+    "id": "_augment_action_result_metadata"
   },
   {
     "type": "function",
@@ -524,7 +531,7 @@
     "type": "class",
     "name": "TestFailureAnalyzer",
     "file": "src\\advanced_tdd\\failure_analyzer.py",
-    "summary": "Class TestFailureAnalyzer in src\\advanced_tdd\\failure_analyzer.py. Description: テスト失敗分析を担当するクラス Contains methods: __init__, execute_test_and_analyze, _execute_test, _parse_dotnet_test_result, _extract_test_count, _parse_pytest_stdout, _parse_pytest_result, _parse_jest_result, analyze_test_failure, _analyze_logic_mismatch, _evaluate_complex_condition, _evaluate_condition, _extract_property_value, _resolve_identifier_value, _extract_input_value, _classify_error_type, analyze_compilation_failure, analyze_runtime_failure, _identify_root_cause, _determine_fix_direction, _analyze_stack_trace, _detect_semantic_mismatch. ",
+    "summary": "Class TestFailureAnalyzer in src\\advanced_tdd\\failure_analyzer.py. Description: テスト失敗分析を担当するクラス Contains methods: __init__, execute_test_and_analyze, _execute_test, _parse_dotnet_test_result, _extract_test_count, _parse_pytest_stdout, _parse_pytest_result, _parse_jest_result, analyze_test_failure, _build_analysis_summary, _analyze_logic_mismatch, _evaluate_complex_condition, _evaluate_condition, _extract_property_value, _resolve_identifier_value, _extract_input_value, _classify_error_type, analyze_compilation_failure, analyze_runtime_failure, _identify_root_cause, _determine_fix_direction, _analyze_stack_trace, _detect_semantic_mismatch. ",
     "properties": {},
     "id": "TestFailureAnalyzer"
   },
@@ -576,6 +583,13 @@
     "file": "src\\tdd_operations\\tdd_operations.py",
     "summary": "Function analyze_test_failure in src\\tdd_operations\\tdd_operations.py. Description: テスト失敗を分析して修正提案を生成",
     "id": "analyze_test_failure"
+  },
+  {
+    "type": "function",
+    "name": "_build_analysis_summary",
+    "file": "src\\advanced_tdd\\failure_analyzer.py",
+    "summary": "Function _build_analysis_summary in src\\advanced_tdd\\failure_analyzer.py. ",
+    "id": "_build_analysis_summary"
   },
   {
     "type": "function",
@@ -672,7 +686,7 @@
     "type": "class",
     "name": "CodeFixSuggestionEngine",
     "file": "src\\advanced_tdd\\fix_engine.py",
-    "summary": "Class CodeFixSuggestionEngine in src\\advanced_tdd\\fix_engine.py. Description: コード修正提案エンジン Contains methods: __init__, generate_fix_suggestions, _generate_missing_logic_fix, _generate_fallback_implementation_fix, _generate_test_arrange_fix, _generate_method_implementation_fix, _generate_self_healing_test_fix, _generate_precision_logic_fix, _generate_syntax_fix, _map_name_to_package, _generate_null_check_fix, _generate_manual_fix_placeholder, _generate_calculation_fix, _try_extract_expected_value, _try_extract_actual_value, _generate_numeric_mismatch_fix, _generate_parameter_fix, _generate_backport_suggestion, _calculate_safety_score, _analyze_impact, _detect_language, _find_method_in_structure. ",
+    "summary": "Class CodeFixSuggestionEngine in src\\advanced_tdd\\fix_engine.py. Description: コード修正提案エンジン Contains methods: __init__, generate_fix_suggestions, _augment_suggestion_context, _build_conversation_context, _generate_missing_logic_fix, _generate_fallback_implementation_fix, _generate_test_arrange_fix, _generate_method_implementation_fix, _generate_self_healing_test_fix, _generate_precision_logic_fix, _generate_syntax_fix, _map_name_to_package, _generate_null_check_fix, _generate_manual_fix_placeholder, _generate_calculation_fix, _try_extract_expected_value, _try_extract_actual_value, _generate_numeric_mismatch_fix, _generate_parameter_fix, _generate_backport_suggestion, _calculate_safety_score, _analyze_impact, _detect_language, _find_method_in_structure. ",
     "properties": {},
     "id": "CodeFixSuggestionEngine"
   },
@@ -682,6 +696,20 @@
     "file": "src\\advanced_tdd\\fix_engine.py",
     "summary": "Function generate_fix_suggestions in src\\advanced_tdd\\fix_engine.py. Description: 修正提案を生成",
     "id": "generate_fix_suggestions"
+  },
+  {
+    "type": "function",
+    "name": "_augment_suggestion_context",
+    "file": "src\\advanced_tdd\\fix_engine.py",
+    "summary": "Function _augment_suggestion_context in src\\advanced_tdd\\fix_engine.py. ",
+    "id": "_augment_suggestion_context"
+  },
+  {
+    "type": "function",
+    "name": "_build_conversation_context",
+    "file": "src\\advanced_tdd\\fix_engine.py",
+    "summary": "Function _build_conversation_context in src\\advanced_tdd\\fix_engine.py. ",
+    "id": "_build_conversation_context"
   },
   {
     "type": "function",
@@ -4233,6 +4261,13 @@
   },
   {
     "type": "function",
+    "name": "_copy_node_value",
+    "file": "src\\code_synthesis\\action_handlers\\action_utils.py",
+    "summary": "Function _copy_node_value in src\\code_synthesis\\action_handlers\\action_utils.py. ",
+    "id": "_copy_node_value"
+  },
+  {
+    "type": "function",
     "name": "is_known_state_property",
     "file": "src\\code_synthesis\\action_handlers\\action_utils.py",
     "summary": "Function is_known_state_property in src\\code_synthesis\\action_handlers\\action_utils.py. ",
@@ -4625,7 +4660,7 @@
     "type": "class",
     "name": "ContextManager",
     "file": "src\\context_manager\\context_manager.py",
-    "summary": "Class ContextManager in src\\context_manager\\context_manager.py. Contains methods: __init__, add_context, get_last_context, get_history, set_pending_confirmation_plan, get_pending_confirmation_plan, clear_pending_confirmation_plan, set_awaiting_feedback, is_awaiting_feedback. ",
+    "summary": "Class ContextManager in src\\context_manager\\context_manager.py. Contains methods: __init__, add_context, get_last_context, get_history, set_pending_confirmation_plan, get_pending_confirmation_plan, has_pending_confirmation_plan, clear_pending_confirmation_plan, set_awaiting_feedback, is_awaiting_feedback. ",
     "properties": {},
     "id": "ContextManager"
   },
@@ -4663,6 +4698,13 @@
     "file": "src\\context_manager\\context_manager.py",
     "summary": "Function get_pending_confirmation_plan in src\\context_manager\\context_manager.py. Description: Retrieves the plan that is awaiting user confirmation.",
     "id": "get_pending_confirmation_plan"
+  },
+  {
+    "type": "function",
+    "name": "has_pending_confirmation_plan",
+    "file": "src\\context_manager\\context_manager.py",
+    "summary": "Function has_pending_confirmation_plan in src\\context_manager\\context_manager.py. Description: Returns True when the session is waiting for explicit approval.",
+    "id": "has_pending_confirmation_plan"
   },
   {
     "type": "function",
@@ -6748,9 +6790,16 @@
     "type": "class",
     "name": "Planner",
     "file": "src\\planner\\planner.py",
-    "summary": "Class Planner in src\\planner\\planner.py. Contains methods: __init__, _load_retry_rules, _load_project_rules, _apply_project_rules, create_plan, _plan_self_healing, _refine_plan_with_impact_analysis. ",
+    "summary": "Class Planner in src\\planner\\planner.py. Contains methods: __init__, _get_recommended_action_for_intent, _load_retry_rules, _load_project_rules, _apply_project_rules, create_plan, _plan_self_healing, _refine_plan_with_impact_analysis. ",
     "properties": {},
     "id": "Planner"
+  },
+  {
+    "type": "function",
+    "name": "_get_recommended_action_for_intent",
+    "file": "src\\task_manager\\task_manager.py",
+    "summary": "Function _get_recommended_action_for_intent in src\\task_manager\\task_manager.py. ",
+    "id": "_get_recommended_action_for_intent"
   },
   {
     "type": "function",
@@ -7314,7 +7363,7 @@
     "type": "class",
     "name": "ResponseGenerator",
     "file": "src\\response_generator\\response_generator.py",
-    "summary": "Class ResponseGenerator in src\\response_generator\\response_generator.py. Contains methods: __init__, task_definitions, _load_task_definitions, _load_knowledge_base, generate, _finalize_response, _get_entity_value, generate_confirmation_message. ",
+    "summary": "Class ResponseGenerator in src\\response_generator\\response_generator.py. Contains methods: __init__, task_definitions, _load_task_definitions, _load_knowledge_base, _normalize_topics, _select_template, _format_template, _get_recommended_action_label, _get_recommended_action_description, _build_recommended_action_guidance, _resolve_confirmation_recommended_action, _build_recommended_action_confirmation, _get_task_display_name, _extract_parameter_value, _extract_target_label, _collect_generated_files, _explain_error, _build_action_result_message, _build_task_status_message, generate, _finalize_response, _get_entity_value, generate_confirmation_message. ",
     "properties": {},
     "id": "ResponseGenerator"
   },
@@ -7338,6 +7387,111 @@
     "file": "src\\semantic_analyzer\\semantic_analyzer.py",
     "summary": "Function _load_knowledge_base in src\\semantic_analyzer\\semantic_analyzer.py. ",
     "id": "_load_knowledge_base"
+  },
+  {
+    "type": "function",
+    "name": "_normalize_topics",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _normalize_topics in src\\response_generator\\response_generator.py. Description: Normalize topics to dict form so both str and dict inputs are supported.",
+    "id": "_normalize_topics"
+  },
+  {
+    "type": "function",
+    "name": "_select_template",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _select_template in src\\response_generator\\response_generator.py. ",
+    "id": "_select_template"
+  },
+  {
+    "type": "function",
+    "name": "_format_template",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _format_template in src\\response_generator\\response_generator.py. ",
+    "id": "_format_template"
+  },
+  {
+    "type": "function",
+    "name": "_get_recommended_action_label",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _get_recommended_action_label in src\\response_generator\\response_generator.py. ",
+    "id": "_get_recommended_action_label"
+  },
+  {
+    "type": "function",
+    "name": "_get_recommended_action_description",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _get_recommended_action_description in src\\response_generator\\response_generator.py. ",
+    "id": "_get_recommended_action_description"
+  },
+  {
+    "type": "function",
+    "name": "_build_recommended_action_guidance",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _build_recommended_action_guidance in src\\response_generator\\response_generator.py. ",
+    "id": "_build_recommended_action_guidance"
+  },
+  {
+    "type": "function",
+    "name": "_resolve_confirmation_recommended_action",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _resolve_confirmation_recommended_action in src\\response_generator\\response_generator.py. ",
+    "id": "_resolve_confirmation_recommended_action"
+  },
+  {
+    "type": "function",
+    "name": "_build_recommended_action_confirmation",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _build_recommended_action_confirmation in src\\response_generator\\response_generator.py. ",
+    "id": "_build_recommended_action_confirmation"
+  },
+  {
+    "type": "function",
+    "name": "_get_task_display_name",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _get_task_display_name in src\\response_generator\\response_generator.py. ",
+    "id": "_get_task_display_name"
+  },
+  {
+    "type": "function",
+    "name": "_extract_parameter_value",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _extract_parameter_value in src\\response_generator\\response_generator.py. ",
+    "id": "_extract_parameter_value"
+  },
+  {
+    "type": "function",
+    "name": "_extract_target_label",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _extract_target_label in src\\response_generator\\response_generator.py. ",
+    "id": "_extract_target_label"
+  },
+  {
+    "type": "function",
+    "name": "_collect_generated_files",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _collect_generated_files in src\\response_generator\\response_generator.py. ",
+    "id": "_collect_generated_files"
+  },
+  {
+    "type": "function",
+    "name": "_explain_error",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _explain_error in src\\response_generator\\response_generator.py. ",
+    "id": "_explain_error"
+  },
+  {
+    "type": "function",
+    "name": "_build_action_result_message",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _build_action_result_message in src\\response_generator\\response_generator.py. ",
+    "id": "_build_action_result_message"
+  },
+  {
+    "type": "function",
+    "name": "_build_task_status_message",
+    "file": "src\\response_generator\\response_generator.py",
+    "summary": "Function _build_task_status_message in src\\response_generator\\response_generator.py. ",
+    "id": "_build_task_status_message"
   },
   {
     "type": "function",
@@ -7821,7 +7975,7 @@
     "type": "class",
     "name": "TaskManager",
     "file": "src\\task_manager\\task_manager.py",
-    "summary": "Class TaskManager in src\\task_manager\\task_manager.py. Contains methods: __init__, _load_task_definitions, _log_error, _log_debug, _log_state_transition, _evaluate_condition, manage_task_state, update_task_after_execution, reset_task, _update_session_activity, cleanup_stale_sessions, get_session_stats, get_session_id, is_task_active, _update_clarification_status, get_task_state, force_cleanup_session, create_recovery_task, is_recovery_limit_reached, get_memory_usage_stats, validate_task_integrity. ",
+    "summary": "Class TaskManager in src\\task_manager\\task_manager.py. Contains methods: __init__, _load_task_definitions, _log_error, _log_debug, _log_state_transition, _evaluate_condition, _get_recommended_action_for_intent, _apply_recommended_action_metadata, manage_task_state, update_task_after_execution, reset_task, _update_session_activity, cleanup_stale_sessions, get_session_stats, get_session_id, is_task_active, _update_clarification_status, get_task_state, force_cleanup_session, create_recovery_task, is_recovery_limit_reached, get_memory_usage_stats, validate_task_integrity. ",
     "properties": {},
     "id": "TaskManager"
   },
@@ -7845,6 +7999,13 @@
     "file": "src\\task_manager\\task_manager.py",
     "summary": "Function _log_state_transition in src\\task_manager\\task_manager.py. Description: 状態遷移ログの出力",
     "id": "_log_state_transition"
+  },
+  {
+    "type": "function",
+    "name": "_apply_recommended_action_metadata",
+    "file": "src\\task_manager\\task_manager.py",
+    "summary": "Function _apply_recommended_action_metadata in src\\task_manager\\task_manager.py. ",
+    "id": "_apply_recommended_action_metadata"
   },
   {
     "type": "function",
@@ -7977,9 +8138,23 @@
     "type": "class",
     "name": "TDDOperations",
     "file": "src\\tdd_operations\\tdd_operations.py",
-    "summary": "Class TDDOperations in src\\tdd_operations\\tdd_operations.py. Description: TDDおよびコード修正の操作を担当する独立モジュール Contains methods: __init__, analyze_test_failure, execute_goal_driven_tdd, apply_code_fix, validate_code_syntax. ",
+    "summary": "Class TDDOperations in src\\tdd_operations\\tdd_operations.py. Description: TDDおよびコード修正の操作を担当する独立モジュール Contains methods: __init__, _relativize_path, _build_dialogue_metadata, analyze_test_failure, execute_goal_driven_tdd, apply_code_fix, validate_code_syntax. ",
     "properties": {},
     "id": "TDDOperations"
+  },
+  {
+    "type": "function",
+    "name": "_relativize_path",
+    "file": "src\\tdd_operations\\tdd_operations.py",
+    "summary": "Function _relativize_path in src\\tdd_operations\\tdd_operations.py. ",
+    "id": "_relativize_path"
+  },
+  {
+    "type": "function",
+    "name": "_build_dialogue_metadata",
+    "file": "src\\tdd_operations\\tdd_operations.py",
+    "summary": "Function _build_dialogue_metadata in src\\tdd_operations\\tdd_operations.py. ",
+    "id": "_build_dialogue_metadata"
   },
   {
     "type": "function",

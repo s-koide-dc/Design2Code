@@ -40,7 +40,7 @@
 - **Proactive Task** (Optional[Dict[str, Any]]): ユーザーに提案する最も重要なタスク
   - `summary`: タスクの要約
   - `message`: ユーザーへのメッセージ
-  - `action_type`: アクションタイプ（"REFACTOR", "DOC_GEN", "DOC_REFINE"）
+  - `action_type`: アクションタイプ（"REFACTOR", `INTENT_DOC_GEN`, `INTENT_DOC_REFINE`）
   - `finding`: 関連する監査結果
 
 ### Core Logic
@@ -134,10 +134,10 @@
      - `action_type`: "REFACTOR"
      - `message`: 修正案の作成を提案
    - **MANDATORY_FILE_MISSING**: 設計書の自動生成を提案
-     - `action_type`: "DOC_GEN"
+     - `action_type`: `INTENT_DOC_GEN`
      - `message`: 実装から設計書を自動生成することを提案
    - **DOCUMENT_INCOMPLETE**: 設計書の詳細追記を提案
-     - `action_type`: "DOC_REFINE"
+     - `action_type`: `INTENT_DOC_REFINE`
      - `message`: AIによるロジック分析と補完を提案
 5. 提案辞書を返します。
 

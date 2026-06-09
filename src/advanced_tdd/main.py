@@ -279,7 +279,12 @@ class AdvancedTDDSupport:
             'safety_score': suggestion.safety_score,
             'impact_analysis': suggestion.impact_analysis,
             'auto_applicable': suggestion.auto_applicable,
-            'line_number': suggestion.line_number
+            'line_number': suggestion.line_number,
+            'target_file': getattr(suggestion, 'target_file', None),
+            'conversation_hint': suggestion.impact_analysis.get('conversation_hint') if suggestion.impact_analysis else None,
+            'reason': suggestion.impact_analysis.get('reason') if suggestion.impact_analysis else None,
+            'recommended_action': suggestion.impact_analysis.get('recommended_action') if suggestion.impact_analysis else None,
+            'target_summary': suggestion.impact_analysis.get('target_summary') if suggestion.impact_analysis else None
         }
     
     def _create_validation_plan(self, suggestions: List[CodeFixSuggestion]) -> Dict[str, Any]:

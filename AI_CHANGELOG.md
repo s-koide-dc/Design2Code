@@ -1,5 +1,89 @@
 # AI Changelog
 
+- **2026-06-09**: Marked Phase 2 of `docs/dialogue_integration_plan.md` as complete after the detector regressions, conversational state-preservation regressions, vocabulary-contract updates, and design synchronization all met the documented exit criteria, leaving response rewriting and deeper language-quality work to Phase 3.
+
+- **2026-06-09**: Converted the Phase 2 dialogue-integration status from an open-ended partial implementation into an explicit exit contract in `docs/dialogue_integration_plan.md`, defining detector regressions, conversational state-preservation regressions, confirmation-priority behavior, shared-vocabulary consistency, and the boundary between Phase 2 and Phase 3.
+
+- **2026-06-09**: Added `SMALLTALK` and `FEEDBACK` to the intent corpus, added a dedicated `FEEDBACK` response in `custom_knowledge`, extended detector regressions for `疲れたな` / `雑談しよう` / `ありがとう`, and locked in the conversational-state contract that active clarifications show interruption guidance while pending confirmations re-show the original approval prompt.
+
+- **2026-06-09**: Added `WEATHER` and `CAPABILITY` to `resources/intent_corpus.json`, expanded short conversational intent handling in `intent_detector` to cover weather/capability/definition turns, and added unit plus detector-backed integration regressions so `今日の天気は？`, `何ができる？`, and `AIとは何？` preserve clarification and pending-confirmation state.
+
+- **2026-06-09**: Generalized short-utterance conversational intent handling in `intent_detector` so brief `BYE` / `PERSONAL_Q` / `GREETING` / `TIME` turns are less likely to collapse into `GENERAL`, and added unit plus detector-backed integration regressions for `バイバイ` and `調子はどう？` during clarification and pending confirmation.
+
+- **2026-06-09**: Extended Phase 2 conversational-interruption coverage with real detector-backed integration scenarios for `GREETING` / `TIME` variants during active clarification and pending confirmation, and broadened the corpus examples with `やあ`, `時間教えて`, and `今の時間`.
+
+- **2026-06-09**: Extended Phase 2 confirmation-variant conversation coverage into `CMD_RUN` and the TDD confirmation flows, adding integration regressions for `了解`-based approval and `キャンセル`-based rejection in `tests/integration/test_conversation_scenarios.py`.
+
+- **2026-06-09**: Added `了解` and `キャンセル` to the approval-response intent examples used for vector matching, so semantic approval detection no longer depends only on regex-like patterns when corpus sentence vectors are active.
+
+- **2026-06-09**: Extended Phase 2 conversation regressions into the real compound-task approval flow by fixing `BACKUP_AND_DELETE` approval with the agree/disagree variants `了解` and `ノー` in `test_conversation_scenarios.py`.
+
+- **2026-06-09**: Strengthened Phase 2 dialogue-matching coverage by extending `intent_detector` action boosts to delete/copy/move/backup flows and adding dedicated unit regressions for delete/copy/move phrasing plus approval-response and time-intent variations.
+
+- **2026-06-09**: Synchronized `src/advanced_tdd/advanced_tdd.design.md` and `src/advanced_tdd/knowledge_base.design.md` with the current `ConfigAdapter`-based synthesizer wiring, repair-knowledge storage unification, legacy vector-store migration, and pipeline-log learning behavior, clearing the stale `advanced_tdd` design warning path.
+
+- **2026-06-09**: Updated `docs/dialogue_integration_plan.md` with an explicit implementation-status audit, marking Phase 1 as nearly complete, Phase 2 as partially implemented, and Phase 3 as largely untouched, while documenting concrete completed items and remaining work for dialogue integration.
+
+- **2026-06-04**: Broadened `scripts/validate_project_consistency.py` resource-vocabulary checks to cover `intent_corpus.json` and `task_definitions.json`, added the remaining task-oriented action-intent constants needed to represent those assets centrally, and replaced the last recovery/rename/file-write magic strings in runtime code with shared constants.
+
+- **2026-06-04**: Expanded `src/utils/semantic_intents.py` with shared runtime-role constants and applied the centralized semantic vocabulary to `structured_parser`, `design_inference`, `code_synthesizer`, `spec_auditor`, and the high-traffic intent/role coercion paths in `ir_generator`. Also hardened `safe_copy_node()` so IR nodes containing opaque non-picklable leaves no longer fail on deep copy during synthesis.
+
+- **2026-06-04**: Extended the same `semantic_intents` vocabulary into `action_synthesizer`, `ir_validator`, `spec_role_rules`, `promotion_rules`, `statement_builder`, `template_registry`, `semantic_binder`, and `unified_knowledge_base`, reducing remaining internal semantic-intent magic strings around candidate filtering, loop expansion, resilient blocks, and role-based ranking.
+
+- **2026-06-04**: Continued the semantic-intent unification into `design_parser.validator`, `utils.logic_auditor`, `utils.spec_auditor`, and the concrete `code_synthesis.action_handlers` for fetch/persist/display/transform/json/calc flows, so the remaining high-traffic runtime helpers now compare internal IR vocabulary through `src.utils.semantic_intents`.
+
+- **2026-06-04**: Started aligning fixtures and knowledge assets with the centralized vocabulary boundary by moving `tests/fixtures/task_definitions.py` onto shared action-intent constants and adding resource-vocabulary checks to `scripts/validate_project_consistency.py` for `action_patterns.json`, `canonical_knowledge.json`, `method_capability_map.json`, and `method_store.json`.
+
+- **2026-06-04**: Added `src/utils/action_intents.py` and moved the highest-traffic action intent branches in `planner`, `task_manager`, `intent_detector`, `action_executor`, and `response_generator` onto shared constants, including common intent groups for file mutations and project-language defaults.
+
+- **2026-06-04**: Extended `action_intents` adoption into `semantic_analyzer`, `clarification_manager`, and `safety_policy_validator`, including `PROVIDE_CRITERIA`, destructive/cautionary intent defaults, and intent-specific entity extraction branches.
+
+- **2026-06-04**: Extended `action_intents` usage into `task_manager.approval_messages`, `autonomous_learning.compliance_auditor`, and the intent-to-method-name bridge in `code_synthesis.autonomous_synthesizer`, reducing remaining runtime action-intent string keys around approval prompts and document suggestions.
+
+- **2026-06-04**: Added `src/utils/semantic_intents.py` and started separating internal IR/code-synthesis semantic vocabulary from dialogue/action intents, wiring shared constants into `autonomous_synthesizer`, `action_synthesizer`, `ir_generator`, and `design_inference`.
+
+- **2026-06-04**: Extended `src/utils/control_intents.py` to cover `FEEDBACK_RECEIVED` as well, and aligned `SetupStage` plus `response_generator`'s capability-response gate with the shared dialogue-control constants.
+
+- **2026-05-28**: Added `src/utils/confirmation_response.py` and moved approval-response intent/state comparisons onto shared constants across `pipeline_core`, `task_manager`, `intent_detector`, `planner`, `autonomous_learning`, fixtures, and integration helpers, reducing remaining `AGREE` / `DISAGREE` / `CLARIFICATION_RESPONSE` magic strings in confirmation control flow.
+
+- **2026-05-28**: Centralized dialogue-state names into `src/utils/dialogue_state.py` and replaced inline string literals across `pipeline_core`, `task_manager`, `clarification_manager`, `response_generator`, and unit coverage, so confirmation/clarification state handling no longer depends on repeated magic strings.
+
+- **2026-05-28**: Introduced an explicit `dialogue_state` contract to separate `pending_confirmation` from ordinary `task_clarification`, wiring it through `pipeline_core`, `task_manager`, `clarification_manager`, `response_generator`, and matching unit coverage so confirmation prompts and missing-entity prompts no longer share only a boolean flag.
+
+- **2026-05-28**: Extended the confirmation-priority dialogue regressions beyond TDD by adding `CMD_RUN` integration coverage and `BACKUP_AND_DELETE` conversation coverage, locking in both behaviors: unrelated requests re-show the original approval prompt, and `DISAGREE` immediately frees the session for a fresh file-creation task.
+
+- **2026-05-28**: Fixed the pending-confirmation `DISAGREE` shortcut so it now clears both the stored confirmation plan and the active task, then added integrated and conversation-level regressions proving TDD approval flows can be rejected and immediately replaced by a fresh file-creation task.
+
+- **2026-05-28**: Made pending confirmations in `IntentDetectionStage` take priority over later unrelated task requests, and added matching regressions in `test_full_integrated_pipeline.py` and `test_conversation_scenarios.py` so TDD approval flows re-show the original confirmation instead of silently switching to a new task when the user asks for something else mid-approval.
+
+- **2026-05-28**: Added conversation-level interruption/resume regressions for `EXECUTE_GOAL_DRIVEN_TDD`, `ANALYZE_TEST_FAILURE`, and `APPLY_CODE_FIX` in `test_conversation_scenarios.py`, proving that the natural-language dialogue path keeps each TDD confirmation active across a `TIME` interruption and resumes the same `recommended_action` on later approval.
+
+- **2026-05-28**: Added interruption-resume regressions for all three TDD approval flows in `test_full_integrated_pipeline.py`, fixing the contract that a pending confirmation survives conversational turns like `TIME` and still resumes the original `recommended_action` on later approval.
+
+- **2026-05-28**: Extended the full integrated TDD confirmation regressions to cover `ANALYZE_TEST_FAILURE` and `APPLY_CODE_FIX`, proving that `recommended_action` survives the end-to-end approval path for all three dialogue-oriented TDD flows.
+
+- **2026-05-28**: Added a `test_full_integrated_pipeline.py` regression for the TDD approval flow, keeping `recommended_action=execute_goal_driven_tdd` visible across real `task_manager`/`planner`/`response_generator` integration while patching only intent detection, safety confirmation level, and execution result.
+
+- **2026-05-28**: Added a `pipeline_core` integration regression that fixes the end-to-end TDD confirmation path: `recommended_action` now stays intact from task/planner output through pending confirmation storage and into the approved execution turn.
+
+- **2026-05-28**: Propagated deterministic TDD `recommended_action` metadata into `task_manager`, so `ANALYZE_TEST_FAILURE`, `EXECUTE_GOAL_DRIVEN_TDD`, and `APPLY_CODE_FIX` tasks retain the same dialogue hint through task creation, ready-state transitions, and interruption/resumption flows.
+
+- **2026-05-28**: Made `planner` emit explicit TDD-oriented `recommended_action` codes for `ANALYZE_TEST_FAILURE`, `EXECUTE_GOAL_DRIVEN_TDD`, and `APPLY_CODE_FIX`, and extended the knowledge-base action labels/descriptions plus planner unit coverage so approval prompts no longer depend on response-layer fallback alone.
+
+- **2026-05-28**: Extended `generate_confirmation_message()` so approval prompts can reuse deterministic `recommended_action` labels and descriptions, including an `_apply_code_fix` fallback mapping and unit coverage for TDD-style confirmation text.
+
+- **2026-05-28**: Added deterministic `recommended_action` explanation text in `custom_knowledge.json` and taught `response_generator` to render both the user-facing action name and its next-step explanation for failure-analysis and code-fix dialogue responses.
+
+- **2026-05-28**: Added deterministic `recommended_action` display labels in `custom_knowledge.json` and updated `response_generator` to render user-facing Japanese action names instead of internal codes like `apply_code_fix`.
+
+- **2026-05-28**: Refined TDD dialogue metadata from a single `conversation_hint` into structured `reason`, `recommended_action`, and `target_summary` fields across `fix_engine`, `advanced_tdd.main`, `tdd_operations`, and `response_generator`, with matching tests and design-sync updates.
+
+- **2026-05-28**: Added `analysis_summary` to `failure_analyzer`, preserved `target_file`/`conversation_hint` through `fix_engine` and `advanced_tdd.main`, and synchronized the related `advanced_tdd` design documents so dialogue-oriented TDD metadata survives end-to-end.
+
+- **2026-05-28**: Extended dialogue integration into TDD flows by adding deterministic `dialogue_metadata` and summaries for failure analysis, goal-driven TDD, and code-fix application in `tdd_operations`/`action_executor`, plus phase-aware response generation and unit tests.
+
+- **2026-05-28**: Implemented Phase 1 dialogue integration in `response_generator` by adding deterministic dynamic task/action bindings, structured error explanations, generated-file summaries, interruption resumption text, and matching unit tests plus dialogue templates in `custom_knowledge.json`.
+
 - **2026-05-28**: Relaxed `scripts/validate_project_consistency.py` so warning-only runs now return exit code 0 while still reporting warnings on stderr, matching the intended separation between must-fix doc/consistency errors and review-only freshness drift; added an integration regression for the warning-only path.
 
 - **2026-05-28**: Hardened the CI-facing regression path by (1) making `validate_project_consistency.py` resolve stale absolute workspace links back into the current repo when possible while ignoring non-repo absolute artifacts, (2) narrowing inline path validation to committed source/doc-style extensions instead of generated assets like `txt` / `npy` / `db`, (3) suppressing warning-level logging during `run_unit_smoke.py`, and (4) forcing documented pipeline-entrypoint tests to rebuild intent vectors from an asset-free dummy vector engine instead of relying on local vector caches.

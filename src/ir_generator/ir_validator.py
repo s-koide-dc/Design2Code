@@ -2,6 +2,22 @@
 import json
 import os
 from typing import List, Dict, Any, Set
+from src.utils.semantic_intents import (
+    INTENT_ACTION,
+    INTENT_DATABASE_QUERY,
+    INTENT_FETCH,
+    INTENT_FILE_IO,
+    INTENT_HTTP_REQUEST,
+    INTENT_JSON_DESERIALIZE,
+    INTENT_LINQ,
+    INTENT_PERSIST,
+    INTENT_TRANSFORM,
+    NODE_ACTION,
+    NODE_CONDITION,
+    NODE_ELSE,
+    NODE_END,
+    NODE_LOOP,
+)
 
 class IRValidator:
     """
@@ -40,16 +56,16 @@ class IRValidator:
             node_type = node.get("type")
             intent = str(node.get("intent") or "").upper()
             
-            if node_type in ["ACTION", "TRANSFORM"]:
+            if node_type in [NODE_ACTION, INTENT_TRANSFORM]:
                 self._validate_action(node, symbol_table, errors, warnings)
                 # 仮の出力登録 (本来はメソッドストアの戻り値型を見る必要があるが、ここではエンティティ名から推論)
                 target = node.get("target_entity")
                 if target and target != "Item":
-                    if intent in ["FETCH", "DATABASE_QUERY", "JSON_DESERIALIZE", "HTTP_REQUEST", "FILE_IO", "LINQ", "TRANSFORM"]:
+                    if intent in [INTENT_FETCH, INTENT_DATABASE_QUERY, INTENT_JSON_DESERIALIZE, INTENT_HTTP_REQUEST, INTENT_FILE_IO, INTENT_LINQ, INTENT_TRANSFORM]:
                         is_coll = self._is_collection(node)
                         symbol_table.append({"name": target.lower(), "type": target, "is_collection": is_coll})
 
-            elif node_type == "LOOP":
+            elif node_type == NODE_LOOP:
                 # ループ対象がシンボルテーブルにあるか確認
                 target = node.get("target_entity")
                 found = False
@@ -73,7 +89,7 @@ class IRValidator:
                 else:
                     self._traverse_and_validate(children, inner_symbol_table, errors, warnings)
 
-            elif node_type == "CONDITION":
+            elif node_type == NODE_CONDITION:
                 children = self._get_children(node)
                 else_children = self._get_else_children(node)
                 if not children and not else_children:
@@ -92,7 +108,7 @@ class IRValidator:
                     self._traverse_and_validate(children, list(symbol_table), errors, warnings)
                 else:
                     warnings.append("WRAPPER (Retry, etc.) has no body.")
-            elif node_type in ["ELSE", "END"]:
+            elif node_type in [NODE_ELSE, NODE_END]:
                 continue
 
     def _validate_action(self, node: Dict[str, Any], symbol_table: List[Dict[str, Any]], errors: List[str], warnings: List[str]):
@@ -100,7 +116,7 @@ class IRValidator:
         intent = str(node.get("intent") or "").upper()
         
         # 依存関係の欠落チェック (intent ベース)
-        if intent in ["PERSIST", "WRITE"]:
+        if intent in [INTENT_PERSIST, "WRITE"]:
             if target and not any(sym["type"] == target for sym in symbol_table):
                 errors.append(f"Action '{intent}' requires '{target}' to be defined/loaded, but it's missing in scope.")
 

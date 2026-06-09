@@ -831,6 +831,58 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         finally:
             doc_path.write_text(original, encoding="utf-8")
 
+    def test_validate_project_consistency_reports_unknown_intent_in_intent_corpus(self):
+        corpus_path = self.workspace_root / "resources" / "intent_corpus.json"
+        original = json.loads(corpus_path.read_text(encoding="utf-8"))
+        mutated = json.loads(corpus_path.read_text(encoding="utf-8"))
+        mutated["intents"][0]["name"] = "UNKNOWN_VALIDATOR_INTENT"
+
+        try:
+            corpus_path.write_text(json.dumps(mutated, ensure_ascii=False, indent=2), encoding="utf-8")
+            command = [
+                sys.executable,
+                "scripts/validate_project_consistency.py",
+            ]
+            completed = subprocess.run(
+                command,
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 1)
+            self.assertIn("intent_corpus.json:intents[0].name", completed.stderr)
+            self.assertIn("UNKNOWN_VALIDATOR_INTENT", completed.stderr)
+        finally:
+            corpus_path.write_text(json.dumps(original, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def test_validate_project_consistency_reports_unknown_subtask_intent_in_task_definitions(self):
+        definitions_path = self.workspace_root / "resources" / "task_definitions.json"
+        original = json.loads(definitions_path.read_text(encoding="utf-8"))
+        mutated = json.loads(definitions_path.read_text(encoding="utf-8"))
+        mutated["BACKUP_AND_DELETE"]["subtasks"][0]["name"] = "UNKNOWN_SUBTASK_INTENT"
+
+        try:
+            definitions_path.write_text(json.dumps(mutated, ensure_ascii=False, indent=2), encoding="utf-8")
+            command = [
+                sys.executable,
+                "scripts/validate_project_consistency.py",
+            ]
+            completed = subprocess.run(
+                command,
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(completed.returncode, 1)
+            self.assertIn("task_definitions.json:BACKUP_AND_DELETE.subtasks[0].name", completed.stderr)
+            self.assertIn("UNKNOWN_SUBTASK_INTENT", completed.stderr)
+        finally:
+            definitions_path.write_text(json.dumps(original, ensure_ascii=False, indent=2), encoding="utf-8")
+
     def test_sync_project_dependencies_warns_to_stderr_for_invalid_csproj(self):
         with tempfile.TemporaryDirectory(dir=self.cache_dir) as temp_root_str:
             temp_root = Path(temp_root_str)

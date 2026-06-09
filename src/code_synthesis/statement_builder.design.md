@@ -89,4 +89,5 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
 
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
+- 2026-06-04: resilient intent の判定語彙を `src.utils.semantic_intents` の共通定数へ寄せた。
 

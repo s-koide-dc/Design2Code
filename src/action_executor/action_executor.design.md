@@ -20,11 +20,13 @@
 2. `safety_check_status == "BLOCK"` の場合は実行を拒否する。
 3. `confirmation_needed == true` かつ `confirmation_granted/confirmed` が未設定の場合は実行を拒否する。
 4. `action_method` が存在すれば `execute_action` で該当メソッドを呼び出す。
-5. 実行結果を `action_result` に格納し、ログへ記録する。
-6. `_safe_join` でワークスペース外アクセスを拒否する。
-7. `_run_command` でホワイトリストとサブコマンド検証、禁止オプション、メタ文字、読み取り/一覧パス制限を行う（既定の読み取り許可ディレクトリは `AIFiles/config/docs/scripts/src/tests` のみ）。
-8. `python/py` は `scripts/` 配下かつ allowlist (`python_allowed_scripts`) に限定する。
-9. `FILE_DELETE` / `APPLY_CODE_FIX` / `APPLY_REFACTORING` は実行前にバックアップが必須。
+5. 実行後、`_augment_action_result_metadata` で `dialogue_metadata.action_method` / `intent` / 主要パラメータを補完し、対話層が安定して参照できる形へ正規化する。
+6. 実行結果を `action_result` に格納し、ログへ記録する。
+7. `_safe_join` でワークスペース外アクセスを拒否する。
+8. `_run_command` でホワイトリストとサブコマンド検証、禁止オプション、メタ文字、読み取り/一覧パス制限を行う（既定の読み取り許可ディレクトリは `AIFiles/config/docs/scripts/src/tests` のみ）。
+9. `python/py` は `scripts/` 配下かつ allowlist (`python_allowed_scripts`) に限定する。
+10. `FILE_DELETE` / `APPLY_CODE_FIX` / `APPLY_REFACTORING` は実行前にバックアップが必須。
+11. `get_required_entities_for_intent` の主要 action intent 判定は `src.utils.action_intents` の共通定数を使い、実行条件分岐の文字列直書きを避ける。
 
 ### Test Cases
 - **Happy Path**:
@@ -38,6 +40,8 @@
 - **Edge Cases**:
   - **Scenario**: `npm` の許可サブコマンド以外を実行。
   - **Expected Output / Behavior**: `action_result.status == "error"`。
+  - **Scenario**: カスタムアクションが `action_result` を返す。
+  - **Expected Output / Behavior**: `dialogue_metadata.action_method` と `dialogue_metadata.intent` が補完される。
 
 ## 3. Dependencies
 - **Internal**: `file_operations`, `csharp_operations`, `test_operations`, `refactoring_operations`, `cicd_operations`, `tdd_operations`, `semantic_analyzer`

@@ -9,7 +9,7 @@
 ### Input
 - **Description**: アクションメソッド、パラメータ、intent。
 - **Type/Format**: `str`, `Dict[str, Any]`, `str | None`
-- **Example**: `("_run_command", {"command":"dotnet test"}, "CMD_RUN")`
+- **Example**: `("_run_command", {"command":"dotnet test"}, "INTENT_CMD_RUN")`
 
 ### Output
 - **Description**: 安全性評価結果。
@@ -18,7 +18,7 @@
 
 ### Core Logic
 1. `SafetyPolicyValidator` がポリシー（`config`/`resources`）を読み込み、危険/注意 intent を初期化する。
-2. `CMD_RUN` は `safe_commands` に含まれるコマンドのみ許可し、メタ文字が含まれる場合はブロックする。
+2. `INTENT_CMD_RUN` は `safe_commands` に含まれるコマンドのみ許可し、メタ文字が含まれる場合はブロックする。
 3. intent が破壊的または注意対象に該当する場合、リスクレベルを引き上げる。
 
 ### Test Cases

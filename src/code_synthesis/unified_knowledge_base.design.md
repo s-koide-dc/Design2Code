@@ -75,6 +75,7 @@ Candidates are sorted based on a tuple of priority scores (Descending Order):
 
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
+- 2026-06-04: `INTENT_CAPABILITY_MAP` と role-based ranking の主要比較を `src.utils.semantic_intents` の共通語彙へ寄せた。
 
 ## 5. Operational Notes
 - `action_patterns.json` と `canonical_knowledge.json` の読込失敗は stdout ではなく logger に記録する。

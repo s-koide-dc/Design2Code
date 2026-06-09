@@ -42,6 +42,8 @@ It also integrates the legacy `GoalDrivenTDDEngine` capabilities, enabling it to
    - 分解された要件を一つずつ `synthesize_safely` で合成します。
    - 直前のメソッドの戻り値型やシグネチャを「セッションコンテキスト」として次の合成ステップに引き継ぎ、メソッド間の整合性を保ちます。
 4. **コード統合**: 合成された複数のメソッド、Using文、および抽出されたPOCO定義を統合し、クリーンな単一のC#ファイルとして出力します。
+5. **メソッド名推論の共通語彙**: `Intent -> method prefix` の簡易マッピングは `src.utils.action_intents` の共通定数を使い、`FILE_CREATE` / `CMD_RUN` / `CS_QUERY_ANALYSIS` などの action intent 名直書きを避けます。
+6. **内部 semantic intent の既定値**: 要件分解中に外部 intent 判定を使わない経路では、既定値 `GENERAL` を `src.utils.semantic_intents.INTENT_GENERAL` で参照し、対話 intent 定数と混同しないようにします。
 
 #### B. 低レベル・自己修復合成フロー (`synthesize_safely`)
 1. **初期合成**: `CodeSynthesizer` によりコードを生成します。

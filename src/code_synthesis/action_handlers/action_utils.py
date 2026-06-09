@@ -11,7 +11,25 @@ def to_csharp_string_literal(text: Optional[str]) -> str:
 
 
 def safe_copy_node(node: Dict[str, Any]) -> Dict[str, Any]:
-    return copy.deepcopy(node)
+    try:
+        return copy.deepcopy(node)
+    except Exception:
+        return _copy_node_value(node)
+
+
+def _copy_node_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _copy_node_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_copy_node_value(v) for v in value]
+    if isinstance(value, tuple):
+        return tuple(_copy_node_value(v) for v in value)
+    if isinstance(value, set):
+        return {_copy_node_value(v) for v in value}
+    try:
+        return copy.deepcopy(value)
+    except Exception:
+        return value
 
 
 def is_known_state_property(prop: str) -> bool:

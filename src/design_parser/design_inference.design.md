@@ -21,9 +21,10 @@
 2. data source 行を先に収集し、後続ステップの source 解決候補として保持する。
 3. 各 Core Logic 行について、明示タグがある行はそのまま保持し、無い行のみ補完対象にする。
 4. `DesignOpsResolver` と entity 推定を使って、`intent`, `target_entity`, `output_type`, `refs`, `semantic_roles`, `data_source` を決定的に推論する。
-5. confidence threshold を下回る場合は補完せず `blocked` を返す。
-6. 変更があれば元文書は書き換えず、`.inferred.design.md` に書き出す。
-7. `### Inference Metadata` ブロックを埋め込み、推論ルール版と asset fingerprint を追跡可能にする。
+5. 補完時の内部 semantic intent (`GENERAL`, `FETCH`, `TRANSFORM`, `DISPLAY`, `PERSIST`, `HTTP_REQUEST`, `DATABASE_QUERY`, `JSON_DESERIALIZE`, `LINQ`, `CALC`) と node kind (`ACTION`, `CONDITION`, `LOOP`, `ELSE`, `END`) は `src.utils.semantic_intents` の共通定数を使う。
+6. confidence threshold を下回る場合は補完せず `blocked` を返す。
+7. 変更があれば元文書は書き換えず、`.inferred.design.md` に書き出す。
+8. `### Inference Metadata` ブロックを埋め込み、推論ルール版と asset fingerprint を追跡可能にする。
 
 ### Test Cases
 - **Happy Path**:

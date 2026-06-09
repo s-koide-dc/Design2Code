@@ -18,6 +18,7 @@
 ### Core Logic
 1. `FETCH` かつ `source_kind=stdin` の場合、`Console.ReadLine()` を生成する。
 2. 生成した変数を `type_to_vars` に登録し、`active_scope_item` を更新する。
+3. `FETCH` 判定と statement への intent 付与には `src.utils.semantic_intents` の共通定数を使う。
 
 ### Test Cases
 - **Happy Path**:
@@ -29,3 +30,6 @@
 
 ## 3. Dependencies
 - **Internal**: `code_synthesis`
+
+## 4. Review Notes
+- 2026-06-04: `FETCH` 判定と statement metadata の intent を `src.utils.semantic_intents` の共通語彙へ寄せた。

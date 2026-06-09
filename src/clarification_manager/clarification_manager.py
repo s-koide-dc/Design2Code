@@ -4,6 +4,8 @@
 import json
 import os
 
+from src.utils.action_intents import INTENT_CMD_RUN, INTENT_FILE_CREATE, INTENT_FILE_READ
+from src.utils.dialogue_state import TASK_CLARIFICATION
 from src.utils.stdout_guard import debug_print
 
 class ClarificationManager:
@@ -135,6 +137,8 @@ class ClarificationManager:
         
         # If clarification is already explicitly set in context (e.g. by TaskManager), respect it.
         if context.get("clarification_needed"):
+            if not context.get("dialogue_state"):
+                context["dialogue_state"] = TASK_CLARIFICATION
             # Ensure response text is set if clarification_needed is True but response is empty
             if not context["response"].get("text") and context.get("task", {}).get("clarification_message"):
                 context["response"]["text"] = context["task"]["clarification_message"]
@@ -189,6 +193,7 @@ class ClarificationManager:
             
             # If max attempts reached, return context immediately with the clarification message
             context["clarification_needed"] = True
+            context["dialogue_state"] = TASK_CLARIFICATION
             context["response"]["text"] = clarification_message
             return context
         
@@ -260,6 +265,7 @@ class ClarificationManager:
         
         if clarification_message:
             context["clarification_needed"] = True
+            context["dialogue_state"] = TASK_CLARIFICATION
             context["response"]["text"] = clarification_message
             # If it's a max_attempts_reached message, always reset attempts
             if "max_attempts_reached" in clarification_message:
@@ -270,6 +276,8 @@ class ClarificationManager:
             else:
                 self.clarification_history[internal_session_id] = 0 # Reset attempts for actual errors
         else:
+            if context.get("dialogue_state") == TASK_CLARIFICATION:
+                context["dialogue_state"] = None
             self.clarification_history[internal_session_id] = 0 # Clear attempts if no clarification needed
             self.log_manager.log_event(
                 "clarification_not_needed",
@@ -282,11 +290,11 @@ class ClarificationManager:
 # Dummy for ActionExecutor, would be replaced by actual ActionExecutor.get_required_entities
 class DummyActionExecutor:
     def get_required_entities(self, intent):
-        if intent == "FILE_CREATE":
+        if intent == INTENT_FILE_CREATE:
             return ["filename", "content"]
-        elif intent == "FILE_READ":
+        elif intent == INTENT_FILE_READ:
             return ["filename"]
-        elif intent == "CMD_RUN":
+        elif intent == INTENT_CMD_RUN:
             return ["command"]
         return []
 
@@ -329,7 +337,7 @@ if __name__ == '__main__':
     context3 = {
         "original_text": "ファイルを作って",
         "analysis": {
-            "intent": "FILE_CREATE", "intent_confidence": 0.9,
+            "intent": INTENT_FILE_CREATE, "intent_confidence": 0.9,
             "entities": {"filename": {"value": "new.txt", "confidence": 0.9}} # Content is missing
         },
     }
@@ -352,7 +360,7 @@ if __name__ == '__main__':
     debug_print("\n--- Test Case 5: No Clarification Needed ---")
     context5 = {
         "original_text": "明確な指示",
-        "analysis": {"intent": "FILE_CREATE", "intent_confidence": 0.95,
+        "analysis": {"intent": INTENT_FILE_CREATE, "intent_confidence": 0.95,
                      "entities": {"filename": {"value": "test.txt", "confidence": 0.95},
                                   "content": {"value": "hello", "confidence": 0.95}}
         },

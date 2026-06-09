@@ -17,7 +17,7 @@ The `stages.py` module defines the discrete processing units that make up the AI
 - **Logic**:
     1.  **Validation**: Check input length (Max 200KB).
     2.  **Session Extraction**: Parse `session_id:` prefix or use default.
-    3.  **Feedback**: If session is awaiting feedback, record it via `AutonomousLearning` and exit early.
+    3.  **Feedback**: If session is awaiting feedback, record it via `AutonomousLearning`, set `analysis.intent = INTENT_FEEDBACK_RECEIVED`, and exit early.
 
 #### 2.2.2 LanguageAnalysisStage
 - **Goal**: Low-level linguistic processing.
@@ -29,9 +29,11 @@ The `stages.py` module defines the discrete processing units that make up the AI
 - **Goal**: Determine user intent and handle meta-commands.
 - **Logic**:
     1.  Invoke `IntentDetector`.
-    2.  **Correction**: If intent is "CORRECTION", enter feedback mode.
-    3.  **Confirmation**: If intent is "AGREE"/"DISAGREE" and a plan is pending, confirm or cancel the plan.
-        - On "AGREE", set `confirmation_granted = true` in the context and clear the pending plan.
+    2.  **Correction**: If intent is `INTENT_CORRECTION`, enter feedback mode.
+    3.  **Confirmation**: If the current intent matches the shared approval / rejection constants from `src.utils.confirmation_response` and a plan is pending, confirm or cancel the plan.
+        - On `INTENT_AGREE`, set `confirmation_granted = true` in the context and clear the pending plan.
+        - On `INTENT_DISAGREE`, clear both the pending plan and the active task so the next user request can start a fresh task.
+    4.  **Pending Confirmation Priority**: If a plan is already awaiting confirmation and the new intent is neither `INTENT_AGREE` nor `INTENT_DISAGREE`, keep that plan active, mark `dialogue_state = src.utils.dialogue_state.PENDING_CONFIRMATION`, and re-show the same confirmation prompt instead of switching into a new task flow.
 
 #### 2.2.4 SemanticAnalysisStage
 - **Goal**: Deep understanding and context history.
@@ -44,13 +46,14 @@ The `stages.py` module defines the discrete processing units that make up the AI
 - **Goal**: Update task states (TODO/IN_PROGRESS/DONE).
 - **Logic**:
     1.  Invoke `TaskManager.manage_task_state`.
-    2.  **Interruption**: If a conversational intent (e.g., GREETING) interrupts a task, generate a response and exit.
+    2.  **Interruption**: If an intent in `src.utils.control_intents.CONVERSATIONAL_INTENTS` interrupts a task, generate a response and exit.
 
 #### 2.2.6 ClarificationStage
 - **Goal**: Resolve ambiguities.
 - **Logic**:
     1.  Invoke `ClarificationManager`.
-    2.  If clarification is needed, generate a question using `ResponseGenerator`.
+    2.  If clarification is needed and `dialogue_state == pending_confirmation`, regenerate the confirmation prompt via `generate_confirmation_message`.
+    3.  Otherwise, generate a normal clarification question using `ResponseGenerator`.
 
 #### 2.2.7 ExecutionStage
 - **Goal**: Plan and execute actions (The "Doing" phase).

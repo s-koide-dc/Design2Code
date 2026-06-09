@@ -9,6 +9,15 @@ from typing import Any, Dict, List, Tuple
 from src.design_parser.validator import validate_structured_spec_or_raise
 from src.design_parser.data_source_utils import parse_data_source_tag
 from src.utils.design_doc_parser import DesignDocParser
+from src.utils.semantic_intents import (
+    INTENT_FETCH,
+    INTENT_GENERAL,
+    NODE_ACTION,
+    NODE_CONDITION,
+    NODE_ELSE,
+    NODE_END,
+    NODE_LOOP,
+)
 
 
 class StructuredDesignParser:
@@ -100,7 +109,7 @@ class StructuredDesignParser:
                     step["source_kind"] = source_map[source_ref]
             
             # Default for FETCH if still missing
-            if step["intent"] == "FETCH" and not step.get("source_kind"):
+            if step["intent"] == INTENT_FETCH and not step.get("source_kind"):
                 step["source_kind"] = "file"
 
     def _io_to_structured(self, name: str, io_data: Dict[str, Any]) -> Dict[str, str]:
@@ -122,8 +131,8 @@ class StructuredDesignParser:
         }
 
     def _logic_step_to_structured(self, idx: int, text: str) -> Dict[str, Any]:
-        kind = "ACTION"
-        intent = "GENERAL"
+        kind = NODE_ACTION
+        intent = INTENT_GENERAL
         target_entity = "Item"
         output_type = "void"
         side_effect = "NONE"
@@ -140,13 +149,13 @@ class StructuredDesignParser:
         if meta:
             explicit_intent = True
             kind = meta[0].upper()
-            if kind in ["ELSE", "END"]:
-                intent = "GENERAL"
+            if kind in [NODE_ELSE, NODE_END]:
+                intent = INTENT_GENERAL
                 if len(meta) > 1: intent = meta[1]
             else:
-                if len(meta) == 4 and kind in ["LOOP", "CONDITION"]:
+                if len(meta) == 4 and kind in [NODE_LOOP, NODE_CONDITION]:
                     kind = meta[0]
-                    intent = "GENERAL"
+                    intent = INTENT_GENERAL
                     target_entity = meta[1]
                     output_type = meta[2]
                     side_effect = meta[3]
@@ -230,7 +239,7 @@ class StructuredDesignParser:
             return [], text
         parts = [p.strip() for p in meta_raw.split("|")]
         kind = parts[0].upper()
-        if kind in ["ELSE", "END"]:
+        if kind in [NODE_ELSE, NODE_END]:
             # Special handling for simple blocks
             return parts, remainder
             

@@ -4,6 +4,13 @@ import json
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from src.utils.text_parser import extract_quoted_literals
+from src.utils.semantic_intents import (
+    INTENT_DATABASE_QUERY,
+    INTENT_FETCH,
+    INTENT_FILE_IO,
+    INTENT_HTTP_REQUEST,
+    INTENT_PERSIST,
+)
 
 class LogicAuditor:
     """仕様(DesignDoc)と実装(SourceStructure)の整合性を監査するクラス"""
@@ -617,7 +624,7 @@ class LogicAuditor:
 
     def _is_role_mismatch(self, actual_role: str, expected_role: str) -> bool:
         if actual_role == expected_role: return False
-        role_groups = [["FETCH", "DATABASE_QUERY", "HTTP_REQUEST"], ["PERSIST", "FILE_IO", "EXPORT"]]
+        role_groups = [[INTENT_FETCH, INTENT_DATABASE_QUERY, INTENT_HTTP_REQUEST], [INTENT_PERSIST, INTENT_FILE_IO, "EXPORT"]]
         for group in role_groups:
             if actual_role in group and expected_role in group: return False
         return True

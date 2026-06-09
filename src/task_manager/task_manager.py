@@ -6,6 +6,30 @@ import json
 import os # Added for file operations
 import time
 
+from src.utils.confirmation_response import (
+    INTENT_AGREE,
+    INTENT_CLARIFICATION_RESPONSE,
+    INTENT_DISAGREE,
+    RESPONSE_APPROVED,
+    RESPONSE_REJECTED,
+    STATE_AGREED,
+    STATE_DISAGREED,
+)
+from src.utils.action_intents import (
+    INTENT_ANALYZE_TEST_FAILURE,
+    INTENT_APPLY_CODE_FIX,
+    INTENT_CMD_RUN,
+    INTENT_EXECUTE_GOAL_DRIVEN_TDD,
+    INTENT_FILE_CREATE,
+    INTENT_FILE_DELETE,
+    INTENT_PROVIDE_CONTENT,
+    INTENT_RECOVERY_FROM_TEST_FAILURE,
+)
+from src.utils.control_intents import (
+    INTENT_CANCEL_TASK,
+    TASK_INTERRUPTION_INTENTS,
+)
+from src.utils.dialogue_state import TASK_CLARIFICATION
 from src.utils.stdout_guard import debug_print
 
 class TaskManager:
@@ -43,9 +67,9 @@ class TaskManager:
         # Critical intents from safety policy if available
         if self.config_manager:
             safety_policy = self.config_manager.get_safety_policy()
-            self.CRITICAL_INTENTS = safety_policy.get("destructive_intents", ["FILE_DELETE", "CMD_RUN"])
+            self.CRITICAL_INTENTS = safety_policy.get("destructive_intents", [INTENT_FILE_DELETE, INTENT_CMD_RUN])
         else:
-            self.CRITICAL_INTENTS = ["FILE_DELETE", "CMD_RUN"]
+            self.CRITICAL_INTENTS = [INTENT_FILE_DELETE, INTENT_CMD_RUN]
 
         # 3. Setup paths, preferring config_manager if available
         td_path = task_definitions_path
@@ -82,6 +106,11 @@ class TaskManager:
 
         # Load task definitions
         self.task_definitions = self._load_task_definitions(self.task_definitions_path)
+        self.intent_to_recommended_action = {
+            INTENT_ANALYZE_TEST_FAILURE: "analyze_test_failure",
+            INTENT_EXECUTE_GOAL_DRIVEN_TDD: "execute_goal_driven_tdd",
+            INTENT_APPLY_CODE_FIX: "apply_code_fix",
+        }
 
     def _load_task_definitions(self, filepath: str) -> dict:
         """Loads task definitions from a JSON file or returns hardcoded defaults."""
@@ -143,6 +172,18 @@ class TaskManager:
         """条件評価をConditionEvaluatorに委譲"""
         return self.condition_evaluator.evaluate(condition, context)
 
+    def _get_recommended_action_for_intent(self, intent: str) -> str:
+        return self.intent_to_recommended_action.get(intent, "")
+
+    def _apply_recommended_action_metadata(self, task_data: dict, intent: str | None = None):
+        if not isinstance(task_data, dict):
+            return
+
+        effective_intent = intent or task_data.get("name", "")
+        recommended_action = self._get_recommended_action_for_intent(effective_intent)
+        if recommended_action:
+            task_data["recommended_action"] = recommended_action
+
     def manage_task_state(self, context: dict) -> dict:
         """
         Manages the state of ongoing tasks or initiates new ones based on intent and entities.
@@ -182,15 +223,16 @@ class TaskManager:
 
         # If PROVIDE_CONTENT arrives without an active task but includes a filename,
         # treat it as FILE_CREATE to avoid orphan content intents.
-        if not current_task and intent == "PROVIDE_CONTENT":
+        if not current_task and intent == INTENT_PROVIDE_CONTENT:
             fn_entity = entities.get("filename")
             fn_val = fn_entity.get("value") if isinstance(fn_entity, dict) else fn_entity
             if fn_val:
-                intent = "FILE_CREATE"
-                context["analysis"]["intent"] = "FILE_CREATE"
+                intent = INTENT_FILE_CREATE
+                context["analysis"]["intent"] = INTENT_FILE_CREATE
         
         # --- NEW: Propagate entities from current turn to task parameters ---
         if current_task:
+            self._apply_recommended_action_metadata(current_task)
             for entity_key, entity_data in entities.items():
                 val = None
                 conf = 1.0
@@ -210,21 +252,21 @@ class TaskManager:
 
 
         # --- NEW: Prioritize CLARIFICATION_RESPONSE (AGREE/DISAGREE) ---
-        if intent in ["CLARIFICATION_RESPONSE", "AGREE", "DISAGREE"]:
+        if intent in [INTENT_CLARIFICATION_RESPONSE, INTENT_AGREE, INTENT_DISAGREE]:
             self._log_debug(f"Processing {intent} for session {session_id}")
             active_task = self.active_tasks.get(session_id)
             if active_task and active_task.get("clarification_needed"):
                 self._log_debug(f"Active task found with clarification needed: {active_task['name']}")
                 
                 # Check for user_response entity (from vector fallback) or directly use intent
-                user_response_val = intent
+                user_response_val = RESPONSE_APPROVED if intent == INTENT_AGREE else RESPONSE_REJECTED if intent == INTENT_DISAGREE else intent
                 if isinstance(entities.get("user_response"), dict):
                     user_response_val = entities["user_response"].get("value", intent)
                 
                 # Temporarily store for evaluation
                 active_task["parameters"]["user_response"] = user_response_val
 
-                clarification_task_def = self.task_definitions.get("CLARIFICATION_RESPONSE")
+                clarification_task_def = self.task_definitions.get(INTENT_CLARIFICATION_RESPONSE)
                 if clarification_task_def:
                     clarification_eval_context = {
                         "analysis": {"entities": {"user_response": {"value": user_response_val}}},
@@ -234,7 +276,7 @@ class TaskManager:
                     
                     for transition in transitions:
                         if self._evaluate_condition(transition["condition"], clarification_eval_context):
-                            if transition["next_state"] == "AGREED":
+                            if transition["next_state"] == STATE_AGREED:
                                 active_task["clarification_needed"] = False
                                 active_task["clarification_message"] = None
                                 active_task["clarification_type"] = None
@@ -251,15 +293,16 @@ class TaskManager:
                                 context["clarification_needed"] = False
                                 return self.manage_task_state(context)
                             
-                            elif transition["next_state"] == "DISAGREED":
+                            elif transition["next_state"] == STATE_DISAGREED:
                                 self.reset_task(session_id)
                                 context["task_cancelled"] = True
                                 context["clarification_needed"] = False
+                                context["dialogue_state"] = None
                                 context["response"] = {"text": "タスクがキャンセルされました。"}
                                 return context
         # -------------------------------------------------------------
 
-        conversational_intents = ["GREETING", "PERSONAL_Q", "EMOTIVE", "DEFINITION", "GENERAL", "NO_INTENT", "TIME", "WEATHER", "SMALLTALK", "AGREE", "DISAGREE"] # Add NO_INTENT for cases where intent is not recognized.
+        conversational_intents = TASK_INTERRUPTION_INTENTS + (INTENT_AGREE, INTENT_DISAGREE)
 
         # 永続化からの状態復旧
         if not current_task and self.persistence:
@@ -270,7 +313,7 @@ class TaskManager:
                 self._log_debug(f"Restored task state for session {session_id}")
         
         # Handle CANCEL_TASK explicitly
-        if intent == "CANCEL_TASK":
+        if intent == INTENT_CANCEL_TASK:
             if session_id in self.active_tasks:
                 del self.active_tasks[session_id]
                 context["task_cancelled"] = True
@@ -323,7 +366,7 @@ class TaskManager:
         # --- END NEW: Early Interruption Check ---
 
         # Handle CLARIFICATION_RESPONSE intent (including AGREE/DISAGREE)
-        if intent in ["CLARIFICATION_RESPONSE", "AGREE", "DISAGREE"]:
+        if intent in [INTENT_CLARIFICATION_RESPONSE, INTENT_AGREE, INTENT_DISAGREE]:
             self._log_debug(f"Processing {intent} for session {session_id}")
             active_task = self.active_tasks.get(session_id)
             if active_task and active_task.get("clarification_needed"):
@@ -335,7 +378,7 @@ class TaskManager:
                     active_task["parameters"]["user_response"] = user_response_entity
 
                     # Evaluate the user's response against the clarification_response task definition
-                    clarification_task_def = self.task_definitions.get("CLARIFICATION_RESPONSE")
+                    clarification_task_def = self.task_definitions.get(INTENT_CLARIFICATION_RESPONSE)
                     if clarification_task_def:
                         self._log_debug("Found CLARIFICATION_RESPONSE task definition")
                         # Create a temporary context for evaluating clarification response transitions
@@ -348,7 +391,7 @@ class TaskManager:
                         for transition in transitions:
                             if self._evaluate_condition(transition["condition"], clarification_eval_context):
                                 self._log_debug(f"Transition condition met: {transition['next_state']}")
-                                if transition["next_state"] == "AGREED":
+                                if transition["next_state"] == STATE_AGREED:
                                     self._log_debug("User agreed to task execution")
                                     # User agreed, clear clarification needed flags and re-evaluate the original task
                                     active_task["clarification_needed"] = False
@@ -413,7 +456,7 @@ class TaskManager:
                                     
                                     return self.manage_task_state(context) # Recursive call
                                 
-                                elif transition["next_state"] == "DISAGREED":
+                                elif transition["next_state"] == STATE_DISAGREED:
                                     # User disagreed, cancel the active task
                                     # 拒否履歴の記録
                                     if not active_task.get("approval_history"):
@@ -428,6 +471,7 @@ class TaskManager:
                                     self.reset_task(session_id)
                                     context["task_cancelled"] = True
                                     context["clarification_needed"] = False # Clarification handled, no longer needed
+                                    context["dialogue_state"] = None
                                     context.setdefault("response", {})
                                     context["response"]["text"] = "タスクがキャンセルされました。"
                                     self._update_clarification_status(context)
@@ -522,6 +566,7 @@ class TaskManager:
                     "clarification_message": None, # Will be set below if needed
                     "clarification_type": "APPROVAL" if task_definition.get("require_overall_approval", True) else None
                 }
+                self._apply_recommended_action_metadata(current_task, effective_intent)
                 
                 # Propagate entities to the new task immediately
                 for entity_key, entity_data in entities.items():
@@ -556,6 +601,7 @@ class TaskManager:
                     "clarification_message": None,
                     "clarification_type": None
                 }
+                self._apply_recommended_action_metadata(current_task, effective_intent)
             self.active_tasks[session_id] = current_task
             
             # メトリクス記録
@@ -577,6 +623,7 @@ class TaskManager:
         if current_task:
             context["task"] = current_task # Set it early so _evaluate_condition can see it
             task_name = current_task["name"]
+            self._apply_recommended_action_metadata(current_task, task_name)
             task_type = current_task.get("type", "SIMPLE_TASK") # Default to SIMPLE_TASK for old definitions
             task_def = self.task_definitions.get(task_name)
 
@@ -605,6 +652,7 @@ class TaskManager:
                     return context
                 
                 sub_task = current_task["subtasks"][sub_task_index]
+                self._apply_recommended_action_metadata(sub_task, sub_task.get("name"))
                 sub_task_def = self.task_definitions.get(sub_task["name"])
 
                 if not sub_task_def:
@@ -940,6 +988,10 @@ class TaskManager:
         current_task = self.active_tasks.get(session_id)
         if current_task:
             context["clarification_needed"] = current_task.get("clarification_needed", False)
+            if current_task.get("clarification_needed"):
+                context["dialogue_state"] = TASK_CLARIFICATION
+            elif context.get("dialogue_state") == TASK_CLARIFICATION:
+                context["dialogue_state"] = None
 
     def get_task_state(self, session_id: str) -> dict:
         """タスクの現在状態を取得"""
@@ -991,7 +1043,7 @@ class TaskManager:
         self._log_debug(f"Creating recovery task for session {session_id}, attempt {attempts + 1}")
         
         # 回復タスクの意図を設定
-        recovery_intent = "RECOVERY_FROM_TEST_FAILURE" # 現時点ではテスト失敗に特化
+        recovery_intent = INTENT_RECOVERY_FROM_TEST_FAILURE # 現時点ではテスト失敗に特化
         
         # 既存のタスクがあればリセット
         self.reset_task(session_id)

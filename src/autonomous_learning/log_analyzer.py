@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional
 from collections import defaultdict, Counter
 from dataclasses import dataclass
 from pathlib import Path
+from src.utils.confirmation_response import INTENT_AGREE
 
 @dataclass
 class LearningPattern:
@@ -153,7 +154,7 @@ class LogAnalyzer:
                     suggested = current_turn['suggested_intent']
                     original_text = current_turn['original_text']
                     
-                    if next_turn['analysis'].get('intent') == 'AGREE' or next_turn['analysis'].get('intent') == suggested:
+                    if next_turn['analysis'].get('intent') == INTENT_AGREE or next_turn['analysis'].get('intent') == suggested:
                         patterns.append(LearningPattern(
                             pattern_type='improvement',
                             pattern=original_text,

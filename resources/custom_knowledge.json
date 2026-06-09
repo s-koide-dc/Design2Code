@@ -19,6 +19,43 @@
     "general_unknown": "ごめんなさい、よく分かりません。",
     "unknown_topic": "ごめんなさい、{topic}についてはよく分かりません。"
   },
+  "dialogue_templates": {
+    "task_in_progress": "{task_name}を進めています。対象は {target} です。",
+    "awaiting_approval": "{task_name}を進める前に承認が必要です。対象は {target} です。",
+    "awaiting_input": "{task_name}を進めるために {awaiting_entity} の指定が必要です。",
+    "action_success": "{task_name}が完了しました。対象は {target} です。",
+    "action_error": "{task_name}の実行中に問題が発生しました。対象は {target} です。詳細: {error_detail}",
+    "generated_files": "生成物: {files}",
+    "task_resumption": "元の作業に戻るため、次の確認をお願いします。"
+  },
+  "recommended_action_labels": {
+    "analyze_test_failure": "テスト失敗分析",
+    "execute_goal_driven_tdd": "目標駆動TDDの実行",
+    "apply_code_fix": "修正案の適用",
+    "run_related_tests": "関連テストの再実行",
+    "review_generated_artifacts": "生成成果物の確認",
+    "inspect_tdd_error": "TDD実行エラーの確認",
+    "inspect_failure_context": "失敗内容の確認",
+    "inspect_validation_error": "検証エラーの確認",
+    "inspect_fix_application_error": "修正適用エラーの確認",
+    "inspect_manual_fix": "手動修正内容の確認",
+    "review_test_expectation": "テスト期待値の確認",
+    "review_design_sync": "設計書同期内容の確認"
+  },
+  "recommended_action_descriptions": {
+    "analyze_test_failure": "失敗したテスト、エラー内容、対象コードの状況を分析します。",
+    "execute_goal_driven_tdd": "目標と受け入れ条件に沿ってTDDを実行します。",
+    "apply_code_fix": "修正案をコードへ反映します。",
+    "run_related_tests": "修正後の関連テストを再実行します。",
+    "review_generated_artifacts": "生成されたコードとテストの内容を確認します。",
+    "inspect_tdd_error": "TDD実行時のエラー内容を確認します。",
+    "inspect_failure_context": "失敗したテストと対象コードの状況を確認します。",
+    "inspect_validation_error": "検証工程で起きたエラー内容を確認します。",
+    "inspect_fix_application_error": "修正適用時に起きたエラー内容を確認します。",
+    "inspect_manual_fix": "自動では直せなかった箇所を手動で確認します。",
+    "review_test_expectation": "テストが期待している振る舞いを確認します。",
+    "review_design_sync": "実装と設計書の同期状況を確認します。"
+  },
   "concept_responses": {
     "疲労": "お疲れのようですね。無理せず休んでください。",
     "挨拶": "こんにちは！今日も頑張りましょう。",
@@ -42,6 +79,9 @@
     ],
     "SMALLTALK": [
       "雑談ですね。最近は新しいことを学ぶのが楽しくて、いつもワクワクしています！"
+    ],
+    "FEEDBACK": [
+      "ありがとうございます。そう言っていただけると助かります。"
     ],
     "ENCOURAGE": [
       "無理しすぎないでくださいね。あなたならきっと大丈夫です。応援しています！"

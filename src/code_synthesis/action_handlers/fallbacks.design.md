@@ -20,6 +20,7 @@
 2. `int` 取得の簡易ケースでは `Counter.GetCount()` を呼び出す。
 3. `semantic_roles.sql` がある場合は `Db.Query<T>` の呼び出しに変換する。
 4. 該当しない場合は `None` を返す。
+5. `FETCH` / `DATABASE_QUERY` の判定と statement intent には `src.utils.semantic_intents` の共通定数を使う。
 
 ### Test Cases
 - **Happy Path**:
@@ -31,3 +32,6 @@
 
 ## 3. Dependencies
 - **Internal**: `code_synthesis`
+
+## 4. Review Notes
+- 2026-06-04: `FETCH` / `DATABASE_QUERY` の fallback 判定と statement metadata を `src.utils.semantic_intents` の共通語彙へ寄せた。

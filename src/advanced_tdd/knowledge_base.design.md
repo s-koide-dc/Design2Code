@@ -10,6 +10,7 @@
 ### 2.1. 知識の構造
 データは `resources/repair_knowledge.json` に永続化され、意味ベクトルは `resources/vectors/vector_db/repair_knowledge_vectors.npy` に保存されます。
 `repair_knowledge_meta.json` / `repair_knowledge_vectors.npy` は `ConfigManager.storage_dir`（`resources/vectors/vector_db`）へ統一し、旧配置（workspace root / `resources` / `cache`）のファイルは初期化時に移行されます。
+`ConfigManager` が渡される場合は `workspace_root` と `repair_knowledge_path` もそこから決定し、TDD 本体・対話パイプライン・自律学習で同じ保存先を共有します。
 
 - **Patterns**:
     - `error_message_regex`: エラーメッセージの特徴的なパターン。
@@ -43,11 +44,18 @@
 #### 2. 成功体験の学習 (`add_repair_experience`)
 1. **統計更新**: `root_cause` ごとの総試行回数と成功回数、修正タイプ別の成功数を `fix_stats` に記録。
 2. **新規パターン登録**: 修正が成功（`success=True`）かつ新しいエラーメッセージの場合、ベクトル化してインデックスに追加。
+3. **負の知識の保持**: 型変換失敗や未解決シンボルは `negative_feedbacks` / `unresolved_symbols` として保持し、将来の候補スコアリングを抑制する材料にする。
 
 #### 3. ログからの自律学習 (`learn_from_session_logs`)
 1. ログ内の `SESSION_COMPLETED` イベントやパイプライン履歴を走査。
 2. 「テスト失敗分析 → コード修正適用 → テスト成功」の成功シーケンスを特定。
 3. 成功した修正の組み合わせをナレッジとして抽出。
+4. `pipeline_*.json` の JSON Lines 形式と単一 JSON 形式の両方を許容し、ログ形式の差異で学習を止めない。
+
+#### 4. 旧ベクトル配置の移行 (`_migrate_legacy_vector_store_files`)
+1. workspace root / `resources` / `cache` に残っている旧 `repair_knowledge_meta.json` / `repair_knowledge_vectors.npy` を探索。
+2. 統一保存先 `storage_dir` に新しいファイルがなければ移動し、すでに存在する場合は新しい方を優先してコピーまたは旧ファイル削除を行う。
+3. 移行失敗は初期化を止めず、通常のロードへフォールバックする。
 
 ## 3. Test Cases
 
@@ -63,3 +71,6 @@
 ## 4. Dependencies
 - **Internal**: `SemanticSearchBase`, `VectorEngine`, `MorphAnalyzer`
 - **External**: `numpy`, `json`, `datetime`
+
+## 5. Review Notes
+- 2026-06-09: repair knowledge のベクトルDB保存先統一、旧配置ファイル移行、`ConfigManager` 優先の metadata path 解決、および `pipeline_*.json` ログ学習の現行挙動に合わせて更新。

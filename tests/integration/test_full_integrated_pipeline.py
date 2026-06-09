@@ -4,6 +4,9 @@ import shutil
 import time
 import json
 from src.pipeline_core.pipeline_core import Pipeline
+from src.safety.safety_policy_validator import RiskLevel, SafetyCheckStatus, SafetyCheckResult
+from src.utils.confirmation_response import INTENT_AGREE, INTENT_DISAGREE
+from src.utils.control_intents import INTENT_DEFINITION, INTENT_GENERAL, INTENT_TIME
 import sys
 from unittest.mock import patch
 import errno
@@ -177,6 +180,24 @@ class TestPipelineIntegration(unittest.TestCase):
                         "acceptance_criteria": "受け入れ条件を教えていただけますか？（複数可）"
                     }
                 },
+                "ANALYZE_TEST_FAILURE": {
+                    "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+                    "required_entities": [],
+                    "transitions": {
+                        "INIT": [
+                            {"condition": {"type": "always_true"}, "next_state": "READY_FOR_EXECUTION"}
+                        ]
+                    }
+                },
+                "APPLY_CODE_FIX": {
+                    "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+                    "required_entities": [],
+                    "transitions": {
+                        "INIT": [
+                            {"condition": {"type": "always_true"}, "next_state": "READY_FOR_EXECUTION"}
+                        ]
+                    }
+                },
                 "REVERSE_DICTIONARY_SEARCH": {
                     "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
                     "required_entities": ["query"],
@@ -266,17 +287,23 @@ class TestPipelineIntegration(unittest.TestCase):
             sys.stdout = original_stdout
 
         cls.test_ws = os.path.abspath("integration_test_workspace")
-        if os.path.exists(cls.test_ws):
-            shutil.rmtree(cls.test_ws)
-        os.makedirs(cls.test_ws)
+        if os.path.lexists(cls.test_ws):
+            if os.path.isdir(cls.test_ws):
+                shutil.rmtree(cls.test_ws)
+            else:
+                os.remove(cls.test_ws)
+        os.makedirs(cls.test_ws, exist_ok=True)
         # Point action executor to the isolated test workspace
         cls.pipeline.action_executor.workspace_root = cls.test_ws
 
     @classmethod
     def tearDownClass(cls):
         """Clean up the test workspace and dummy resource files."""
-        if os.path.exists(cls.test_ws):
-            shutil.rmtree(cls.test_ws)
+        if os.path.lexists(cls.test_ws):
+            if os.path.isdir(cls.test_ws):
+                shutil.rmtree(cls.test_ws)
+            else:
+                os.remove(cls.test_ws)
         if os.path.exists(cls.test_resources_dir):
             shutil.rmtree(cls.test_resources_dir)
 
@@ -285,11 +312,210 @@ class TestPipelineIntegration(unittest.TestCase):
         self.pipeline.context_manager.history = {}
         # Clear task manager history for isolation
         self.pipeline.task_manager.active_tasks = {}
+        self.pipeline.context_manager.clear_pending_confirmation_plan("default_session")
         # Clean up any files created during a test
         for item in os.listdir(self.test_ws):
             item_path = os.path.join(self.test_ws, item)
             if os.path.isfile(item_path):
                 os.remove(item_path)
+
+    def _assert_tdd_confirmation_resume_after_interruption(
+        self,
+        request_text,
+        request_intent,
+        request_entities,
+        recommended_action,
+        confirmation_message_part,
+        execute_dialogue_metadata,
+        final_response_parts,
+        interruption_text="今何時？",
+        interruption_intent=INTENT_TIME,
+        interruption_entities=None
+    ):
+        original_detect = self.pipeline.intent_detector.detect
+        original_semantic_analyze = self.pipeline.semantic_analyzer.analyze
+        original_validate_action = self.pipeline.planner.safety_validator.validate_action
+        original_execute = self.pipeline.action_executor.execute
+        session_id = "default_session"
+
+        def detect_side_effect(context):
+            if context["original_text"] == "はい":
+                context["analysis"] = {
+                    "intent": INTENT_AGREE,
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            elif context["original_text"] == interruption_text:
+                context["analysis"] = {
+                    "intent": interruption_intent,
+                    "intent_confidence": 0.99,
+                    "entities": interruption_entities or {}
+                }
+            else:
+                context["analysis"] = {
+                    "intent": request_intent,
+                    "intent_confidence": 0.99,
+                    "entities": request_entities
+                }
+            return context
+
+        def validate_action_side_effect(action_method_name, plan_parameters, intent):
+            if intent == request_intent:
+                return SafetyCheckResult(
+                    status=SafetyCheckStatus.OK,
+                    risk_level=RiskLevel.HIGH,
+                    message="承認が必要です。"
+                )
+            return original_validate_action(action_method_name, plan_parameters, intent)
+
+        def execute_side_effect(context):
+            return {
+                **context,
+                "action_result": {
+                    "status": "success",
+                    "dialogue_metadata": execute_dialogue_metadata
+                }
+            }
+
+        self.pipeline.intent_detector.detect = detect_side_effect
+        self.pipeline.semantic_analyzer.analyze = lambda context: context
+        self.pipeline.planner.safety_validator.validate_action = validate_action_side_effect
+        self.pipeline.action_executor.execute = execute_side_effect
+
+        try:
+            first_turn = self.pipeline.run(request_text)
+
+            self.assertTrue(first_turn.get("clarification_needed", False))
+            self.assertEqual(first_turn["task"]["recommended_action"], recommended_action)
+            self.assertEqual(first_turn["plan"]["recommended_action"], recommended_action)
+            self.assertIn(confirmation_message_part, first_turn["response"]["text"])
+
+            pending_plan = self.pipeline.context_manager.get_pending_confirmation_plan(session_id)
+            self.assertIsNotNone(pending_plan)
+            self.assertEqual(pending_plan["recommended_action"], recommended_action)
+
+            interruption_turn = self.pipeline.run(interruption_text)
+
+            self.assertTrue(interruption_turn.get("clarification_needed", False))
+            self.assertIn(confirmation_message_part, interruption_turn["response"]["text"])
+            self.assertEqual(
+                self.pipeline.context_manager.get_pending_confirmation_plan(session_id)["recommended_action"],
+                recommended_action
+            )
+            self.assertEqual(
+                self.pipeline.task_manager.active_tasks[session_id]["recommended_action"],
+                recommended_action
+            )
+
+            approval_turn = self.pipeline.run("はい")
+
+            self.assertFalse(approval_turn.get("clarification_needed", False))
+            self.assertEqual(approval_turn["plan"]["recommended_action"], recommended_action)
+            for part in final_response_parts:
+                self.assertIn(part, approval_turn["response"]["text"])
+            self.assertIsNone(self.pipeline.context_manager.get_pending_confirmation_plan(session_id))
+        finally:
+            self.pipeline.intent_detector.detect = original_detect
+            self.pipeline.semantic_analyzer.analyze = original_semantic_analyze
+            self.pipeline.planner.safety_validator.validate_action = original_validate_action
+            self.pipeline.action_executor.execute = original_execute
+            self.pipeline.task_manager.reset_task(session_id)
+            self.pipeline.context_manager.clear_pending_confirmation_plan(session_id)
+
+    def _assert_tdd_confirmation_cancel_then_switch_task(
+        self,
+        request_text,
+        request_intent,
+        request_entities,
+        recommended_action,
+        confirmation_message_part,
+        switch_request_text="ファイルを作って",
+        switch_filename="resume.txt",
+        switch_content="ok"
+    ):
+        original_detect = self.pipeline.intent_detector.detect
+        original_semantic_analyze = self.pipeline.semantic_analyzer.analyze
+        original_validate_action = self.pipeline.planner.safety_validator.validate_action
+        session_id = "default_session"
+
+        def detect_side_effect(context):
+            original_text = context["original_text"]
+            if original_text == "いいえ":
+                context["analysis"] = {
+                    "intent": INTENT_DISAGREE,
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            elif original_text == switch_request_text:
+                context["analysis"] = {
+                    "intent": "FILE_CREATE",
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            elif original_text == switch_filename:
+                context["analysis"] = {
+                    "intent": "FILE_CREATE",
+                    "intent_confidence": 0.99,
+                    "entities": {"filename": {"value": switch_filename, "confidence": 0.99}}
+                }
+            elif original_text == f"内容は「{switch_content}」です":
+                context["analysis"] = {
+                    "intent": "PROVIDE_CONTENT",
+                    "intent_confidence": 0.99,
+                    "entities": {"content": {"value": switch_content, "confidence": 0.99}}
+                }
+            else:
+                context["analysis"] = {
+                    "intent": request_intent,
+                    "intent_confidence": 0.99,
+                    "entities": request_entities
+                }
+            return context
+
+        def validate_action_side_effect(action_method_name, plan_parameters, intent):
+            if intent == request_intent:
+                return SafetyCheckResult(
+                    status=SafetyCheckStatus.OK,
+                    risk_level=RiskLevel.HIGH,
+                    message="承認が必要です。"
+                )
+            return original_validate_action(action_method_name, plan_parameters, intent)
+
+        self.pipeline.intent_detector.detect = detect_side_effect
+        self.pipeline.semantic_analyzer.analyze = lambda context: context
+        self.pipeline.planner.safety_validator.validate_action = validate_action_side_effect
+
+        try:
+            first_turn = self.pipeline.run(request_text)
+            self.assertTrue(first_turn.get("clarification_needed", False))
+            self.assertEqual(first_turn["task"]["recommended_action"], recommended_action)
+            self.assertEqual(first_turn["plan"]["recommended_action"], recommended_action)
+            self.assertIn(confirmation_message_part, first_turn["response"]["text"])
+            self.assertIsNotNone(self.pipeline.context_manager.get_pending_confirmation_plan(session_id))
+
+            reject_turn = self.pipeline.run("いいえ")
+            self.assertIn("キャンセル", reject_turn["response"]["text"])
+            self.assertIsNone(self.pipeline.context_manager.get_pending_confirmation_plan(session_id))
+            self.assertNotIn(session_id, self.pipeline.task_manager.active_tasks)
+
+            new_task_turn = self.pipeline.run(switch_request_text)
+            self.assertTrue(new_task_turn.get("clarification_needed", False))
+            self.assertIn("ファイル名を教えていただけますか？", new_task_turn["response"]["text"])
+
+            filename_turn = self.pipeline.run(switch_filename)
+            self.assertTrue(filename_turn.get("clarification_needed", False))
+            self.assertIn("ファイルの内容を教えていただけますか？", filename_turn["response"]["text"])
+
+            final_turn = self.pipeline.run(f"内容は「{switch_content}」です")
+            self.assertFalse(final_turn.get("clarification_needed", False))
+            self.assertIn("作成しました", final_turn["response"]["text"])
+            self.assertEqual(final_turn["task"]["name"], "FILE_CREATE")
+        finally:
+            self.pipeline.intent_detector.detect = original_detect
+            self.pipeline.semantic_analyzer.analyze = original_semantic_analyze
+            self.pipeline.planner.safety_validator.validate_action = original_validate_action
+            self.pipeline.task_manager.reset_task(session_id)
+            self.pipeline.context_manager.clear_pending_confirmation_plan(session_id)
 
     def test_greeting_and_smalltalk(self):
         """Tests basic conversational abilities like greetings and small talk."""
@@ -318,21 +544,21 @@ class TestPipelineIntegration(unittest.TestCase):
     def test_definition_query(self):
         """Tests the ability to answer 'What is X?' questions for a word in the dictionary."""
         result = self.pipeline.run("エージェントとは何？")
-        self.assertEqual(result["analysis"]["intent"], "DEFINITION")
+        self.assertEqual(result["analysis"]["intent"], INTENT_DEFINITION)
         self.assertIn("ユーザーの代わりに特定のタスクやアクションを実行するソフトウェア。", result.get("response", {}).get("text", ""))
         self.assertFalse(result.get("clarification_needed", False))
 
     def test_definition_query_class(self):
         """Tests the user-reported issue with 'クラス'."""
         result = self.pipeline.run("クラスとは")
-        self.assertEqual(result["analysis"]["intent"], "DEFINITION")
+        self.assertEqual(result["analysis"]["intent"], INTENT_DEFINITION)
         self.assertIn("class", result.get("response", {}).get("text", "")) # Check for the English meaning
         self.assertFalse(result.get("clarification_needed", False))
 
     def test_definition_query_not_found(self):
         """Tests a query for a word that is definitely not in the dictionary."""
         result = self.pipeline.run("量子コンピュータネットワークとは何ですか？")
-        self.assertEqual(result["analysis"]["intent"], "DEFINITION")
+        self.assertEqual(result["analysis"]["intent"], INTENT_DEFINITION)
         self.assertIn("申し訳ありません。「量子コンピュータネットワーク」の意味は辞書に見つかりませんでした。", result.get("response", {}).get("text", ""))
         self.assertFalse(result.get("clarification_needed", False))
 
@@ -515,6 +741,453 @@ class TestPipelineIntegration(unittest.TestCase):
         # If ActionExecutor was to automatically proceed, we'd check its status.
         # For current test, we check that plan is correctly generated.
 
+    def test_tdd_confirmation_path_preserves_recommended_action(self):
+        original_detect = self.pipeline.intent_detector.detect
+        original_semantic_analyze = self.pipeline.semantic_analyzer.analyze
+        original_validate_action = self.pipeline.planner.safety_validator.validate_action
+        original_execute = self.pipeline.action_executor.execute
+        session_id = "default_session"
+
+        def detect_side_effect(context):
+            if context["original_text"] == "はい":
+                context["analysis"] = {
+                    "intent": INTENT_AGREE,
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            else:
+                context["analysis"] = {
+                    "intent": "EXECUTE_GOAL_DRIVEN_TDD",
+                    "intent_confidence": 0.99,
+                    "entities": {
+                        "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.99},
+                        "acceptance_criteria": {"value": "会員割引と合計金額割引を満たす", "confidence": 0.99}
+                    }
+                }
+            return context
+
+        def validate_action_side_effect(action_method_name, plan_parameters, intent):
+            if intent == "EXECUTE_GOAL_DRIVEN_TDD":
+                return SafetyCheckResult(
+                    status=SafetyCheckStatus.OK,
+                    risk_level=RiskLevel.HIGH,
+                    message="TDD 実行前に承認が必要です。"
+                )
+            return original_validate_action(action_method_name, plan_parameters, intent)
+
+        def execute_side_effect(context):
+            return {
+                **context,
+                "action_result": {
+                    "status": "success",
+                    "dialogue_metadata": {
+                        "phase": "goal_driven_tdd",
+                        "goal_description": "注文割引ロジックを実装",
+                        "iteration_count": 2,
+                        "generated_code_count": 1,
+                        "generated_test_count": 1
+                    }
+                }
+            }
+
+        self.pipeline.intent_detector.detect = detect_side_effect
+        self.pipeline.semantic_analyzer.analyze = lambda context: context
+        self.pipeline.planner.safety_validator.validate_action = validate_action_side_effect
+        self.pipeline.action_executor.execute = execute_side_effect
+
+        try:
+            first_turn = self.pipeline.run("TDDを実行して")
+
+            self.assertTrue(first_turn.get("clarification_needed", False))
+            self.assertEqual(first_turn["task"]["recommended_action"], "execute_goal_driven_tdd")
+            self.assertEqual(first_turn["plan"]["recommended_action"], "execute_goal_driven_tdd")
+            self.assertIn("目標駆動TDDの実行を行います。", first_turn["response"]["text"])
+            self.assertIn("目標と受け入れ条件に沿ってTDDを実行します。", first_turn["response"]["text"])
+
+            pending_plan = self.pipeline.context_manager.get_pending_confirmation_plan(session_id)
+            self.assertIsNotNone(pending_plan)
+            self.assertEqual(pending_plan["recommended_action"], "execute_goal_driven_tdd")
+
+            second_turn = self.pipeline.run("はい")
+
+            self.assertFalse(second_turn.get("clarification_needed", False))
+            self.assertEqual(second_turn["plan"]["recommended_action"], "execute_goal_driven_tdd")
+            self.assertIn("注文割引ロジックを実装 のTDD実行が完了しました。", second_turn["response"]["text"])
+        finally:
+            self.pipeline.intent_detector.detect = original_detect
+            self.pipeline.semantic_analyzer.analyze = original_semantic_analyze
+            self.pipeline.planner.safety_validator.validate_action = original_validate_action
+            self.pipeline.action_executor.execute = original_execute
+            self.pipeline.task_manager.reset_task(session_id)
+            self.pipeline.context_manager.clear_pending_confirmation_plan(session_id)
+
+    def test_tdd_confirmation_resume_after_time_interruption(self):
+        self._assert_tdd_confirmation_resume_after_interruption(
+            request_text="TDDを実行して",
+            request_intent="EXECUTE_GOAL_DRIVEN_TDD",
+            request_entities={
+                "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.99},
+                "acceptance_criteria": {"value": "会員割引と合計金額割引を満たす", "confidence": 0.99}
+            },
+            recommended_action="execute_goal_driven_tdd",
+            confirmation_message_part="目標駆動TDDの実行を行います。",
+            execute_dialogue_metadata={
+                "phase": "goal_driven_tdd",
+                "goal_description": "注文割引ロジックを実装",
+                "iteration_count": 2,
+                "generated_code_count": 1,
+                "generated_test_count": 1
+            },
+            final_response_parts=["注文割引ロジックを実装 のTDD実行が完了しました。"]
+        )
+
+    def test_failure_analysis_confirmation_path_preserves_recommended_action(self):
+        original_detect = self.pipeline.intent_detector.detect
+        original_semantic_analyze = self.pipeline.semantic_analyzer.analyze
+        original_validate_action = self.pipeline.planner.safety_validator.validate_action
+        original_execute = self.pipeline.action_executor.execute
+        session_id = "default_session"
+
+        def detect_side_effect(context):
+            if context["original_text"] == "はい":
+                context["analysis"] = {
+                    "intent": INTENT_AGREE,
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            else:
+                context["analysis"] = {
+                    "intent": "ANALYZE_TEST_FAILURE",
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            return context
+
+        def validate_action_side_effect(action_method_name, plan_parameters, intent):
+            if intent == "ANALYZE_TEST_FAILURE":
+                return SafetyCheckResult(
+                    status=SafetyCheckStatus.OK,
+                    risk_level=RiskLevel.HIGH,
+                    message="失敗分析の実行前に承認が必要です。"
+                )
+            return original_validate_action(action_method_name, plan_parameters, intent)
+
+        def execute_side_effect(context):
+            return {
+                **context,
+                "action_result": {
+                    "status": "success",
+                    "dialogue_metadata": {
+                        "phase": "failure_analysis",
+                        "failure_count": 2,
+                        "suggestion_count": 1,
+                        "primary_target_file": "src\\Calculator.cs",
+                        "failed_test_names": ["CalculatorTests.Add_ShouldReturnSum"],
+                        "primary_reason": "Add が既定値を返しており期待値と一致していません。",
+                        "primary_recommended_action": "apply_code_fix",
+                        "primary_target_summary": "CalculatorTests.Add_ShouldReturnSum / Add"
+                    }
+                }
+            }
+
+        self.pipeline.intent_detector.detect = detect_side_effect
+        self.pipeline.semantic_analyzer.analyze = lambda context: context
+        self.pipeline.planner.safety_validator.validate_action = validate_action_side_effect
+        self.pipeline.action_executor.execute = execute_side_effect
+
+        try:
+            first_turn = self.pipeline.run("失敗テストを分析して")
+
+            self.assertTrue(first_turn.get("clarification_needed", False))
+            self.assertEqual(first_turn["task"]["recommended_action"], "analyze_test_failure")
+            self.assertEqual(first_turn["plan"]["recommended_action"], "analyze_test_failure")
+            self.assertIn("テスト失敗分析を行います。", first_turn["response"]["text"])
+            self.assertIn("失敗したテスト、エラー内容、対象コードの状況を分析します。", first_turn["response"]["text"])
+
+            pending_plan = self.pipeline.context_manager.get_pending_confirmation_plan(session_id)
+            self.assertIsNotNone(pending_plan)
+            self.assertEqual(pending_plan["recommended_action"], "analyze_test_failure")
+
+            second_turn = self.pipeline.run("はい")
+
+            self.assertFalse(second_turn.get("clarification_needed", False))
+            self.assertEqual(second_turn["plan"]["recommended_action"], "analyze_test_failure")
+            self.assertIn("テスト失敗分析が完了しました。", second_turn["response"]["text"])
+            self.assertIn("次は 修正案の適用 を進めてください。", second_turn["response"]["text"])
+        finally:
+            self.pipeline.intent_detector.detect = original_detect
+            self.pipeline.semantic_analyzer.analyze = original_semantic_analyze
+            self.pipeline.planner.safety_validator.validate_action = original_validate_action
+            self.pipeline.action_executor.execute = original_execute
+            self.pipeline.task_manager.reset_task(session_id)
+            self.pipeline.context_manager.clear_pending_confirmation_plan(session_id)
+
+    def test_failure_analysis_confirmation_resume_after_time_interruption(self):
+        self._assert_tdd_confirmation_resume_after_interruption(
+            request_text="失敗テストを分析して",
+            request_intent="ANALYZE_TEST_FAILURE",
+            request_entities={},
+            recommended_action="analyze_test_failure",
+            confirmation_message_part="テスト失敗分析を行います。",
+            execute_dialogue_metadata={
+                "phase": "failure_analysis",
+                "failure_count": 2,
+                "suggestion_count": 1,
+                "primary_target_file": "src\\Calculator.cs",
+                "failed_test_names": ["CalculatorTests.Add_ShouldReturnSum"],
+                "primary_reason": "Add が既定値を返しており期待値と一致していません。",
+                "primary_recommended_action": "apply_code_fix",
+                "primary_target_summary": "CalculatorTests.Add_ShouldReturnSum / Add"
+            },
+            final_response_parts=[
+                "テスト失敗分析が完了しました。",
+                "次は 修正案の適用 を進めてください。"
+            ]
+        )
+
+    def test_apply_code_fix_confirmation_path_preserves_recommended_action(self):
+        original_detect = self.pipeline.intent_detector.detect
+        original_semantic_analyze = self.pipeline.semantic_analyzer.analyze
+        original_validate_action = self.pipeline.planner.safety_validator.validate_action
+        original_execute = self.pipeline.action_executor.execute
+        session_id = "default_session"
+
+        def detect_side_effect(context):
+            if context["original_text"] == "はい":
+                context["analysis"] = {
+                    "intent": INTENT_AGREE,
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            else:
+                context["analysis"] = {
+                    "intent": "APPLY_CODE_FIX",
+                    "intent_confidence": 0.99,
+                    "entities": {}
+                }
+            return context
+
+        def validate_action_side_effect(action_method_name, plan_parameters, intent):
+            if intent == "APPLY_CODE_FIX":
+                return SafetyCheckResult(
+                    status=SafetyCheckStatus.OK,
+                    risk_level=RiskLevel.HIGH,
+                    message="修正適用前に承認が必要です。"
+                )
+            return original_validate_action(action_method_name, plan_parameters, intent)
+
+        def execute_side_effect(context):
+            return {
+                **context,
+                "action_result": {
+                    "status": "success",
+                    "dialogue_metadata": {
+                        "phase": "code_fix",
+                        "applied_count": 1,
+                        "modified_files": ["src\\Calculator.cs"],
+                        "reason": "Add メソッドの戻り値をテスト期待値に合わせました。",
+                        "recommended_action": "run_related_tests"
+                    }
+                }
+            }
+
+        self.pipeline.intent_detector.detect = detect_side_effect
+        self.pipeline.semantic_analyzer.analyze = lambda context: context
+        self.pipeline.planner.safety_validator.validate_action = validate_action_side_effect
+        self.pipeline.action_executor.execute = execute_side_effect
+
+        try:
+            first_turn = self.pipeline.run("修正案を適用して")
+
+            self.assertTrue(first_turn.get("clarification_needed", False))
+            self.assertEqual(first_turn["task"]["recommended_action"], "apply_code_fix")
+            self.assertEqual(first_turn["plan"]["recommended_action"], "apply_code_fix")
+            self.assertIn("修正案の適用を行います。", first_turn["response"]["text"])
+            self.assertIn("修正案をコードへ反映します。", first_turn["response"]["text"])
+
+            pending_plan = self.pipeline.context_manager.get_pending_confirmation_plan(session_id)
+            self.assertIsNotNone(pending_plan)
+            self.assertEqual(pending_plan["recommended_action"], "apply_code_fix")
+
+            second_turn = self.pipeline.run("はい")
+
+            self.assertFalse(second_turn.get("clarification_needed", False))
+            self.assertEqual(second_turn["plan"]["recommended_action"], "apply_code_fix")
+            self.assertIn("コード修正の適用が完了しました。", second_turn["response"]["text"])
+            self.assertIn("次は 関連テストの再実行 を進めてください。", second_turn["response"]["text"])
+        finally:
+            self.pipeline.intent_detector.detect = original_detect
+            self.pipeline.semantic_analyzer.analyze = original_semantic_analyze
+            self.pipeline.planner.safety_validator.validate_action = original_validate_action
+            self.pipeline.action_executor.execute = original_execute
+            self.pipeline.task_manager.reset_task(session_id)
+            self.pipeline.context_manager.clear_pending_confirmation_plan(session_id)
+
+    def test_apply_code_fix_confirmation_resume_after_time_interruption(self):
+        self._assert_tdd_confirmation_resume_after_interruption(
+            request_text="修正案を適用して",
+            request_intent="APPLY_CODE_FIX",
+            request_entities={},
+            recommended_action="apply_code_fix",
+            confirmation_message_part="修正案の適用を行います。",
+            execute_dialogue_metadata={
+                "phase": "code_fix",
+                "applied_count": 1,
+                "modified_files": ["src\\Calculator.cs"],
+                "reason": "Add メソッドの戻り値をテスト期待値に合わせました。",
+                "recommended_action": "run_related_tests"
+            },
+            final_response_parts=[
+                "コード修正の適用が完了しました。",
+                "次は 関連テストの再実行 を進めてください。"
+            ]
+        )
+
+    def test_tdd_confirmation_resume_after_explicit_task_interruption(self):
+        self._assert_tdd_confirmation_resume_after_interruption(
+            request_text="TDDを実行して",
+            request_intent="EXECUTE_GOAL_DRIVEN_TDD",
+            request_entities={
+                "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.99},
+                "acceptance_criteria": {"value": "会員割引と合計金額割引を満たす", "confidence": 0.99}
+            },
+            recommended_action="execute_goal_driven_tdd",
+            confirmation_message_part="目標駆動TDDの実行を行います。",
+            execute_dialogue_metadata={
+                "phase": "goal_driven_tdd",
+                "goal_description": "注文割引ロジックを実装",
+                "iteration_count": 2,
+                "generated_code_count": 1,
+                "generated_test_count": 1
+            },
+            final_response_parts=["注文割引ロジックを実装 のTDD実行が完了しました。"],
+            interruption_text="ファイルを作って",
+            interruption_intent="FILE_CREATE",
+            interruption_entities={}
+        )
+
+    def test_failure_analysis_confirmation_resume_after_explicit_task_interruption(self):
+        self._assert_tdd_confirmation_resume_after_interruption(
+            request_text="失敗テストを分析して",
+            request_intent="ANALYZE_TEST_FAILURE",
+            request_entities={},
+            recommended_action="analyze_test_failure",
+            confirmation_message_part="テスト失敗分析を行います。",
+            execute_dialogue_metadata={
+                "phase": "failure_analysis",
+                "failure_count": 1,
+                "proposal_count": 1,
+                "target_summary": "OrderService.cs",
+                "primary_recommended_action": "apply_code_fix"
+            },
+            final_response_parts=["テスト失敗分析が完了しました。"],
+            interruption_text="ファイルを作って",
+            interruption_intent="FILE_CREATE",
+            interruption_entities={}
+        )
+
+    def test_apply_code_fix_confirmation_resume_after_explicit_task_interruption(self):
+        self._assert_tdd_confirmation_resume_after_interruption(
+            request_text="修正案を適用して",
+            request_intent="APPLY_CODE_FIX",
+            request_entities={},
+            recommended_action="apply_code_fix",
+            confirmation_message_part="修正案の適用を行います。",
+            execute_dialogue_metadata={
+                "phase": "code_fix",
+                "applied_count": 1,
+                "modified_files": ["src\\Calculator.cs"],
+                "reason": "Add メソッドの戻り値をテスト期待値に合わせました。",
+                "recommended_action": "run_related_tests"
+            },
+            final_response_parts=[
+                "コード修正の適用が完了しました。",
+                "次は 関連テストの再実行 を進めてください。"
+            ],
+            interruption_text="ファイルを作って",
+            interruption_intent="FILE_CREATE",
+            interruption_entities={}
+        )
+
+    def test_tdd_confirmation_disagree_then_switch_to_new_task(self):
+        self._assert_tdd_confirmation_cancel_then_switch_task(
+            request_text="TDDを実行して",
+            request_intent="EXECUTE_GOAL_DRIVEN_TDD",
+            request_entities={
+                "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.99},
+                "acceptance_criteria": {"value": "会員割引と合計金額割引を満たす", "confidence": 0.99}
+            },
+            recommended_action="execute_goal_driven_tdd",
+            confirmation_message_part="目標駆動TDDの実行を行います。"
+        )
+
+    def test_failure_analysis_confirmation_disagree_then_switch_to_new_task(self):
+        self._assert_tdd_confirmation_cancel_then_switch_task(
+            request_text="失敗テストを分析して",
+            request_intent="ANALYZE_TEST_FAILURE",
+            request_entities={},
+            recommended_action="analyze_test_failure",
+            confirmation_message_part="テスト失敗分析を行います。"
+        )
+
+    def test_apply_code_fix_confirmation_disagree_then_switch_to_new_task(self):
+        self._assert_tdd_confirmation_cancel_then_switch_task(
+            request_text="修正案を適用して",
+            request_intent="APPLY_CODE_FIX",
+            request_entities={},
+            recommended_action="apply_code_fix",
+            confirmation_message_part="修正案の適用を行います。"
+        )
+
+    def test_cmd_run_confirmation_resume_after_explicit_task_interruption(self):
+        cmd = "dir" if sys.platform == "win32" else "ls -l"
+
+        first_turn = self.pipeline.run(f"コマンド「{cmd}」を実行")
+        self.assertTrue(first_turn.get("clarification_needed", False))
+        self.assertIn(f"コマンド '{cmd}' を実行します。よろしいですか？", first_turn["response"]["text"])
+        self.assertEqual(
+            self.pipeline.context_manager.get_pending_confirmation_plan("default_session")["parameters"]["command"],
+            cmd
+        )
+
+        interruption_turn = self.pipeline.run("ファイルを作って")
+        self.assertTrue(interruption_turn.get("clarification_needed", False))
+        self.assertIn(f"コマンド '{cmd}' を実行します。よろしいですか？", interruption_turn["response"]["text"])
+        self.assertEqual(
+            self.pipeline.context_manager.get_pending_confirmation_plan("default_session")["parameters"]["command"],
+            cmd
+        )
+
+        approval_turn = self.pipeline.run("はい")
+        self.assertFalse(bool(approval_turn.get("clarification_needed", False)))
+        self.assertIn("コマンド実行結果", approval_turn["response"]["text"])
+        self.assertIsNone(self.pipeline.context_manager.get_pending_confirmation_plan("default_session"))
+
+    def test_cmd_run_confirmation_disagree_then_switch_to_new_task(self):
+        cmd = "dir" if sys.platform == "win32" else "ls -l"
+
+        first_turn = self.pipeline.run(f"コマンド「{cmd}」を実行")
+        self.assertTrue(first_turn.get("clarification_needed", False))
+        self.assertIn(f"コマンド '{cmd}' を実行します。よろしいですか？", first_turn["response"]["text"])
+
+        reject_turn = self.pipeline.run("いいえ")
+        self.assertIn("キャンセル", reject_turn["response"]["text"])
+        self.assertIsNone(self.pipeline.context_manager.get_pending_confirmation_plan("default_session"))
+        self.assertNotIn("default_session", self.pipeline.task_manager.active_tasks)
+
+        new_task_turn = self.pipeline.run("ファイルを作って")
+        self.assertTrue(new_task_turn.get("clarification_needed", False))
+        self.assertIn("ファイル名を教えていただけますか？", new_task_turn["response"]["text"])
+
+        filename_turn = self.pipeline.run("resume.txt")
+        self.assertTrue(filename_turn.get("clarification_needed", False))
+        self.assertIn("ファイルの内容を教えていただけますか？", filename_turn["response"]["text"])
+
+        final_turn = self.pipeline.run("内容は「ok」です")
+        self.assertFalse(bool(final_turn.get("clarification_needed", False)))
+        self.assertIn("作成しました", final_turn["response"]["text"])
+        self.assertEqual(final_turn["task"]["name"], "FILE_CREATE")
+
     def test_file_read_task(self):
         """Tests reading a file as a task."""
         filename = "read_task.txt"
@@ -536,7 +1209,7 @@ class TestPipelineIntegration(unittest.TestCase):
         result = self.pipeline.run("曖昧な指示") 
         self.assertTrue(result.get("clarification_needed", False))
         self.assertIn("意図が明確ではありません。", result.get("response", {}).get("text", ""))
-        self.assertIn("GENERAL", result.get("response", {}).get("text", "")) # Assuming "GENERAL" intent for ambiguous input
+        self.assertIn(INTENT_GENERAL, result.get("response", {}).get("text", "")) # Assuming GENERAL intent for ambiguous input
         self.assertIn("clarification_manager", result["pipeline_history"])
 
     def test_clarification_missing_entity(self):

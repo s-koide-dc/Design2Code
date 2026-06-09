@@ -8,6 +8,7 @@
 import json
 import os
 from typing import Dict, Any
+from src.utils.action_intents import INTENT_CMD_RUN, INTENT_FILE_DELETE
 
 class ApprovalMessageGenerator:
     """承認メッセージの生成を管理するクラス"""
@@ -19,8 +20,8 @@ class ApprovalMessageGenerator:
                 "default": "複合タスク「{task_name}」を開始します。このタスクは複数のステップを含みます。実行してよろしいですか？"
             },
             "CRITICAL_SUBTASK": {
-                "FILE_DELETE": "危険なアクション：ファイル '{filename}' を削除します。この操作は元に戻せません。実行してよろしいですか？",
-                "CMD_RUN": "危険なアクション：コマンド '{command}' を実行します。システムに影響を与える可能性があります。実行してよろしいですか？",
+                INTENT_FILE_DELETE: "危険なアクション：ファイル '{filename}' を削除します。この操作は元に戻せません。実行してよろしいですか？",
+                INTENT_CMD_RUN: "危険なアクション：コマンド '{command}' を実行します。システムに影響を与える可能性があります。実行してよろしいですか？",
                 "default": "危険なアクション「{subtask_name}」を実行します。複合タスク「{task_name}」の一部として実行されます。よろしいですか？"
             }
         }

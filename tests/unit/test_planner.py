@@ -71,7 +71,10 @@ class TestPlanner(unittest.TestCase):
                 "FILE_APPEND": ["filename", "content"],
                 "FILE_DELETE": ["filename"],
                 "LIST_DIR": [],
-                "CMD_RUN": ["command"]
+                "CMD_RUN": ["command"],
+                "ANALYZE_TEST_FAILURE": [],
+                "EXECUTE_GOAL_DRIVEN_TDD": ["goal_description", "acceptance_criteria"],
+                "APPLY_CODE_FIX": []
             }.get(intent, [])
         self.mock_action_executor.safe_commands = ["git", "ls", "dir", "echo"]
         
@@ -258,6 +261,54 @@ class TestPlanner(unittest.TestCase):
         self.assertEqual(result["plan"]["safety_check_status"], "BLOCK")
         self.assertIn("許可されていません", result["plan"]["safety_message"])
         self.assertTrue(any("Safety Policy Error" in e["message"] for e in result.get("errors", [])))
+
+    def test_analyze_test_failure_plan_sets_recommended_action(self):
+        context = {
+            "original_text": "失敗テストを分析して",
+            "analysis": {
+                "intent": "ANALYZE_TEST_FAILURE",
+                "intent_confidence": 0.95,
+                "entities": {}
+            }
+        }
+
+        result = self.planner.create_plan(context)
+
+        self.assertEqual(result["plan"]["action_method"], "_analyze_test_failure")
+        self.assertEqual(result["plan"]["recommended_action"], "analyze_test_failure")
+
+    def test_execute_goal_driven_tdd_plan_sets_recommended_action(self):
+        context = {
+            "original_text": "注文割引ロジックをTDDで実装して",
+            "analysis": {
+                "intent": "EXECUTE_GOAL_DRIVEN_TDD",
+                "intent_confidence": 0.95,
+                "entities": {
+                    "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.95},
+                    "acceptance_criteria": {"value": "会員割引と合計金額割引を満たす", "confidence": 0.95}
+                }
+            }
+        }
+
+        result = self.planner.create_plan(context)
+
+        self.assertEqual(result["plan"]["action_method"], "_execute_goal_driven_tdd")
+        self.assertEqual(result["plan"]["recommended_action"], "execute_goal_driven_tdd")
+
+    def test_apply_code_fix_plan_sets_recommended_action(self):
+        context = {
+            "original_text": "修正案を適用して",
+            "analysis": {
+                "intent": "APPLY_CODE_FIX",
+                "intent_confidence": 0.95,
+                "entities": {}
+            }
+        }
+
+        result = self.planner.create_plan(context)
+
+        self.assertEqual(result["plan"]["action_method"], "_apply_code_fix")
+        self.assertEqual(result["plan"]["recommended_action"], "apply_code_fix")
 
 if __name__ == '__main__':
     unittest.main()

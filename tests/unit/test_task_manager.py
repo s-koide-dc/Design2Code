@@ -6,6 +6,15 @@ from unittest.mock import MagicMock, patch
 
 from src.task_manager.task_manager import TaskManager
 from src.action_executor.action_executor import ActionExecutor
+from src.utils.confirmation_response import (
+    INTENT_AGREE,
+    INTENT_CLARIFICATION_RESPONSE,
+    INTENT_DISAGREE,
+    STATE_AGREED,
+    STATE_DISAGREED,
+)
+from src.utils.control_intents import INTENT_TIME
+from src.utils.dialogue_state import TASK_CLARIFICATION
 from tests.fixtures.task_definitions import get_test_definitions
 
 class TestTaskManager(unittest.TestCase):
@@ -355,8 +364,8 @@ class TestTaskManager(unittest.TestCase):
         agree_context = {
             "session_id": "overall_approval_agree_session",
             "analysis": {
-                "intent": "CLARIFICATION_RESPONSE",
-                "entities": {"user_response": {"value": "AGREE", "confidence": 0.9}}
+                "intent": INTENT_CLARIFICATION_RESPONSE,
+                "entities": {"user_response": {"value": INTENT_AGREE, "confidence": 0.9}}
             }
         }
         result = self.tm.manage_task_state(agree_context)
@@ -392,8 +401,8 @@ class TestTaskManager(unittest.TestCase):
         disagree_context = {
             "session_id": "overall_approval_disagree_session",
             "analysis": {
-                "intent": "CLARIFICATION_RESPONSE",
-                "entities": {"user_response": {"value": "DISAGREE", "confidence": 0.9}}
+                "intent": INTENT_CLARIFICATION_RESPONSE,
+                "entities": {"user_response": {"value": INTENT_DISAGREE, "confidence": 0.9}}
             }
         }
         result = self.tm.manage_task_state(disagree_context)
@@ -420,7 +429,7 @@ class TestTaskManager(unittest.TestCase):
                                 "overall_approval": "複合タスク「BACKUP_AND_DELETE」を開始します。ファイル '{source_filename}' を '{destination_filename}' にバックアップして削除します。よろしいですか？"
                             }
                         },
-            "CLARIFICATION_RESPONSE": {"states": ["INIT", "AGREED", "DISAGREED", "COMPLETED"], "required_entities": ["user_response"], "transitions": {"INIT": [{"condition": {"type": "entity_value_is", "key": "user_response", "value": "AGREE" }, "next_state": "AGREED"}, {"condition": {"type": "entity_value_is", "key": "user_response", "value": "DISAGREE" }, "next_state": "DISAGREED"}]}}
+            INTENT_CLARIFICATION_RESPONSE: {"states": ["INIT", STATE_AGREED, STATE_DISAGREED, "COMPLETED"], "required_entities": ["user_response"], "transitions": {"INIT": [{"condition": {"type": "entity_value_is", "key": "user_response", "value": INTENT_AGREE }, "next_state": STATE_AGREED}, {"condition": {"type": "entity_value_is", "key": "user_response", "value": INTENT_DISAGREE }, "next_state": STATE_DISAGREED}]}}
         }
         self.tm = TaskManager(action_executor=self.mock_action_executor, task_definitions_path="ignored_path.json")
         self.tm.task_definitions = specific_mock_defs
@@ -480,7 +489,7 @@ class TestTaskManager(unittest.TestCase):
                     "overall_approval": "複合タスク「BACKUP_AND_DELETE」を開始します。ファイル '{source_filename}' を '{destination_filename}' にバックアップして削除します。よろしいですか？"
                 }
             },
-            "CLARIFICATION_RESPONSE": {"states": ["INIT", "AGREED", "DISAGREED", "COMPLETED"], "required_entities": ["user_response"], "transitions": {"INIT": [{"condition": {"type": "entity_value_is", "key": "user_response", "value": "AGREE" }, "next_state": "AGREED"}, {"condition": {"type": "entity_value_is", "key": "user_response", "value": "DISAGREE" }, "next_state": "DISAGREED"}]}}
+            INTENT_CLARIFICATION_RESPONSE: {"states": ["INIT", STATE_AGREED, STATE_DISAGREED, "COMPLETED"], "required_entities": ["user_response"], "transitions": {"INIT": [{"condition": {"type": "entity_value_is", "key": "user_response", "value": INTENT_AGREE }, "next_state": STATE_AGREED}, {"condition": {"type": "entity_value_is", "key": "user_response", "value": INTENT_DISAGREE }, "next_state": STATE_DISAGREED}]}}
         }
         self.tm = TaskManager(action_executor=self.mock_action_executor, task_definitions_path="ignored_path.json")
         self.tm.task_definitions = specific_mock_defs
@@ -535,7 +544,7 @@ class TestTaskManager(unittest.TestCase):
         interruption_context = {
             "session_id": "interruption_session",
             "analysis": {
-                "intent": "TIME", # Conversational intent
+                "intent": INTENT_TIME, # Conversational intent
                 "entities": {}
             }
         }
@@ -547,15 +556,15 @@ class TestTaskManager(unittest.TestCase):
         # 新しいメッセージ形式をチェック（interruption後）
         self.assertIn("複合タスク「BACKUP_AND_DELETE」", result["task"]["clarification_message"])
         self.assertIn("実行してよろしいですか", result["task"]["clarification_message"])
-        self.assertEqual(result["analysis"]["intent"], "TIME") # Original conversational intent is preserved for ResponseGenerator
+        self.assertEqual(result["analysis"]["intent"], INTENT_TIME) # Original conversational intent is preserved for ResponseGenerator
         self.assertTrue(self.tm.active_tasks["interruption_session"]["clarification_needed"])
 
         # 4. Simulate user agreeing after the interruption
         agree_context = {
             "session_id": "interruption_session",
             "analysis": {
-                "intent": "CLARIFICATION_RESPONSE",
-                "entities": {"user_response": {"value": "AGREE", "confidence": 0.9}}
+                "intent": INTENT_CLARIFICATION_RESPONSE,
+                "entities": {"user_response": {"value": INTENT_AGREE, "confidence": 0.9}}
             }
         }
         result = self.tm.manage_task_state(agree_context)
@@ -734,6 +743,125 @@ class TestTaskManager(unittest.TestCase):
         result = self.tm.manage_task_state(context)
         self.assertIn("errors", result)
         self.assertIn("最大セッション数", result["errors"][0]["message"])
+
+    def test_tdd_simple_task_sets_recommended_action(self):
+        self.tm.task_definitions.update({
+            "ANALYZE_TEST_FAILURE": {
+                "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+                "required_entities": [],
+                "transitions": {
+                    "INIT": [{"condition": {"type": "always_true"}, "next_state": "READY_FOR_EXECUTION"}]
+                }
+            }
+        })
+        context = {
+            "session_id": "tdd_task_session",
+            "analysis": {
+                "intent": "ANALYZE_TEST_FAILURE",
+                "entities": {}
+            }
+        }
+
+        result = self.tm.manage_task_state(context)
+
+        self.assertIn("task", result)
+        self.assertEqual(result["task"]["name"], "ANALYZE_TEST_FAILURE")
+        self.assertEqual(result["task"]["recommended_action"], "analyze_test_failure")
+
+    def test_goal_driven_tdd_ready_task_keeps_recommended_action(self):
+        self.tm.task_definitions.update({
+            "EXECUTE_GOAL_DRIVEN_TDD": {
+                "states": ["INIT", "AWAITING_GOAL", "AWAITING_CRITERIA", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+                "required_entities": ["goal_description", "acceptance_criteria"],
+                "transitions": {
+                    "INIT": [{
+                        "condition": {
+                            "type": "all_of",
+                            "predicates": [
+                                {"type": "entity_exists", "key": "goal_description"},
+                                {"type": "entity_exists", "key": "acceptance_criteria"}
+                            ]
+                        },
+                        "next_state": "READY_FOR_EXECUTION"
+                    }]
+                },
+                "clarification_messages": {
+                    "goal_description": "実装したい目標を教えてください。",
+                    "acceptance_criteria": "受け入れ条件を教えてください。"
+                }
+            }
+        })
+        context = {
+            "session_id": "goal_tdd_task_session",
+            "analysis": {
+                "intent": "EXECUTE_GOAL_DRIVEN_TDD",
+                "entities": {
+                    "goal_description": {"value": "注文割引ロジックを実装", "confidence": 0.9},
+                    "acceptance_criteria": {"value": "会員割引と合計金額割引を満たす", "confidence": 0.9}
+                }
+            }
+        }
+
+        result = self.tm.manage_task_state(context)
+
+        self.assertIn("task", result)
+        self.assertEqual(result["task"]["state"], "READY_FOR_EXECUTION")
+        self.assertEqual(result["task"]["recommended_action"], "execute_goal_driven_tdd")
+
+    def test_tdd_task_interruption_preserves_recommended_action(self):
+        self.tm.task_definitions.update({
+            "EXECUTE_GOAL_DRIVEN_TDD": {
+                "states": ["INIT", "AWAITING_GOAL", "AWAITING_CRITERIA", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
+                "required_entities": ["goal_description", "acceptance_criteria"],
+                "transitions": {
+                    "INIT": []
+                },
+                "clarification_messages": {
+                    "goal_description": "実装したい目標を教えてください。",
+                    "acceptance_criteria": "受け入れ条件を教えてください。"
+                }
+            }
+        })
+        start_context = {
+            "session_id": "tdd_interrupt_session",
+            "analysis": {
+                "intent": "EXECUTE_GOAL_DRIVEN_TDD",
+                "entities": {}
+            }
+        }
+        started = self.tm.manage_task_state(start_context)
+        self.assertTrue(started["clarification_needed"])
+        self.assertEqual(started["task"]["recommended_action"], "execute_goal_driven_tdd")
+
+        interruption_context = {
+            "session_id": "tdd_interrupt_session",
+            "analysis": {
+                "intent": INTENT_TIME,
+                "entities": {}
+            }
+        }
+
+        interrupted = self.tm.manage_task_state(interruption_context)
+
+        self.assertTrue(interrupted["task_interruption"])
+        self.assertEqual(interrupted["task"]["recommended_action"], "execute_goal_driven_tdd")
+        self.assertEqual(interrupted["dialogue_state"], TASK_CLARIFICATION)
+
+    def test_missing_entity_clarification_sets_task_dialogue_state(self):
+        context = {
+            "session_id": "dialogue_state_missing_entity",
+            "analysis": {
+                "intent": "FILE_CREATE",
+                "entities": {
+                    "filename": {"value": "sample.txt", "confidence": 0.9}
+                }
+            }
+        }
+
+        result = self.tm.manage_task_state(context)
+
+        self.assertTrue(result["clarification_needed"])
+        self.assertEqual(result["dialogue_state"], TASK_CLARIFICATION)
 
 
 if __name__ == '__main__':

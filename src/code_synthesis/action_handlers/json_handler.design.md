@@ -20,6 +20,7 @@
 3. 既定の空コレクション式を用意し、`JsonSerializer.Deserialize<T>` に `??` で連結する。
 4. 生成した変数を `type_to_vars` と `active_scope_item` に登録する。
 5. 必要な `using` を追加し、エンティティ登録を行う。
+6. file-read bridge で補助的に発行する statement intent には `src.utils.semantic_intents` の `FILE_IO` を使う。
 
 ### Test Cases
 - **Happy Path**:
@@ -31,3 +32,6 @@
 
 ## 3. Dependencies
 - **Internal**: `code_synthesis`
+
+## 4. Review Notes
+- 2026-06-04: JSON source file bridge の statement intent を `src.utils.semantic_intents.INTENT_FILE_IO` へ統一した。

@@ -28,6 +28,7 @@
 5. コレクション出力では `string.Join` を優先し、逐次 `foreach` 出力は避ける。
 6. `TRANSFORM` は非文字列型を `ToString` で変換する。
 7. loop item continuity と property-backed display が揃っている場合、`名前を表示する` のような child display は `Console.WriteLine(item.Name)` に落ちる。
+8. `DISPLAY` / `TRANSFORM` の高頻度分岐は `src.utils.semantic_intents` の共通定数を使う。
 
 ### Test Cases
 - **Happy Path**:
@@ -44,3 +45,6 @@
   - `code_synthesis`
   - `action_utils`
   - `text_parser`
+
+## 4. Review Notes
+- 2026-06-04: `DISPLAY` / `TRANSFORM` の specialized 分岐を `src.utils.semantic_intents` の共通語彙へ寄せた。

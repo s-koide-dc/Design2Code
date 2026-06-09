@@ -19,6 +19,7 @@
 2. `steps` を持つ候補は HTN として `_process_htn_plan` に渡す。
 3. 通常候補は `_synthesize_single_method` で合成する。
 4. 結果が空の場合は `apply_fallbacks` を試す。
+5. file persist shortcut の `PERSIST` 判定と statement intent には `src.utils.semantic_intents` の共通定数を使う。
 
 ### Test Cases
 - **Happy Path**:
@@ -30,3 +31,6 @@
 
 ## 3. Dependencies
 - **Internal**: `code_synthesis`
+
+## 4. Review Notes
+- 2026-06-04: `PERSIST` file shortcut の intent 判定と statement metadata を `src.utils.semantic_intents` の共通語彙へ寄せた。

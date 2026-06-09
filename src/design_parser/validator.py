@@ -2,6 +2,15 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
+from src.utils.semantic_intents import (
+    INTENT_DATABASE_QUERY,
+    INTENT_FETCH,
+    NODE_ACTION,
+    NODE_CONDITION,
+    NODE_ELSE,
+    NODE_END,
+    NODE_LOOP,
+)
 
 
 _REQUIRED_TOP_LEVEL = [
@@ -15,7 +24,7 @@ _REQUIRED_TOP_LEVEL = [
     "data_sources",
 ]
 
-_ALLOWED_KINDS = {"ACTION", "CONDITION", "LOOP", "ELSE", "END"}
+_ALLOWED_KINDS = {NODE_ACTION, NODE_CONDITION, NODE_LOOP, NODE_ELSE, NODE_END}
 _ALLOWED_EFFECTS = {"NONE", "IO", "NETWORK", "DB"}
 _ALLOWED_SOURCE_KINDS = {"db", "http", "file", "memory", "env", "stdin"}
 def _is_step_id(val: str) -> bool:
@@ -117,7 +126,7 @@ def validate_structured_spec(spec: Dict[str, Any]) -> List[str]:
             if side_effect not in _ALLOWED_EFFECTS:
                 errors.append(f"steps[{i}] side_effect must be one of {sorted(_ALLOWED_EFFECTS)}")
 
-            if kind not in ["ELSE", "END"]:
+            if kind not in [NODE_ELSE, NODE_END]:
                 if not isinstance(step.get("text"), str) or not step["text"].strip():
                     errors.append(f"steps[{i}] text must be a non-empty string")
 
@@ -140,14 +149,14 @@ def validate_structured_spec(spec: Dict[str, Any]) -> List[str]:
                 errors.append(f"steps[{i}] source_kind must be one of {sorted(_ALLOWED_SOURCE_KINDS)}")
 
             intent = step.get("intent")
-            if intent == "FETCH":
+            if intent == INTENT_FETCH:
                 if source_kind != "file":
                     if not isinstance(source_ref, str) or source_ref not in source_kind_map:
                         errors.append("steps[{i}] intent=FETCH requires valid source_ref".format(i=i))
                 if not isinstance(source_kind, str) or source_kind not in _ALLOWED_SOURCE_KINDS:
                     errors.append("steps[{i}] intent=FETCH requires valid source_kind".format(i=i))
 
-            if intent == "DATABASE_QUERY":
+            if intent == INTENT_DATABASE_QUERY:
                 semantic_roles = step.get("semantic_roles") if isinstance(step.get("semantic_roles"), dict) else {}
                 sql_text = semantic_roles.get("sql")
                 has_sql = isinstance(sql_text, str) and bool(sql_text.strip())

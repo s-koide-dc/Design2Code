@@ -164,5 +164,35 @@ public decimal CalculateTotal(Order order) {
         # 内部で NSubstitute (Returns) 形式がデフォルトになっている可能性があるため、確認
         self.assertTrue('Returns' in suggestion.suggested_code)
 
+    def test_generated_suggestion_contains_conversation_context(self):
+        analysis_result = {
+            'fix_direction': 'implement_method_logic',
+            'root_cause': 'method_returns_default_value',
+            'analysis_summary': {
+                'test_method': 'CalculatorTests.Add_ShouldReturnSum',
+                'root_cause': 'method_returns_default_value'
+            },
+            'analysis_details': {
+                'error_message': 'Expected: 5, Actual: 0'
+            }
+        }
+        target_code = {
+            'file': 'Calculator.cs',
+            'method': 'Add',
+            'current_implementation': 'public int Add(int a, int b) { return 0; }'
+        }
+
+        suggestions = self.engine.generate_fix_suggestions(analysis_result, target_code)
+
+        self.assertEqual(len(suggestions), 1)
+        suggestion = suggestions[0]
+        self.assertEqual(getattr(suggestion, 'target_file', None), 'Calculator.cs')
+        self.assertIn('conversation_hint', suggestion.impact_analysis)
+        self.assertIn('CalculatorTests.Add_ShouldReturnSum', suggestion.impact_analysis['conversation_hint'])
+        self.assertIn('reason', suggestion.impact_analysis)
+        self.assertIn('method_returns_default_value', suggestion.impact_analysis['reason'])
+        self.assertEqual(suggestion.impact_analysis['recommended_action'], 'apply_code_fix')
+        self.assertIn('CalculatorTests.Add_ShouldReturnSum', suggestion.impact_analysis['target_summary'])
+
 if __name__ == '__main__':
     unittest.main()

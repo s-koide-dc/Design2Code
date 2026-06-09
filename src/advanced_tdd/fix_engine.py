@@ -58,7 +58,10 @@ class CodeFixSuggestionEngine:
                 if suggestions:
                     for suggestion in suggestions:
                         suggestion.safety_score = self._calculate_safety_score(suggestion, target_code)
-                    return self.safety_validator.validate_fix_safety(suggestions, target_code)
+                    validated = self.safety_validator.validate_fix_safety(suggestions, target_code)
+                    for suggestion in validated:
+                        self._augment_suggestion_context(suggestion, target_code, analysis)
+                    return validated
             
             if fix_direction == 'implement_method_logic':
                 suggestion = self._generate_method_implementation_fix(target_code, analysis)
@@ -94,12 +97,64 @@ class CodeFixSuggestionEngine:
             for suggestion in suggestions:
                 suggestion.safety_score = self._calculate_safety_score(suggestion, target_code)
                 suggestion.impact_analysis = self._analyze_impact(suggestion, target_code)
+                self._augment_suggestion_context(suggestion, target_code, analysis)
             
-            return self.safety_validator.validate_fix_safety(suggestions, target_code)
+            validated = self.safety_validator.validate_fix_safety(suggestions, target_code)
+            for suggestion in validated:
+                self._augment_suggestion_context(suggestion, target_code, analysis)
+            return validated
             
         except Exception as e:
             self.logger.error(f"修正提案生成中にエラーが発生: {e}")
             return []
+
+    def _augment_suggestion_context(self, suggestion: CodeFixSuggestion, target_code: Dict[str, Any], analysis: Dict[str, Any]) -> None:
+        target_file = target_code.get('file')
+        analysis_summary = analysis.get('analysis_summary', {})
+        if not suggestion.impact_analysis:
+            suggestion.impact_analysis = {}
+
+        suggestion.impact_analysis.setdefault('target_file', target_file)
+        suggestion.impact_analysis.setdefault('target_method', target_code.get('method'))
+        suggestion.impact_analysis.setdefault('root_cause', analysis.get('root_cause'))
+        suggestion.impact_analysis.setdefault('fix_direction', analysis.get('fix_direction'))
+        conversation_context = self._build_conversation_context(suggestion, analysis_summary)
+        suggestion.impact_analysis.setdefault('reason', conversation_context['reason'])
+        suggestion.impact_analysis.setdefault('recommended_action', conversation_context['recommended_action'])
+        suggestion.impact_analysis.setdefault('target_summary', conversation_context['target_summary'])
+        suggestion.impact_analysis.setdefault('conversation_hint', conversation_context['conversation_hint'])
+
+        if hasattr(suggestion, 'target_file'):
+            suggestion.target_file = target_file
+        else:
+            setattr(suggestion, 'target_file', target_file)
+
+    def _build_conversation_context(self, suggestion: CodeFixSuggestion, analysis_summary: Dict[str, Any]) -> Dict[str, str]:
+        target_method = analysis_summary.get('test_method') or '対象テスト'
+        root_cause = analysis_summary.get('root_cause') or '不明な原因'
+        target_method_name = suggestion.impact_analysis.get('target_method') or '対象メソッド'
+
+        recommended_action_map = {
+            'method_implementation': 'apply_code_fix',
+            'test_self_healing': 'review_test_expectation',
+            'test_arrange_fix': 'apply_code_fix',
+            'syntax_fix': 'apply_code_fix',
+            'manual_fix': 'inspect_manual_fix',
+            'logic_gap_fix': 'apply_code_fix',
+            'parameter_fix': 'apply_code_fix',
+            'numeric_mismatch_fix': 'apply_code_fix',
+            'backport_to_design': 'review_design_sync',
+        }
+        recommended_action = recommended_action_map.get(suggestion.type, 'apply_code_fix')
+        target_summary = f"{target_method} / {target_method_name}"
+        reason = f"{root_cause} により {target_method_name} の修正が必要です。"
+        conversation_hint = f"{target_method} の失敗に対して {root_cause} を修正する提案"
+        return {
+            'reason': reason,
+            'recommended_action': recommended_action,
+            'target_summary': target_summary,
+            'conversation_hint': conversation_hint,
+        }
 
     def _generate_missing_logic_fix(self, target_code: Dict[str, Any], finding: Dict[str, Any]) -> Optional[CodeFixSuggestion]:
         """設計書のロジック欠落に対する修正提案"""

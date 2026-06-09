@@ -38,11 +38,11 @@
 4. `analysis.entities` が存在する場合は抽出結果をマージし、`pipeline_history` に `semantic_analyzer` を追加する。
 5. `_extract_entities` は以下を実行する。
    - URL を最優先で抽出し、テキストから除外する。
-   - `FILE_MOVE/FILE_COPY/BACKUP_AND_DELETE` ではソース/デスティネーションを分離抽出する。
+   - `src.utils.action_intents` の共通定数を使い、`FILE_MOVE/FILE_COPY/BACKUP_AND_DELETE` ではソース/デスティネーションを分離抽出する。
    - `FILE_CREATE/FILE_APPEND` では引用符内テキストを内容候補として抽出する。
    - `awaiting_entity` がある場合は積極的に抽出して信頼度を 1.0 にする。
    - 指示語（それ/そのファイル）を履歴から解決する。
-   - 意図別の特殊抽出（`CS_QUERY_ANALYSIS` など）を実行する。
+   - 意図別の特殊抽出（`CS_QUERY_ANALYSIS`、`MANAGE_KNOWLEDGE`、`DOC_REFINE`、`EXECUTE_GOAL_DRIVEN_TDD` / `PROVIDE_CRITERIA` など）を実行する。
 6. `task_state` が `AWAITING_<ENTITY>` の場合、該当実体の信頼度を 1.0 にする。
 
 ### Test Cases

@@ -31,6 +31,7 @@
 4.  **パラメータバインディングと変換の精密化**:
     - **ブリッジ変換テンプレート**: `TypeSystem` から提供されるテンプレート（`JsonSerializer.Serialize({var})` 等）を用いて、型不一致を自動的に解消。
     - **プロパティ優先**: ループ内では `item.Name` などの個別アクセスを優先。
+    - **既定 semantic 語彙の共通化**: list input を `StructuredSpec` に正規化する際の `kind/intention` 既定値と最終ステップ返却型判定の semantic intent は `src.utils.semantic_intents` の共通定数を使う。
     5.  **決定論的な論理合成 (Strict Deterministic Logic)**:
         -   **ハード・インテント・フィルタ (Hard Intent Filters)**: `EXISTS` (bool), `DISPLAY` (void), `LINQ` (IEnumerable) といったインテントに対し、戻り値の型が不一致なメソッドを検索段階で厳格に除外。
         -   **厳格なリテラル・ロール束縛 (Strict Literal Role Binding)**: 指示文内のパス (`path`) や URL (`url`) といった特別な役割を持つリテラルは、メソッド部品側の同じ役割を持つ引数にのみバインドを許可。
@@ -50,4 +51,6 @@
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
 - 2026-03-31: StructuralMemory receives VectorEngine and MorphAnalyzer when available.
+- 2026-06-04: `ActionSynthesizer` / `StatementBuilder` / `TemplateRegistry` / `UnifiedKnowledgeBase` の internal semantic intent 比較と role 優先度比較を `src.utils.semantic_intents` の共通語彙へ寄せた。
+- 2026-06-04: `AutonomousSynthesizer` の `SET_METHOD_NAME` / `FILE_WRITE` / recovery task 連携で残っていた action intent の文字列直書きを `src.utils.action_intents` に統一した。
 

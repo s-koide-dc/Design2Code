@@ -26,11 +26,13 @@
     - 「戻り値が一致しない」等のエラーに対し、Mockのセットアップ（`Returns(...)`）を自動修正。
 6.  **設計への逆同期 (Back-porting)**: 
     - 不整合に対し、コード側が正しいと仮定した「設計書更新案」を生成。
-7.  **安全性評価**: `SafetyValidator` を用いて、`syntax_fix` や `test_self_healing` 以外のリスクを厳密に評価。
+7.  **提案コンテキスト補完**: 生成した各 `CodeFixSuggestion` に `impact_analysis.target_file` / `target_method` / `root_cause` / `fix_direction` / `reason` / `recommended_action` / `target_summary` / `conversation_hint` を補完し、会話層が説明文と次アクションを安定して組み立てられるようにする。
+8.  **安全性評価**: `SafetyValidator` を用いて、`syntax_fix` や `test_self_healing` 以外のリスクを厳密に評価。
 
 ### Test Cases
 - **Happy Path**: 監査で見つかった未実装ステップ名が、コメントとしてコードに正しく挿入されること。
 - **Happy Path**: C# のセミコロン不足が検知され、自動付与されること。
+- **Happy Path**: 生成された提案に `target_file`、`reason`、`recommended_action`、`target_summary` が補完されること。
 
 ## 3. Dependencies
 - **Internal**: `ast_analyzer`, `safety_validator`, `dummy_factory`

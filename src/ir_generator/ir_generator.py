@@ -55,6 +55,40 @@ from src.ir_generator.iterate_resolution import (
     attach_iterate_item_metadata,
 )
 from src.ir_generator.wrapper_resolution import infer_wrapper_metadata, has_wrapper_metadata_hint
+from src.utils.semantic_intents import (
+    INTENT_ACTION,
+    INTENT_CALC,
+    INTENT_DATABASE_QUERY,
+    INTENT_DISPLAY,
+    INTENT_EXISTS,
+    INTENT_FETCH,
+    INTENT_FILE_IO,
+    INTENT_FILTER,
+    INTENT_GENERAL,
+    INTENT_RETURN,
+    INTENT_HTTP_REQUEST,
+    INTENT_JSON_DESERIALIZE,
+    INTENT_LINQ,
+    INTENT_PERSIST,
+    INTENT_TRANSFORM,
+    NODE_ACTION,
+    NODE_CONDITION,
+    NODE_ELSE,
+    NODE_END,
+    NODE_LOOP,
+    ROLE_ACTION,
+    ROLE_CALC,
+    ROLE_CHECK,
+    ROLE_DISPLAY,
+    ROLE_FETCH,
+    ROLE_FILTER,
+    ROLE_ITERATE,
+    ROLE_PERSIST,
+    ROLE_READ,
+    ROLE_RETURN,
+    ROLE_TRANSFORM,
+    ROLE_WRITE,
+)
 
 class SynthesisIntentDetector:
     """自然言語の概念（セマンティック・クラス）を技術的インテントにマッピングするクラス"""
@@ -79,11 +113,11 @@ class SynthesisIntentDetector:
 
     def detect(self, text: str, tokens: List[Dict[str, Any]] = None) -> Tuple[str, float]:
         if not self.vector_engine or not self.prototype_vectors:
-            return "GENERAL", 0.0
+            return INTENT_GENERAL, 0.0
         meaningful_words = [t["base"] for t in tokens if t["pos"].startswith(("名詞", "動詞"))] if tokens else [text]
         query_vec = self.vector_engine.get_sentence_vector(meaningful_words)
-        if query_vec is None: return "GENERAL", 0.0
-        best_intent, max_sim = "GENERAL", 0.0
+        if query_vec is None: return INTENT_GENERAL, 0.0
+        best_intent, max_sim = INTENT_GENERAL, 0.0
         for intent, vectors in self.prototype_vectors.items():
             for v in vectors:
                 sim = self.vector_engine.vector_similarity(query_vec, v)
@@ -145,25 +179,25 @@ class IRGenerator:
                 if not has_ops and not has_explicit:
                     raise ValueError(f"Missing explicit intent/ops for step {raw_step.get('id')}: {raw_text}")
             if isinstance(raw_step, dict) and raw_step.get("semantic_roles", {}).get("ops"):
-                clauses = [{"text": raw_text, "type": "ACTION", "has_body": False}]
+                clauses = [{"text": raw_text, "type": NODE_ACTION, "has_body": False}]
             else:
                 clauses = self._extract_hierarchical_clauses(raw_text)
             if (
                 isinstance(raw_step, dict)
                 and clauses
                 and has_wrapper_metadata_hint(raw_step.get("semantic_roles", {}) or {})
-                and clauses[0].get("type") == "ACTION"
+                and clauses[0].get("type") == NODE_ACTION
             ):
                 wrapper_tokens = self.morph_analyzer.tokenize(raw_text) if self.morph_analyzer else []
                 clauses[0]["has_body"] = clauses[0].get("has_body") or self._has_body_marker(raw_text, wrapper_tokens)
-            if not clauses and isinstance(raw_step, dict) and raw_step.get("kind") in ["END", "ELSE"]:
+            if not clauses and isinstance(raw_step, dict) and raw_step.get("kind") in [NODE_END, NODE_ELSE]:
                 clauses = [{"text": "", "type": raw_step.get("kind"), "has_body": True}]
             heuristics = self.ukb.get("entity_heuristics", {}) if (self.ukb and hasattr(self.ukb, 'get')) else {}
             if not isinstance(heuristics, dict):
                 heuristics = {}
             
             step_intent_tag = raw_step.get("intent") if isinstance(raw_step, dict) else None
-            if isinstance(step_intent_tag, str) and step_intent_tag in ["GENERAL", "ACTION", ""]:
+            if isinstance(step_intent_tag, str) and step_intent_tag in [INTENT_GENERAL, INTENT_ACTION, ""]:
                 step_intent_tag = None
             source_ref = raw_step.get("source_ref") if isinstance(raw_step, dict) else None
             source_kind = raw_step.get("source_kind") if isinstance(raw_step, dict) else None
@@ -193,13 +227,13 @@ class IRGenerator:
                 )
                 
                 node_type = step_entry.get("kind") or c_type or analysis["node_type"]
-                if step_entry.get("kind") in ["ACTION", "GENERAL"]:
+                if step_entry.get("kind") in [NODE_ACTION, INTENT_GENERAL]:
                     if step_intent_tag:
-                        node_type = "ACTION"
-                    elif c_type in ["CONDITION", "ELSE", "END", "LOOP"]:
+                        node_type = NODE_ACTION
+                    elif c_type in [NODE_CONDITION, NODE_ELSE, NODE_END, NODE_LOOP]:
                         node_type = c_type
-                if sub_idx > 0 and node_type in ["LOOP", "CONDITION"]:
-                    node_type = "ACTION"
+                if sub_idx > 0 and node_type in [NODE_LOOP, NODE_CONDITION]:
+                    node_type = NODE_ACTION
                 
                 target_entity = step_entry.get("target_entity") or analysis["target_entity"]
                 weak_entities = heuristics.get("weak_entities", ["Item", "object"])
@@ -240,8 +274,8 @@ class IRGenerator:
             # chaining, cardinality, and node emission are finalized.
             final_intent, final_role, source_kind = self._coerce_final_intent_and_role(
                 step_intent_tag,
-                analysis.get("intent", "GENERAL"),
-                analysis.get("role", "ACTION"),
+                analysis.get("intent", INTENT_GENERAL),
+                analysis.get("role", ROLE_ACTION),
                 node_type,
                 final_semantic_map,
                 source_kind,
@@ -250,9 +284,9 @@ class IRGenerator:
 
             # Compute chaining after intent resolution to allow RETURN literals without upstream linkage
             is_chaining = (analysis.get("is_chaining") or sub_idx > 0)
-            if final_intent == "RETURN" and not analysis.get("is_chaining"):
+            if final_intent == INTENT_RETURN and not analysis.get("is_chaining"):
                 is_chaining = False
-            is_notification = final_intent == "DISPLAY" and bool(
+            is_notification = final_intent == INTENT_DISPLAY and bool(
                 final_semantic_map.get("semantic_roles", {}).get("notification")
             )
             last_collection_id = self._find_last_collection_node_id(context_history)
@@ -509,7 +543,7 @@ class IRGenerator:
         prev_map = prev_node.get("semantic_map", {}) if isinstance(prev_node, dict) else {}
         prev_sql = prev_map.get("semantic_roles", {}).get("sql")
         curr_sql = final_semantic_map.get("semantic_roles", {}).get("sql")
-        if prev_node and prev_node.get("intent") == "DATABASE_QUERY" and prev_node.get("target_entity") == target_entity and prev_sql and curr_sql and prev_sql == curr_sql:
+        if prev_node and prev_node.get("intent") == INTENT_DATABASE_QUERY and prev_node.get("target_entity") == target_entity and prev_sql and curr_sql and prev_sql == curr_sql:
             self._append_context_history(
                 context_history,
                 step_text,
@@ -538,41 +572,41 @@ class IRGenerator:
         final_intent = step_intent_tag or analysis_intent
         role = analysis_role
         if final_semantic_map.get("spec_role") == "CHECK":
-            final_intent = "EXISTS"
+            final_intent = INTENT_EXISTS
         is_explicit_intent = isinstance(step_intent_tag, str) and bool(step_intent_tag)
-        if node_type in ["CONDITION", "ACTION"] and final_intent in ["GENERAL", "HTTP_REQUEST", "FILTER"]:
-            if not (is_explicit_intent and step_intent_tag in ["HTTP_REQUEST", "DATABASE_QUERY", "PERSIST", "FETCH"]):
+        if node_type in [NODE_CONDITION, NODE_ACTION] and final_intent in [INTENT_GENERAL, INTENT_HTTP_REQUEST, INTENT_FILTER]:
+            if not (is_explicit_intent and step_intent_tag in [INTENT_HTTP_REQUEST, INTENT_DATABASE_QUERY, INTENT_PERSIST, INTENT_FETCH]):
                 if any(lg.get("type") in ["numeric", "string", "logic"] for lg in final_semantic_map.get("logic", [])):
-                    final_intent = "LINQ"
-        elif node_type == "CONDITION" and final_intent in ["GENERAL", "HTTP_REQUEST"]:
-            final_intent = "LINQ"
-        if final_intent in ["GENERAL", "ACTION"] and "url" in final_semantic_map.get("semantic_roles", {}):
-            final_intent = "HTTP_REQUEST"
+                    final_intent = INTENT_LINQ
+        elif node_type == NODE_CONDITION and final_intent in [INTENT_GENERAL, INTENT_HTTP_REQUEST]:
+            final_intent = INTENT_LINQ
+        if final_intent in [INTENT_GENERAL, INTENT_ACTION] and "url" in final_semantic_map.get("semantic_roles", {}):
+            final_intent = INTENT_HTTP_REQUEST
             source_kind = source_kind or "http"
-        if final_intent in ["GENERAL", "ACTION"] and "sql" in final_semantic_map.get("semantic_roles", {}):
-            final_intent = "PERSIST"
+        if final_intent in [INTENT_GENERAL, INTENT_ACTION] and "sql" in final_semantic_map.get("semantic_roles", {}):
+            final_intent = INTENT_PERSIST
             source_kind = source_kind or "db"
-        if node_type == "LOOP":
-            final_intent = "GENERAL"
-            role = "ITERATE"
+        if node_type == NODE_LOOP:
+            final_intent = INTENT_GENERAL
+            role = ROLE_ITERATE
         elif final_semantic_map.get("spec_role") == "WRAP":
-            final_intent = "GENERAL"
-            role = "ACTION"
-        if step_intent_tag == "DATABASE_QUERY":
+            final_intent = INTENT_GENERAL
+            role = ROLE_ACTION
+        if step_intent_tag == INTENT_DATABASE_QUERY:
             has_sql = "sql" in final_semantic_map.get("semantic_roles", {})
             if source_kind != "db" and not has_sql:
-                final_intent = "FETCH"
-        if final_intent == "PERSIST":
-            role = "PERSIST"
-        elif final_intent in ["DATABASE_QUERY", "FETCH"]:
-            role = "FETCH"
-        elif final_intent == "DISPLAY":
-            role = "DISPLAY"
-        elif final_intent == "EXISTS":
-            role = "CHECK"
-        elif final_intent == "HTTP_REQUEST":
+                final_intent = INTENT_FETCH
+        if final_intent == INTENT_PERSIST:
+            role = ROLE_PERSIST
+        elif final_intent in [INTENT_DATABASE_QUERY, INTENT_FETCH]:
+            role = ROLE_FETCH
+        elif final_intent == INTENT_DISPLAY:
+            role = ROLE_DISPLAY
+        elif final_intent == INTENT_EXISTS:
+            role = ROLE_CHECK
+        elif final_intent == INTENT_HTTP_REQUEST:
             if "payload" in final_semantic_map.get("semantic_roles", {}) or "content" in final_semantic_map.get("semantic_roles", {}):
-                role = "PERSIST"
+                role = ROLE_PERSIST
         return final_intent, role, source_kind
 
     # Domain: Node Emission
@@ -592,7 +626,7 @@ class IRGenerator:
                     source_kind = "file"
             elif "url" in final_semantic_map.get("semantic_roles", {}):
                 source_kind = "http"
-        if not source_kind and final_intent in ["PERSIST", "FILE_IO", "WRITE", "FETCH"]:
+        if not source_kind and final_intent in [INTENT_PERSIST, INTENT_FILE_IO, "WRITE", INTENT_FETCH]:
             for entry in reversed(context_history or []):
                 if entry.get("source_kind"):
                     return entry["source_kind"]
@@ -606,15 +640,15 @@ class IRGenerator:
         output_type_hint: Optional[str],
     ) -> str:
         final_cardinality = analysis_cardinality
-        if node_type == "LOOP":
+        if node_type == NODE_LOOP:
             final_cardinality = "COLLECTION"
-        if final_cardinality == "SINGLE" and final_intent in ["LINQ", "DATABASE_QUERY", "JSON_DESERIALIZE"]:
+        if final_cardinality == "SINGLE" and final_intent in [INTENT_LINQ, INTENT_DATABASE_QUERY, INTENT_JSON_DESERIALIZE]:
             if self._is_collection_type(output_type_hint):
                 final_cardinality = "COLLECTION"
         if output_type_hint in ["string", "int", "long", "decimal", "double", "float", "bool"]:
             final_cardinality = "SINGLE"
-        if final_cardinality == "COLLECTION" and node_type != "LOOP":
-            if final_intent not in ["LINQ", "DATABASE_QUERY", "JSON_DESERIALIZE", "FETCH"]:
+        if final_cardinality == "COLLECTION" and node_type != NODE_LOOP:
+            if final_intent not in [INTENT_LINQ, INTENT_DATABASE_QUERY, INTENT_JSON_DESERIALIZE, INTENT_FETCH]:
                 if not self._is_collection_type(output_type_hint):
                     final_cardinality = "SINGLE"
         return final_cardinality
@@ -1300,24 +1334,24 @@ class IRGenerator:
             tokens = res.get("analysis", {}).get("tokens", [])
         
         v_intent, sim = self.intent_detector.detect(step_text, tokens=tokens)
-        if intent_hint and intent_hint != "GENERAL": v_intent = intent_hint
+        if intent_hint and intent_hint != INTENT_GENERAL: v_intent = intent_hint
         
         # 27.155: PRE-SPLIT INTENT ELEVATION.
-        if v_intent in ["FETCH", "PERSIST", "GENERAL"] and source_kind == "db":
-            v_intent = "DATABASE_QUERY" if v_intent != "PERSIST" else "PERSIST"
+        if v_intent in [INTENT_FETCH, INTENT_PERSIST, INTENT_GENERAL] and source_kind == "db":
+            v_intent = INTENT_DATABASE_QUERY if v_intent != INTENT_PERSIST else INTENT_PERSIST
 
         rules = self.ukb.get("resolution_rules", {}) if (self.ukb and hasattr(self.ukb, 'get')) else {}
         intent_meta = rules.get("intent_metadata", {})
         meta = intent_meta.get(v_intent, {})
-        role = meta.get("role", "ACTION")
+        role = meta.get("role", ROLE_ACTION)
         
-        if v_intent == "HTTP_REQUEST":
-            role = meta.get("role", "READ")
-        elif v_intent in ["FILE_IO", "PERSIST", "FETCH"]:
-            if v_intent == "PERSIST":
-                role = "WRITE"
-            elif v_intent == "FETCH":
-                role = "READ"
+        if v_intent == INTENT_HTTP_REQUEST:
+            role = meta.get("role", ROLE_READ)
+        elif v_intent in [INTENT_FILE_IO, INTENT_PERSIST, INTENT_FETCH]:
+            if v_intent == INTENT_PERSIST:
+                role = ROLE_WRITE
+            elif v_intent == INTENT_FETCH:
+                role = ROLE_READ
         
         cardinality = meta.get("cardinality", "SINGLE")
         logic_goals = self.logic_auditor.extract_assertion_goals([step_text])
@@ -1339,7 +1373,7 @@ class IRGenerator:
         intent = v_intent
         output_type = None
         inferred_intent, inferred_role, inferred_cardinality = self._infer_intent_role_cardinality(step_text, tokens)
-        if intent == "GENERAL" and inferred_intent:
+        if intent == INTENT_GENERAL and inferred_intent:
             intent = inferred_intent
             role = inferred_role or role
         if inferred_cardinality:
@@ -1349,7 +1383,7 @@ class IRGenerator:
         # CALCULATE and FILTER are both semantic promotions that may override
         # coarse lexical intent when stronger evidence is available.
         if any(lg.get("type") == "calculation" for lg in logic_goals):
-            intent = "CALC"; role = "CALC"
+            intent = INTENT_CALC; role = ROLE_CALC
             valid_goals = []
             for lg in logic_goals:
                 if lg.get("type") == "calculation":
@@ -1359,8 +1393,8 @@ class IRGenerator:
                             lg["value"] = num_val
                     valid_goals.append(lg)
             logic_goals = valid_goals
-        elif intent == "GENERAL" and logic_goals:
-            intent = "LINQ"; role = "FILTER"
+        elif intent == INTENT_GENERAL and logic_goals:
+            intent = INTENT_LINQ; role = ROLE_FILTER
         elif self._should_promote_to_filter(
             intent,
             step_text,
@@ -1369,7 +1403,7 @@ class IRGenerator:
             history,
             output_type_hint=output_type_hint,
         ):
-            intent = "LINQ"; role = "FILTER"
+            intent = INTENT_LINQ; role = ROLE_FILTER
             filter_property = self._infer_filter_property(tokens, logic_goals)
             if filter_property:
                 property_target_entity = self._identify_target_entity(step_text, history)
@@ -1392,30 +1426,30 @@ class IRGenerator:
             sql_literal = extract_first_quoted_literal(step_text)
             if sql_literal:
                 semantic_roles["sql"] = sql_literal
-                if intent not in ["PERSIST", "HTTP_REQUEST", "FILE_IO"]:
-                    intent = "DATABASE_QUERY"
-                    role = "FETCH"
-        if intent == "LINQ" and role == "TRANSFORM" and not logic_goals:
+                if intent not in [INTENT_PERSIST, INTENT_HTTP_REQUEST, INTENT_FILE_IO]:
+                    intent = INTENT_DATABASE_QUERY
+                    role = ROLE_FETCH
+        if intent == INTENT_LINQ and role == ROLE_TRANSFORM and not logic_goals:
             semantic_roles.setdefault("ops", [])
             if "select" not in semantic_roles["ops"]:
                 semantic_roles["ops"].append("select")
         # Encourage roles-driven binding for TRANSFORM/PERSIST when explicit content is absent
-        if intent in ["TRANSFORM", "PERSIST", "FILE_IO", "WRITE"] and "content" not in semantic_roles:
+        if intent in [INTENT_TRANSFORM, INTENT_PERSIST, INTENT_FILE_IO, "WRITE"] and "content" not in semantic_roles:
             semantic_roles["content"] = "{context}"
-        if intent in ["LINQ", "DATABASE_QUERY", "JSON_DESERIALIZE", "FETCH"]:
+        if intent in [INTENT_LINQ, INTENT_DATABASE_QUERY, INTENT_JSON_DESERIALIZE, INTENT_FETCH]:
             if self._is_collection_type(output_type_hint):
                 cardinality = "COLLECTION"
         if cardinality == "SINGLE" and history:
             last_context = history[-1]
-            if intent not in ["PERSIST", "FILE_IO"]:
+            if intent not in [INTENT_PERSIST, INTENT_FILE_IO]:
                 if last_context.get("cardinality") == "COLLECTION" or self._is_collection_type(str(last_context.get("output_type") or "")):
                     if self._identify_target_entity(step_text, history) != "Item":
                         cardinality = "COLLECTION"
-        if intent == "DISPLAY":
+        if intent == INTENT_DISPLAY:
             output_type = "string"
         spec_role = self._infer_spec_role(intent, step_text, tokens, logic_goals)
         return {
-            "node_type": "ACTION",
+            "node_type": NODE_ACTION,
             "intent": intent,
             "role": role,
             "cardinality": cardinality,
@@ -1458,26 +1492,26 @@ class IRGenerator:
         role = None
 
         if (has_suru and has_noun(display_nouns)) or has_verb(display_verbs):
-            intent = "DISPLAY"
-            role = "DISPLAY"
+            intent = INTENT_DISPLAY
+            role = ROLE_DISPLAY
         elif (has_suru and has_noun(persist_nouns)) or has_verb(persist_verbs):
-            intent = "PERSIST"
-            role = "PERSIST"
+            intent = INTENT_PERSIST
+            role = ROLE_PERSIST
         elif (has_suru and has_noun(return_nouns)) or has_verb(return_verbs):
-            intent = "RETURN"
-            role = "RETURN"
+            intent = INTENT_RETURN
+            role = ROLE_RETURN
         elif (has_suru and has_noun(fetch_nouns)) or has_verb(fetch_verbs):
-            intent = "FETCH"
-            role = "FETCH"
+            intent = INTENT_FETCH
+            role = ROLE_FETCH
         elif (has_suru and has_noun(exists_nouns)) or has_verb(exists_verbs):
-            intent = "EXISTS"
-            role = "CHECK"
+            intent = INTENT_EXISTS
+            role = ROLE_CHECK
         elif (has_suru and has_noun(transform_nouns)) or has_verb(transform_verbs):
-            intent = "LINQ"
-            role = "TRANSFORM"
+            intent = INTENT_LINQ
+            role = ROLE_TRANSFORM
         elif "select" in str(text).lower():
-            intent = "LINQ"
-            role = "TRANSFORM"
+            intent = INTENT_LINQ
+            role = ROLE_TRANSFORM
 
         cardinality = None
         if self._looks_collection(text, tokens):

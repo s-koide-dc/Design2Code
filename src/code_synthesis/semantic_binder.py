@@ -4,6 +4,19 @@ from typing import List, Dict, Any, Optional, Tuple
 import json
 import os
 from src.utils.text_parser import extract_first_quoted_literal
+from src.utils.semantic_intents import (
+    INTENT_DATABASE_QUERY,
+    INTENT_EXISTS,
+    INTENT_FETCH,
+    INTENT_HTTP_REQUEST,
+    INTENT_LINQ,
+    INTENT_PERSIST,
+    ROLE_FETCH,
+    ROLE_PERSIST,
+    ROLE_READ,
+    ROLE_TRANSFORM,
+    ROLE_WRITE,
+)
 class SemanticBinder:
     """
     [High-fidelity Logical Synthesis Layer]
@@ -86,7 +99,7 @@ class SemanticBinder:
 
             if val is None and prole in ["path", "url", "sql"]:
                 # 27.260: Prevent SQL bleeding. Only use previous SQL if the current intent strongly implies it.
-                if prole == "sql" and node.get("intent") not in ["DATABASE_QUERY", "LINQ", "FETCH"]:
+                if prole == "sql" and node.get("intent") not in [INTENT_DATABASE_QUERY, INTENT_LINQ, INTENT_FETCH]:
                     pass # Do not inherit SQL for PERSIST, WRITE, etc.
                 else:
                     val = path["last_literal_map"].get(prole)
@@ -102,13 +115,13 @@ class SemanticBinder:
                     val = f"@\"{escaped}\"" if '"' in str(literal) else f"\"{literal}\""
                     path["last_literal_map"]["path"] = val
 
-            if val is None and prole == "sql" and node.get("intent") == "PERSIST":
+            if val is None and prole == "sql" and node.get("intent") == INTENT_PERSIST:
                 val = self._build_persist_sql(node, path)
                 if val:
                     path["last_literal_map"]["sql"] = f"\"{val}\""
                     val = f"\"{val}\""
 
-            if val is None and prole in ["item", "params", "param", "parameters", "data"] and node.get("intent") == "DATABASE_QUERY":
+            if val is None and prole in ["item", "params", "param", "parameters", "data"] and node.get("intent") == INTENT_DATABASE_QUERY:
                 sql_text = semantic_roles.get("sql")
                 param_names = self._extract_sql_param_names(sql_text) if isinstance(sql_text, str) else []
                 input_vars = (
@@ -146,10 +159,10 @@ class SemanticBinder:
                 if not has_explicit_path and node.get("source_kind") not in ["file"]:
                     return None
 
-            if (val is None or str(val).strip() == "null") and pt == "HttpContent" and node.get("intent") == "HTTP_REQUEST":
+            if (val is None or str(val).strip() == "null") and pt == "HttpContent" and node.get("intent") == INTENT_HTTP_REQUEST:
                 role = (node.get("role") or "").upper()
                 text = node.get("original_text", "")
-                is_write = role in ["WRITE", "PERSIST"]
+                is_write = role in [ROLE_WRITE, ROLE_PERSIST]
                 if not is_write:
                     return None
                 item = self._resolve_source_var(node, path, "object", role_hint="item")
@@ -315,7 +328,7 @@ class SemanticBinder:
         if check_expr:
             return check_expr
         
-        if node and node.get("intent") == "EXISTS":
+        if node and node.get("intent") == INTENT_EXISTS:
             s_roles = semantic_map.get("semantic_roles", {})
             if "path" in s_roles:
                 path_val = s_roles["path"]
@@ -511,7 +524,7 @@ class SemanticBinder:
             elif role_hint is None: r_score = fallback_score
             
             # 27.470: Penalize old READ/FETCH variables if TRANSFORM result exists
-            if v_role in ["READ", "FETCH"] and role_hint in ["data", "content", "TRANSFORM"]:
+            if v_role in [ROLE_READ, ROLE_FETCH] and role_hint in ["data", "content", ROLE_TRANSFORM]:
                 r_score += penalty # Slight penalty
             
             total_score = r_score + recency_score

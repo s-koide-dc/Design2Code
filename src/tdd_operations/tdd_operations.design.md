@@ -16,6 +16,7 @@
     2. **ビルドエラーのパース**: 実行エラーがない場合、ビルドログから正規表現（`file(line,col): error CSxxxx: message`）を用いて、ファイル名、行番号、エラーコードを抽出します。
     3. **ターゲットコードの動的特定**: 失敗したテストメソッド名からヒューリスティックに製品コードのクラス・メソッドを特定し、C#解析結果（manifest.json）を引いて対象の実装（メソッド本体）を自動的に読み込みます。
     4. **修正提案の生成**: `AdvancedTDDSupport` を呼び出し、抽出された失敗コンテキストに基づく具体的な修正案（Fix Suggestion）を生成します。
+    5. **対話メタデータの固定化**: `failure_count` / `suggestion_count` / `failed_test_names` / `primary_target_file` / `primary_reason` / `primary_recommended_action` / `primary_target_summary` / `next_action` を `action_result.dialogue_metadata` と `failure_summary` に格納します。
 - **Output**: 分析結果と `safety_score` 等を含む修正提案のリスト。
 
 ### 2.3. ゴール駆動型TDD実行 (`execute_goal_driven_tdd`)
@@ -26,6 +27,7 @@
 - **Core Logic**:
     1. `AdvancedTDDSupport` のゴール駆動エンジンを起動します。
     2. テスト生成、実装、実行のサイクルを反復し、目標達成を目指します。
+    3. `goal_description` / `iteration_count` / 生成コード数 / 生成テスト数 / `next_action` を `dialogue_metadata` と `tdd_summary` に格納します。
 - **Output**: 実行結果の統計（イテレーション数、成功率）と生成された成果物のリスト。
 
 ### 2.4. コード修正適用 (`apply_code_fix`)
@@ -38,6 +40,7 @@
        - `test_self_healing / parameter_fix`: 該当行を提案コードで置換。
        - `add_using`: ファイル先頭に `using` を挿入。
     3. **検証とロールバック**: 修正適用後に `validate_code_syntax`（ビルド等）を実行。検証に失敗した場合は、作成しておいたバックアップ（`.bak`）から自動的に元の状態へ復元します。
+    4. **対話メタデータの固定化**: 適用件数、スキップ件数、変更ファイル一覧、理由、推奨アクション、対象要約を `dialogue_metadata` と `generated_files` に格納します。
 - **Output**: 適用成功数、失敗数、修正されたファイルの一覧。
 
 ## 3. Dependencies
@@ -52,3 +55,4 @@
 ## 5. Operational Notes
 - 個別失敗分析中の例外は `action_executor.log_manager` とモジュール logger に記録し、stdout へ直接出力しない。
 - 利用者向けの結果は `context["action_result"]` に集約する。
+- `dialogue_metadata` は `response_generator` 向けの決定論的入力であり、文面そのものはここで生成しない。

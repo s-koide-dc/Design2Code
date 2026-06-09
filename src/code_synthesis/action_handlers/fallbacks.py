@@ -1,12 +1,13 @@
 from typing import List, Dict, Any
+from src.utils.semantic_intents import INTENT_DATABASE_QUERY, INTENT_FETCH
 
 
 def apply_fallbacks(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) -> List[Dict[str, Any]] | None:
     text = node.get("original_text", "")
-    if node.get("intent") == "FETCH" and node.get("source_kind") == "stdin":
+    if node.get("intent") == INTENT_FETCH and node.get("source_kind") == "stdin":
         new_p = action_synthesizer.synthesizer._copy_path(path)
         out_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "string", "input", new_p, prefix="input", role="content")
-        new_p["statements"].append({"type": "raw", "code": f"var {out_var} = Console.ReadLine();", "node_id": node.get("id"), "intent": "FETCH"})
+        new_p["statements"].append({"type": "raw", "code": f"var {out_var} = Console.ReadLine();", "node_id": node.get("id"), "intent": INTENT_FETCH})
         new_p.setdefault("type_to_vars", {}).setdefault("string", []).append({"var_name": out_var, "node_id": node.get("id"), "role": "content", "target_entity": "string"})
         new_p["active_scope_item"] = out_var
         new_p.setdefault("consumed_ids", set()).add(node.get("id"))
@@ -28,7 +29,7 @@ def apply_fallbacks(action_synthesizer, node: Dict[str, Any], path: Dict[str, An
         return [new_p]
 
     sql_text = action_synthesizer._get_semantic_roles(node).get("sql")
-    if sql_text and node.get("intent") in ["DATABASE_QUERY", "FETCH"]:
+    if sql_text and node.get("intent") in [INTENT_DATABASE_QUERY, INTENT_FETCH]:
         target_entity = node.get("target_entity", "Item")
         entity = target_entity if target_entity and target_entity != "Item" else "T"
         call_expr = f"Db.Query<{entity}>(\"{sql_text}\")"

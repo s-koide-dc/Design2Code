@@ -2,6 +2,7 @@ from typing import List, Dict, Any
 
 from src.code_synthesis.action_handlers.candidate_handler import gather_candidates
 from src.code_synthesis.action_handlers.fallbacks import apply_fallbacks
+from src.utils.semantic_intents import INTENT_PERSIST
 
 
 def handle_io(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -24,7 +25,7 @@ def handle_io(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) ->
 
 
 def handle_file_persist(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) -> List[Dict[str, Any]] | None:
-    if node.get("intent") != "PERSIST" or node.get("source_kind") != "file":
+    if node.get("intent") != INTENT_PERSIST or node.get("source_kind") != "file":
         return None
     method_sig = {
         "params": [
@@ -40,7 +41,7 @@ def handle_file_persist(action_synthesizer, node: Dict[str, Any], path: Dict[str
         "type": "raw",
         "code": f"File.WriteAllText({params[0]}, {params[1]});",
         "node_id": node.get("id"),
-        "intent": "PERSIST"
+        "intent": INTENT_PERSIST
     })
     new_p.setdefault("all_usings", set()).add("System.IO")
     new_p.setdefault("consumed_ids", set()).add(node.get("id"))

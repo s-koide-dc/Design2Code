@@ -12,6 +12,16 @@ from src.syntactic_analyzer.syntactic_analyzer import SyntacticAnalyzer
 from src.semantic_analyzer.semantic_analyzer import SemanticAnalyzer
 from src.utils.logic_auditor import LogicAuditor
 from src.autonomous_learning.structural_memory import StructuralMemory
+from src.utils.action_intents import (
+    INTENT_CMD_RUN,
+    INTENT_CS_QUERY_ANALYSIS,
+    INTENT_FILE_APPEND,
+    INTENT_FILE_CREATE,
+    INTENT_FILE_READ,
+    INTENT_FILE_WRITE,
+    INTENT_SET_METHOD_NAME,
+)
+from src.utils.semantic_intents import INTENT_GENERAL
 import re
 import textwrap
 import tempfile
@@ -283,12 +293,12 @@ class AutonomousSynthesizer:
                 # Intent detection via external heuristics is disabled for strict semantics.
                 self.semantic_analyzer.analyze(context)
                 
-                intent = "GENERAL"
+                intent = INTENT_GENERAL
                 entities = context.get("analysis", {}).get("entities", {})
                 debug_print(f"[DEBUG] Detected Intent: {intent}, Entities: {list(entities.keys())}")
                 
                 # 特殊ケース: メソッド名指定の意図がある場合
-                if intent == "SET_METHOD_NAME" and "target_name" in entities:
+                if intent == INTENT_SET_METHOD_NAME and "target_name" in entities:
                     target_name = entities["target_name"]["value"]
                     if requirements:
                         # 直前の要件のメソッド名を更新
@@ -498,13 +508,13 @@ class AutonomousSynthesizer:
         
         # 2. Intent によるマッピング
         intent_map = {
-            "FILE_CREATE": "Create",
-            "FILE_READ": "Read",
-            "FILE_WRITE": "Write",
-            "FILE_APPEND": "Append",
-            "CMD_RUN": "Execute",
+            INTENT_FILE_CREATE: "Create",
+            INTENT_FILE_READ: "Read",
+            INTENT_FILE_WRITE: "Write",
+            INTENT_FILE_APPEND: "Append",
+            INTENT_CMD_RUN: "Execute",
             "EXTRACT_ENTITY": "Extract",
-            "CS_QUERY_ANALYSIS": "Analyze"
+            INTENT_CS_QUERY_ANALYSIS: "Analyze"
         }
         
         if intent in intent_map:

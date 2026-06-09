@@ -24,6 +24,7 @@
 6. 学習サイクル内で修復知識学習、辞書マッピング統合、構造メモリ索引、コンプライアンス監査を実行する。
 7. `apply_suggestions` は意図ルールとリトライルールを更新する。
 8. `generate_knowledge_summary` は修復知識とコンプライアンスの概要を返す。
+9. `LogAnalyzer` は承認確認から学習する際、`src.utils.confirmation_response` の承認定数を使って次ターンの同意応答を検出する。
 
 ## 4. Review Notes
 - 2026-04-21: `StructuralMemory` 旧配置の移行対象に `resources` 直下も追加し、重複保存の自動整理を強化。

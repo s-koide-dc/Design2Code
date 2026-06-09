@@ -62,3 +62,6 @@ The `TemplateRegistry` [Phase 23.3] manages the collection of reusable code temp
 ## 3. Operational Notes
 - テンプレート読込失敗や未配置通知は stdout ではなく logger に記録する。
 - `TemplateRegistry` は検索結果だけを返し、利用者向け出力責務は持たない。
+
+## 4. Review Notes
+- 2026-06-04: DB template 制約で使う `DATABASE_QUERY` / `FETCH` / `PERSIST` の判定を `src.utils.semantic_intents` の共通定数へ寄せた。

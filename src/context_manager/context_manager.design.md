@@ -26,6 +26,7 @@
 3.  **実行確認待ちプランの管理 (Session-aware)**:
     - `set_pending_confirmation_plan(session_id, plan)`: 特定のセッションに対して承認待ちプランを保存します。
     - `get_pending_confirmation_plan(session_id)` / `clear_pending_confirmation_plan(session_id)`: セッションごとにプランを操作します。
+    - `has_pending_confirmation_plan(session_id)`: そのセッションが明示承認待ち状態かを真偽値で返します。
 4.  **フィードバック待ち状態の管理**:
     - `set_awaiting_feedback(session_id, is_awaiting)`: セッションがユーザーからのフィードバック詳細を待機しているかどうかを設定します。
     - `is_awaiting_feedback(session_id)`: 現在の状態を取得します。これにより、パイプラインは通常のインテント解析をスキップしてフィードバック収集へフローを切り替えることができます。

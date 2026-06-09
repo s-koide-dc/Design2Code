@@ -47,7 +47,7 @@ runtime 向けの `intent` / `role` だけでなく、`spec_role`, `CHECK` metad
      - structural `input_link` が `CHECK` を指す場合でも、semantic return source はその upstream data node へ引き直す。
    - `FILTER` / `CALCULATE` の昇格と property/provenance 補強を行う。
    - `CALCULATE` では `target_entity`, `entity_resolution`, 必要なら `calculate_source_resolution`, `calculate_source_node_id` を調整する。
-7. `_coerce_final_intent_and_role` で runtime intent/role を最終決定する。
+7. `_coerce_final_intent_and_role` で runtime intent/role を最終決定する。内部 semantic intent / node kind / runtime role の既定語彙には `src.utils.semantic_intents` の共通定数を使う。
 8. `_determine_structural_input_link` で `input_link` を決定する。
    - 構造ブロックの first child は structural parent に接続する。
    - later sibling は直前 sibling を優先する。
@@ -94,3 +94,4 @@ runtime 向けの `intent` / `role` だけでなく、`spec_role`, `CHECK` metad
 ## 5. Operational Notes
 - clause 解析や role/path の補助トレースは `src.utils.stdout_guard.debug_print` を通す opt-in 出力とする。
 - 通常の IR 生成経路では stdout を使わず、正式な結果は返却される IR 構造に限定する。
+- 2026-06-04: `IRValidator` / `spec_role_rules` / `promotion_rules` を含む高頻度の internal semantic intent 比較を `src.utils.semantic_intents` へ寄せ、IR 系の内部語彙を対話/action intent から分離した。
