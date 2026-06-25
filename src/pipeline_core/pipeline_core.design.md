@@ -28,7 +28,7 @@
 2. テスト実行時はキャッシュ（`<model>.v0.vocab.npy` / `<model>.v0.matrix.npy`）が無い場合のみ `SKIP_VECTOR_MODEL=1` を設定し、VectorEngine のロードをスキップできるようにする。
 3. 起動時に `scripts.rotate_logs.rotate_logs` を呼び出し、ログのメンテナンスを実施する（失敗時は無視）。
 4. `VectorEngine` は `_start_vector_engine_loading` でバックグラウンドロードを開始し、`vector_engine` プロパティ初回アクセス時に完了待ち（タイムアウト 30 秒）または同期ロードへフォールバックする。
-5. `IntentDetector` と `ResponseGenerator` はプロパティで遅延生成され、必要時に `vector_engine` を注入する。
+5. `IntentDetector` と `ResponseGenerator` はプロパティで遅延生成され、必要時に `vector_engine` を注入する。`ResponseGenerator` には `config_manager` も渡し、Phase 3 の `response_rewriter` 設定を参照できるようにする。
 6. `AutonomousLearning` は遅延生成され、`LogManager`、`MorphAnalyzer`、`VectorEngine` を利用して学習イベントを受け取る。
 7. `ClarificationManager` のしきい値は `config.json` の `clarification` セクションから読み込み、`Planner` の意図しきい値は `planner` セクションから読み込む。
 8. `run(text)` で初期 `context` を生成し、Stage を順に `execute(context, pipeline)` で実行する。

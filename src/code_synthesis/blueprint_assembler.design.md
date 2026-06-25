@@ -56,7 +56,8 @@ The `BlueprintAssembler` acts as the final assembly stage [Phase 23.2] in the Co
 1.  **Iteration**: Process `path["poco_defs"]`.
 2.  **Naming Convention**: Convert property names to PascalCase.
 3.  **Attributes**: If the PascalCase name differs from the original (e.g., snake_case json source), add `[JsonPropertyName("original_name")]`.
-4.  **Class Definition**: Add to `extra_classes`.
+4.  **Nullable Alignment**: When sandbox/renderer uses nullable reference types, schema-derived `string` properties are emitted as `string?` so generated POCOs do not produce constructor-initialization warnings by default.
+5.  **Class Definition**: Add to `extra_classes`.
 
 ### 2.4 Test Cases
 
@@ -84,4 +85,5 @@ The `BlueprintAssembler` acts as the final assembly stage [Phase 23.2] in the Co
 
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
+- 2026-06-24: schema-derived POCO string properties are now emitted as nullable (`string?`) to align with nullable-enabled verification and avoid `CS8618` noise in snapshot audits.
 

@@ -7,7 +7,7 @@
 ## 2. Structured Specification
 
 ### Input
-- **Description**: 元の `.design.md` パス。
+- **Description**: 元の `.design.md` パス。必要なら accepted 済みの literal tag suggestion payload も受け取る。
 - **Type/Format**: `str`
 - **Example**: `"scenarios/sample.design.md"`
 
@@ -17,14 +17,21 @@
 - **Example**: `{"status":"updated","output_path":"...sample.inferred.design.md"}`
 
 ### Core Logic
-1. 設計書本文を読み込み、`DesignDocParser` で Core Logic と出力仕様を取得する。
+1. 設計書本文を読み込む。必要なら accepted 済みの `semantic_roles.path/url/sql` suggestion を in-memory で差し込む。
 2. data source 行を先に収集し、後続ステップの source 解決候補として保持する。
+   - 明示 `[data_source|...]` だけでなく、現時点では exact-match の plain source description 語彙も扱う。
+   - 既定実装では `標準入力`、`Product API Endpoint`、`Local SQL Database`、裸のファイル名行、および `input_path/output_path` に結び付く `入力CSV` / `出力CSV` を補完対象とする。
 3. 各 Core Logic 行について、明示タグがある行はそのまま保持し、無い行のみ補完対象にする。
 4. `DesignOpsResolver` と entity 推定を使って、`intent`, `target_entity`, `output_type`, `refs`, `semantic_roles`, `data_source` を決定的に推論する。
+   - stripped design のように resolver が `DISPLAY` を返した経路でも、直前 `output_type` が `List<User>` / `IEnumerable<Product>` のような collection なら表示対象 entity は `User` / `Product` に補正する。
+   - plain line に URL literal と単一 HTTP data source が残っていれば、resolver が `HTTP_REQUEST` を返した場合も含めて、`API 'https://...' からJSON文字列を取得する` のような行は `HTTP_REQUEST + semantic_roles.url + source_ref=http source` へ補完する。
+   - plain line に `環境変数` と `取得/読み` が残り、対応する `env` data source がある場合は `FETCH + source_kind=env + source_ref=that env source` へ補完する。
 5. 補完時の内部 semantic intent (`GENERAL`, `FETCH`, `TRANSFORM`, `DISPLAY`, `PERSIST`, `HTTP_REQUEST`, `DATABASE_QUERY`, `JSON_DESERIALIZE`, `LINQ`, `CALC`) と node kind (`ACTION`, `CONDITION`, `LOOP`, `ELSE`, `END`) は `src.utils.semantic_intents` の共通定数を使う。
 6. confidence threshold を下回る場合は補完せず `blocked` を返す。
-7. 変更があれば元文書は書き換えず、`.inferred.design.md` に書き出す。
-8. `### Inference Metadata` ブロックを埋め込み、推論ルール版と asset fingerprint を追跡可能にする。
+7. accepted 済みの literal suggestion は explicit tag を上書きせず、missing な `semantic_roles.path/url/sql` にだけ反映する。
+8. 変更があれば元文書は書き換えず、`.inferred.design.md` に書き出す。
+9. `### Inference Metadata` ブロックを埋め込み、推論ルール版と asset fingerprint を追跡可能にする。
+   - LLM 補助を使った場合は `llm_literal_assist:*` を追記し、provider / model / applied step を残す。
 
 ### Test Cases
 - **Happy Path**:
@@ -48,3 +55,9 @@
 
 ## 4. Notes
 - 元の `.design.md` を直接更新しない。規約どおり `.inferred.design.md` を生成する。
+- `generate_from_design.py --assist-literal-tags-http` から渡される suggestion payload は、accepted 済みの `literal_roles_only` 結果だけを想定し、`path/url/sql` 以外はここでは反映しない。
+- 現在の実装で自動補完している `semantic_roles` は主に `sql`、`path`、`property`、`return_value`、`url`、安全ポリシー上許可された `command`、および明示操作語彙に限定した `ops` である。`env` 補完では literal 役割は増やさず、既存 data source と plain-text fetch 表現だけで復元する。
+- stripped design からの復元では、生成コードだけでなく `.inferred.design.md` 自体が回帰対象であり、表示対象 entity・HTTP URL・DB SQL・`return true` などの補完結果も固定契約として扱う。
+- 現在の boundary probe では、`ComplexLinqSearch` / `SyncExternalData` ともに `strip_tags` までは clean generation が通る一方、quoted literal を落とすと `NO_CANDIDATE` で blocked になる。つまり URL / SQL / path の literal は現時点の deterministic 補完における必要入力である。
+- `ops` は現時点では `trim_upper`、`split_lines`、`csv_serialize`、`aggregate_by_product`、`display_names` のみを明示表現から補完し、必要に応じて `output_type` / `target_entity` も対応する既定値へ補正する。
+- resolver が別 intent に寄った後で `TRANSFORM` / `CALC` / `DISPLAY` に補正された場合でも、最終 intent に対して `ops` 推論を再評価する。

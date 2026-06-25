@@ -83,6 +83,7 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
         try { ... }
         catch (Exception ex) { _logger.LogError(...); return 0; }
         ```
+    -   Reference-type result variables that are hoisted before the `try` block use nullable declarations when initialized from `null` (for example `HttpResponseMessage? response = null;`) so nullable-enabled compilation does not emit avoidable warnings.
 3.  **Complex Generic**:
     -   Input: `method="Query<T>"`, `target="User"`
     -   Result: `conn.Query<User>(...)`
@@ -90,4 +91,5 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
 - 2026-06-04: resilient intent の判定語彙を `src.utils.semantic_intents` の共通定数へ寄せた。
+- 2026-06-24: resilient wrap の hoisted reference-type locals は nullable declaration (`Type? x = null;`) を使い、nullable-enabled verifier で `CS8600` を出さない現在の方針へ同期。
 

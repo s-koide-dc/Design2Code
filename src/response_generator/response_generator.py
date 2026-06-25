@@ -3,6 +3,7 @@ import os
 import random
 import datetime
 import logging
+from src.response_rewriter.response_rewriter import ResponseRewriter
 from src.utils.action_intents import (
     INTENT_CS_ANALYZE,
     INTENT_CS_IMPACT_SCOPE,
@@ -17,7 +18,7 @@ from src.utils.control_intents import (
 )
 
 class ResponseGenerator:
-    def __init__(self, vector_engine=None, log_manager=None, task_manager=None):
+    def __init__(self, vector_engine=None, log_manager=None, task_manager=None, config_manager=None, response_rewriter=None):
         """
         Initializes the Response Generator.
         
@@ -45,6 +46,8 @@ class ResponseGenerator:
         self.vector_engine = vector_engine
         self.log_manager = log_manager
         self.task_manager = task_manager
+        self.config_manager = config_manager
+        self.response_rewriter = response_rewriter or ResponseRewriter(config_manager=config_manager)
         
         # Load local definitions only if no task_manager is provided
         self._local_task_definitions = None
@@ -169,13 +172,13 @@ class ResponseGenerator:
         return value
 
     def _extract_target_label(self, task_info, action_result):
-        for key in ("target_name", "target", "filename", "source_filename", "destination_filename", "project_path"):
+        for key in ("target_name", "target", "filename", "source_filename", "destination_filename", "project_path", "command"):
             value = self._extract_parameter_value(action_result.get(key))
             if value:
                 return value
 
         parameters = task_info.get("parameters", {})
-        for key in ("filename", "target_name", "project_path", "source_filename", "destination_filename"):
+        for key in ("filename", "target_name", "project_path", "source_filename", "destination_filename", "command"):
             value = self._extract_parameter_value(parameters.get(key))
             if value:
                 return value
@@ -339,7 +342,7 @@ class ResponseGenerator:
             if task_info.get("clarification_type") == "APPROVAL":
                 return self._format_template(
                     "awaiting_approval",
-                    "{task_name}を進める前に承認が必要です。対象: {target}。",
+                    "{task_name}を進める前に、対象の{target}について承認をお願いします。",
                     task_name=task_name,
                     target=target_label,
                 )
@@ -347,7 +350,7 @@ class ResponseGenerator:
                 awaiting_entity = task_info.get("awaiting_entity", "必要情報")
                 return self._format_template(
                     "awaiting_input",
-                    "{task_name}を進めるために {awaiting_entity} の指定が必要です。",
+                    "{task_name}を進めるために、{awaiting_entity}を教えてください。",
                     task_name=task_name,
                     awaiting_entity=awaiting_entity,
                 )
@@ -355,7 +358,7 @@ class ResponseGenerator:
         if task_info.get("state") == "IN_PROGRESS":
             return self._format_template(
                 "task_in_progress",
-                "{task_name}を進めています。対象: {target}。",
+                "{task_name}を進めています。対象は{target}です。完了したらお知らせします。",
                 task_name=task_name,
                 target=target_label,
             )
@@ -627,6 +630,8 @@ class ResponseGenerator:
                 )
                 context["response"]["text"] = f"{final_response_text} {resume_prefix} {resumption_msg}"
         # -------------------------------------------------------------
+
+        context["response"]["text"] = self.response_rewriter.rewrite(context, context["response"]["text"])
 
         context["pipeline_history"].append("response_generator")
         return context

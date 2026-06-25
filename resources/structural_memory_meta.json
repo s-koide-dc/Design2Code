@@ -1872,8 +1872,8 @@
   {
     "type": "function",
     "name": "main",
-    "file": "src\\cicd_integrator\\quality_gate_checker.py",
-    "summary": "Function main in src\\cicd_integrator\\quality_gate_checker.py. Description: メイン関数",
+    "file": "src\\response_rewriter\\qwen_cpu_runner.py",
+    "summary": "Function main in src\\response_rewriter\\qwen_cpu_runner.py. ",
     "id": "main"
   },
   {
@@ -3527,6 +3527,13 @@
   },
   {
     "type": "function",
+    "name": "_normalize_poco_property_type",
+    "file": "src\\code_synthesis\\blueprint_assembler.py",
+    "summary": "Function _normalize_poco_property_type in src\\code_synthesis\\blueprint_assembler.py. ",
+    "id": "_normalize_poco_property_type"
+  },
+  {
+    "type": "function",
     "name": "_extract_inner_type",
     "file": "src\\code_synthesis\\blueprint_assembler.py",
     "summary": "Function _extract_inner_type in src\\code_synthesis\\blueprint_assembler.py. ",
@@ -5003,7 +5010,7 @@
     "type": "class",
     "name": "DesignInferenceEngine",
     "file": "src\\design_parser\\design_inference.py",
-    "summary": "Class DesignInferenceEngine in src\\design_parser\\design_inference.py. Description: Infer missing design metadata deterministically and persist into .design.md. Contains methods: __init__, infer_then_freeze, _get_inferred_path, _write_inferred_file, _infer_line, _collect_source_kinds, _select_source_override, _load_entity_schema, _map_step_token_to_meta, _build_step_meta_tag, _build_refs_tag, _prefix_inferred_tags, _split_line_prefix, _collect_data_sources, _extract_output_type_from_line, _extract_intent_from_line, _extract_semantic_roles, _append_semantic_roles, _infer_display_property, _normalize_output_type, _is_likely_filename, _is_data_source_line, _has_explicit_step_meta, _strip_leading_numbering, _extract_sql_literal, _classify_sql_intent, _write_back_inference, _upsert_inference_metadata, _replace_inference_block, _insert_inference_block, _build_inference_metadata_block, _collect_assets, _hash_asset, _compute_fingerprint, _normalize_design_text, _remove_inference_metadata_block, _sha256_file. ",
+    "summary": "Class DesignInferenceEngine in src\\design_parser\\design_inference.py. Description: Infer missing design metadata deterministically and persist into .design.md. Contains methods: __init__, infer_then_freeze, _apply_literal_suggestions_to_content, _merge_literal_roles_into_line, _replace_semantic_roles_tag, _get_inferred_path, _write_inferred_file, _infer_line, _collect_source_kinds, _select_source_override, _infer_plain_stdin_fetch_meta, _infer_plain_env_fetch_meta, _infer_plain_http_request_meta, _looks_like_plain_file_read, _infer_plain_file_fetch_meta, _looks_like_plain_json_deserialize, _infer_plain_json_deserialize_meta, _looks_like_plain_linq, _infer_plain_linq_meta, _infer_ops_only_fallback, _infer_plain_loop_meta, _infer_plain_display_meta, _infer_plain_persist_meta, _infer_plain_db_persist_meta, _infer_plain_return_meta, _infer_plain_return_true_meta, _load_entity_schema, _extract_url_literal, _extract_command_literal, _is_command_execution_line, _is_allowed_command_literal, _map_step_token_to_meta, _build_step_meta_tag, _build_refs_tag, _prefix_inferred_tags, _split_line_prefix, _collect_data_sources, _resolve_data_source_tag, _infer_plain_data_source_tag, _build_file_source_ref, _extract_output_type_from_line, _extract_intent_from_line, _extract_source_ref_from_line, _extract_semantic_roles, _append_semantic_roles, _build_semantic_roles_tag, _infer_explicit_ops, _apply_ops_meta_overrides, _infer_display_property, _infer_filter_property, _normalize_output_type, _infer_entity_from_output_type, _is_likely_filename, _is_data_source_line, _has_explicit_step_meta, _find_bracket_end, _strip_leading_numbering, _extract_sql_literal, _classify_sql_intent, _write_back_inference, _upsert_inference_metadata, _replace_inference_block, _insert_inference_block, _build_inference_metadata_block, _collect_assets, _hash_asset, _compute_fingerprint, _normalize_design_text, _remove_inference_metadata_block, _sha256_file. ",
     "properties": {},
     "id": "DesignInferenceEngine"
   },
@@ -5020,6 +5027,27 @@
     "file": "src\\design_parser\\design_inference.py",
     "summary": "Function infer_then_freeze in src\\design_parser\\design_inference.py. ",
     "id": "infer_then_freeze"
+  },
+  {
+    "type": "function",
+    "name": "_apply_literal_suggestions_to_content",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _apply_literal_suggestions_to_content in src\\design_parser\\design_inference.py. ",
+    "id": "_apply_literal_suggestions_to_content"
+  },
+  {
+    "type": "function",
+    "name": "_merge_literal_roles_into_line",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _merge_literal_roles_into_line in src\\design_parser\\design_inference.py. ",
+    "id": "_merge_literal_roles_into_line"
+  },
+  {
+    "type": "function",
+    "name": "_replace_semantic_roles_tag",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _replace_semantic_roles_tag in src\\design_parser\\design_inference.py. ",
+    "id": "_replace_semantic_roles_tag"
   },
   {
     "type": "function",
@@ -5058,10 +5086,150 @@
   },
   {
     "type": "function",
+    "name": "_infer_plain_stdin_fetch_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_stdin_fetch_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_stdin_fetch_meta"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_env_fetch_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_env_fetch_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_env_fetch_meta"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_http_request_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_http_request_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_http_request_meta"
+  },
+  {
+    "type": "function",
+    "name": "_looks_like_plain_file_read",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _looks_like_plain_file_read in src\\design_parser\\design_inference.py. ",
+    "id": "_looks_like_plain_file_read"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_file_fetch_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_file_fetch_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_file_fetch_meta"
+  },
+  {
+    "type": "function",
+    "name": "_looks_like_plain_json_deserialize",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _looks_like_plain_json_deserialize in src\\design_parser\\design_inference.py. ",
+    "id": "_looks_like_plain_json_deserialize"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_json_deserialize_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_json_deserialize_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_json_deserialize_meta"
+  },
+  {
+    "type": "function",
+    "name": "_looks_like_plain_linq",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _looks_like_plain_linq in src\\design_parser\\design_inference.py. ",
+    "id": "_looks_like_plain_linq"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_linq_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_linq_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_linq_meta"
+  },
+  {
+    "type": "function",
+    "name": "_infer_ops_only_fallback",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_ops_only_fallback in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_ops_only_fallback"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_loop_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_loop_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_loop_meta"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_display_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_display_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_display_meta"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_persist_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_persist_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_persist_meta"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_db_persist_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_db_persist_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_db_persist_meta"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_return_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_return_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_return_meta"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_return_true_meta",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_return_true_meta in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_return_true_meta"
+  },
+  {
+    "type": "function",
     "name": "_load_entity_schema",
     "file": "src\\design_parser\\design_inference.py",
     "summary": "Function _load_entity_schema in src\\design_parser\\design_inference.py. ",
     "id": "_load_entity_schema"
+  },
+  {
+    "type": "function",
+    "name": "_extract_url_literal",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _extract_url_literal in src\\design_parser\\design_inference.py. ",
+    "id": "_extract_url_literal"
+  },
+  {
+    "type": "function",
+    "name": "_extract_command_literal",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _extract_command_literal in src\\design_parser\\design_inference.py. ",
+    "id": "_extract_command_literal"
+  },
+  {
+    "type": "function",
+    "name": "_is_command_execution_line",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _is_command_execution_line in src\\design_parser\\design_inference.py. ",
+    "id": "_is_command_execution_line"
+  },
+  {
+    "type": "function",
+    "name": "_is_allowed_command_literal",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _is_allowed_command_literal in src\\design_parser\\design_inference.py. ",
+    "id": "_is_allowed_command_literal"
   },
   {
     "type": "function",
@@ -5107,6 +5275,27 @@
   },
   {
     "type": "function",
+    "name": "_resolve_data_source_tag",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _resolve_data_source_tag in src\\design_parser\\design_inference.py. ",
+    "id": "_resolve_data_source_tag"
+  },
+  {
+    "type": "function",
+    "name": "_infer_plain_data_source_tag",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_plain_data_source_tag in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_plain_data_source_tag"
+  },
+  {
+    "type": "function",
+    "name": "_build_file_source_ref",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _build_file_source_ref in src\\design_parser\\design_inference.py. ",
+    "id": "_build_file_source_ref"
+  },
+  {
+    "type": "function",
     "name": "_extract_output_type_from_line",
     "file": "src\\design_parser\\design_inference.py",
     "summary": "Function _extract_output_type_from_line in src\\design_parser\\design_inference.py. ",
@@ -5118,6 +5307,13 @@
     "file": "src\\design_parser\\design_inference.py",
     "summary": "Function _extract_intent_from_line in src\\design_parser\\design_inference.py. ",
     "id": "_extract_intent_from_line"
+  },
+  {
+    "type": "function",
+    "name": "_extract_source_ref_from_line",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _extract_source_ref_from_line in src\\design_parser\\design_inference.py. ",
+    "id": "_extract_source_ref_from_line"
   },
   {
     "type": "function",
@@ -5135,6 +5331,27 @@
   },
   {
     "type": "function",
+    "name": "_build_semantic_roles_tag",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _build_semantic_roles_tag in src\\design_parser\\design_inference.py. ",
+    "id": "_build_semantic_roles_tag"
+  },
+  {
+    "type": "function",
+    "name": "_infer_explicit_ops",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_explicit_ops in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_explicit_ops"
+  },
+  {
+    "type": "function",
+    "name": "_apply_ops_meta_overrides",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _apply_ops_meta_overrides in src\\design_parser\\design_inference.py. ",
+    "id": "_apply_ops_meta_overrides"
+  },
+  {
+    "type": "function",
     "name": "_infer_display_property",
     "file": "src\\design_parser\\design_inference.py",
     "summary": "Function _infer_display_property in src\\design_parser\\design_inference.py. ",
@@ -5142,10 +5359,24 @@
   },
   {
     "type": "function",
+    "name": "_infer_filter_property",
+    "file": "src\\ir_generator\\ir_generator.py",
+    "summary": "Function _infer_filter_property in src\\ir_generator\\ir_generator.py. ",
+    "id": "_infer_filter_property"
+  },
+  {
+    "type": "function",
     "name": "_normalize_output_type",
     "file": "src\\design_parser\\design_inference.py",
     "summary": "Function _normalize_output_type in src\\design_parser\\design_inference.py. ",
     "id": "_normalize_output_type"
+  },
+  {
+    "type": "function",
+    "name": "_infer_entity_from_output_type",
+    "file": "src\\design_parser\\design_inference.py",
+    "summary": "Function _infer_entity_from_output_type in src\\design_parser\\design_inference.py. ",
+    "id": "_infer_entity_from_output_type"
   },
   {
     "type": "function",
@@ -5167,6 +5398,13 @@
     "file": "src\\design_parser\\design_inference.py",
     "summary": "Function _has_explicit_step_meta in src\\design_parser\\design_inference.py. ",
     "id": "_has_explicit_step_meta"
+  },
+  {
+    "type": "function",
+    "name": "_find_bracket_end",
+    "file": "src\\design_parser\\structured_parser.py",
+    "summary": "Function _find_bracket_end in src\\design_parser\\structured_parser.py. ",
+    "id": "_find_bracket_end"
   },
   {
     "type": "function",
@@ -5404,7 +5642,7 @@
     "type": "class",
     "name": "StructuredDesignParser",
     "file": "src\\design_parser\\structured_parser.py",
-    "summary": "Class StructuredDesignParser in src\\design_parser\\structured_parser.py. Description: Convert .design.md content into StructuredSpec. Contains methods: __init__, parse_design_file, parse_markdown, _resolve_source_info, _io_to_structured, _logic_step_to_structured, _extract_meta, _extract_refs, _extract_data_source_declaration, _io_block_to_structured, _extract_ops, _extract_semantic_roles, _test_case_to_structured, _extract_bracket_prefix, _strip_leading_numbering. ",
+    "summary": "Class StructuredDesignParser in src\\design_parser\\structured_parser.py. Description: Convert .design.md content into StructuredSpec. Contains methods: __init__, parse_design_file, parse_markdown, _resolve_source_info, _io_to_structured, _logic_step_to_structured, _extract_meta, _extract_refs, _extract_data_source_declaration, _io_block_to_structured, _extract_ops, _extract_semantic_roles, _test_case_to_structured, _extract_bracket_prefix, _find_bracket_end, _strip_leading_numbering. ",
     "properties": {},
     "id": "StructuredDesignParser"
   },
@@ -6049,13 +6287,6 @@
     "file": "src\\ir_generator\\ir_generator.py",
     "summary": "Function _has_upstream_collection_context in src\\ir_generator\\ir_generator.py. ",
     "id": "_has_upstream_collection_context"
-  },
-  {
-    "type": "function",
-    "name": "_infer_filter_property",
-    "file": "src\\ir_generator\\ir_generator.py",
-    "summary": "Function _infer_filter_property in src\\ir_generator\\ir_generator.py. ",
-    "id": "_infer_filter_property"
   },
   {
     "type": "function",
@@ -7506,6 +7737,216 @@
     "file": "src\\response_generator\\response_generator.py",
     "summary": "Function generate_confirmation_message in src\\response_generator\\response_generator.py. Description: Generates a user-facing confirmation message for soft block actions.\nArgs:\n    context (dict): The context object containing the plan and/or task info for approval.\nReturns:\n    dict: The updated context object with the confirmation message in context[\"response\"][\"text\"].",
     "id": "generate_confirmation_message"
+  },
+  {
+    "type": "function",
+    "name": "build_messages",
+    "file": "src\\response_rewriter\\qwen_cpu_runner.py",
+    "summary": "Function build_messages in src\\response_rewriter\\qwen_cpu_runner.py. ",
+    "id": "build_messages"
+  },
+  {
+    "type": "function",
+    "name": "_load_model_and_tokenizer",
+    "file": "src\\response_rewriter\\qwen_cpu_runner.py",
+    "summary": "Function _load_model_and_tokenizer in src\\response_rewriter\\qwen_cpu_runner.py. ",
+    "id": "_load_model_and_tokenizer"
+  },
+  {
+    "type": "function",
+    "name": "run_rewrite",
+    "file": "src\\response_rewriter\\qwen_cpu_runner.py",
+    "summary": "Function run_rewrite in src\\response_rewriter\\qwen_cpu_runner.py. ",
+    "id": "run_rewrite"
+  },
+  {
+    "type": "function",
+    "name": "_postprocess_rewrite_output",
+    "file": "src\\response_rewriter\\qwen_cpu_runner.py",
+    "summary": "Function _postprocess_rewrite_output in src\\response_rewriter\\qwen_cpu_runner.py. ",
+    "id": "_postprocess_rewrite_output"
+  },
+  {
+    "type": "function",
+    "name": "serve_forever",
+    "file": "src\\response_rewriter\\qwen_cpu_runner.py",
+    "summary": "Function serve_forever in src\\response_rewriter\\qwen_cpu_runner.py. ",
+    "id": "serve_forever"
+  },
+  {
+    "type": "class",
+    "name": "RewriteRequest",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Class RewriteRequest in src\\response_rewriter\\response_rewriter.py. ",
+    "properties": {},
+    "id": "RewriteRequest"
+  },
+  {
+    "type": "class",
+    "name": "ResponseRewritePlugin",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Class ResponseRewritePlugin in src\\response_rewriter\\response_rewriter.py. Contains methods: rewrite. ",
+    "properties": {},
+    "id": "ResponseRewritePlugin"
+  },
+  {
+    "type": "class",
+    "name": "NoOpResponseRewritePlugin",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Class NoOpResponseRewritePlugin in src\\response_rewriter\\response_rewriter.py. Contains methods: rewrite. ",
+    "properties": {},
+    "id": "NoOpResponseRewritePlugin"
+  },
+  {
+    "type": "class",
+    "name": "SubprocessResponseRewritePlugin",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Class SubprocessResponseRewritePlugin in src\\response_rewriter\\response_rewriter.py. Contains methods: __init__, rewrite. ",
+    "properties": {},
+    "id": "SubprocessResponseRewritePlugin"
+  },
+  {
+    "type": "class",
+    "name": "PersistentSubprocessResponseRewritePlugin",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Class PersistentSubprocessResponseRewritePlugin in src\\response_rewriter\\response_rewriter.py. Contains methods: __init__, _start_process, _pump_stream, close, _read_response_line, rewrite. ",
+    "properties": {},
+    "id": "PersistentSubprocessResponseRewritePlugin"
+  },
+  {
+    "type": "class",
+    "name": "OpenAICompatibleHttpResponseRewritePlugin",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Class OpenAICompatibleHttpResponseRewritePlugin in src\\response_rewriter\\response_rewriter.py. Contains methods: __init__, rewrite. ",
+    "properties": {},
+    "id": "OpenAICompatibleHttpResponseRewritePlugin"
+  },
+  {
+    "type": "class",
+    "name": "ResponseRewriter",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Class ResponseRewriter in src\\response_rewriter\\response_rewriter.py. Contains methods: __init__, _build_plugin, _resolve_command, is_enabled, _normalize_allowed_values, _default_allowed_intents, _is_allowed_intent, _is_allowed_action_status, _contains_structured_output, _breaks_sentence_ending, _build_request, _build_backend_payload, should_rewrite, rewrite. ",
+    "properties": {},
+    "id": "ResponseRewriter"
+  },
+  {
+    "type": "function",
+    "name": "rewrite",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function rewrite in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "rewrite"
+  },
+  {
+    "type": "function",
+    "name": "_start_process",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _start_process in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_start_process"
+  },
+  {
+    "type": "function",
+    "name": "_pump_stream",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _pump_stream in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_pump_stream"
+  },
+  {
+    "type": "function",
+    "name": "close",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function close in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "close"
+  },
+  {
+    "type": "function",
+    "name": "_read_response_line",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _read_response_line in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_read_response_line"
+  },
+  {
+    "type": "function",
+    "name": "_build_plugin",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _build_plugin in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_build_plugin"
+  },
+  {
+    "type": "function",
+    "name": "_resolve_command",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _resolve_command in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_resolve_command"
+  },
+  {
+    "type": "function",
+    "name": "is_enabled",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function is_enabled in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "is_enabled"
+  },
+  {
+    "type": "function",
+    "name": "_normalize_allowed_values",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _normalize_allowed_values in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_normalize_allowed_values"
+  },
+  {
+    "type": "function",
+    "name": "_default_allowed_intents",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _default_allowed_intents in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_default_allowed_intents"
+  },
+  {
+    "type": "function",
+    "name": "_is_allowed_intent",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _is_allowed_intent in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_is_allowed_intent"
+  },
+  {
+    "type": "function",
+    "name": "_is_allowed_action_status",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _is_allowed_action_status in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_is_allowed_action_status"
+  },
+  {
+    "type": "function",
+    "name": "_contains_structured_output",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _contains_structured_output in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_contains_structured_output"
+  },
+  {
+    "type": "function",
+    "name": "_breaks_sentence_ending",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _breaks_sentence_ending in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_breaks_sentence_ending"
+  },
+  {
+    "type": "function",
+    "name": "_build_request",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _build_request in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_build_request"
+  },
+  {
+    "type": "function",
+    "name": "_build_backend_payload",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function _build_backend_payload in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "_build_backend_payload"
+  },
+  {
+    "type": "function",
+    "name": "should_rewrite",
+    "file": "src\\response_rewriter\\response_rewriter.py",
+    "summary": "Function should_rewrite in src\\response_rewriter\\response_rewriter.py. ",
+    "id": "should_rewrite"
   },
   {
     "type": "class",

@@ -7,6 +7,8 @@ import sys
 import copy
 import time
 from datetime import datetime
+from pathlib import Path
+from types import SimpleNamespace
 
 # Ensure project root is in path
 sys.path.append(os.getcwd())
@@ -48,6 +50,17 @@ def main() -> int:
     parser.add_argument("--confirm", action="store_true", help="Confirm execution of safety-policy overrides")
     parser.add_argument("--strict-semantics", action="store_true", help="Require explicit intent/ops metadata in design steps")
     parser.add_argument("--allow-fallback", action="store_true", help="Allow UKB fallback pass when synthesis is incomplete")
+    parser.add_argument("--assist-literal-tags-http", action="store_true", help="Use local OpenAI-compatible HTTP to suggest explicit path/url/sql semantic_roles before deterministic inference")
+    parser.add_argument("--assist-endpoint-url", help="OpenAI compatible /v1/chat/completions endpoint for literal tag assistance")
+    parser.add_argument("--assist-model-id", default="qwen2.5-3b-instruct", help="Model id for literal tag assistance")
+    parser.add_argument("--assist-timeout-seconds", type=int, default=60, help="Timeout in seconds for literal tag assistance")
+    parser.add_argument("--assist-max-new-tokens", type=int, default=384, help="Generation cap for literal tag assistance")
+    parser.add_argument(
+        "--assist-policy",
+        choices=["on_blocked_only", "always"],
+        default="on_blocked_only",
+        help="When to invoke literal tag assistance. Default only retries after deterministic NO_CANDIDATE blocking.",
+    )
     args = parser.parse_args()
 
     if args.strict_semantics:
@@ -477,6 +490,51 @@ def main() -> int:
         raw = text[start + len("[ops:"):end]
         return [o.strip().lower() for o in raw.split(",") if o.strip()]
 
+    def maybe_build_literal_tag_assist_payload(design_path: str):
+        if not args.assist_literal_tags_http:
+            return None
+        if not args.assist_endpoint_url:
+            emit_error("[!] --assist-literal-tags-http には --assist-endpoint-url が必要です。")
+            raise ValueError("assist endpoint url is required")
+        from scripts.suggest_design_tags import _build_candidates, _build_messages, _request_http, _sanitize_response
+
+        parsed, candidates = _build_candidates(Path(design_path))
+        if not candidates:
+            emit_progress("[*] Literal tag assistance skipped: no explicit literal-bearing candidates.")
+            return None
+        emit_progress(f"[*] Literal tag assistance: querying {args.assist_model_id} for {len(candidates)} candidate(s)...")
+        request_args = SimpleNamespace(
+            endpoint_url=args.assist_endpoint_url,
+            model_id=args.assist_model_id,
+            timeout_seconds=args.assist_timeout_seconds,
+            max_new_tokens=args.assist_max_new_tokens,
+        )
+        messages = _build_messages(parsed, candidates, "literal_roles_only")
+        response_payload = _request_http(request_args, messages)
+        sanitized = _sanitize_response(parsed, candidates, response_payload, "literal_roles_only")
+        accepted = sanitized.get("accepted_suggestions", [])
+        rejected = sanitized.get("rejected_suggestions", [])
+        emit_progress(f"[*] Literal tag assistance accepted={len(accepted)} rejected={len(rejected)}")
+        return {
+            "provider": "openai_compatible_http",
+            "model_id": args.assist_model_id,
+            "endpoint_url": args.assist_endpoint_url,
+            "mode": "literal_roles_only",
+            "result": sanitized,
+        }
+
+    def should_retry_with_literal_assist(inference_result: dict) -> bool:
+        if not args.assist_literal_tags_http:
+            return False
+        if args.assist_policy != "on_blocked_only":
+            return False
+        if inference_result.get("status") != "blocked":
+            return False
+        issues = inference_result.get("issues", [])
+        if not isinstance(issues, list) or not issues:
+            return False
+        return any(str(issue.get("reason") or "").strip().upper() == "NO_CANDIDATE" for issue in issues if isinstance(issue, dict))
+
     if args.project_audit_only:
         project_spec = ps_parser.parse_file(args.design)
         audit_project_methods(project_spec)
@@ -517,11 +575,30 @@ def main() -> int:
         emit_progress(f"[+] Project generated at {output_root}")
         return 0
 
-    inference_result = infer_then_freeze_if_needed(
-        args.design,
-        config_manager=config,
-        vector_engine=vector_engine,
-    )
+    suggestion_payload = None
+    try:
+        if args.assist_literal_tags_http and args.assist_policy == "always":
+            suggestion_payload = maybe_build_literal_tag_assist_payload(args.design)
+
+        inference_result = infer_then_freeze_if_needed(
+            args.design,
+            config_manager=config,
+            vector_engine=vector_engine,
+            suggestion_payload=suggestion_payload,
+        )
+
+        if should_retry_with_literal_assist(inference_result):
+            emit_progress("[*] Deterministic inference blocked with NO_CANDIDATE. Retrying with literal tag assistance...")
+            suggestion_payload = maybe_build_literal_tag_assist_payload(args.design)
+            inference_result = infer_then_freeze_if_needed(
+                args.design,
+                config_manager=config,
+                vector_engine=vector_engine,
+                suggestion_payload=suggestion_payload,
+            )
+    except (ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        emit_error(f"[!] Literal tag assistance failed: {exc}")
+        return 1
     if inference_result.get("status") == "blocked":
         emit_error("[!] 設計書補完の結果、生成を停止しました:")
         for issue in inference_result.get("issues", []):

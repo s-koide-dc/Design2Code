@@ -117,12 +117,16 @@ class StatementBuilder:
                 "bool": "false", "string": "string.Empty"
             }
             default_val = type_defaults.get(var_type, "null")
+            decl_type = var_type
+            value_types = {"int", "long", "double", "float", "decimal", "bool", "char", "byte", "short", "uint", "ulong", "ushort", "DateTime", "Guid"}
             if "IEnumerable" in var_type or "List" in var_type: 
                 concrete = var_type.replace('IEnumerable', 'List')
                 if not concrete.startswith("List<"): concrete = f"List<{concrete}>"
                 default_val = f"new {concrete}()"
+            elif default_val == "null" and isinstance(var_type, str) and var_type and not var_type.endswith("?") and var_type not in value_types:
+                decl_type = f"{var_type}?"
             
-            hoisted_decl = {"type": "raw", "code": f"{var_type} {out_var} = {default_val};", "var_type": var_type}
+            hoisted_decl = {"type": "raw", "code": f"{decl_type} {out_var} = {default_val};", "var_type": decl_type}
             
             existing_codes = [h.get("code") for h in path.setdefault("hoisted_statements", [])]
             if hoisted_decl["code"] not in existing_codes:

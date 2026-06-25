@@ -30,9 +30,11 @@
 ### Core Logic
 1. `DesignDocParser` で Markdown を一次解析し、`module_name` / `purpose` / `specification` を取得する。
 2. `specification.core_logic` から `[data_source|id|kind]` を抽出して `data_sources` に登録する。
+   - `semantic_roles` の JSON に配列が含まれていても bracket 境界を壊さないよう、prefix 解析は `[` `]` のネストを考慮して行う。
 3. 同じ Core Logic 行を `step_1 ... step_n` の構造化ステップへ変換する。  
    - `[KIND|INTENT|TARGET|OUTPUT|SIDE_EFFECT|SOURCE_REF|SOURCE_KIND]` を解析し、`kind/intent/target_entity/output_type/side_effect/source_ref/source_kind` を生成する。  
    - `[refs:...]`/`[ops:...]`/`[semantic_roles:{...}]` を順に解析し、`input_refs` と `semantic_roles` に反映する。  
+   - `semantic_roles.ops` のような JSON array もそのまま保持する。
 4. `source_ref` と `data_sources` を突合して `source_kind` を補完し、`FETCH` で未指定の場合は `file` を既定値とする。内部 semantic intent / node kind の既定語彙には `src.utils.semantic_intents` の共通定数を使う。
 5. `test_cases` を `tc_1..` 形式の構造体に変換する。
 6. `validate_structured_spec_or_raise` を実行し、形式・参照整合性を検証する。

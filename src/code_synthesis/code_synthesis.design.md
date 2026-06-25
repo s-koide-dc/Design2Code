@@ -1,6 +1,6 @@
 # Code Synthesis Design Document
 
-## 1. Purpose (Updated 2026-04-14)
+## 1. Purpose (Updated 2026-06-18)
 
 `code_synthesis` は `StructuredSpec` からコードを合成し、必要であれば検証・再計画を行う。  
 中心となる入口は `synthesis_pipeline.synthesize_structured_spec` であり、合成・検証・再計画・依存解決を統合する。
@@ -47,6 +47,9 @@
    - `spec_role=ITERATE` は `ActionSynthesizer` が `NODE_LOOP` を主に消費しつつ、exact upstream collection と deterministic item entity を metadata から優先する。
    - `spec_role=WRAP` は `IREmitter` が structural consumer として child body を保持し、`wrapper_kind` に応じて `retry`, explicit `timeout`, explicit `transaction` statement へ再構成する。
    - `spec_role=CALCULATE` は `ActionSynthesizer` / `calc_ops` が `entity_resolution`, `calculate_target_resolution`, `calculate_source_resolution` を読み、exact source と target/property の強さに応じて concretization を制御する。
+9. review/audit 系 CLI では、同じ合成入口を使って `.design.md -> .inferred.design.md -> generated .cs -> spec audit -> compile verification` を一気通しで確認する。
+10. resilient IO/NETWORK/DB 合成では、scalar 戻り値 (`string`, `bool`, `int` など) も explicit `var_type` を保持し、退避変数の hoist 時に `var x = null` のような不正宣言を出さない。
+11. 現在の最小 authoring 境界で重点確認している生成経路は file / db / http / env の代表シナリオであり、各系統は review snapshot で `SpecAuditor` と compile verification まで通すことを前提にする。
 
 ### Test Cases
 - **Happy Path**:
@@ -70,3 +73,4 @@
 - 2026-05-13: explicit `WRAP/transaction` の structural consumer を追加し、sync/async `TransactionScope` へ決定論的に落とす方針を反映。
 - 2026-05-13: `ITERATE` の collection/item provenance bridge（exact upstream collection と deterministic item entity 優先）を module-level specification に反映。
 - 2026-05-13: `CALCULATE` の source/target provenance（`default_scope_var`, `calculate_target_resolution`）に応じて over-concretization を避ける方針を反映。
+- 2026-06-18: review snapshot による実コード監査経路、resilient scalar return hoisting、file/db/http/env の最小シナリオ検証前提を反映。

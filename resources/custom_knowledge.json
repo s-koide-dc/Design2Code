@@ -20,9 +20,9 @@
     "unknown_topic": "ごめんなさい、{topic}についてはよく分かりません。"
   },
   "dialogue_templates": {
-    "task_in_progress": "{task_name}を進めています。対象は {target} です。",
-    "awaiting_approval": "{task_name}を進める前に承認が必要です。対象は {target} です。",
-    "awaiting_input": "{task_name}を進めるために {awaiting_entity} の指定が必要です。",
+    "task_in_progress": "{task_name}を進めています。対象は{target}です。完了したらお知らせします。",
+    "awaiting_approval": "{task_name}を進める前に、対象の{target}について承認をお願いします。",
+    "awaiting_input": "{task_name}を進めるために、{awaiting_entity}を教えてください。",
     "action_success": "{task_name}が完了しました。対象は {target} です。",
     "action_error": "{task_name}の実行中に問題が発生しました。対象は {target} です。詳細: {error_detail}",
     "generated_files": "生成物: {files}",
@@ -78,7 +78,7 @@
       "私はあなたのパーソナルAIアシスタントです。いろいろな言葉について教えたり、お話ししたりするのが好きですよ。"
     ],
     "SMALLTALK": [
-      "雑談ですね。最近は新しいことを学ぶのが楽しくて、いつもワクワクしています！"
+      "もちろんです。少しお話ししましょうか。"
     ],
     "FEEDBACK": [
       "ありがとうございます。そう言っていただけると助かります。"

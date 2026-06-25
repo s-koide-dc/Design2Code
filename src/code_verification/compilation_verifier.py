@@ -84,6 +84,7 @@ class CompilationVerifier:
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="GeneratedCode.cs" />
@@ -157,6 +158,7 @@ class CompilationVerifier:
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="GeneratedCode.cs" />

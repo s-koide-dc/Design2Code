@@ -9,6 +9,61 @@
 - `scripts/validate_project_consistency.py`
   - モジュール/設計書/依存関係の整合性を検証する。
   - `resources/` 配下の主要 JSON 資産について、intent / capability / role 語彙が共通定数境界に収まっているかも検証する。
+- `scripts/benchmark_response_rewriter.py`
+  - 応答リライターの one-shot / persistent 実行時間を測る。
+  - 既定では `scripts/response_rewriter_qwen_cpu.py` と `scripts/response_rewriter_qwen_cpu_server.py` を比較する。
+  - 実モデルの代わりに `--command` で stub backend を指定して回帰確認もできる。
+  - `--model-id` と `--max-new-tokens` で Qwen 系モデル比較にも使える。
+  - `--mode http --endpoint-url http://127.0.0.1:8080/v1/chat/completions` で `llama.cpp server` などの OpenAI 互換 endpoint を直接計測できる。
+- `scripts/inspect_response_rewriter_quality.py`
+  - 固定ケース群に対して、応答リライターがどの程度文面を自然化できているかを確認する。
+  - `expected_rewrite`, `eligible_by_gate`, `changed`, `assessment` を JSON で返す。
+  - `family_summary` と `case_ids_by_assessment` も返すため、標準の deterministic 進捗文・成功文を preserve できているか、conversational 応答だけが rewrite 対象として残っているかを切り分けやすい。
+  - `--family deterministic_progress` や `--family deterministic_success` のように family を絞って再計測できる。
+  - `openai_compatible_http` を使えば LM Studio / `llama.cpp server` の整形品質確認にそのまま使える。
+- `scripts/run_response_rewriter_conversation_probe.py`
+  - 実 backend を使って複数ターン会話を流し、各ターンの intent / clarification 状態 / 応答文を JSON で確認する。
+  - `pre_rewrite_text` と `rewrite_applied` も出すため、各ターンで実際に文面自然化が効いたかを確認できる。
+  - LM Studio のログと、こちら側の複数ターン応答結果を突き合わせるための手動確認用 CLI。
+  - これは `Pipeline` を通すため、`.venv-rewriter` ではなく `requirements.txt` 導入済みの通常環境 Python で実行する。
+- `scripts/probe_design_inference_boundary.py`
+  - `.design.md` を段階的に劣化させた variant を生成し、`infer_then_freeze` と `generate_from_design` がどこまで耐えられるかを JSON で返す。
+  - 現在は `original`, `strip_tags`, `strip_tags_drop_literals`, `strip_tags_drop_plain_sources`, `strip_tags_drop_literals_and_plain_sources` を出力する。
+  - `clean_generate` を見ると、return code だけでなく stderr 警告なしで通ったかまで分かる。
+- `scripts/probe_design_authoring_reduction.py`
+  - 同一 `.design.md` から authoring 削減段階ごとの variant を生成し、どこまで deterministic に保てるか、どこから literal boundary に入るかを JSON で返す。
+  - 現在は `original`, `drop_step_meta`, `drop_step_meta_refs`, `drop_step_meta_refs_ops`, `strip_tags_keep_literals`, `strip_tags_drop_literals` を出力する。
+  - `--assist-endpoint-url` を付けると、同じ variant 群に対して `literal_roles_only` assist の回復可否も並べて観測できる。
+  - `--skip-generate` を使うと inference 比較だけに絞れるため、JSON 契約確認や高速な境界観測に向く。
+- `scripts/validate_design_authoring.py`
+  - 新規 `.design.md` の初稿が現在の authoring 境界に収まっているかを 1 コマンドで判定する。
+  - 既定では `original`, `drop_step_meta`, `drop_step_meta_refs`, `drop_step_meta_refs_ops` が deterministic に通ることと、`strip_tags_drop_literals` が `NO_CANDIDATE` で止まることを検証する。
+  - `strip_tags_keep_literals` は情報観測枠で、deterministic に通るか assist 境界に落ちるかを `observations` に記録する。
+  - 失敗時は exit code `1`、成功時は exit code `0` で JSON を stdout に返す。
+- `scripts/review_design_generation_snapshot.py`
+  - 1 本の `.design.md` について、元の設計書、`.inferred.design.md`、最終生成コード、`SpecAuditor` の issue、compile 検証結果を 1 回で JSON とファイル出力へまとめる。
+  - 中間表現だけでなく、実際の `.cs` を見て authoring 削減の妥当性を確認したいときのレビュー入口。
+  - `--assist-endpoint-url` を付けると `literal_roles_only` assist を含めたレビューもできる。
+- `scripts/run_design_generation_regression.py`
+  - 複数の `.design.md` をまとめて `review_design_generation_snapshot` と同じ基準で回帰確認する。
+  - 既定では `ComplexLinqSearch`, `CsvSalesAggregation`, `DailyInventorySync`, `SecureOrderProcessing`, `AppModeEchoMinimal` を対象にし、`--design` を複数指定すると任意の組み合わせに差し替えられる。
+  - 各ケースの `inference_status`, `verification_valid`, `spec_issue_count` と、元の詳細 payload を 1 つの JSON に集約する。
+- `scripts/audit_literal_tag_assist_coverage.py`
+  - `scenarios/` 配下の `.design.md` を strip して `infer_then_freeze` に流し、`NO_CANDIDATE` で止まるケースと literal assist 推奨ケースを JSON で返す。
+  - `assist_recommended` は、blocked 理由が `NO_CANDIDATE` で、かつ explicit literal-bearing candidate が残っているケースだけを示す。
+- `scripts/suggest_design_tags.py`
+  - `.design.md` を読んで、タグ不足の step 候補を LLM へ送り、提案タグを stdout の JSON として返す。
+  - 新しい中間ファイルは作らず、元の `.design.md` も書き換えない。
+  - `path` / `url` / `sql` の literal は original line に明示されていない限り reject する。
+  - 既定では、quoted path / URL / SQL literal を含む高価値候補に優先的に絞って送る。
+  - `--mode literal_roles_only` では `semantic_roles.path/url/sql` だけを提案対象にし、`step_meta` / `refs` の生成を要求しない。
+  - `openai_compatible_http` の既定 `model_id` は `qwen2.5-3b-instruct`。
+- `scripts/inspect_design_tag_suggestion_quality.py`
+  - 固定ケース（現状は `ComplexLinqSearch`, `SyncExternalData`, `DailyInventorySync`, `UserReportGenerator`, `FetchProductInventory` の stripped design）に対して、LLM タグ提案が expected literal suggestion を拾えているかを JSON で返す。
+  - `all_expected_found` と `missing_expected` を見ると、安全性だけでなく有効性も測れる。
+  - 既定では `literal_roles_only` で計測し、`path/url/sql` 回収だけを分離して評価する。
+  - `expected_role_totals` / `matched_role_totals` により、`path` / `url` / `sql` の role 別回収率も確認できる。
+  - 現状の既定運用モデルは `qwen2.5-3b-instruct` を想定する。
 
 ## 1.1 stdout/stderr 契約
 
@@ -40,6 +95,9 @@
 ## 3. generate (設計書→生成)
 
 - `scripts/generate/generate_from_design.py` : 設計書からコード/プロジェクト生成
+  - `--assist-literal-tags-http` と `--assist-endpoint-url` を付けると、`literal_roles_only` の accepted 提案を in-memory で先に差し込み、その結果を `.inferred.design.md` に記録してから通常の deterministic generation を続ける。
+  - 既定の `--assist-policy on_blocked_only` は deterministic 補完が `NO_CANDIDATE` で止まった時だけ backend を呼ぶ。`--assist-policy always` を付けると毎回併用する。
+  - accepted されるのは post-validate 済みの `semantic_roles.path/url/sql` だけで、元の `.design.md` は変更しない。
 - `scripts/generate/demo_synthesis.py` : 合成デモ（必要時のみ）
 
 ## 4. validate (検証)

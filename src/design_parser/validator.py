@@ -5,6 +5,8 @@ from typing import Any, Dict, List
 from src.utils.semantic_intents import (
     INTENT_DATABASE_QUERY,
     INTENT_FETCH,
+    INTENT_HTTP_REQUEST,
+    INTENT_PERSIST,
     NODE_ACTION,
     NODE_CONDITION,
     NODE_ELSE,
@@ -150,11 +152,17 @@ def validate_structured_spec(spec: Dict[str, Any]) -> List[str]:
 
             intent = step.get("intent")
             if intent == INTENT_FETCH:
+                semantic_roles = step.get("semantic_roles") if isinstance(step.get("semantic_roles"), dict) else {}
+                path_text = semantic_roles.get("path")
+                has_path = isinstance(path_text, str) and bool(path_text.strip())
+                is_file_ref = isinstance(source_ref, str) and source_kind_map.get(source_ref) == "file"
                 if source_kind != "file":
                     if not isinstance(source_ref, str) or source_ref not in source_kind_map:
                         errors.append("steps[{i}] intent=FETCH requires valid source_ref".format(i=i))
                 if not isinstance(source_kind, str) or source_kind not in _ALLOWED_SOURCE_KINDS:
                     errors.append("steps[{i}] intent=FETCH requires valid source_kind".format(i=i))
+                if source_kind == "file" and not is_file_ref and not has_path:
+                    errors.append("steps[{i}] intent=FETCH source_kind=file requires source_ref(kind=file) or semantic_roles.path".format(i=i))
 
             if intent == INTENT_DATABASE_QUERY:
                 semantic_roles = step.get("semantic_roles") if isinstance(step.get("semantic_roles"), dict) else {}
@@ -167,6 +175,29 @@ def validate_structured_spec(spec: Dict[str, Any]) -> List[str]:
                     errors.append("steps[{i}] intent=DATABASE_QUERY requires source_kind=db".format(i=i))
                 if not has_sql:
                     errors.append("steps[{i}] intent=DATABASE_QUERY requires semantic_roles.sql (e.g. SQL '...')".format(i=i))
+
+            if intent == INTENT_HTTP_REQUEST:
+                semantic_roles = step.get("semantic_roles") if isinstance(step.get("semantic_roles"), dict) else {}
+                url_text = semantic_roles.get("url")
+                has_url = isinstance(url_text, str) and bool(url_text.strip())
+                is_http_ref = isinstance(source_ref, str) and source_kind_map.get(source_ref) == "http"
+                if not is_http_ref:
+                    errors.append("steps[{i}] intent=HTTP_REQUEST requires source_ref(kind=http)".format(i=i))
+                if not isinstance(source_kind, str) or source_kind != "http":
+                    errors.append("steps[{i}] intent=HTTP_REQUEST requires source_kind=http".format(i=i))
+                if not has_url:
+                    errors.append("steps[{i}] intent=HTTP_REQUEST requires semantic_roles.url (e.g. API 'https://...')".format(i=i))
+
+            if intent == INTENT_PERSIST:
+                semantic_roles = step.get("semantic_roles") if isinstance(step.get("semantic_roles"), dict) else {}
+                sql_text = semantic_roles.get("sql")
+                has_sql = isinstance(sql_text, str) and bool(sql_text.strip())
+                is_db_ref = isinstance(source_ref, str) and source_kind_map.get(source_ref) == "db"
+                if is_db_ref or source_kind == "db":
+                    if not isinstance(source_kind, str) or source_kind != "db":
+                        errors.append("steps[{i}] intent=PERSIST source_ref(kind=db) requires source_kind=db".format(i=i))
+                    if not has_sql:
+                        errors.append("steps[{i}] intent=PERSIST source_ref(kind=db) requires semantic_roles.sql (e.g. SQL '...')".format(i=i))
 
     if len(step_ids) != len(set(step_ids)):
         errors.append("step ids must be unique")

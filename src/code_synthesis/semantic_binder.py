@@ -160,10 +160,10 @@ class SemanticBinder:
                     return None
 
             if (val is None or str(val).strip() == "null") and pt == "HttpContent" and node.get("intent") == INTENT_HTTP_REQUEST:
+                has_explicit_payload = "payload" in semantic_roles or "content" in semantic_roles
                 role = (node.get("role") or "").upper()
-                text = node.get("original_text", "")
                 is_write = role in [ROLE_WRITE, ROLE_PERSIST]
-                if not is_write:
+                if not has_explicit_payload and not is_write:
                     return None
                 item = self._resolve_source_var(node, path, "object", role_hint="item")
                 if item:

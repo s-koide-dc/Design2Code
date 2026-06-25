@@ -22,6 +22,7 @@ x64/
 x86/
 build/
 __pycache__/
+*.pyc
 
 ## [Environment Secrets]
 appsettings.Development.json
@@ -42,6 +43,7 @@ resources/dictionary.db
 logs/
 cache/
 refactoring_reports/
+.venv*/
 
 ## [Sandbox]
 .github

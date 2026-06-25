@@ -9,8 +9,9 @@ This project operates on a Specification-Driven and AI-First development model. 
 1. Goal Definition (Human): Define a high-level goal for a new module.
 2. Initial Scaffolding (Human): Run `create_module` to generate the basic file structure.
 3. Specification Generation (AI & Human): The AI drafts the `.design.md` according to Section 9, and the human reviews and approves it.
-4. Implementation & Testing (AI): Implement logic and tests strictly from the `.design.md`.
-5. Review & Verification (Human): Review code and test results for alignment and quality.
+4. Authoring Boundary Check (AI & Human): Before normal generation or implementation, run `python scripts/validate_design_authoring.py --design path/to/module.design.md` and confirm the draft stays within the current deterministic authoring boundary.
+5. Implementation & Testing (AI): Implement logic and tests strictly from the `.design.md`.
+6. Review & Verification (Human): Review code and test results for alignment and quality.
 
 ## 2. AI_CHANGELOG.md
 
@@ -74,6 +75,25 @@ Timing: At the start of new module development.
 Command (Unix-like): `./scripts/scaffold/create_module.sh <module_name> <language>`.
 Command (Windows PowerShell): `powershell -ExecutionPolicy Bypass -File scripts/scaffold/create_module.ps1 -ModuleName <module_name> -Language <language>`.
 
+4. `validate_design_authoring.py`
+Purpose: Validate that a new `.design.md` draft still fits the current authoring contract before normal generation.
+Timing: After drafting a new `.design.md`, after major spec simplification, and before relying on `generate_from_design.py` as the next step.
+Command: `python scripts/validate_design_authoring.py --design path/to/module.design.md`.
+Notes:
+- This check expects the standard reduced stages (`drop_step_meta`, `drop_step_meta_refs`, `drop_step_meta_refs_ops`) to remain deterministic.
+- It also expects the over-reduced literal-loss stage to fail with deterministic `NO_CANDIDATE`.
+- If this check fails, fix the design text first rather than broadening LLM dependence by default.
+
+5. `review_design_generation_snapshot.py`
+Purpose: Review the actual generated code together with the inferred design, instead of judging only the intermediate design transformation.
+Timing: After `validate_design_authoring.py` passes and before treating the draft as production-ready or adding it as a stable scenario.
+Command: `python scripts/review_design_generation_snapshot.py --design path/to/module.design.md`.
+Notes:
+- Confirm that the generated `.cs` still matches the intended data flow.
+- Confirm that `spec_issues` is empty or explicitly understood.
+- Confirm that compile verification succeeds.
+- If the generated code looks weak even though the authoring gate passed, strengthen the design text instead of assuming the current reduction is acceptable.
+
 ## 8. AI Self-Correction Protocol
 
 1. Pre-execution plan: State a step-by-step plan before any code modification, file operation, or complex command.
@@ -111,6 +131,10 @@ Human Spec vs Machine Spec.
    - After inference, the **inferred design document** becomes the single source of truth; generation must use the embedded metadata only.
    - Inference must be **deterministic** under fixed model/dictionary/scoring versions and must record the asset versions used.
    - If inference is used, **persist the inferred metadata into a separate `.inferred.design.md`**; the original `.design.md` must not be modified.
+8. **Authoring Gate Policy**:
+   - A newly drafted `.design.md` should pass `scripts/validate_design_authoring.py` before it is treated as the working source for normal generation.
+   - The expected target is that reduced deterministic stages still pass, while the literal-loss stage still blocks.
+   - If the design only works after crossing the prohibited literal-loss boundary, the fix is to strengthen the design text, not to weaken the contract.
 
 ### 9.1 Explicit Ops Metadata
 

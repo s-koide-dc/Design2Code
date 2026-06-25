@@ -18,9 +18,13 @@
 ### Core Logic
 1. ベースサンドボックス（`cache/base_sandbox`）を準備し、依存関係が変わらなければ `obj` と `Sandbox.csproj` を再利用する。
 2. サンドボックスを用意し、`Sandbox.csproj` と `GeneratedCode.cs` を作成する。
+   - `Sandbox.csproj` では `<Nullable>enable</Nullable>` を有効にし、生成コードが `string?` などの nullable 参照型注釈を含んでも余計な `CS8632` 警告を出さない。
 3. 依存関係をマージし、必要に応じて `dotnet restore` を実行する。
 4. `dotnet build` を実行し、`_parse_errors` でエラーを構造化する。
 5. `verify_project` は指定プロジェクトの `.csproj` をビルドして結果を返す。
+
+## 4. Review Notes
+- 2026-06-24: sandbox project に nullable context を明示し、nullable return type を含む生成コードで `CS8632` 警告を出さない現在の検証前提へ同期。
 
 ### Test Cases
 - **Happy Path**:

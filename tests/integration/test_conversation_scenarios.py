@@ -3,6 +3,8 @@ import os
 import shutil
 import sys
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from src.pipeline_core.pipeline_core import Pipeline
 from src.safety.safety_policy_validator import RiskLevel, SafetyCheckStatus, SafetyCheckResult
 from src.utils.confirmation_response import (
@@ -516,6 +518,122 @@ class TestConversationScenarios(unittest.TestCase):
             item_path = os.path.join(self.test_ws, item)
             if os.path.isfile(item_path):
                 os.remove(item_path)
+
+    def _enable_stub_response_rewriter(self):
+        self.pipeline.config_manager.response_rewriter_config = {
+            "enabled": True,
+            "provider": "persistent_subprocess_jsonl",
+            "command": [sys.executable, os.path.abspath("scripts/response_rewriter_stub_backend.py")],
+            "response_format": "json",
+            "timeout_seconds": 5,
+            "prompt_contract": {
+                "rewrite_style": "natural_japanese",
+                "instruction": "与えられた response_text の事実を変えずに、日本語の自然さだけを整えてください。"
+            },
+            "rewrite_allowed_intents": [
+                "GENERAL",
+                "GREETING",
+                "PERSONAL_Q",
+                "EMOTIVE",
+                "SMALLTALK",
+                "FEEDBACK",
+                "WEATHER",
+                "TIME",
+                "CAPABILITY",
+                "BYE",
+                "DEFINITION",
+            ],
+            "rewrite_allowed_action_statuses": ["success"],
+            "max_input_chars": 1200,
+            "max_length_ratio": 3.0,
+            "rewrite_confirmation_messages": False,
+            "rewrite_clarification_messages": False,
+            "rewrite_error_messages": False,
+        }
+        self.pipeline._response_generator = None
+        self.addCleanup(self._disable_response_rewriter)
+
+    def _enable_http_stub_response_rewriter(self):
+        class _Handler(BaseHTTPRequestHandler):
+            def do_POST(handler_self):
+                body_length = int(handler_self.headers.get("Content-Length", "0"))
+                payload = json.loads(handler_self.rfile.read(body_length).decode("utf-8"))
+                response_text = payload["messages"][-1]["content"].split("response_text:\n", 1)[-1]
+                response = {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": f"{response_text}（HTTP自然化）。"
+                            }
+                        }
+                    ]
+                }
+                encoded = json.dumps(response, ensure_ascii=False).encode("utf-8")
+                handler_self.send_response(200)
+                handler_self.send_header("Content-Type", "application/json")
+                handler_self.send_header("Content-Length", str(len(encoded)))
+                handler_self.end_headers()
+                handler_self.wfile.write(encoded)
+
+            def log_message(self, format, *args):
+                return
+
+        server = HTTPServer(("127.0.0.1", 0), _Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        def _cleanup_server():
+            server.shutdown()
+            thread.join(timeout=1)
+            server.server_close()
+
+        self.addCleanup(_cleanup_server)
+
+        self.pipeline.config_manager.response_rewriter_config = {
+            "enabled": True,
+            "provider": "openai_compatible_http",
+            "endpoint_url": f"http://127.0.0.1:{server.server_port}/v1/chat/completions",
+            "model": "local-llama",
+            "timeout_seconds": 5,
+            "max_new_tokens": 24,
+            "prompt_contract": {
+                "rewrite_style": "natural_japanese",
+                "instruction": "与えられた response_text の事実を変えずに、日本語の自然さだけを整えてください。"
+            },
+            "rewrite_allowed_intents": [
+                "GENERAL",
+                "GREETING",
+                "PERSONAL_Q",
+                "EMOTIVE",
+                "SMALLTALK",
+                "FEEDBACK",
+                "WEATHER",
+                "TIME",
+                "CAPABILITY",
+                "BYE",
+                "DEFINITION",
+            ],
+            "rewrite_allowed_action_statuses": ["success"],
+            "max_input_chars": 1200,
+            "max_length_ratio": 3.0,
+            "rewrite_confirmation_messages": False,
+            "rewrite_clarification_messages": False,
+            "rewrite_error_messages": False,
+        }
+        self.pipeline._response_generator = None
+        self.addCleanup(self._disable_response_rewriter)
+
+    def _disable_response_rewriter(self):
+        self.pipeline.config_manager.response_rewriter_config = {
+            "enabled": False,
+            "provider": "none",
+        }
+        response_generator = getattr(self.pipeline, "_response_generator", None)
+        plugin = getattr(getattr(response_generator, "response_rewriter", None), "plugin", None)
+        close = getattr(plugin, "close", None)
+        if callable(close):
+            close()
+        self.pipeline._response_generator = None
 
     def run_conversation(self, flow):
         """
@@ -1430,6 +1548,46 @@ class TestConversationScenarios(unittest.TestCase):
         self.assertTrue(interruption_result.get("clarification_needed", False))
         self.assertIn("よろしいですか？", interruption_result.get("response", {}).get("text", ""))
         self.assertEqual(interruption_result.get("analysis", {}).get("intent"), "FEEDBACK")
+
+    def test_scenario_46_general_conversation_response_is_rewritten_by_persistent_backend(self):
+        """Scenario 46: A normal conversational response is rewritten through the persistent backend."""
+        self._enable_stub_response_rewriter()
+
+        result = self.pipeline.run("雑談しよう")
+
+        self.assertFalse(bool(result.get("clarification_needed", False)))
+        self.assertEqual(result.get("analysis", {}).get("intent"), "SMALLTALK")
+        self.assertIn("（自然化）", result.get("response", {}).get("text", ""))
+
+    def test_scenario_47_multi_turn_conversation_uses_http_rewriter_only_on_normal_turns(self):
+        """Scenario 47: Multi-turn conversation rewrites normal turns but preserves clarification prompts."""
+        self._enable_http_stub_response_rewriter()
+
+        smalltalk_result = self.pipeline.run("雑談しよう")
+        self.assertFalse(bool(smalltalk_result.get("clarification_needed", False)))
+        self.assertEqual(smalltalk_result.get("analysis", {}).get("intent"), "SMALLTALK")
+        self.assertIn("（HTTP自然化）", smalltalk_result.get("response", {}).get("text", ""))
+
+        create_result = self.pipeline.run("ファイルを作って")
+        self.assertTrue(bool(create_result.get("clarification_needed", False)))
+        self.assertIn("ファイル名を教えていただけますか？", create_result.get("response", {}).get("text", ""))
+        self.assertNotIn("（HTTP自然化）", create_result.get("response", {}).get("text", ""))
+
+        weather_during_clarification = self.pipeline.run("今日の天気は？")
+        self.assertTrue(bool(weather_during_clarification.get("clarification_needed", False)))
+        self.assertIn("ファイル名を教えていただけますか？", weather_during_clarification.get("response", {}).get("text", ""))
+        self.assertNotIn("（HTTP自然化）", weather_during_clarification.get("response", {}).get("text", ""))
+
+    def test_scenario_48_http_rewriter_preserves_action_completion_message(self):
+        """Scenario 48: Action completion remains deterministic even when the HTTP rewriter is enabled."""
+        self._enable_http_stub_response_rewriter()
+
+        create_result = self.pipeline.run("sample_stable.txt を作成して 内容は「こんにちは」です")
+
+        self.assertFalse(bool(create_result.get("clarification_needed", False)))
+        self.assertEqual(create_result.get("analysis", {}).get("intent"), "FILE_CREATE")
+        self.assertIn("sample_stable.txt", create_result.get("response", {}).get("text", ""))
+        self.assertNotIn("（HTTP自然化）", create_result.get("response", {}).get("text", ""))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

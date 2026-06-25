@@ -205,6 +205,76 @@ PY
 python -m unittest discover -s tests -p "test_*.py" -t .
 ```
 
+## 1.2.1 設計書生成の標準確認手順
+- 設計書生成まわりを変更したら、まず `scripts/validate_project_consistency.py` で docs / 設計書 / テスト参照の同期を確認します。
+- 次に、単発レビューは `scripts/review_design_generation_snapshot.py`、複数シナリオの回帰は `scripts/run_design_generation_regression.py` を使います。
+- 現在の既定回帰セットは `ComplexLinqSearch` / `CsvSalesAggregation` / `DailyInventorySync` / `SecureOrderProcessing` / `AppModeEchoMinimal` です。
+
+```bash
+# docs / 設計書 / テスト参照の整合性確認
+python scripts/validate_project_consistency.py
+
+# 1 本の設計書について、元設計・inferred 設計・生成コード・compile 結果を確認
+python scripts/review_design_generation_snapshot.py --design scenarios/DailyInventorySync.design.md
+
+# 既定の主要シナリオをまとめて回帰確認
+python scripts/run_design_generation_regression.py
+```
+
+## 1.2.2 設計書を書くときの境界
+- `infer_then_freeze` は `.design.md` の不足 metadata を一度だけ deterministic に補完しますが、`path` / `url` / `sql` は曖昧な自然文からは推定しません。
+- file 読み込みは `semantic_roles.path` か file data source、HTTP 呼び出しは `semantic_roles.url` か HTTP data source、DB query / DB persist は `semantic_roles.sql` が必要です。
+- 実運用では、quoted literal を消すと blocked になる boundary を仕様として扱います。`users.json`、`https://...`、`INSERT ...` のような literal は残してください。
+- 新規作成時の現時点ルールは次です:
+  - `必須`: `path` / `url` / `sql` のような literal 境界。file / HTTP / DB を確定する explicit literal は残す。
+  - `推奨`: 重要な `data_source`。特に HTTP source / DB source / file source を明示したいケースでは残した方が安定する。
+  - `省略可`: 多くの `step_meta`、一部の `refs`、一部の `ops`。現行の deterministic inference がかなり補完できる。
+  - `3B補助前提で省略可`: literal を含むが deterministic だけでは埋まらない `path` / `url` / `sql`。ただし `qwen2.5-3b-instruct` の `literal_roles_only` 補助を使う前提であり、完全な deterministic 契約ではない。
+- 実務上の推奨は「まず `step_meta` を減らし、それでも煩雑なら `refs` / `ops` / `data_source` を減らす。`path` / `url` / `sql` は最後まで残す」です。
+- 詳細な inference 境界、assist 運用、scenario ベースの棚卸しは [docs/generate_from_design_dataflow.md](/C:/workspace/NLP/docs/generate_from_design_dataflow.md) を参照してください。
+- LLM にタグ候補だけ提案させたい場合は、ファイルを増やさず次を使えます:
+
+```bash
+python scripts/suggest_design_tags.py --design scenarios/ComplexLinqSearch.design.md --endpoint-url http://127.0.0.1:1234/v1/chat/completions
+```
+
+- これは stdout に提案 JSON を返すだけで、`.design.md` は書き換えません。
+- `path` / `url` / `sql` の invented literal は reject されます。
+- 既定では、まず quoted path / URL / SQL literal を含む行に優先的に集中します。
+- `--mode literal_roles_only` を付けると、`step_meta` や `refs` を要求せず、explicit literal に対する `semantic_roles.path/url/sql` 提案だけに絞れます。
+- `openai_compatible_http` では、既定の `model_id` は `qwen2.5-3b-instruct` です。
+- 単体生成へそのまま差し込みたい場合は、`generate_from_design.py` に `--assist-literal-tags-http --assist-endpoint-url http://127.0.0.1:1234/v1/chat/completions` を付けると、accepted な `path/url/sql` 提案だけを in-memory で適用してから `.inferred.design.md` を生成します。
+- 既定の `--assist-policy` は `on_blocked_only` で、deterministic 補完が `NO_CANDIDATE` で止まったときだけ LLM を呼びます。常に併用したい場合だけ `--assist-policy always` を使います。
+- この補助でも元の `.design.md` は変更しません。反映結果は `.inferred.design.md` の `### Inference Metadata` に `llm_literal_assist:*` として記録されます。
+- 実 backend で usefulness を測る場合は次を使います:
+
+```bash
+python scripts/inspect_design_tag_suggestion_quality.py --endpoint-url http://127.0.0.1:1234/v1/chat/completions --mode literal_roles_only
+```
+
+- `all_expected_found` が高いほど、固定ケースで必要な literal tag 提案を拾えています。
+- `literal_roles_only` は、`path/url/sql` の回収可否だけを先に観測したい研究モードです。
+- `expected_role_totals` と `matched_role_totals` を見ると、case 単位だけでなく role 単位でも `path/url/sql` の取りこぼしを確認できます。
+- 現状の推奨は `qwen2.5-3b-instruct` です。`1.5B` は `path/sql` では有望ですが、`url` でぶれが残ります。
+- deterministic 境界確認は次で行えます:
+
+```bash
+python scripts/probe_design_inference_boundary.py --design scenarios/ComplexLinqSearch.design.md
+python scripts/probe_design_inference_boundary.py --design scenarios/SyncExternalData.design.md
+```
+
+- 期待値:
+  - `strip_tags` は clean generation が通る
+  - `strip_tags_drop_literals` は `NO_CANDIDATE` か validation error に寄る
+- scenario 在庫を含む assist coverage 棚卸しは次で行えます:
+
+```bash
+python scripts/audit_literal_tag_assist_coverage.py
+```
+
+- `assist_recommended` が `true` のものは、strip 後に deterministic だけでは `NO_CANDIDATE` で止まるが、explicit literal candidate は残っているため `literal_roles_only` 補助の対象候補です。
+- 実運用では、scenario 名の列挙を README に固定せず、最新の棚卸し結果は [docs/generate_from_design_dataflow.md](/C:/workspace/NLP/docs/generate_from_design_dataflow.md) と監査 CLI の出力を正とします。
+
 ## 1.3 CLI 出力契約
 - 正式 CLI は、成功結果と進行表示を `stdout`、エラーと警告を `stderr` に分離します。
 - 対象の代表例:
@@ -281,7 +351,8 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 ## 3. 設計書からの生成
 1. 設計書を `scenarios/*.design.md` に用意
 2. `scripts/generate/generate_from_design.py` を実行
-3. 出力: `cache/*Impact.cs` または `{ProjectName}/`
+3. `scripts/review_design_generation_snapshot.py` か `scripts/run_design_generation_regression.py` で生成結果を確認
+4. 出力: `cache/*Impact.cs` または `{ProjectName}/`
 
 ※ ブループリントは `cache/blueprints/<run_id>/blueprint.json` に保存されます。
 

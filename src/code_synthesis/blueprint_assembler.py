@@ -309,6 +309,14 @@ class BlueprintAssembler:
             for token in _flatten_types(t):
                 used_type_tokens.add(token.replace("IEnumerable<", "").replace("List<", "").replace(">", "").strip())
 
+        def _normalize_poco_property_type(prop_type: str) -> str:
+            if not isinstance(prop_type, str):
+                return prop_type
+            normalized = prop_type.strip()
+            if normalized == "string":
+                return "string?"
+            return normalized
+
         for name, props in path.get("poco_defs", {}).items():
             if name == "Item" and len(path["poco_defs"]) > 1: continue
             if name not in used_type_tokens:
@@ -317,7 +325,7 @@ class BlueprintAssembler:
             poco_props = []
             for pn, pt in props.items():
                 pascal_name = "".join(word.capitalize() for word in pn.split('_') if word) if "_" in pn else (pn[0].upper() + pn[1:] if pn else pn)
-                p_entry = {"name": pascal_name, "type": pt}
+                p_entry = {"name": pascal_name, "type": _normalize_poco_property_type(pt)}
                 if pascal_name != pn:
                     p_entry["attributes"] = [f"JsonPropertyName(\"{pn}\")"]
                 poco_props.append(p_entry)

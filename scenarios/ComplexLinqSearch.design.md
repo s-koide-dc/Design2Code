@@ -9,7 +9,8 @@
 - **Description**: status
 - **Type/Format**: bool
 ### Core Logic
-1. [ACTION|FETCH|User|string|NONE] 'users.json' を読み込む
+- [data_source|users_json|file] users.json
+1. [ACTION|FETCH|User|string|IO|users_json|file] [semantic_roles:{"path":"users.json"}] 'users.json' を読み込む
 2. [ACTION|JSON_DESERIALIZE|User|List<User>|NONE] データをユーザーリストに変換する
 3. [ACTION|LINQ|User|List<User>|NONE] [refs:step_2] [semantic_roles:{"property":"Name"}] 名前が 'A' で始まるユーザーを抽出する
 4. [ACTION|LINQ|User|List<User>|NONE] [refs:step_3] [semantic_roles:{"property":"Price"}] 価格が 500 より大きいユーザーを抽出する

@@ -1,0 +1,21 @@
+{
+  "enabled": false,
+  "provider": "openai_compatible_http",
+  "endpoint_url": "http://127.0.0.1:1234/v1/chat/completions",
+  "model": "qwen2.5-1.5b-instruct",
+  "max_new_tokens": 32,
+  "timeout_seconds": 10,
+  "prompt_contract": {
+    "rewrite_style": "natural_japanese",
+    "instruction": "与えられた response_text の事実を変えず、日本語の自然さだけを最小限に整えてください。新しい情報、質問、挨拶、提案は追加しないでください。主語・話者・視点・文の役割は変えないでください。"
+  },
+  "rewrite_allowed_intents": [],
+  "rewrite_allowed_action_statuses": [
+    "success"
+  ],
+  "max_input_chars": 1200,
+  "max_length_ratio": 1.6,
+  "rewrite_confirmation_messages": false,
+  "rewrite_clarification_messages": false,
+  "rewrite_error_messages": false
+}

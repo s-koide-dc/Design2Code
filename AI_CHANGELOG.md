@@ -1,9 +1,140 @@
 # AI Changelog
 
+- **2026-06-18**: Added `scenarios/AppModeEchoMinimal.design.md` as an environment-variable-backed minimal authoring example, extended `design_inference` so plain `環境変数 ... を取得する` lines can deterministically recover `FETCH + source_kind=env`, and fixed documented-entrypoint coverage so the scenario now passes both the authoring gate and the design-to-code review snapshot.
+
+- **2026-06-18**: Fixed `src/code_synthesis/action_synthesizer.py` so call results now keep explicit `var_type` even for scalar returns such as `string`, which removed the `var result0 = null;` compile break in resilient HTTP generation and made `scenarios/ProductApiLookupMinimal.design.md` pass the full review snapshot end to end.
+
+- **2026-06-18**: Added `scenarios/ProductApiLookupMinimal.design.md` as an HTTP-backed minimal authoring example and fixed integration coverage so the scenario passes both the authoring gate and the design-to-code review snapshot with explicit `semantic_roles.url` recovery.
+
+- **2026-06-18**: Added `scenarios/InventoryLookupMinimal.design.md` as a DB-backed minimal authoring example and fixed integration coverage so the scenario passes both the authoring gate and the design-to-code review snapshot with explicit `semantic_roles.sql` recovery.
+
+- **2026-06-18**: Tightened the review-snapshot regression for `UserNamePrefixSearch` so it now requires both `spec_issues == []` and successful compile verification, and updated `AIFiles/CONVENTIONS.md` to place `review_design_generation_snapshot.py` explicitly after the authoring gate in the standard design workflow.
+
+- **2026-06-18**: Added `scripts/review_design_generation_snapshot.py` so a single `.design.md` can now be reviewed as original spec, inferred design, generated C# code, spec-audit issues, and compile verification in one snapshot, and documented it as the post-gate review step for real code inspection.
+
+- **2026-06-18**: Added `scenarios/UserNamePrefixSearch.design.md` as a concrete new-design minimal template scenario, and fixed regression coverage so the scenario passes both `scripts/validate_design_authoring.py` and `scripts/generate/generate_from_design.py`.
+
+- **2026-06-18**: Promoted `scripts/validate_design_authoring.py` from a helper CLI into the documented development workflow by updating `AIFiles/CONVENTIONS.md` and `docs/project_overview.md`, so new `.design.md` drafts are expected to pass the authoring boundary gate before normal generation.
+
+- **2026-06-18**: Added `scripts/validate_design_authoring.py` as a one-command authoring gate for new `.design.md` drafts, checking that the standard reduced stages remain deterministic while the over-reduced literal-loss stage still blocks with `NO_CANDIDATE`, and documented the flow in the authoring template and generation-flow docs.
+
+- **2026-06-18**: Added [docs/design_authoring_minimal_template.md](/C:/workspace/NLP/docs/design_authoring_minimal_template.md) as an authoring guide that contrasts the current deterministic minimal template, the assisted boundary template, and the prohibited over-reduced template for new `.design.md` creation, and registered it under `optional_reference_docs`.
+
+- **2026-06-18**: Added `scripts/probe_design_authoring_reduction.py` to compare authoring-reduction stages (`step_meta` removal through literal-boundary removal) on a single `.design.md`, updated the generation-flow docs and `scripts/README.md`, and whitelisted the new CLI in `config/safety_policy.json`.
+
+- **2026-06-18**: Formalized the `literal_roles_only` acceptance contract in `docs/generate_from_design_dataflow.md`, explicitly documenting candidate selection, acceptance checks, rejection classes, and the operational boundary between `on_blocked_only` assistance and design-authoring fixes.
+
+- **2026-06-18**: Slimmed the top-level `README.md` so it no longer hardcodes `scenarios/` inventory details for literal-tag assistance, and clarified that scenario-level assist coverage snapshots belong in `docs/generate_from_design_dataflow.md` plus the audit CLI output rather than the public entrypoint summary.
+
+- **2026-06-18**: Fixed the first scenario-level assist policy snapshot in README and generation-flow docs: out of 23 audited scenarios, 11 are now documented as current `on_blocked_only` candidates for `3B` literal-tag assistance, while `CalculateOrderDiscount`, `CsvSalesAggregation`, and `SecureOrderProcessing` are explicitly classified as design-authoring problems rather than assist targets.
+
+- **2026-06-18**: Explicitly documented the new-design reduction policy in README and generation-flow docs, separating tags into `required`, `recommended`, `omittable under deterministic inference`, and `omittable only with 3B assistance`, with `path` / `url` / `sql` now called out as the last literals to remove.
+
+- **2026-06-18**: Added `scripts/audit_literal_tag_assist_coverage.py` to inventory which stripped `.design.md` scenarios block on deterministic `NO_CANDIDATE` and still retain explicit literal-bearing candidates, so `3B` literal-tag assistance can be enabled based on scenario coverage rather than ad hoc judgment.
+
+- **2026-06-18**: Integrated `literal_roles_only` assistance into `scripts/generate/generate_from_design.py` behind `--assist-literal-tags-http`, so accepted `path` / `url` / `sql` suggestions can be applied in-memory before deterministic inference and traced in `.inferred.design.md` without modifying the original `.design.md`.
+
+- **2026-06-18**: Promoted `qwen2.5-3b-instruct` to the default HTTP model for design-tag assistance CLIs after the expanded `literal_roles_only` probe reached 5/5 fixed-case recovery with full `path` / `url` / `sql` coverage, while `1.5B` remained slightly weaker on URL recovery.
+
+- **2026-06-15**: Split `suggest_design_tags.py` into `full` and `literal_roles_only` modes, allowing the LM Studio/Qwen usefulness probe to isolate only explicit `path` / `url` / `sql` semantic-role recovery without forcing `step_meta` or `refs`, and updated the quality probe plus documented-entrypoint coverage around that narrower contract.
+- **2026-06-15**: Expanded the fixed usefulness probe set for `literal_roles_only` to cover additional stripped HTTP/SQL/path scenarios (`DailyInventorySync`, `UserReportGenerator`, `FetchProductInventory`) and added role-level totals so `path` / `url` / `sql` recovery can be compared directly instead of only case-by-case.
+
+- **2026-06-15**: Tightened `suggest_design_tags.py` to prioritize only explicit literal-bearing candidates by default, which materially improved the real LM Studio/Qwen2.5-1.5B usefulness probe from zero matches to a successful `path` suggestion on `ComplexLinqSearch` while still exposing that `url/sql` suggestions remain weak on `SyncExternalData`.
+
+- **2026-06-15**: Added `scripts/inspect_design_tag_suggestion_quality.py` to measure whether local LLM tag suggestions are actually useful on fixed stripped-design cases, with stdout-only JSON, LM Studio-compatible HTTP wiring, and documented-entrypoint regression coverage for expected path/url/sql suggestion matches.
+
+- **2026-06-12**: Added `scripts/suggest_design_tags.py` as a stdout-only LLM assistance CLI for `.design.md` authoring. It sends only tag-suggestion candidates to a local OpenAI-compatible backend, never writes new intermediate files, and rejects invented `path` / `url` / `sql` literals during post-validation.
+
+- **2026-06-12**: Published the design-authoring boundary in `README.md`, documenting that `path` / `url` / `sql` literals are required inputs for deterministic generation and pointing authors to `scripts/probe_design_inference_boundary.py` to verify that `strip_tags` still passes while literal removal must fail.
+
+- **2026-06-12**: Extended the same literal-boundary contract to file fetches: `intent=FETCH` with `source_kind=file` now requires either a declared file data source or `semantic_roles.path`, and the validator/docs/unit coverage were tightened so `path` is treated on the same deterministic footing as `url` and `sql`.
+
+- **2026-06-12**: Formalized the deterministic literal boundary in `validator` and generation-flow docs: `HTTP_REQUEST` now requires `semantic_roles.url` plus an HTTP data source, and DB-backed `PERSIST` joins `DATABASE_QUERY` in requiring explicit `semantic_roles.sql`, with unit coverage locking those failures in.
+
+- **2026-06-12**: Added deterministic plain-HTTP fallback in `design_inference` so stripped steps like `API 'https://...' からJSON文字列を取得する` can recover `HTTP_REQUEST` with `semantic_roles.url` and the collected HTTP data source, which makes `SyncExternalData` survive the `strip_tags` boundary cleanly while still failing only after literal removal.
+
+- **2026-06-12**: Added `scripts/probe_design_inference_boundary.py` as a documented CLI that generates progressively degraded `.design.md` variants and reports `infer_then_freeze` / `generate_from_design` survival in JSON, then fixed the `DISPLAY` entity path so stripped `ComplexLinqSearch` remains clean while literal removal is now an explicit blocked boundary in regression coverage.
+
+- **2026-06-12**: Tightened stripped-design integration coverage so `generate_from_design` now has regression checks for the emitted `.inferred.design.md` contents as well as the generated C# output, fixing the contract around inferred `DISPLAY|User`, HTTP URL roles, DB SQL roles, and `return true` persistence recovery.
+
+- **2026-06-12**: Added `scripts/strip_design_tags.py` for reproducible tag-stripped inference probes, taught `design_inference` to treat plain `標準入力` as `STDIN/stdin`, and fixed `StructuredDesignParser` / inference tag parsing so `semantic_roles` JSON arrays such as `{"ops":["trim_upper"]}` survive round-trip parsing.
+
+- **2026-06-12**: Extended `design_inference` to infer explicit `semantic_roles.ops` for `trim_upper`, `split_lines`, `csv_serialize`, `aggregate_by_product`, and `display_names`, and to align inferred `output_type` / `target_entity` with those ops where needed for downstream code synthesis.
+
+- **2026-06-11**: Removed `TIME` and `CAPABILITY` from the default rewrite allow-list, keeping those explanation-style replies deterministic by default and concentrating rewrite behavior on softer smalltalk/emotive/feedback-style conversation.
+
+- **2026-06-11**: Removed `WEATHER` from the default rewrite allow-list and default quality suite so mock weather replies remain deterministic by default while rewrite focus stays on genuinely conversational smalltalk-style responses.
+
+- **2026-06-11**: Narrowed the default response-rewriter allow-list to conversational intents excluding `GENERAL`, so standard progress/success prose now stays deterministic by default and only explicitly allowed cases can rewrite general-status text.
+
+- **2026-06-11**: Removed synthetic `general_polish` cases from the default rewrite-quality suite and replaced them with deterministic success-message preserve coverage, so the default benchmark now tracks real product outputs rather than hypothetical awkward prose.
+
+- **2026-06-11**: Removed the remaining general-progress rewrite candidate by promoting progress-result messaging to a deterministic preserve case, tightening built-in status wording and making the quality suite treat progress/approval/input prompts as non-rewrite targets by default.
+
+- **2026-06-11**: Reframed response-rewriter quality cases around the new deterministic dialogue policy by separating `general_progress_candidate` from `deterministic_progress`, so standard progress/approval/input prompts are evaluated as preserve targets while only the remaining stiff progress prose stays in the rewrite-candidate bucket.
+
+- **2026-06-11**: Made deterministic `response_generator` task-status prompts more natural by updating the built-in progress/approval/input templates and fixing target extraction to include `command`, reducing the need for LLM rewriting on standard progress messages.
+
+- **2026-06-11**: Expanded `inspect_response_rewriter_quality.py` with `family`-grouped general-progress cases, per-family summaries, assessment-to-case-id reporting, and a `--family` filter so weak rewrite pockets such as `GENERAL` progress updates can be isolated and re-measured quickly.
+
+- **2026-06-11**: Hardened Phase 3 rewrite stability further by tightening the prompt contract around subject/viewpoint preservation and adding a backend-agnostic sentence-ending guard so malformed LM Studio HTTP rewrites fall back to the deterministic original response.
+
+- **2026-06-11**: Stabilized the Phase 3 response rewriter by adding intent/status allow-lists, expanding quality-inspection cases, and fixing conversation-scenario coverage so only conversational success responses are rewritten by default while clarification and action-completion responses stay deterministic.
+
+- **2026-06-11**: Reverted `response_rewriter_config.json` to `enabled: false` by default while keeping the LM Studio HTTP backend wiring in place, because multi-turn safety and gating looked good but the measured prose-quality gain was not yet strong enough to justify always-on rewriting.
+
+- **2026-06-11**: Clarified that `scripts/run_response_rewriter_conversation_probe.py` must run in the main project Python environment rather than the lightweight rewriter venv, and added an explicit runtime error explaining the missing `janome` dependency when launched from the wrong interpreter.
+
+- **2026-06-11**: Added `scripts/run_response_rewriter_conversation_probe.py` as a formal CLI for manual multi-turn verification against a real backend, so LM Studio logs can be compared directly with turn-by-turn pipeline outputs including intent, clarification state, and final response text.
+
+- **2026-06-11**: Switched `config/response_rewriter_config.json` to make the LM Studio-style `openai_compatible_http` path the default candidate backend, pointing at `http://127.0.0.1:1234/v1/chat/completions` with `qwen2.5-1.5b-instruct`, while documenting subprocess-based fallbacks for environments that do not run a local OpenAI-compatible server.
+
+- **2026-06-11**: Reduced `original_text` prompt salience in `qwen_cpu_runner` by demoting it to a reference field and adding an explicit system instruction that it must never be returned verbatim, after LM Studio quality checks showed the model could otherwise drift toward rewriting the user request instead of the generated response.
+
+- **2026-06-11**: Moved the `original_text` echo guard into the backend-agnostic `ResponseRewriter` layer so HTTP backends such as LM Studio are also protected from returning the user request instead of rewriting the generated response text.
+
+- **2026-06-11**: Hardened the rewrite-quality path against a real regression where the model echoed `original_text` instead of rewriting `response_text`, adding a postprocess fallback in `qwen_cpu_runner` and a `semantic_regression` category in the quality-inspection CLI so quality checks no longer count that failure mode as a successful rewrite.
+
+- **2026-06-11**: Added `scripts/inspect_response_rewriter_quality.py` as a formal CLI for checking real rewrite quality across fixed cases, including both rewrite-expected and rewrite-forbidden scenarios, so local OpenAI-compatible backends can be evaluated for prose quality and safety-gate behavior rather than latency alone.
+
+- **2026-06-10**: Added an `http` mode to `scripts/benchmark_response_rewriter.py` so local OpenAI-compatible endpoints such as `llama.cpp server` can be benchmarked directly through `/v1/chat/completions`, with integration coverage for the JSON stdout contract.
+
+- **2026-06-10**: Extended `scripts/benchmark_response_rewriter.py` so it can compare different Qwen model ids and generation caps through `--model-id` and `--max-new-tokens`, making CPU-side A/B measurements reproducible without ad hoc environment-variable setup.
+
+- **2026-06-10**: Lowered the CPU/Qwen rewrite runner's default generation cap from 96 to 32 tokens for short-form response polishing, and added a conversation-scenario regression proving that a normal dialogue turn can pass through the persistent rewrite backend and come back naturally rewritten.
+
+- **2026-06-10**: Added `scripts/benchmark_response_rewriter.py` as a formal CLI for measuring one-shot versus persistent response-rewriter latency, documented its stdout/stderr contract, and whitelisted it in the safety policy so CPU-only rollout can be evaluated on real business PCs without ad hoc shell snippets.
+
+- **2026-06-10**: Switched the Phase 3 CPU/Qwen rewrite path from one-shot subprocess execution to a persistent JSONL subprocess service, added `scripts/response_rewriter_qwen_cpu_server.py`, and locked in unit coverage that proves the same backend process is reused across multiple rewrites and that `ResponseGenerator` can accept an LLM-style rewritten response through the configured backend.
+
+- **2026-06-10**: Tightened the CPU/Qwen rewrite runner prompt and added a post-decode guard so outputs that add greetings, questions, or excessive extra text now deterministically fall back to the original response instead of drifting into free-form chat.
+
+- **2026-06-09**: Hardened the standalone Qwen CPU runner entrypoint so `scripts/response_rewriter_qwen_cpu.py` can be launched directly by adding project-root path bootstrapping, and documented that Windows deployments may need to pin the rewriter command to the venv-local Python executable instead of relying on whichever `python` happens to be on PATH.
+
+- **2026-06-09**: Made the Phase 3 CPU/Qwen path operationally configurable by default, adding `${PYTHON_EXECUTABLE}` and `${WORKSPACE_ROOT}` placeholder expansion in `response_rewriter` and wiring `response_rewriter_config.json` to point at `scripts/response_rewriter_qwen_cpu.py` without requiring hardcoded machine-specific paths.
+
+- **2026-06-09**: Added a CPU-first `Qwen2.5-3B-Instruct` runner for Phase 3 (`scripts/response_rewriter_qwen_cpu.py` and `src/response_rewriter/qwen_cpu_runner.py`), along with unit coverage for the generated prompt/messages contract and deterministic greedy generation settings.
+
+- **2026-06-09**: Finalized the Phase 3 rewrite prompt contract by documenting the summary-only instruction boundary, explicit prohibitions on fact additions/code generation/command suggestions, and the allowed scope of natural-Japanese rewriting in both `docs/dialogue_integration_plan.md` and `src/response_rewriter/response_rewriter.design.md`.
+
+- **2026-06-09**: Hardened Phase 3 rewrite safety by making confirmation prompts and clarification prompts non-rewritable by default, adding explicit `rewrite_confirmation_messages` / `rewrite_clarification_messages` gates and unit coverage for the default-block and explicit-allow behavior.
+
+- **2026-06-09**: Added a versioned stdin/stdout payload contract for the `subprocess_stdio` response-rewrite backend, shipped a stub backend runner script, and added end-to-end integration coverage proving that `Pipeline.run()` can invoke the configured rewriter and accept the rewritten natural-language output.
+
+- **2026-06-09**: Extended Phase 3 from interface-only wiring to a real `subprocess_stdio` response-rewrite backend, adding the JSON stdin/stdout contract, configuration fields for command/timeout/format, and unit coverage that exercises successful rewrite plus deterministic fallback on backend failure or structured output.
+
+- **2026-06-09**: Started Phase 3 by adding a disabled-by-default `response_rewriter` module, a `response_rewriter_config.json` contract, ResponseGenerator post-finalization wiring, and unit regressions that preserve deterministic fallback while opening a safe plugin boundary for future local-LLM prose rewriting.
+
 - **2026-06-09**: Marked Phase 2 of `docs/dialogue_integration_plan.md` as complete after the detector regressions, conversational state-preservation regressions, vocabulary-contract updates, and design synchronization all met the documented exit criteria, leaving response rewriting and deeper language-quality work to Phase 3.
 
 - **2026-06-09**: Converted the Phase 2 dialogue-integration status from an open-ended partial implementation into an explicit exit contract in `docs/dialogue_integration_plan.md`, defining detector regressions, conversational state-preservation regressions, confirmation-priority behavior, shared-vocabulary consistency, and the boundary between Phase 2 and Phase 3.
 
+- **2026-06-12**: Extended `design_inference` to synthesize `semantic_roles.url` for explicit HTTP request literals and to infer `CMD_RUN` plus `semantic_roles.command` for explicit safe command literals, while blocking unsafe commands against `config/safety_policy.json`.
+- **2026-06-12**: Added focused `design_inference` regressions for `.inferred.design.md` write-out, blocked inference, JSON-deserialize path-role inference, and the current HTTP-url gap where `semantic_roles.url` is not yet synthesized. Also aligned the design/dataflow docs with the actual inferred-file flow.
+- **2026-06-11**: Promoted `rewrite_allowed_intents: []` to a first-class explicit "rewrite nothing" setting, changed the shipped default response-rewriter config to preserve every intent by default, and updated the quality baseline to expect zero rewrites unless an allow-list is opt-in.
+- **2026-06-11**: Replaced the default `SMALLTALK` response with a shorter, more natural deterministic line so normal conversation feels acceptable without LLM rewriting, and added a unit regression to keep that wording stable.
+- **2026-06-11**: Tightened the default response-rewriter allow-list to `SMALLTALK` only. Quality probes showed `GREETING` / `PERSONAL_Q` / `BYE` / `DEFINITION` were eligible but produced no improvement, so they now join `EMOTIVE` / `FEEDBACK` as excluded-by-default preservation cases.
+- **2026-06-11**: Narrowed the default response-rewriter allow-list again by removing `EMOTIVE` and `FEEDBACK`, after quality probes showed implication drift and content loss in those intents. Updated the quality inspector to treat them as excluded-by-default preservation cases and switched the conversation probe's default rewritten turn from `WEATHER` to `SMALLTALK`.
 - **2026-06-09**: Added `SMALLTALK` and `FEEDBACK` to the intent corpus, added a dedicated `FEEDBACK` response in `custom_knowledge`, extended detector regressions for `疲れたな` / `雑談しよう` / `ありがとう`, and locked in the conversational-state contract that active clarifications show interruption guidance while pending confirmations re-show the original approval prompt.
 
 - **2026-06-09**: Added `WEATHER` and `CAPABILITY` to `resources/intent_corpus.json`, expanded short conversational intent handling in `intent_detector` to cover weather/capability/definition turns, and added unit plus detector-backed integration regressions so `今日の天気は？`, `何ができる？`, and `AIとは何？` preserve clarification and pending-confirmation state.

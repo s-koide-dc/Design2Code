@@ -154,7 +154,12 @@ class Pipeline:
     @property
     def response_generator(self):
         if self._response_generator is None:
-            self._response_generator = ResponseGenerator(vector_engine=self.vector_engine, log_manager=self.log_manager, task_manager=self.task_manager)
+            self._response_generator = ResponseGenerator(
+                vector_engine=self.vector_engine,
+                log_manager=self.log_manager,
+                task_manager=self.task_manager,
+                config_manager=self.config_manager,
+            )
         return self._response_generator
 
     @property

@@ -12,6 +12,7 @@
     "resources/README.md"
   ],
   "optional_reference_docs": [
-    "docs/README実装ギャップ段階改善計画.md"
+    "docs/README実装ギャップ段階改善計画.md",
+    "docs/design_authoring_minimal_template.md"
   ]
 }

@@ -338,12 +338,38 @@ class StructuredDesignParser:
         s = str(text).lstrip()
         if not s.startswith("["):
             return "", text
-        end = s.find("]")
+        end = self._find_bracket_end(s)
         if end == -1:
             return "", text
         meta = s[1:end].strip()
         remainder = s[end + 1:].strip()
         return meta, remainder
+
+    def _find_bracket_end(self, text: str) -> int:
+        in_string = False
+        escape = False
+        nested_square = 0
+        for idx in range(1, len(text)):
+            ch = text[idx]
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "[":
+                nested_square += 1
+                continue
+            if ch == "]":
+                if nested_square == 0:
+                    return idx
+                nested_square -= 1
+        return -1
 
     def _strip_leading_numbering(self, text: str) -> str:
         s = str(text).strip()

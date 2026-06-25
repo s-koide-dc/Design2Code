@@ -13,14 +13,16 @@ This document covers the data flow triggered by `scripts/generate/generate_from_
 ## High-level flow summary
 ### Single-module mode (default)
 1. Read a `.design.md` file and parse it into a StructuredSpec.
-2. Validate the StructuredSpec.
-3. Enforce safety policy and project rules.
-4. Convert the StructuredSpec into an IR tree.
-5. Synthesize C# code via blueprint emission and CodeBuilder.
-6. Run SpecAuditor and optional replanning retries.
-7. Verify compilation in a sandbox.
-8. Optionally run execution verification.
-9. Write the final `.cs` output file.
+2. Optionally ask a local OpenAI-compatible backend for `literal_roles_only` suggestions (`path` / `url` / `sql`) and apply only accepted suggestions in-memory.
+3. Validate the StructuredSpec.
+4. Enforce safety policy and project rules.
+5. Convert the StructuredSpec into an IR tree.
+6. Synthesize C# code via blueprint emission and CodeBuilder.
+7. Run SpecAuditor and optional replanning retries.
+8. Verify compilation in a sandbox.
+9. Optionally run execution verification.
+10. Write the final `.cs` output file.
+11. Review one scenario with `scripts/review_design_generation_snapshot.py` or run curated regression checks with `scripts/run_design_generation_regression.py`.
 
 ### Project mode (`--project`)
 1. Read a project `.design.md` file and parse it into a ProjectSpec.
@@ -31,24 +33,27 @@ This document covers the data flow triggered by `scripts/generate/generate_from_
 6. Verify compilation of the generated project.
 
 ## Infer-Then-Freeze Policy (Design Spec Inference)
-This flow applies when a design spec omits explicit metadata and the system performs deterministic inference once, then persists the inferred metadata into the `.design.md` before generation.
+This flow applies when a design spec omits explicit metadata and the system performs deterministic inference once, then persists the inferred metadata into a sibling `.inferred.design.md` before generation.
 
 1. Parse the raw `.design.md` into a preliminary StructuredSpec.
-2. Detect missing explicit metadata in Core Logic (`ops`, `semantic_roles`, `data_source`, `refs`).
-3. Run deterministic inference using fixed assets and scoring rules to propose metadata.
-4. Persist the inferred metadata back into the `.design.md` (this becomes the single source of truth).
-5. Re-parse the updated `.design.md` and continue the standard generation flow.
-6. Record the asset versions used for inference in logs or design metadata to ensure traceability.
+2. Optionally apply accepted LLM literal-role suggestions (`semantic_roles.path/url/sql`) in-memory, while leaving the original `.design.md` unchanged.
+3. Detect missing explicit metadata in Core Logic (`ops`, `semantic_roles`, `data_source`, `refs`).
+4. Run deterministic inference using fixed assets and scoring rules to propose metadata.
+5. Persist the inferred metadata into `.inferred.design.md` while leaving the original `.design.md` unchanged.
+6. Re-parse the generated `.inferred.design.md` and continue the standard generation flow.
+7. Record the asset versions used for inference in logs or design metadata to ensure traceability.
 
 ## Implementation Placement (Recommended)
 1. `scripts/generate/generate_from_design.py:main`
    - After reading the `.design.md` but before strict validation, run inference if missing metadata is detected.
-   - Write back inferred tags and the `### Inference Metadata` block.
-   - Re-parse and then run `validate_structured_spec_or_raise`.
+   - If `--assist-literal-tags-http` is enabled with `--assist-policy always`, call the local HTTP backend first and pass only accepted `literal_roles_only` suggestions into inference.
+   - If `--assist-policy on_blocked_only` is used, retry with the local HTTP backend only after deterministic inference returns `blocked` with at least one `NO_CANDIDATE` issue.
+   - Emit inferred tags and the `### Inference Metadata` block into `.inferred.design.md`.
+   - Re-parse that inferred file and then run `validate_structured_spec_or_raise`.
 2. `src/design_parser/structured_parser.py`
    - Remains deterministic and metadata-driven; it does not perform inference.
-3. `src/utils/design_doc_refiner.py`
-   - Preferred location for deterministic inference rules and write-back utilities.
+3. `src/design_parser/design_inference.py`
+   - Preferred location for deterministic inference rules, fingerprint generation, and `.inferred.design.md` write-out.
 4. `src/utils/design_sync_util.py`
    - Optional helper for targeted step updates (used only if required by refiner).
 
@@ -58,6 +63,7 @@ This flow applies when a design spec omits explicit metadata and the system perf
 3. Inference must use fixed assets and fixed scoring rules. No randomness is permitted.
 4. If confidence is below the configured threshold, inference must not insert metadata and must instead emit a blocking issue.
 5. The output of inference must be stable for identical inputs under identical asset versions.
+6. Optional LLM assistance may only add accepted explicit literal roles (`path` / `url` / `sql`) and must not overwrite explicit user-authored tags.
 
 ## Inference Scope (What Can Be Filled)
 Inference is limited to the following missing elements:
@@ -67,8 +73,193 @@ Inference is limited to the following missing elements:
 4. `semantic_roles` for:
    - `DATABASE_QUERY` / `PERSIST` → `semantic_roles.sql` (only if SQL is explicitly present in text).
    - `HTTP_REQUEST` → `semantic_roles.url` (only if URL is explicitly present in text).
-   - `CMD_RUN` → `semantic_roles.command` (only if command text is explicitly present in text).
+   - `CMD_RUN` → `semantic_roles.command` (only if command text is explicitly present in text and the base command is allowed by `config/safety_policy.json`).
 5. `source_kind` when `source_ref` is inferred and a valid data source is present.
+6. Literal boundary:
+   - `path` / `url` / `sql` are not guessed from vague prose.
+   - If a design omits those explicit literals, deterministic inference may block and validation should fail instead of inventing values.
+
+## Authoring Reduction Policy
+When writing a new `.design.md`, the current recommended reduction policy is:
+1. `Required`
+   - Explicit literal boundary data: `semantic_roles.path`, `semantic_roles.url`, `semantic_roles.sql`, or equivalent surviving literal text that deterministic/assisted flow can anchor to.
+   - If removing the literal would make the step ambiguous, keep it.
+2. `Recommended`
+   - Important `data_source` declarations, especially for HTTP / DB / file-backed flows.
+   - Keep these when source identity matters for readability or when multiple sources coexist.
+3. `Omittable under deterministic inference`
+   - Many `step_meta` tags.
+   - Some `refs`.
+   - Some `ops`.
+   - Some plain source description tags when the description is already deterministic enough.
+4. `Omittable only with 3B assistance`
+   - Literal-bearing `path` / `url` / `sql` tags that are intentionally dropped and later recovered through `literal_roles_only`.
+   - This is an assisted authoring mode, not a pure deterministic contract.
+
+Practical authoring order:
+1. Reduce `step_meta` first.
+2. Then reduce `refs` / `ops` / `data_source` where readability remains acceptable.
+3. Keep literal boundaries (`path` / `url` / `sql`) unless you are intentionally relying on the `3B` assist path.
+
+## Literal Assist Acceptance Contract
+`literal_roles_only` assistance is not a general semantic completion feature. It is a narrowly scoped recovery path for explicit literal boundaries that already exist in the design text.
+
+### What the assist is allowed to do
+1. Add only missing `semantic_roles.path`, `semantic_roles.url`, or `semantic_roles.sql`.
+2. Copy only explicit literals already present in the original line.
+3. Apply suggestions only in-memory before deterministic inference.
+4. Leave the original `.design.md` unchanged.
+5. Record accepted application in `.inferred.design.md` through `llm_literal_assist:*` metadata.
+
+### What the assist is not allowed to do
+1. Invent file paths, URLs, or SQL that are not explicitly present in the original line.
+2. Add or rewrite `step_meta`.
+3. Add or rewrite `refs`.
+4. Overwrite an explicit existing `semantic_roles` value.
+5. Expand vague prose such as "API から取得する" into a guessed endpoint.
+6. Turn a design-authoring gap into an LLM-dependent implicit contract.
+
+### Candidate selection boundary
+`scripts/suggest_design_tags.py` should only query candidates that satisfy all of the following:
+1. The step is a Core Logic step, not a `data_source` declaration.
+2. The step is missing `semantic_roles`.
+3. The step still contains an explicit literal signal that can anchor `path`, `url`, or `sql`.
+4. Priority is given to literal-bearing candidates; if none exist, broader completion is not the default recovery path for this mode.
+
+Explicit literal signals currently mean one of:
+1. A quoted filename-like literal such as `'users.json'`.
+2. An explicit URL such as `https://api.example.com/...`.
+3. An explicit SQL literal that already appears in the line.
+
+### Acceptance checks
+A returned suggestion is accepted only when all of the following hold:
+1. `step_number` matches an actual candidate step.
+2. `semantic_roles` is a JSON object.
+3. `path` exactly matches the quoted filename-like literal in the original line.
+4. `url` exactly matches one of the URLs present in the original line.
+5. `sql` exactly matches the SQL literal present in the original line.
+6. In `literal_roles_only` mode, no `step_meta` is returned.
+7. In `literal_roles_only` mode, no `refs` are returned.
+8. The suggestion is not a noop; at least one accepted `path` / `url` / `sql` value is present when the candidate was missing literal roles.
+
+### Rejection classes
+The current rejection reasons are operationally important because they define the trust boundary:
+1. `unknown_step_number`
+2. `semantic_roles_must_be_object`
+3. `path_literal_not_explicit_in_original_line`
+4. `url_literal_not_explicit_in_original_line`
+5. `sql_literal_not_explicit_in_original_line`
+6. `refs_not_allowed_in_literal_roles_only`
+7. `step_meta_not_allowed_in_literal_roles_only`
+8. `noop_suggestion`
+9. `literal_candidate_requires_path_or_url_or_sql`
+
+Interpretation:
+1. If rejection is caused by invented or mismatched literals, the model is outside the allowed contract and the suggestion must be discarded.
+2. If rejection is caused by noop output, the design should be treated as unresolved rather than partially trusted.
+3. If no acceptable suggestion exists, deterministic blocking remains the correct outcome.
+
+### Invocation policy
+`generate_from_design.py` currently supports two invocation policies:
+1. `on_blocked_only`
+   - Default.
+   - Call the assist only after deterministic inference returns `blocked` with at least one `NO_CANDIDATE` issue.
+   - This is the preferred operational mode because it keeps deterministic generation primary.
+2. `always`
+   - Query the assist before inference.
+   - Use only when intentionally researching authoring reduction or comparing assisted vs deterministic behavior.
+
+### Operational decision rule
+Use `literal_roles_only` assistance when all of the following are true:
+1. Deterministic generation is still the primary contract.
+2. The blocked step retains an explicit `path` / `url` / `sql` literal.
+3. The missing information is only the literal role tag, not the underlying design meaning.
+4. The accepted result can be traced in `.inferred.design.md`.
+
+Do not use `literal_roles_only` assistance as the main remedy when any of the following are true:
+1. The design text itself is ambiguous.
+2. The step lacks an explicit literal anchor.
+3. The missing information is about control flow, dependencies, or operation meaning rather than literal roles.
+4. Recovery would require guessed endpoints, guessed SQL, or guessed file locations.
+
+## Authoring Reduction Probe
+To compare how far a new `.design.md` can be reduced before crossing the literal boundary, use:
+
+```bash
+python scripts/probe_design_authoring_reduction.py --design path/to/NewModule.design.md
+```
+
+The current stages are:
+1. `original`
+2. `drop_step_meta`
+3. `drop_step_meta_refs`
+4. `drop_step_meta_refs_ops`
+5. `strip_tags_keep_literals`
+6. `strip_tags_drop_literals`
+
+Interpretation:
+1. If `drop_step_meta_refs_ops` still passes deterministically, the design is already compact enough without LLM help.
+2. If `strip_tags_keep_literals` blocks but `literal_roles_only` assist recovers it, that is an assisted authoring boundary rather than a deterministic one.
+3. If `strip_tags_drop_literals` still blocks even with assist, the design has crossed the explicit literal boundary and should be rewritten, not patched with broader LLM dependence.
+
+To compare the same stages with optional `3B` literal assistance:
+
+```bash
+python scripts/probe_design_authoring_reduction.py --design path/to/NewModule.design.md --assist-endpoint-url http://127.0.0.1:1234/v1/chat/completions
+```
+
+For a practical starter shape and a prohibited over-reduced shape, see [docs/design_authoring_minimal_template.md](/C:/workspace/NLP/docs/design_authoring_minimal_template.md).
+
+For a pass/fail authoring gate before normal generation, use:
+
+```bash
+python scripts/validate_design_authoring.py --design path/to/NewModule.design.md
+```
+
+To review the same design as original text, inferred design, and generated code in one pass, use:
+
+```bash
+python scripts/review_design_generation_snapshot.py --design path/to/NewModule.design.md
+```
+
+To run the current curated regression set with the same snapshot criteria, use:
+
+```bash
+python scripts/run_design_generation_regression.py
+```
+
+Notes:
+1. The current default regression set is `ComplexLinqSearch`, `CsvSalesAggregation`, `DailyInventorySync`, `SecureOrderProcessing`, and `AppModeEchoMinimal`.
+2. Use repeated `--design` flags to replace the default set with a narrower or experimental set.
+3. The regression runner aggregates `inference_status`, `verification_valid`, `spec_issue_count`, and the full per-scenario snapshot payload into one JSON result.
+
+## Current Assist Coverage Snapshot (2026-06-18)
+The current scenario inventory from `scripts/audit_literal_tag_assist_coverage.py` is:
+1. Total `.design.md` scenarios audited: `23`
+2. `blocked_no_candidate`: `14`
+3. `assist_recommended`: `11`
+
+Current `on_blocked_only` assist candidates:
+1. `AggregationSummary`
+2. `BatchProcessProducts`
+3. `DailyInventorySync`
+4. `EnvConfigToConsole`
+5. `EphemeralCalculation`
+6. `FetchProductInventory`
+7. `InferThenFreezeMinimal`
+8. `InputLinkDropRepro`
+9. `RobustConfigLoader`
+10. `StateUpdatePersist`
+11. `UserReportGenerator`
+
+Blocked cases that should be treated primarily as design-authoring gaps rather than literal-assist targets:
+1. `CalculateOrderDiscount`
+2. `CsvSalesAggregation`
+3. `SecureOrderProcessing`
+
+Interpretation:
+1. If a blocked stripped design still retains explicit `path` / `url` / `sql` candidates, `literal_roles_only` is a reasonable recovery path.
+2. If a blocked stripped design has no useful literal candidates, the next action should be to strengthen the design text itself, not to broaden LLM dependence.
 
 ## Inference Order (Deterministic)
 1. Identify explicit tags and lock them.
@@ -76,7 +267,7 @@ Inference is limited to the following missing elements:
 3. Infer step `KIND/INTENT/TARGET/OUTPUT/SIDE_EFFECT`.
 4. Infer `refs` based on nearest previous step with compatible output.
 5. Infer `semantic_roles` from explicit literals in the line (URL/SQL/command).
-6. Recompute a normalized line with the inferred tags and persist to `.design.md`.
+6. Recompute a normalized line with the inferred tags and persist to `.inferred.design.md`.
 
 ## Confidence Thresholds and Blocking Rules
 1. Each inferred field must exceed its configured confidence threshold.
@@ -88,6 +279,10 @@ Inference is limited to the following missing elements:
    - `data_source_threshold`: 0.85
    - `refs_threshold`: 0.75
 5. If explicit literals are missing for `semantic_roles` (SQL/URL/command), the field must not be inferred.
+6. Validation must also reject:
+   - `HTTP_REQUEST` without `semantic_roles.url` and `source_ref(kind=http)`.
+   - DB-backed `PERSIST` / `DATABASE_QUERY` without `semantic_roles.sql`.
+   - file-backed `FETCH` without either `source_ref(kind=file)` or `semantic_roles.path`.
 
 ## Inference Output Format (Design Doc Embedding)
 Insert inferred metadata directly into the existing Core Logic lines using the standard bracket tags.
@@ -104,10 +299,16 @@ Add a single traceability block near the top of the design doc (e.g., after Purp
   - dictionary_path: <path>
   - scoring_rules_path: <path>
   - method_store_path: <path>
+- llm_literal_assist: true|false
+- llm_literal_assist_mode: literal_roles_only
+- llm_literal_assist_provider: openai_compatible_http
+- llm_literal_assist_model_id: qwen2.5-3b-instruct
+- llm_literal_assist_applied_steps: 1, 3
 ```
 Notes:
 1. Do not include timestamps in the design doc to preserve deterministic output.
 2. The fingerprint must be reproducible from normalized inputs and asset versions.
+3. `llm_literal_assist_*` fields are omitted when assistance is not used or when no accepted suggestion is applied.
 
 ## Fingerprint Calculation (Deterministic)
 The fingerprint is a SHA-256 of a normalized payload. The payload is a JSON string with fixed ordering and no whitespace variance.
@@ -135,7 +336,7 @@ The fingerprint is `sha256(json(payload))`, with keys sorted and UTF-8 encoding.
 ### 1. `scripts/generate/generate_from_design.py:main`
 Inputs
 1. CLI args `--design`, `--output`, `--retry`.
-2. Optional mode flags: `--project`, `--project-audit-only`, `--no-project-audit`, `--allow-unsafe`, `--strict-semantics`, `--allow-fallback`, `--post-exec-verify`, `--post-csharp-analyze`, `--post-refactor-analyze`.
+2. Optional mode flags: `--project`, `--project-audit-only`, `--no-project-audit`, `--allow-unsafe`, `--strict-semantics`, `--allow-fallback`, `--post-exec-verify`, `--post-csharp-analyze`, `--post-refactor-analyze`, `--assist-literal-tags-http`, `--assist-endpoint-url`, `--assist-model-id`, `--assist-timeout-seconds`, `--assist-max-new-tokens`, `--assist-policy`.
 
 Flow
 1. Validate that the design file exists.
@@ -153,14 +354,19 @@ Flow
    6. Verify compilation via `CompilationVerifier.verify_project`.
    7. Print output root path and exit.
 5. Otherwise (single-module):
-   1. Parse and validate the design:
-      1. `StructuredDesignParser.parse_design_file`.
-      2. `validate_structured_spec_or_raise`.
-   2. Enforce safety policy unless `--allow-unsafe`.
-   3. Enforce project rules (design path, output path, banned patterns).
-   4. Synthesize code using `synthesize_structured_spec` (SpecAuditor + optional replanning).
-   5. Optionally run execution verification (`ExecutionVerifier`) when `--post-exec-verify` is set.
-   6. Write the final code to `output_path`.
+   1. If `--assist-policy always` is selected, call `scripts.suggest_design_tags` helpers in `literal_roles_only` mode before inference.
+   2. Run `infer_then_freeze_if_needed`, passing any accepted literal-role suggestions into `DesignInferenceEngine`.
+   3. If inference returns `blocked` with `NO_CANDIDATE` and `--assist-policy on_blocked_only` is selected, query literal-tag assistance and retry `infer_then_freeze_if_needed`.
+   4. Parse the resulting `.inferred.design.md` via `StructuredDesignParser.parse_design_file`.
+   5. Validate the resulting StructuredSpec.
+   6. Enforce safety policy unless `--allow-unsafe`.
+   7. Enforce project rules (design path, output path, banned patterns).
+   8. Synthesize code using `synthesize_structured_spec` (SpecAuditor + optional replanning).
+   9. Optionally run execution verification (`ExecutionVerifier`) when `--post-exec-verify` is set.
+10. Write the final code to `output_path`.
+   11. Recommended follow-up:
+      - `scripts/review_design_generation_snapshot.py` for one scenario
+      - `scripts/run_design_generation_regression.py` for the curated multi-scenario guardrail
 
 Outputs
 1. `.cs` file written to `output_path`.

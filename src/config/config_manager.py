@@ -19,12 +19,14 @@ class ConfigManager:
         self.project_rules = self._load_json(self.workspace_root / "config" / "project_rules.json")
         self.scoring_rules = self._load_json(self.workspace_root / "config" / "scoring_rules.json")
         self.user_preferences = self._load_json(self.workspace_root / "config" / "user_preferences.json")
+        self.response_rewriter_config = self._load_json(self.workspace_root / "config" / "response_rewriter_config.json")
         
         # Paths for Config files
         self.error_patterns_path = str(self.workspace_root / "config" / "error_patterns.json")
         self.cicd_config_path = str(self.workspace_root / "config" / "cicd_config.json")
         self.coverage_config_path = str(self.workspace_root / "config" / "coverage_config.json")
         self.refactoring_config_path = str(self.workspace_root / "config" / "refactoring_config.json")
+        self.response_rewriter_config_path = str(self.workspace_root / "config" / "response_rewriter_config.json")
         self.method_store_path = str(self.workspace_root / "resources" / "method_store.json")
         self.storage_dir = str(self.workspace_root / "resources" / "vectors" / "vector_db")
 

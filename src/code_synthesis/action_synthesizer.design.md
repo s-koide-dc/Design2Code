@@ -33,6 +33,7 @@
    - nested child は上流の `context history.item_entity` により `target_entity` が補強される前提で property binding する。
    - `DISPLAY` child に schema-backed `property` がある場合は `display_transform_ops` 側で `item.<Property>` を優先表示する。
 4. `FETCH`, file persist, JSON, IO も専用 handler へ分岐する。
+  - plain `env` fetch は `source_kind=env` を保ったまま downstream call synthesis に渡し、`Environment.GetEnvironmentVariable(...)` のような scalar call でも `var_type=string` を落とさない。
 5. collection 入力で loop 展開が必要な場合は synthetic loop を生成する。
 6. 一般アクションは candidate gathering -> 単一メソッド合成で処理する。
 7. 候補が無い場合は fallback を試し、それでも無ければ `NotImplementedException` を生成する。
@@ -57,3 +58,4 @@
 ## 4. Operational Notes
 - candidate gather や unresolved path の補助情報は `src.utils.stdout_guard.debug_print` を使う opt-in 出力とする。
 - 通常の synthesis 経路では stdout を使わず、正式な結果は戻り値の synthesis path と generated code に集約する。
+- resilient wrap 対象の call に `out_var` がある場合は scalar / collection を問わず explicit `var_type` を保持し、`StatementBuilder.wrap_with_try_catch()` の hoisted declaration が常に妥当な C# 型宣言になるようにする。

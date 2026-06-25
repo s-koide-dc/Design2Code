@@ -110,6 +110,9 @@ class ActionSynthesizer:
     def _get_effective_runtime_role(self, node: Dict[str, Any], fallback_role: Optional[str] = None) -> Optional[str]:
         spec_role = self._get_spec_role(node)
         role = fallback_role or node.get("role")
+        semantic_roles = self._get_semantic_roles(node)
+        if node.get("intent") == INTENT_HTTP_REQUEST and any(k in semantic_roles for k in ["payload", "content"]):
+            return ROLE_PERSIST
         if spec_role in ["DESERIALIZE", "SERIALIZE", "FILTER", "TRANSFORM"]:
             return ROLE_TRANSFORM
         if spec_role == "FETCH":
@@ -992,9 +995,7 @@ class ActionSynthesizer:
                     var_role = self._get_effective_runtime_role(node, m.get("role")) or "data"
                     var_name = self.stmt_builder.get_semantic_var_name(node, unwrapped_ret, m.get("name"), new_path, role=var_role)
                     stmt["out_var"] = var_name
-                    primitive_types = ["int", "long", "decimal", "double", "float", "bool", "string"]
-                    if unwrapped_ret not in primitive_types:
-                        stmt["var_type"] = unwrapped_ret
+                    stmt["var_type"] = unwrapped_ret
                     new_path["type_to_vars"].setdefault(unwrapped_ret, []).append({"var_name": var_name, "node_id": node.get("id"), "semantic_role": var_role, "target_entity": target_entity})
                     new_path["active_scope_item"] = var_name
                     call_cache = path.get("call_cache", {})
@@ -1194,6 +1195,14 @@ class ActionSynthesizer:
                 if intent and intent not in [INTENT_GENERAL, INTENT_ACTION] and c_intent not in [intent, INTENT_ACTION, INTENT_GENERAL]:
                     continue
             filtered.append(c)
+        if wants_payload and filtered:
+            send_like = []
+            for c in filtered:
+                name = str(c.get("name") or "")
+                if name in ["PostAsync", "PutAsync", "PatchAsync"]:
+                    send_like.append(c)
+            if send_like:
+                filtered = send_like
         if node.get("cardinality") == "COLLECTION":
             collection_filtered = []
             for c in filtered:

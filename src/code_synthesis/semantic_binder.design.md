@@ -23,6 +23,8 @@
 5. `spec_role=CHECK` の場合は `_build_check_expression` を優先し、`check_kind`, `check_subject`, `check_operator`, `check_value`, `source_kind`, `subject_resolution` から直接式を組み立てる。
 6. weak provenance の場合は schema/property reverse lookup を抑止する。
 7. `history_subject` のような middle-strength provenance は exact target scope に閉じた解決だけを許可する。
+8. `HTTP_REQUEST` で `semantic_roles.payload` または `semantic_roles.content` が明示され、値が `{context}` の場合は、current context item を優先解決して `new StringContent(JsonSerializer.Serialize(contextVar))` を組み立てる。
+9. 上記 HTTP content 解決では、明示 payload/content がある限り write-role に限定せず、loop item や active scope item を request body として利用できる。
 
 ### Test Cases
 - **Happy Path**:
@@ -40,3 +42,4 @@
 
 ## 4. Review Notes
 - 2026-06-04: `DATABASE_QUERY` / `FETCH` / `PERSIST` / `HTTP_REQUEST` / `EXISTS` と READ/WRITE/PERSIST/FETCH/TRANSFORM の高頻度比較を `src.utils.semantic_intents` の共通語彙へ寄せた。
+- 2026-06-24: `HTTP_REQUEST + payload:{context}` のとき current context item を `StringContent(JsonSerializer.Serialize(...))` へ変換する現在の binding 境界を反映。

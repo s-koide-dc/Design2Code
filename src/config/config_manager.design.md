@@ -17,11 +17,13 @@
      - `retry_rules.json`: リトライルール
      - `project_rules.json`: プロジェクトルール
      - `scoring_rules.json`: スコアリングルール
+     - `response_rewriter_config.json`: 応答リライト設定
   3. **設定ファイルパスの構築**（`config/` ディレクトリ）:
      - `error_patterns_path`: エラーパターン定義
      - `cicd_config_path`: CI/CD設定
      - `coverage_config_path`: カバレッジ設定
      - `refactoring_config_path`: リファクタリング設定
+     - `response_rewriter_config_path`: 応答リライト設定
      - `method_store_path`: メソッドストアマスタ (resources/method_store.json)
      - `storage_dir`: セマンティック検索用ストレージのベースディレクトリ (resources/vectors/vector_db)
   4. **データアセットパスの構築**（`resources/` ディレクトリ）:

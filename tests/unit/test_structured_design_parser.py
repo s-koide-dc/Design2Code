@@ -117,6 +117,31 @@ Validate data source directive.
         errors = validate_structured_spec(spec)
         self.assertEqual(errors, [])
 
+    def test_parse_semantic_roles_with_array_value(self):
+        sample_md = """
+# OpsModule
+## 1. Purpose
+Validate semantic_roles array parsing.
+## 2. Structured Specification
+### Input
+- **Description**: None
+- **Type/Format**: void
+### Output
+- **Description**: status
+- **Type/Format**: bool
+### Core Logic
+1. [ACTION|TRANSFORM|string|string|NONE] [semantic_roles:{"ops":["trim_upper"]}] 入力を整形する
+### Test Cases
+- **Scenario**: Ops Parse
+- **Expected**: ok
+"""
+
+        spec = self.parser.parse_markdown(sample_md)
+
+        self.assertEqual(len(spec["steps"]), 1)
+        self.assertEqual(spec["steps"][0]["semantic_roles"].get("ops"), ["trim_upper"])
+        self.assertTrue(spec["steps"][0]["explicit_semantic_roles"])
+
     def test_validator_reports_missing_required(self):
         bad_spec = {"module_name": "X"}
         errors = validate_structured_spec(bad_spec)
@@ -149,6 +174,62 @@ Validate data source directive.
         errors = validate_structured_spec(spec)
         self.assertTrue(any("intent=FETCH requires valid source_ref" in e for e in errors))
 
+    def test_validator_requires_path_or_file_source_for_file_fetch(self):
+        spec = {
+            "module_name": "X",
+            "purpose": "Y",
+            "inputs": [],
+            "outputs": [],
+            "constraints": [],
+            "test_cases": [],
+            "data_sources": [],
+            "steps": [
+                {
+                    "id": "step_1",
+                    "kind": "ACTION",
+                    "intent": "FETCH",
+                    "target_entity": "User",
+                    "input_refs": [],
+                    "output_type": "string",
+                    "side_effect": "IO",
+                    "text": "ファイルを読み込む",
+                    "semantic_roles": {},
+                    "source_kind": "file",
+                    "depends_on": []
+                }
+            ]
+        }
+        errors = validate_structured_spec(spec)
+        self.assertTrue(any("intent=FETCH source_kind=file requires source_ref(kind=file) or semantic_roles.path" in e for e in errors))
+
+    def test_validator_accepts_literal_path_for_file_fetch(self):
+        spec = {
+            "module_name": "X",
+            "purpose": "Y",
+            "inputs": [],
+            "outputs": [],
+            "constraints": [],
+            "test_cases": [],
+            "data_sources": [],
+            "steps": [
+                {
+                    "id": "step_1",
+                    "kind": "ACTION",
+                    "intent": "FETCH",
+                    "target_entity": "User",
+                    "input_refs": [],
+                    "output_type": "string",
+                    "side_effect": "IO",
+                    "text": "users.json を読み込む",
+                    "semantic_roles": {"path": "users.json"},
+                    "source_kind": "file",
+                    "depends_on": []
+                }
+            ]
+        }
+        errors = validate_structured_spec(spec)
+        self.assertEqual(errors, [])
+
     def test_validator_requires_db_evidence_for_database_query(self):
         spec = {
             "module_name": "X",
@@ -177,6 +258,65 @@ Validate data source directive.
         errors = validate_structured_spec(spec)
         self.assertTrue(any("intent=DATABASE_QUERY requires source_ref(kind=db)" in e for e in errors))
         self.assertTrue(any("intent=DATABASE_QUERY requires semantic_roles.sql" in e for e in errors))
+
+    def test_validator_requires_http_evidence_for_http_request(self):
+        spec = {
+            "module_name": "X",
+            "purpose": "Y",
+            "inputs": [],
+            "outputs": [],
+            "constraints": [],
+            "test_cases": [],
+            "data_sources": [{"id": "source_file", "kind": "file"}],
+            "steps": [
+                {
+                    "id": "step_1",
+                    "kind": "ACTION",
+                    "intent": "HTTP_REQUEST",
+                    "target_entity": "Item",
+                    "input_refs": [],
+                    "output_type": "string",
+                    "side_effect": "NETWORK",
+                    "text": "APIからJSON文字列を取得する",
+                    "semantic_roles": {},
+                    "source_ref": "source_file",
+                    "depends_on": []
+                }
+            ]
+        }
+        errors = validate_structured_spec(spec)
+        self.assertTrue(any("intent=HTTP_REQUEST requires source_ref(kind=http)" in e for e in errors))
+        self.assertTrue(any("intent=HTTP_REQUEST requires source_kind=http" in e for e in errors))
+        self.assertTrue(any("intent=HTTP_REQUEST requires semantic_roles.url" in e for e in errors))
+
+    def test_validator_requires_sql_for_db_persist(self):
+        spec = {
+            "module_name": "X",
+            "purpose": "Y",
+            "inputs": [],
+            "outputs": [],
+            "constraints": [],
+            "test_cases": [],
+            "data_sources": [{"id": "local_db", "kind": "db"}],
+            "steps": [
+                {
+                    "id": "step_1",
+                    "kind": "ACTION",
+                    "intent": "PERSIST",
+                    "target_entity": "Item",
+                    "input_refs": [],
+                    "output_type": "void",
+                    "side_effect": "DB",
+                    "text": "商品を保存する",
+                    "semantic_roles": {},
+                    "source_ref": "local_db",
+                    "source_kind": "db",
+                    "depends_on": []
+                }
+            ]
+        }
+        errors = validate_structured_spec(spec)
+        self.assertTrue(any("intent=PERSIST source_ref(kind=db) requires semantic_roles.sql" in e for e in errors))
 
 
 if __name__ == "__main__":

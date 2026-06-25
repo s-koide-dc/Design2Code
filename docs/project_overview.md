@@ -14,6 +14,9 @@
 
 **Core Flows**
 - 設計書生成フロー: Design Parser → IR Generator → Code Synthesis → CodeBuilder
+  - 補足: 新規 `.design.md` の初稿では、通常生成の前に `scripts/validate_design_authoring.py` による authoring boundary check を通す。
+  - 補足: 生成系の変更後は、単発確認に `scripts/review_design_generation_snapshot.py`、標準回帰に `scripts/run_design_generation_regression.py` を使う。
+  - 補足: 標準回帰の既定セットは `ComplexLinqSearch` / `CsvSalesAggregation` / `DailyInventorySync` / `SecureOrderProcessing` / `AppModeEchoMinimal`。
 - 対話フロー: Language Analysis → Intent Detection → Semantic Analysis → Task Management → Execution → Response
 - TDD支援フロー: Failure Analysis → Fix Suggestion → (Optional) Refactoring Analysis
   - 補足: Code Generation の前に標準 CRUD 仕様の `method_specs` が内部補完される。
@@ -153,6 +156,8 @@
 **Where To Start (When You Are Lost)**
 - 対話処理の入口: `src/pipeline_core/pipeline_core.py`
 - 設計書生成の入口: `scripts/generate/generate_from_design.py`
+- 生成結果の単発レビュー: `scripts/review_design_generation_snapshot.py`
+- 生成結果の標準回帰: `scripts/run_design_generation_regression.py`
 - プロジェクト生成の入口: `src/code_generation/project_generator.py`
 - メソッドストア仕様: `docs/method_store_spec.md`
 - 出力契約の基準: `docs/stdout_output_policy.md`

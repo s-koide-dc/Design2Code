@@ -10,7 +10,7 @@
     "【整合】code_synthesis 設計書の内容差分を段階的に精査して詳細更新する。"
   ],
   "concerns": [],
-  "last_updated_by_ai": "2026-06-09T14:58:11.509693",
+  "last_updated_by_ai": "2026-06-12T09:31:03.490901",
   "modules": [
     {
       "name": "action_executor",
@@ -628,13 +628,13 @@
       "status": "active",
       "source_file": {
         "path": "src\\config\\config_manager.py",
-        "last_modified": "2026-04-21T10:07:13.122110",
-        "hash": "c35919dab6222a43931139cc1f69bc305530854d91cb9bb27ff6c531d260440f"
+        "last_modified": "2026-06-09T15:11:18.041976",
+        "hash": "fdac11d22c1df3d3bb847fcbc224bbddc635035ef9f42f00df5db0aa90a02762"
       },
       "design_document": {
         "path": "src\\config\\config_manager.design.md",
-        "last_modified": "2026-04-21T10:07:58.494426",
-        "hash": "dcd37846e414fa290ff4562825e60a467536d5955cf27482d025b82de0a918e4"
+        "last_modified": "2026-06-09T15:12:29.203920",
+        "hash": "069222db8c0a5a69a8d6bbb2bb046553c19d8af0af6cb3cf6e5cdfd8533b53bf"
       },
       "test_file": "tests\\unit\\test_config_manager.py"
     },
@@ -887,7 +887,7 @@
         "last_modified": "2026-06-04T11:34:48.052560",
         "hash": "7cd9030533d53d5ef2b125eac0af60da8f275f7e8f00abb21b3eec53ebadd6cf"
       },
-      "test_file": null
+      "test_file": "tests\\unit\\test_design_inference.py"
     },
     {
       "name": "design_ops_resolver",
@@ -1478,7 +1478,7 @@
       "status": "active",
       "source_file": {
         "path": "src\\advanced_tdd\\knowledge_base.py",
-        "last_modified": "2026-06-04T16:18:52.702933",
+        "last_modified": "2026-06-11T13:14:51.503221",
         "hash": "535d861ea7e78894b5bb101a7eb67954b0cffb10b9d9894f0e258cb2f338fc72"
       },
       "design_document": {
@@ -1819,13 +1819,13 @@
       ],
       "source_file": {
         "path": "src\\pipeline_core\\pipeline_core.py",
-        "last_modified": "2026-05-07T09:56:58.859376",
-        "hash": "67b6045020b41892bc488ee527b47a7431cf2d4b4d5aea75e3ceaf90b5329dfe"
+        "last_modified": "2026-06-09T15:11:18.041976",
+        "hash": "db5d00d62b6d893a354180b2be5faf291acc266d31a2222aa82d5551caf9f281"
       },
       "design_document": {
         "path": "src\\pipeline_core\\pipeline_core.design.md",
-        "last_modified": "2026-06-04T16:14:51.240229",
-        "hash": "280ced434bc97c8a3d359a13e2407894640de8fa8d9a2851759e8752fe0a824c"
+        "last_modified": "2026-06-09T15:12:29.203920",
+        "hash": "35fdc0aa87d1cb6ee8b7958b7bb3875945e855f834866e963abfa015aebaa41f"
       },
       "test_file": null
     },
@@ -1962,6 +1962,25 @@
         "hash": "b0238cbb252603ea7c188233ac0ffb5c9e2def3996af64193d6e7cc500435821"
       },
       "test_file": "tests\\unit\\test_quality_gate_checker.py"
+    },
+    {
+      "name": "qwen_cpu_runner",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "response_rewriter"
+      ],
+      "source_file": {
+        "path": "src\\response_rewriter\\qwen_cpu_runner.py",
+        "last_modified": "2026-06-11T13:07:22.133639",
+        "hash": "e3e693953f272e69d36973861ff87781367db9720af6be55bdbf283620cf62dc"
+      },
+      "design_document": {
+        "path": "src\\response_rewriter\\qwen_cpu_runner.design.md",
+        "last_modified": "2026-06-11T13:16:37.455321",
+        "hash": "781793b84130008ef3efc7455d14a930461a86fab9d428a500017b40f41f5d32"
+      },
+      "test_file": "tests\\unit\\test_qwen_cpu_runner.py"
     },
     {
       "name": "reason_analyzer",
@@ -2118,19 +2137,38 @@
       "summary": "最終的な応答文の生成。実行結果、学習レポート、およびプロジェクトの状態に基づき、ユーザーに対して分かりやすく自然な日本語で情報を提供します。",
       "status": "active",
       "dependencies": [
-        "log_manager"
+        "response_rewriter"
       ],
       "source_file": {
         "path": "src\\response_generator\\response_generator.py",
-        "last_modified": "2026-06-04T11:06:54.888732",
-        "hash": "7f7970b9688023356d54765cfc7e36485b811466913097be208d459a2e2ba828"
+        "last_modified": "2026-06-11T15:44:14.337146",
+        "hash": "2cae3a4066107be2f4ed1802207e971ed7e4b1226b26cf77069f7694e180c3ba"
       },
       "design_document": {
         "path": "src\\response_generator\\response_generator.design.md",
-        "last_modified": "2026-06-04T11:06:54.888732",
-        "hash": "b591cc6310a12c0c211801b91b31207e2119c02e49a56d4c5d66dc3c5891a31e"
+        "last_modified": "2026-06-11T16:27:51.187186",
+        "hash": "7409e7e4f51060e3406cec2fce0c8b9c82a2d183a13346404ada71c94f5deda6"
       },
       "test_file": "tests\\unit\\test_response_generator.py"
+    },
+    {
+      "name": "response_rewriter",
+      "summary": "Auto-discovered module.",
+      "status": "discovered",
+      "dependencies": [
+        "config_manager"
+      ],
+      "source_file": {
+        "path": "src\\response_rewriter\\response_rewriter.py",
+        "last_modified": "2026-06-11T16:30:07.432099",
+        "hash": "a3ef85a71e771b73fb3357bc9d5a67f381f927983407c7b99431800f691d4f07"
+      },
+      "design_document": {
+        "path": "src\\response_rewriter\\response_rewriter.design.md",
+        "last_modified": "2026-06-11T16:31:33.445738",
+        "hash": "cc3c9d8c046400d0a114a12b773035e2dac400e69edf24a5e60a6b441dd7b1a7"
+      },
+      "test_file": "tests\\unit\\test_response_rewriter.py"
     },
     {
       "name": "retry_utils",

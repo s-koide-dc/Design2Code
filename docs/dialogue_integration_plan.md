@@ -4,12 +4,12 @@
 
 ## 0. 進捗サマリ（2026-06-09 時点）
 
-- 全体進捗の目安: 約 75%
+- 全体進捗の目安: 約 80%
 - Phase 1: ほぼ完了
 - Phase 2: 完了
-- Phase 3: 未着手に近い
+- Phase 3: 設計着手
 
-現状は、`ResponseGenerator` / `TaskManager` / `pipeline_core` を中心に、承認待ち、補足質問、割り込み復帰、TDD 実行進捗の対話統合が決定論的に動作し、chiVe を用いた主要 conversational / action intent の表記揺れ吸収も Phase 2 の完了条件を満たした状態です。以降の主な未着手領域は、極小ローカル LLM によるリライト層と、その品質・安全性の契約定義です。
+現状は、`ResponseGenerator` / `TaskManager` / `pipeline_core` を中心に、承認待ち、補足質問、割り込み復帰、TDD 実行進捗の対話統合が決定論的に動作し、chiVe を用いた主要 conversational / action intent の表記揺れ吸収も Phase 2 の完了条件を満たした状態です。Phase 3 についても、極小ローカル LLM を差し込むための no-op リライト層、設定ファイル、配線ポイント、安全ゲートまでは着手済みです。
 
 ---
 
@@ -128,17 +128,56 @@ Phase 3 へ持ち越すもの:
 - detector の意味品質をさらに引き上げるための高度な文脈推定
 
 ### Phase 3: 長期（極小ローカルLLMによるハイブリッド・フォールバック連携）
-**進捗状態: 未着手に近い**
+**進捗状態: 実装進行中**
 
 最終応答テキストの「お化粧（リライト）」として、1B〜3Bの量子化ローカルLLM（例: `gemma-2-2b-it` など）をプラグインとして連携可能なインターフェースを定義します。
 
 * **動作特徴**: 追加メモリ 1.5GB〜2.5GB。ハルシネーション（嘘のコード生成）を防ぐため、LLMには「コードの生成」は絶対にさせず、「左脳レイヤーが出力した処理結果の日本語要約」のみをサンドボックスプロンプトで担当させます。
 
-未着手事項:
-- ローカル LLM リライタのインターフェース定義
-- プラグイン切替点と失敗時の deterministic fallback 契約
-- 左脳レイヤー出力の要約専用プロンプト仕様
-- リライト結果の安全制約とテスト方針
+実装済み事項:
+- `src/response_rewriter/response_rewriter.py` に no-op 既定の `ResponseRewriter` / plugin interface / safety gate を追加
+- `config/response_rewriter_config.json` を追加し、既定では `enabled: false` の deterministic 運用に固定
+- `ResponseGenerator._finalize_response()` の後段に、構造化出力や長文を自動バイパスするリライト差し込み点を追加
+- `Pipeline` と `ConfigManager` から `response_rewriter` 設定へ到達できる配線を追加
+- `subprocess_stdio` backend を追加し、外部のローカル LLM ランナーへ JSON 契約で文面リライトを委譲できる実 backend を実装
+- `persistent_subprocess_jsonl` backend を追加し、Qwen CPU runner を常駐プロセスとして再利用して毎回の model reload を避ける実運用経路を追加
+- backend へ渡す payload を `contract_version` / `mode` / `input` / `constraints` / `instruction` を含む versioned contract に拡張し、stub runner と `Pipeline.run()` 経由の統合テストで contract を固定
+- 承認文面・補足質問・エラー応答を既定では rewrite 対象外にし、明示設定時だけ許可する safety gate を追加
+- 左脳レイヤー出力の要約専用プロンプト仕様を、`instruction` と `constraints` を持つ versioned contract として明文化
+- `Qwen2.5-3B-Instruct` を `Transformers` 直実行・CPU 前提で呼び出す runner (`scripts/response_rewriter_qwen_cpu.py`) と、その prompt/messages 契約を追加
+- 常駐 server wrapper (`scripts/response_rewriter_qwen_cpu_server.py`) を追加し、JSONL で複数リクエストを処理できるようにした
+- `response_rewriter_config.json` に `${PYTHON_EXECUTABLE}` / `${WORKSPACE_ROOT}` を使った実運用向け command 既定値を追加し、依存導入後は `enabled: true` で persistent Qwen CPU runner を呼べるようにした
+
+未完了事項:
+- 実際の Qwen runner を使う長時間系の手動ベンチマークと、常駐時の応答時間計測を整理すること
+- リライト結果の安全制約を、実 backend を使う end-to-end テストまで広げること
+
+運用補助:
+- `scripts/benchmark_response_rewriter.py` で one-shot と persistent の応答時間を同一 payload で比較できるようにし、CPU 実機での導入判断をしやすくする。
+- CPU 運用の既定 `QWEN_REWRITER_MAX_NEW_TOKENS` は短文自然化向けに 32 へ絞り、まず生成長を抑えた状態でレイテンシを計測する。
+- `openai_compatible_http` backend を追加し、`llama.cpp server` などのローカル OpenAI 互換 endpoint へ同一 rewrite contract を流せるようにして、実行基盤だけを差し替えやすくする。
+- `scripts/benchmark_response_rewriter.py` に http 計測モードを追加し、`llama.cpp server` の `/v1/chat/completions` を直接ベンチできるようにする。
+- `scripts/inspect_response_rewriter_quality.py` を追加し、固定ケース群で「実際に自然化したか」「安全ゲートで維持されたか」をまとめて確認できるようにする。
+- quality CLI は `family_summary` と `case_ids_by_assessment` を返し、`--family deterministic_progress` で標準進捗テンプレートだけ、`--family deterministic_success` で標準成功文だけを切り出して再計測できるようにする。
+- `deterministic_progress` と `deterministic_success` は rewrite しない前提の preserve ケースとして扱い、標準文面はまず deterministic の自然さを優先する。
+- 現在の既定 allow-list は conversational intent 群のうち `GENERAL` / `WEATHER` / `TIME` / `CAPABILITY` を除いた集合とし、rewrite は主に雑談・感情応答・フィードバック系の conversational 応答に限定する。
+- LM Studio の OpenAI 互換 server で定常 2.6 秒前後、品質確認でも `semantic_regression: 0` / `unexpected_rewrite: 0` までは到達した。
+- ただし通常応答の自然化品質はまだ安定して改善できていないため、backend 候補は `openai_compatible_http` としつつ、既定 `enabled` は false のまま保持する。
+- `scripts/run_response_rewriter_conversation_probe.py` を追加し、実 backend を使った複数ターン会話の自然化有無と clarification 維持をターン単位で確認できるようにする。
+- 安定化のため、rewrite 対象を conversational intent 群と `GENERAL` に限定する allow-list と、`action_result.status == success` に絞る allow-list を追加し、作業系完了文や途中状態の rewrite を既定で抑制する。
+- シナリオテストでは、通常会話ターンのみ rewrite され、clarification 中の割り込み応答と作業完了メッセージは deterministic に維持されることを固定する。
+
+要約専用プロンプト仕様:
+1. 入力:
+   backend には `input.response_text` を主対象として渡し、`original_text`, `intent`, `dialogue_state`, `task_name`, `action_status` は文脈補助としてのみ渡す。
+2. 禁止事項:
+   事実追加、コード生成、コマンド提案、Markdown block 追加、Mermaid 追加、ファイルパス改変、承認条件の書き換えは禁止する。
+3. 許可事項:
+   語尾調整、冗長表現の圧縮、日本語としての自然化、敬体への統一だけを許可する。
+4. 出力契約:
+   backend は `{ "text": "..." }` を返し、`response_text` の情報量を維持しつつ `constraints.max_length_ratio` を超えない。
+5. 優先順位:
+   `constraints` は runner 側の自由判断より優先し、違反の疑いがあれば空応答または原文返却相当で失敗してよい。
 
 ---
 

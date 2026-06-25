@@ -1,11 +1,48 @@
 import unittest
+import sys
+import tempfile
+import textwrap
+from pathlib import Path
 from src.response_generator.response_generator import ResponseGenerator
+from src.response_rewriter.response_rewriter import ResponseRewriter
 from src.utils.dialogue_state import PENDING_CONFIRMATION
+
+
+class _StubRewritePlugin:
+    def __init__(self, rewritten_text):
+        self.rewritten_text = rewritten_text
+
+    def rewrite(self, request):
+        return self.rewritten_text
+
+
+class _StubConfigManager:
+    def __init__(self, enabled=True):
+        self.response_rewriter_config = {
+            "enabled": enabled,
+            "provider": "stub",
+            "rewrite_allowed_intents": ["GENERAL"],
+            "max_input_chars": 1200,
+            "max_length_ratio": 1.6,
+            "rewrite_error_messages": False,
+        }
 
 class TestResponseGenerator(unittest.TestCase):
 
     def setUp(self):
         self.generator = ResponseGenerator()
+        self._temp_dirs = []
+
+    def tearDown(self):
+        for temp_dir in self._temp_dirs:
+            temp_dir.cleanup()
+
+    def _make_temp_backend(self, body: str) -> str:
+        temp_dir = tempfile.TemporaryDirectory()
+        self._temp_dirs.append(temp_dir)
+        script_path = Path(temp_dir.name) / "rewrite_backend.py"
+        script_path.write_text(textwrap.dedent(body), encoding="utf-8")
+        return str(script_path)
 
     def test_happy_path_weather_question_with_concept(self):
         """
@@ -74,6 +111,19 @@ class TestResponseGenerator(unittest.TestCase):
         self.assertIn("text", result_context["response"])
         self.assertEqual(result_context["response"]["text"], self.generator.default_response) # Should return default response
 
+    def test_smalltalk_uses_concise_natural_response(self):
+        context = {
+            "analysis": {"intent": "SMALLTALK"},
+            "pipeline_history": [],
+        }
+
+        result_context = self.generator.generate(context)
+
+        self.assertEqual(
+            result_context["response"]["text"],
+            "もちろんです。少しお話ししましょうか。",
+        )
+
     def test_in_progress_task_uses_dynamic_status_message(self):
         context = {
             "analysis": {},
@@ -87,7 +137,39 @@ class TestResponseGenerator(unittest.TestCase):
 
         result_context = self.generator.generate(context)
 
-        self.assertIn("GENERATE_TESTSを進めています。対象は src/sample.py です。", result_context["response"]["text"])
+        self.assertIn("GENERATE_TESTSを進めています。対象はsrc/sample.pyです。完了したらお知らせします。", result_context["response"]["text"])
+
+    def test_task_clarification_status_uses_natural_prompt(self):
+        context = {
+            "analysis": {},
+            "pipeline_history": [],
+            "task": {
+                "name": "FILE_CREATE",
+                "clarification_needed": True,
+                "clarification_type": "MISSING_ENTITY",
+                "awaiting_entity": "ファイル名",
+            }
+        }
+
+        result_context = self.generator.generate(context)
+
+        self.assertIn("FILE_CREATEを進めるために、ファイル名を教えてください。", result_context["response"]["text"])
+
+    def test_task_approval_status_uses_natural_prompt(self):
+        context = {
+            "analysis": {},
+            "pipeline_history": [],
+            "task": {
+                "name": "CMD_RUN",
+                "clarification_needed": True,
+                "clarification_type": "APPROVAL",
+                "parameters": {"command": {"value": "dir"}},
+            }
+        }
+
+        result_context = self.generator.generate(context)
+
+        self.assertIn("CMD_RUNを進める前に、対象のdirについて承認をお願いします。", result_context["response"]["text"])
 
     def test_success_action_uses_dynamic_binding_and_generated_files(self):
         context = {
@@ -145,6 +227,82 @@ class TestResponseGenerator(unittest.TestCase):
 
         self.assertIn("元の作業に戻るため、次の確認をお願いします。", result_context["response"]["text"])
         self.assertIn("続けるには承認してください。", result_context["response"]["text"])
+
+    def test_finalize_response_uses_rewriter_when_enabled(self):
+        rewriter = ResponseRewriter(
+            config_manager=_StubConfigManager(enabled=True),
+            plugin=_StubRewritePlugin("丁寧に言い換えた応答です。"),
+        )
+        generator = ResponseGenerator(response_rewriter=rewriter)
+        context = {
+            "analysis": {"intent": "GENERAL"},
+            "pipeline_history": [],
+        }
+
+        result_context = generator.generate(context)
+
+        self.assertEqual(result_context["response"]["text"], "丁寧に言い換えた応答です。")
+
+    def test_finalize_response_accepts_llm_backend_rewrite(self):
+        script_path = self._make_temp_backend(
+            """
+            import json
+            import sys
+
+            for raw_line in sys.stdin:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                payload = json.loads(line)
+                rewritten = payload["input"]["response_text"] + "（LLM自然化）。"
+                sys.stdout.write(json.dumps({"text": rewritten}, ensure_ascii=False) + "\\n")
+                sys.stdout.flush()
+            """
+        )
+        config_manager = _StubConfigManager(enabled=True)
+        config_manager.response_rewriter_config.update(
+            {
+                "provider": "persistent_subprocess_jsonl",
+                "command": [sys.executable, script_path],
+                "response_format": "json",
+                "timeout_seconds": 5,
+                "prompt_contract": {
+                    "rewrite_style": "natural_japanese",
+                    "instruction": "与えられた response_text の事実を変えずに、日本語の自然さだけを整えてください。"
+                },
+                "max_length_ratio": 3.0,
+            }
+        )
+        rewriter = ResponseRewriter(config_manager=config_manager)
+        self.addCleanup(getattr(rewriter.plugin, "close", lambda: None))
+        generator = ResponseGenerator(response_rewriter=rewriter)
+
+        result_context = generator.generate({"analysis": {"intent": "GENERAL"}, "pipeline_history": []})
+
+        self.assertTrue(result_context["response"]["text"].endswith("（LLM自然化）。"))
+
+    def test_finalize_response_skips_rewriter_for_structured_output(self):
+        rewriter = ResponseRewriter(
+            config_manager=_StubConfigManager(enabled=True),
+            plugin=_StubRewritePlugin("書き換えられてはいけない"),
+        )
+        generator = ResponseGenerator(response_rewriter=rewriter)
+        context = {
+            "analysis": {"intent": "CS_IMPACT_SCOPE"},
+            "pipeline_history": [],
+            "task": {"name": "CS_IMPACT_SCOPE"},
+            "action_result": {
+                "status": "success",
+                "target_name": "TargetMethod",
+                "impacted_methods": ["OtherMethod"],
+                "message": "解析結果"
+            },
+        }
+
+        result_context = generator.generate(context)
+
+        self.assertIn("```mermaid", result_context["response"]["text"])
+        self.assertNotEqual(result_context["response"]["text"], "書き換えられてはいけない")
 
     def test_goal_driven_tdd_dialogue_metadata_creates_specific_response(self):
         context = {
