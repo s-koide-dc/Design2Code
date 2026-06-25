@@ -18,7 +18,7 @@
 - **Expected**: true
 ### Inference Metadata
 - inference_mode: infer_then_freeze
-- inference_fingerprint: 1692381914acdd17bdb4c3cc11b721363b578e34ac8f2c5584784995111a6997
+- inference_fingerprint: 97e5d8fe8db88a0fbd4dfa0db5f1cfd0b9de7558a8da193b897ce531ff578f3b
 - assets:
   - C:\workspace\NLP\config\config.json
   - C:\workspace\NLP\config\project_rules.json

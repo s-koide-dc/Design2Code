@@ -24,7 +24,7 @@
 - **Expected**: output file path
 ### Inference Metadata
 - inference_mode: infer_then_freeze
-- inference_fingerprint: 0dc33a4b2b972e2021b5412a759284230f520150049b5ff17c030d35a318dc44
+- inference_fingerprint: 7c0aa86487f84a6be86ed2abfaf10105f37ced3cbde53794d884edf83f61c11a
 - assets:
   - C:\workspace\NLP\config\config.json
   - C:\workspace\NLP\config\project_rules.json

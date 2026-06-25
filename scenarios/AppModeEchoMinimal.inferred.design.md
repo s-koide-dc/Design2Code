@@ -11,13 +11,13 @@
 ### Core Logic
 - [data_source|APP_MODE|env] 環境変数 APP_MODE
 1. [ACTION|FETCH|string|string|IO|APP_MODE|env] 環境変数 'APP_MODE' を取得する
-2. [ACTION|DISPLAY|Item|void|NONE] [refs:step_1] 取得したモードを表示する
+2. [ACTION|DISPLAY|string|void|NONE] [refs:step_1] 取得したモードを表示する
 ### Test Cases
 - **Scenario**: Default
 - **Expected**: true
 ### Inference Metadata
 - inference_mode: infer_then_freeze
-- inference_fingerprint: de8406888f587cf5715a7d806fff7ceb8eaf775959ba313c3f1f6750ea916134
+- inference_fingerprint: 40d72dcb2ba024b70e1727321d0811dadfd403f038f48131cb1a15a74c327898
 - assets:
   - C:\workspace\NLP\config\config.json
   - C:\workspace\NLP\config\project_rules.json

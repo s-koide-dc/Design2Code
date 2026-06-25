@@ -3,7 +3,7 @@
 ## 1. Purpose (Updated 2026-02-10 10:45)
 `RepairKnowledgeBase` は、テスト修復のための知識ベースです。過去の「失敗原因（エラーメッセージ）」と「解決策（修正方針）」のペアを、自然言語の意味（ベクトル）に基づいて蓄積・検索します。これにより、AIエージェントは未知のエラーに対しても、過去の類似事例から最適な修復アクションを選択できるようになります。
 
-`SemanticSearchBase` を継承し、ハイブリッド検索（セマンティック検索 + キーワード検索）をサポートします。
+`SemanticSearchBase` を継承し、現行実装ではベクトル検索に基づく意味検索を使用します。
 
 ## 2. Structured Specification
 
@@ -33,17 +33,15 @@
 ### 2.3. Core Logic
 
 #### 1. 方針取得 (`get_best_fix_direction`)
-1. **ハイブリッド検索**:
+1. **意味検索**:
    - `SemanticSearchBase` を用い、入力された `error_message` と既存パターンのセマンティック類似度を計算。
-   - 同時に、正規表現による文字列一致（キーワード一致）を評価。
-2. **スコアリング**:
-   - セマンティック重み 0.7、キーワード重み 0.3 で統合スコアを算出。
-3. **しきい値判定**:
+   - 検索候補は保存済み repair pattern の vector index から取得する。
+2. **しきい値判定**:
    - スコアが `semantic_threshold`（デフォルト: 0.85）以上の最高評価パターンを選択し、その `fix_direction` を返却。
 
 #### 2. 成功体験の学習 (`add_repair_experience`)
 1. **統計更新**: `root_cause` ごとの総試行回数と成功回数、修正タイプ別の成功数を `fix_stats` に記録。
-2. **新規パターン登録**: 修正が成功（`success=True`）かつ新しいエラーメッセージの場合、ベクトル化してインデックスに追加。
+2. **新規パターン登録**: 修正が成功（`success=True`）かつ新しいエラーメッセージの場合、安定 ID を付与してベクトル化し、`SemanticSearchBase.add_item(item, vector)` でインデックスに追加。
 3. **負の知識の保持**: 型変換失敗や未解決シンボルは `negative_feedbacks` / `unresolved_symbols` として保持し、将来の候補スコアリングを抑制する材料にする。
 
 #### 3. ログからの自律学習 (`learn_from_session_logs`)
@@ -75,3 +73,4 @@
 ## 5. Review Notes
 - 2026-06-09: repair knowledge のベクトルDB保存先統一、旧配置ファイル移行、`ConfigManager` 優先の metadata path 解決、および `pipeline_*.json` ログ学習の現行挙動に合わせて更新。
 - 2026-06-25: `knowledge_base.py` の現行実装を再確認。旧配置ファイル移行、`ConfigManager` 優先の保存先解決、`pipeline_*.json` / `SESSION_COMPLETED` ログ学習、負のフィードバックと未解決シンボル保持の設計記述が実装と一致していることを確認した。
+- 2026-06-25: 成功体験追加時の repair pattern ID 付与と、現行 `SemanticSearchBase.add_item(item, vector)` API に合わせた index 登録を反映。検索説明も実装に合わせてベクトル検索中心へ更新。`save_knowledge` は wrapper metadata と `LightVectorCollection` 側の items/index を同期して保存する。

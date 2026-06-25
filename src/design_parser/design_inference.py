@@ -348,7 +348,8 @@ class DesignInferenceEngine:
         command_literal = self._extract_command_literal(line, self.resolver.get_entities(line))
         env_sources, stdin_sources, http_sources, file_sources = self._collect_source_kinds()
         db_sources = [s for s in getattr(self, "_current_data_sources", []) if s.get("kind") == "db"]
-        if not step_token:
+
+        def _try_structural_fallback() -> Optional[Tuple[bool, Optional[InferenceIssue], str, List[str]]]:
             stdin_meta = self._infer_plain_stdin_fetch_meta(line, step_idx, stdin_sources)
             if stdin_meta:
                 tag = self._build_step_meta_tag(stdin_meta)
@@ -448,8 +449,17 @@ class DesignInferenceEngine:
                 refs = self._build_refs_tag(step_idx)
                 new_line = self._prefix_inferred_tags(line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
+            return None
+
+        if not step_token:
+            fallback = _try_structural_fallback()
+            if fallback:
+                return fallback
             return False, InferenceIssue(step_idx, "NO_CANDIDATE", "No deterministic candidate found."), line, []
         if score < self.thresholds["intent_threshold"]:
+            fallback = _try_structural_fallback()
+            if fallback:
+                return fallback
             preferred_ok = False
             if step_token and step_token.startswith("intent."):
                 intent = step_token.split(".", 1)[1].upper()
@@ -468,7 +478,7 @@ class DesignInferenceEngine:
                 score = self.thresholds["intent_threshold"]
                 preferred_ok = True
             if not preferred_ok:
-                return False, InferenceIssue(step_idx, "LOW_CONFIDENCE", f"score={score:.3f}"), line, []
+                return False, InferenceIssue(step_idx, "NO_CANDIDATE", f"No deterministic candidate above threshold. score={score:.3f}"), line, []
 
         meta = self._map_step_token_to_meta(step_token)
         if not meta:

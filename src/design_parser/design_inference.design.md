@@ -27,7 +27,9 @@
    - plain line に URL literal と単一 HTTP data source が残っていれば、resolver が `HTTP_REQUEST` を返した場合も含めて、`API 'https://...' からJSON文字列を取得する` のような行は `HTTP_REQUEST + semantic_roles.url + source_ref=http source` へ補完する。
    - plain line に `環境変数` と `取得/読み` が残り、対応する `env` data source がある場合は `FETCH + source_kind=env + source_ref=that env source` へ補完する。
 5. 補完時の内部 semantic intent (`GENERAL`, `FETCH`, `TRANSFORM`, `DISPLAY`, `PERSIST`, `HTTP_REQUEST`, `DATABASE_QUERY`, `JSON_DESERIALIZE`, `LINQ`, `CALC`) と node kind (`ACTION`, `CONDITION`, `LOOP`, `ELSE`, `END`) は `src.utils.semantic_intents` の共通定数を使う。
-6. confidence threshold を下回る場合は補完せず `blocked` を返す。
+6. resolver 候補が confidence threshold を下回る場合は、plain source / HTTP / file / JSON deserialize / LINQ / DB persist / ops / display / return などの構造的 fallback を先に試す。
+   - fallback が成立する場合は、低信頼な resolver 候補ではなく fallback の metadata を採用する。
+   - fallback も成立しない場合は、assist 対象判定と boundary probe の契約に合わせて `NO_CANDIDATE` issue で `blocked` を返す。
 7. accepted 済みの literal suggestion は explicit tag を上書きせず、missing な `semantic_roles.path/url/sql` にだけ反映する。
 8. 変更があれば元文書は書き換えず、`.inferred.design.md` に書き出す。
 9. `### Inference Metadata` ブロックを埋め込み、推論ルール版と asset fingerprint を追跡可能にする。
@@ -61,3 +63,7 @@
 - 現在の boundary probe では、`ComplexLinqSearch` / `SyncExternalData` ともに `strip_tags` までは clean generation が通る一方、quoted literal を落とすと `NO_CANDIDATE` で blocked になる。つまり URL / SQL / path の literal は現時点の deterministic 補完における必要入力である。
 - `ops` は現時点では `trim_upper`、`split_lines`、`csv_serialize`、`aggregate_by_product`、`display_names` のみを明示表現から補完し、必要に応じて `output_type` / `target_entity` も対応する既定値へ補正する。
 - resolver が別 intent に寄った後で `TRANSFORM` / `CALC` / `DISPLAY` に補正された場合でも、最終 intent に対して `ops` 推論を再評価する。
+- resolver が低信頼候補を返した場合でも、構造的 fallback が成立するなら fallback を優先する。これにより method store の pruning や vector DB 再構築で候補集合が変わっても、明示 literal / data source / refs を保持する authoring reduction variant は決定的に復元される。
+
+## 5. Review Notes
+- 2026-06-25: 低信頼 resolver 候補より構造的 fallback を優先し、採用可能な候補がない場合は `LOW_CONFIDENCE` ではなく `NO_CANDIDATE` として boundary/assist 判定へ渡す契約を反映。

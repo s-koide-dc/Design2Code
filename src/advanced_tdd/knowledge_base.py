@@ -4,6 +4,7 @@ import os
 import shutil
 import logging
 import numpy as np
+import hashlib
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from src.semantic_search.semantic_search_base import SemanticSearchBase
@@ -103,8 +104,10 @@ class RepairKnowledgeBase(SemanticSearchBase):
             with open(self.metadata_path, 'w', encoding='utf-8') as f:
                 json.dump(wrapper, f, ensure_ascii=False, indent=2)
             
-            if hasattr(self, 'vectors') and self.vectors is not None:
-                np.save(self.vector_path, self.vectors)
+            if hasattr(self, "collection") and self.collection is not None:
+                self.collection.items = list(self.items)
+                self.collection.id_to_index = {str(item.get("id", item.get("error_message_regex", item.get("name")))): idx for idx, item in enumerate(self.items)}
+                self.collection._save()
             
             self.is_dirty = False
         except Exception as e:
@@ -135,15 +138,8 @@ class RepairKnowledgeBase(SemanticSearchBase):
         return penalties
 
     def get_best_fix_direction(self, root_cause: str, error_message: str) -> Optional[str] :
-        """原因とエラーメッセージから最適な修正方針を取得 (Hybrid Search優先)"""
-        
-        def kw_fn(item, query_keywords):
-            # 文字列部分一致
-            if item.get('error_message_regex') in error_message:
-                return 1.0
-            return 0.0
-
-        results = self.hybrid_search(error_message, top_k=1, keyword_fn=kw_fn, semantic_weight=0.7)
+        """原因とエラーメッセージから最適な修正方針を意味検索で取得する"""
+        results = self.hybrid_search(error_message, top_k=1, semantic_weight=0.7)
         
         if results:
             best_pattern, score = results[0]
@@ -180,15 +176,22 @@ class RepairKnowledgeBase(SemanticSearchBase):
             if not exists:
                 new_vec = self.vectorize_text(error_type)
                 if new_vec is not None:
+                    pattern_id = self._repair_pattern_id(error_type)
                     self.add_item({
+                        'id': pattern_id,
                         'root_cause': root_cause,
                         'error_message_regex': error_type,
                         'fix_direction': fix_type,
                         'timestamp': datetime.now().isoformat()
-                    }, new_vec, item_id_key="error_message_regex")
+                    }, new_vec)
                     self.logger.info(f"Learned new semantic repair pattern: {error_type} -> {fix_type}")
         
         self.save_knowledge()
+
+    def _repair_pattern_id(self, error_type: str) -> str:
+        """エラー種別から安定した repair pattern ID を生成する。"""
+        digest = hashlib.sha256(str(error_type).encode("utf-8")).hexdigest()[:16]
+        return f"repair.{digest}"
 
 
     def add_type_mapping(self, type_name: str, prop_name: str, suggested_value: str):
@@ -291,6 +294,3 @@ class RepairKnowledgeBase(SemanticSearchBase):
                     found += 1
 
         return found
-        # TODO: Implement Logic: 「テスト失敗分析」の直後に「コード修正適用」があり、さらにその後に「テスト成功」が続いているシーケンスを「成功パターン」として抽出。
-        # TODO: Implement Logic: 過去の正規表現パターンにマッチするエラーメッセージがあれば、その時の修正方針を返す。
-        # TODO: Implement Logic: （将来的に）統計的に最も成功率の高い方針を優先的に提案するロジックを統合。
