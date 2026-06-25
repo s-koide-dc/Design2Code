@@ -70,6 +70,36 @@ class TestMethodStore(unittest.TestCase):
         self.assertEqual(len(self.store.items), 2)
         self.assertEqual(self.store.items[0]["name"], "ValidateEmail")
 
+    def test_legacy_vector_store_files_are_migrated_to_vector_db(self):
+        """旧 resources 直下の method_store ベクトルDBファイルを統一保存先へ移行する"""
+        workspace_root = os.path.join(self.test_dir, "workspace")
+        resources_dir = os.path.join(workspace_root, "resources")
+        target_dir = os.path.join(resources_dir, "vectors", "vector_db")
+        os.makedirs(resources_dir, exist_ok=True)
+        store_path = os.path.join(resources_dir, "method_store.json")
+        with open(store_path, "w", encoding="utf-8") as f:
+            json.dump({"methods": self.test_data}, f)
+
+        legacy_meta = os.path.join(resources_dir, "method_store_meta.json")
+        legacy_vec = os.path.join(resources_dir, "method_store_vectors.npy")
+        with open(legacy_meta, "w", encoding="utf-8") as f:
+            json.dump(self.test_data, f)
+        np.save(legacy_vec, np.zeros((len(self.test_data), self.vector_engine.dim)))
+
+        class MockConfig:
+            def __init__(self):
+                self.workspace_root = workspace_root
+                self.method_store_path = store_path
+                self.storage_dir = target_dir
+                self.domain_dictionary_path = os.path.join(resources_dir, "domain_dictionary.json")
+
+        MethodStore(config=MockConfig(), vector_engine=self.vector_engine)
+
+        self.assertFalse(os.path.exists(legacy_meta))
+        self.assertFalse(os.path.exists(legacy_vec))
+        self.assertTrue(os.path.exists(os.path.join(target_dir, "method_store_meta.json")))
+        self.assertTrue(os.path.exists(os.path.join(target_dir, "method_store_vectors.npy")))
+
     def test_search_happy_path(self):
         """キーワードによる検索のテスト"""
         # "email" で検索 (タグにマッチ)

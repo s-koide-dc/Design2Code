@@ -32,6 +32,7 @@ class TestResponseRewriterIntegration(unittest.TestCase):
             },
             "max_input_chars": 1200,
             "max_length_ratio": 3.0,
+            "rewrite_allowed_intents": ["SMALLTALK"],
             "rewrite_error_messages": False,
         }
         pipeline._response_generator = None
@@ -84,6 +85,7 @@ class TestResponseRewriterIntegration(unittest.TestCase):
             },
             "max_input_chars": 1200,
             "max_length_ratio": 3.0,
+            "rewrite_allowed_intents": ["SMALLTALK"],
             "rewrite_error_messages": False,
         }
         pipeline._response_generator = None

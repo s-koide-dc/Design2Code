@@ -52,7 +52,7 @@ def main() -> int:
     parser.add_argument("--allow-fallback", action="store_true", help="Allow UKB fallback pass when synthesis is incomplete")
     parser.add_argument("--assist-literal-tags-http", action="store_true", help="Use local OpenAI-compatible HTTP to suggest explicit path/url/sql semantic_roles before deterministic inference")
     parser.add_argument("--assist-endpoint-url", help="OpenAI compatible /v1/chat/completions endpoint for literal tag assistance")
-    parser.add_argument("--assist-model-id", default="qwen2.5-3b-instruct", help="Model id for literal tag assistance")
+    parser.add_argument("--assist-model-id", default="local-assist", help="Model id for literal tag assistance")
     parser.add_argument("--assist-timeout-seconds", type=int, default=60, help="Timeout in seconds for literal tag assistance")
     parser.add_argument("--assist-max-new-tokens", type=int, default=384, help="Generation cap for literal tag assistance")
     parser.add_argument(

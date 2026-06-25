@@ -656,6 +656,30 @@ class TestAutonomousLearning(unittest.TestCase):
         finally:
             shutil.rmtree(temp_root, ignore_errors=True)
 
+    def test_structural_memory_vector_store_is_unified_to_vector_db(self):
+        """structural_memory のベクトル保存先が vector_db に統一されることを確認"""
+        temp_root = tempfile.mkdtemp()
+        try:
+            create_sample_config(temp_root)
+            legacy_dir = os.path.join(temp_root, "resources")
+            target_dir = os.path.join(temp_root, "resources", "vectors", "vector_db")
+            os.makedirs(legacy_dir, exist_ok=True)
+
+            legacy_meta = os.path.join(legacy_dir, "structural_memory_meta.json")
+            legacy_vec = os.path.join(legacy_dir, "structural_memory_vectors.npy")
+            with open(legacy_meta, "w", encoding="utf-8") as f:
+                json.dump([{"id": "legacy_component", "name": "LegacyComponent"}], f)
+            np.save(legacy_vec, np.zeros((1, 300)))
+
+            _ = AutonomousLearning(temp_root)
+
+            self.assertFalse(os.path.exists(legacy_meta))
+            self.assertFalse(os.path.exists(legacy_vec))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, "structural_memory_meta.json")))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, "structural_memory_vectors.npy")))
+        finally:
+            shutil.rmtree(temp_root, ignore_errors=True)
+
 
 class TestIntegration(unittest.TestCase):
     """統合テストクラス"""

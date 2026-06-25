@@ -43,20 +43,16 @@ DEFAULT_PAYLOAD = {
 
 
 def _default_persistent_command(workspace_root: Path) -> list[str]:
-    return [
-        sys.executable,
-        str(workspace_root / "scripts" / "response_rewriter_qwen_cpu_server.py"),
-    ]
+    return []
 
 
 def _default_oneshot_command(workspace_root: Path) -> list[str]:
-    return [
-        sys.executable,
-        str(workspace_root / "scripts" / "response_rewriter_qwen_cpu.py"),
-    ]
+    return []
 
 
 def _measure_oneshot(command: list[str], payload: dict, iterations: int) -> dict:
+    if not command:
+        raise RuntimeError("--command is required for oneshot mode")
     timings_ms = []
     last_output = None
     payload_text = json.dumps(payload, ensure_ascii=False)
@@ -81,6 +77,8 @@ def _measure_oneshot(command: list[str], payload: dict, iterations: int) -> dict
 
 
 def _measure_persistent(command: list[str], payload: dict, iterations: int) -> dict:
+    if not command:
+        raise RuntimeError("--command is required for persistent mode")
     timings_ms = []
     last_output = None
     process = subprocess.Popen(
@@ -137,13 +135,13 @@ def _measure_http(endpoint_url: str, model: str, payload: dict, iterations: int,
     if not model:
         raise RuntimeError("model id is required for http mode")
 
-    from src.response_rewriter.qwen_cpu_runner import build_messages
+    from src.response_rewriter.response_rewriter import build_rewrite_messages
 
     timings_ms = []
     last_output = None
     body = {
         "model": model,
-        "messages": build_messages(payload),
+        "messages": build_rewrite_messages(payload),
         "temperature": 0,
         "stream": False,
     }
@@ -215,12 +213,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model-id",
-        help="Optional Qwen model id to inject via QWEN_REWRITER_MODEL.",
+        help="Optional model id for http mode.",
     )
     parser.add_argument(
         "--max-new-tokens",
         type=int,
-        help="Optional generation cap to inject via QWEN_REWRITER_MAX_NEW_TOKENS.",
+        help="Optional generation cap for http mode.",
     )
     parser.add_argument(
         "--endpoint-url",
@@ -237,13 +235,10 @@ def main() -> int:
 
     workspace_root = WORKSPACE_ROOT
     payload = DEFAULT_PAYLOAD
-    if args.model_id:
-        os.environ["QWEN_REWRITER_MODEL"] = args.model_id
     if args.max_new_tokens is not None:
         if args.max_new_tokens <= 0:
             emit_error("--max-new-tokens must be >= 1")
             return 1
-        os.environ["QWEN_REWRITER_MAX_NEW_TOKENS"] = str(args.max_new_tokens)
     if args.payload_file:
         payload_path = Path(args.payload_file)
         if not payload_path.is_file():
@@ -278,8 +273,8 @@ def main() -> int:
             "cwd": os.getcwd(),
             "python_executable": sys.executable,
             "iterations": args.iterations,
-            "model_id": os.environ.get("QWEN_REWRITER_MODEL"),
-            "max_new_tokens": int(os.environ.get("QWEN_REWRITER_MAX_NEW_TOKENS", "0")) or None,
+            "model_id": args.model_id,
+            "max_new_tokens": args.max_new_tokens,
             "results": results,
         }
     )

@@ -140,21 +140,20 @@ Phase 3 へ持ち越すもの:
 - `ResponseGenerator._finalize_response()` の後段に、構造化出力や長文を自動バイパスするリライト差し込み点を追加
 - `Pipeline` と `ConfigManager` から `response_rewriter` 設定へ到達できる配線を追加
 - `subprocess_stdio` backend を追加し、外部のローカル LLM ランナーへ JSON 契約で文面リライトを委譲できる実 backend を実装
-- `persistent_subprocess_jsonl` backend を追加し、Qwen CPU runner を常駐プロセスとして再利用して毎回の model reload を避ける実運用経路を追加
+- `persistent_subprocess_jsonl` backend を追加し、任意のローカル rewriter backend を常駐プロセスとして再利用して毎回の初期化コストを避ける実運用経路を追加
 - backend へ渡す payload を `contract_version` / `mode` / `input` / `constraints` / `instruction` を含む versioned contract に拡張し、stub runner と `Pipeline.run()` 経由の統合テストで contract を固定
 - 承認文面・補足質問・エラー応答を既定では rewrite 対象外にし、明示設定時だけ許可する safety gate を追加
 - 左脳レイヤー出力の要約専用プロンプト仕様を、`instruction` と `constraints` を持つ versioned contract として明文化
-- `Qwen2.5-3B-Instruct` を `Transformers` 直実行・CPU 前提で呼び出す runner (`scripts/response_rewriter_qwen_cpu.py`) と、その prompt/messages 契約を追加
-- 常駐 server wrapper (`scripts/response_rewriter_qwen_cpu_server.py`) を追加し、JSONL で複数リクエストを処理できるようにした
-- `response_rewriter_config.json` に `${PYTHON_EXECUTABLE}` / `${WORKSPACE_ROOT}` を使った実運用向け command 既定値を追加し、依存導入後は `enabled: true` で persistent Qwen CPU runner を呼べるようにした
+- HTTP backend へ渡す prompt/messages 契約を `response_rewriter.py` 内の汎用 helper として保持し、特定モデル専用 runner へ依存しない形にした
+- `response_rewriter_config.json` は OpenAI 互換 HTTP backend を既定候補とし、subprocess backend を使う場合は任意の `command` を明示する
 
 未完了事項:
-- 実際の Qwen runner を使う長時間系の手動ベンチマークと、常駐時の応答時間計測を整理すること
+- 実 backend を使う長時間系の手動ベンチマークと、常駐時の応答時間計測を整理すること
 - リライト結果の安全制約を、実 backend を使う end-to-end テストまで広げること
 
 運用補助:
 - `scripts/benchmark_response_rewriter.py` で one-shot と persistent の応答時間を同一 payload で比較できるようにし、CPU 実機での導入判断をしやすくする。
-- CPU 運用の既定 `QWEN_REWRITER_MAX_NEW_TOKENS` は短文自然化向けに 32 へ絞り、まず生成長を抑えた状態でレイテンシを計測する。
+- 実 backend の生成長は短文自然化向けに絞り、まず生成長を抑えた状態でレイテンシを計測する。
 - `openai_compatible_http` backend を追加し、`llama.cpp server` などのローカル OpenAI 互換 endpoint へ同一 rewrite contract を流せるようにして、実行基盤だけを差し替えやすくする。
 - `scripts/benchmark_response_rewriter.py` に http 計測モードを追加し、`llama.cpp server` の `/v1/chat/completions` を直接ベンチできるようにする。
 - `scripts/inspect_response_rewriter_quality.py` を追加し、固定ケース群で「実際に自然化したか」「安全ゲートで維持されたか」をまとめて確認できるようにする。

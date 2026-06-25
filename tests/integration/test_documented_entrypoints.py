@@ -544,7 +544,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertTrue(inferred_design.exists())
         inferred_text = inferred_design.read_text(encoding="utf-8")
         self.assertIn("llm_literal_assist: true", inferred_text)
-        self.assertIn("llm_literal_assist_model_id: qwen2.5-3b-instruct", inferred_text)
+        self.assertIn("llm_literal_assist_model_id: local-assist", inferred_text)
         self.assertIn("llm_literal_assist_applied_steps: 1", inferred_text)
         self.assertEqual(completed.stderr.strip(), "")
 
@@ -616,6 +616,15 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             "scripts/probe_design_inference_boundary.py",
             "--design",
             "scenarios/ComplexLinqSearch.design.md",
+            "--variants",
+            "original",
+            "strip_tags",
+            "strip_tags_drop_literals",
+            "--generate-variants",
+            "original",
+            "strip_tags",
+            "--output-dir",
+            str(self.cache_dir / "probe_boundary_complex"),
         ]
         completed = subprocess.run(
             command,
@@ -636,6 +645,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertTrue(variants["strip_tags"]["clean_generate"])
         self.assertEqual(variants["strip_tags_drop_literals"]["inference_status"], "blocked")
         self.assertFalse(variants["strip_tags_drop_literals"]["clean_generate"])
+        self.assertTrue(variants["strip_tags_drop_literals"]["generation_skipped"])
         self.assertIn("NO_CANDIDATE", json.dumps(variants["strip_tags_drop_literals"]["issues"], ensure_ascii=False))
         self.assertEqual(completed.stderr.strip(), "")
 
@@ -645,6 +655,15 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             "scripts/probe_design_inference_boundary.py",
             "--design",
             "scenarios/SyncExternalData.design.md",
+            "--variants",
+            "original",
+            "strip_tags",
+            "strip_tags_drop_literals",
+            "--generate-variants",
+            "original",
+            "strip_tags",
+            "--output-dir",
+            str(self.cache_dir / "probe_boundary_sync_http"),
         ]
         completed = subprocess.run(
             command,
@@ -665,6 +684,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertTrue(variants["strip_tags"]["clean_generate"])
         self.assertEqual(variants["strip_tags"]["inference_status"], "updated")
         self.assertFalse(variants["strip_tags_drop_literals"]["clean_generate"])
+        self.assertTrue(variants["strip_tags_drop_literals"]["generation_skipped"])
         self.assertEqual(variants["strip_tags_drop_literals"]["inference_status"], "blocked")
         self.assertIn("NO_CANDIDATE", json.dumps(variants["strip_tags_drop_literals"]["issues"], ensure_ascii=False))
         self.assertEqual(completed.stderr.strip(), "")

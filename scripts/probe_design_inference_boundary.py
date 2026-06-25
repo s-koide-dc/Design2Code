@@ -169,6 +169,18 @@ def _run_generation(design_path: Path, output_path: Path) -> Dict[str, object]:
         "stderr": completed.stderr,
         "generated": completed.returncode == 0 and output_path.exists(),
         "clean_generate": completed.returncode == 0 and output_path.exists() and not completed.stderr.strip(),
+        "skipped": False,
+    }
+
+
+def _skipped_generation() -> Dict[str, object]:
+    return {
+        "returncode": None,
+        "stdout": "",
+        "stderr": "",
+        "generated": False,
+        "clean_generate": False,
+        "skipped": True,
     }
 
 
@@ -182,6 +194,23 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Probe stripped design inference/generation boundaries.")
     parser.add_argument("--design", required=True, help="Input .design.md path")
     parser.add_argument("--output-dir", required=False, help="Output directory for probe artifacts")
+    parser.add_argument(
+        "--skip-generate",
+        action="store_true",
+        help="Only evaluate inference boundaries; do not run generate_from_design.",
+    )
+    parser.add_argument(
+        "--generate-variants",
+        nargs="+",
+        choices=[name for name, _ in VARIANTS],
+        help="Variant names that should run generate_from_design. Defaults to all variants.",
+    )
+    parser.add_argument(
+        "--variants",
+        nargs="+",
+        choices=[name for name, _ in VARIANTS],
+        help="Variant names to evaluate. Defaults to all variants.",
+    )
     args = parser.parse_args()
 
     design_path = Path(args.design)
@@ -194,9 +223,12 @@ def main() -> int:
     if probe_root.exists():
         shutil.rmtree(probe_root)
     probe_root.mkdir(parents=True, exist_ok=True)
+    selected_variants = set(args.variants or [name for name, _ in VARIANTS])
+    active_variants = [(name, transform) for name, transform in VARIANTS if name in selected_variants]
+    selected_generate_variants = set(args.generate_variants or [name for name, _ in active_variants])
 
     results: List[Dict[str, object]] = []
-    for variant_name, transform in VARIANTS:
+    for variant_name, transform in active_variants:
         variant_dir = probe_root / variant_name
         variant_dir.mkdir(parents=True, exist_ok=True)
         variant_design = variant_dir / design_path.name
@@ -206,7 +238,10 @@ def main() -> int:
         inference_result = infer_then_freeze_if_needed(str(variant_design))
         inferred_path_str = str(inference_result.get("output_path") or "").strip()
         inferred_path = Path(inferred_path_str) if inferred_path_str else None
-        generation_result = _run_generation(variant_design, variant_output)
+        if args.skip_generate or variant_name not in selected_generate_variants:
+            generation_result = _skipped_generation()
+        else:
+            generation_result = _run_generation(variant_design, variant_output)
 
         results.append(
             {
@@ -222,6 +257,7 @@ def main() -> int:
                 "generate_returncode": generation_result["returncode"],
                 "generate_stdout": generation_result["stdout"],
                 "generate_stderr": generation_result["stderr"],
+                "generation_skipped": bool(generation_result["skipped"]),
                 "inferred_excerpt": _read_excerpt(inferred_path) if inferred_path is not None else [],
             }
         )
@@ -229,6 +265,9 @@ def main() -> int:
     payload = {
         "design": str(design_path),
         "probe_root": str(probe_root),
+        "skip_generate": bool(args.skip_generate),
+        "evaluated_variants": [name for name, _ in active_variants],
+        "generate_variants": sorted(selected_generate_variants) if not args.skip_generate else [],
         "variants": results,
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))

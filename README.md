@@ -229,7 +229,7 @@ python scripts/run_design_generation_regression.py
   - `必須`: `path` / `url` / `sql` のような literal 境界。file / HTTP / DB を確定する explicit literal は残す。
   - `推奨`: 重要な `data_source`。特に HTTP source / DB source / file source を明示したいケースでは残した方が安定する。
   - `省略可`: 多くの `step_meta`、一部の `refs`、一部の `ops`。現行の deterministic inference がかなり補完できる。
-  - `3B補助前提で省略可`: literal を含むが deterministic だけでは埋まらない `path` / `url` / `sql`。ただし `qwen2.5-3b-instruct` の `literal_roles_only` 補助を使う前提であり、完全な deterministic 契約ではない。
+  - `LLM補助前提で省略可`: literal を含むが deterministic だけでは埋まらない `path` / `url` / `sql`。ただし OpenAI 互換 HTTP backend の `literal_roles_only` 補助を使う前提であり、完全な deterministic 契約ではない。
 - 実務上の推奨は「まず `step_meta` を減らし、それでも煩雑なら `refs` / `ops` / `data_source` を減らす。`path` / `url` / `sql` は最後まで残す」です。
 - 詳細な inference 境界、assist 運用、scenario ベースの棚卸しは [docs/generate_from_design_dataflow.md](/C:/workspace/NLP/docs/generate_from_design_dataflow.md) を参照してください。
 - LLM にタグ候補だけ提案させたい場合は、ファイルを増やさず次を使えます:
@@ -242,7 +242,7 @@ python scripts/suggest_design_tags.py --design scenarios/ComplexLinqSearch.desig
 - `path` / `url` / `sql` の invented literal は reject されます。
 - 既定では、まず quoted path / URL / SQL literal を含む行に優先的に集中します。
 - `--mode literal_roles_only` を付けると、`step_meta` や `refs` を要求せず、explicit literal に対する `semantic_roles.path/url/sql` 提案だけに絞れます。
-- `openai_compatible_http` では、既定の `model_id` は `qwen2.5-3b-instruct` です。
+- `openai_compatible_http` では、既定の `model_id` は `local-assist` です。
 - 単体生成へそのまま差し込みたい場合は、`generate_from_design.py` に `--assist-literal-tags-http --assist-endpoint-url http://127.0.0.1:1234/v1/chat/completions` を付けると、accepted な `path/url/sql` 提案だけを in-memory で適用してから `.inferred.design.md` を生成します。
 - 既定の `--assist-policy` は `on_blocked_only` で、deterministic 補完が `NO_CANDIDATE` で止まったときだけ LLM を呼びます。常に併用したい場合だけ `--assist-policy always` を使います。
 - この補助でも元の `.design.md` は変更しません。反映結果は `.inferred.design.md` の `### Inference Metadata` に `llm_literal_assist:*` として記録されます。
@@ -255,12 +255,19 @@ python scripts/inspect_design_tag_suggestion_quality.py --endpoint-url http://12
 - `all_expected_found` が高いほど、固定ケースで必要な literal tag 提案を拾えています。
 - `literal_roles_only` は、`path/url/sql` の回収可否だけを先に観測したい研究モードです。
 - `expected_role_totals` と `matched_role_totals` を見ると、case 単位だけでなく role 単位でも `path/url/sql` の取りこぼしを確認できます。
-- 現状の推奨は `qwen2.5-3b-instruct` です。`1.5B` は `path/sql` では有望ですが、`url` でぶれが残ります。
+- 実 backend ごとの有効性は `inspect_design_tag_suggestion_quality.py` で確認してください。`path/url/sql` の literal を創作せず拾えることが採用条件です。
 - deterministic 境界確認は次で行えます:
 
 ```bash
 python scripts/probe_design_inference_boundary.py --design scenarios/ComplexLinqSearch.design.md
 python scripts/probe_design_inference_boundary.py --design scenarios/SyncExternalData.design.md
+```
+
+- 高速に境界だけ確認する場合は、生成対象を必要最小限に絞れます:
+
+```bash
+python scripts/probe_design_inference_boundary.py --design scenarios/ComplexLinqSearch.design.md --variants original strip_tags strip_tags_drop_literals --generate-variants original strip_tags
+python scripts/probe_design_inference_boundary.py --design scenarios/SyncExternalData.design.md --variants original strip_tags strip_tags_drop_literals --generate-variants original strip_tags
 ```
 
 - 期待値:

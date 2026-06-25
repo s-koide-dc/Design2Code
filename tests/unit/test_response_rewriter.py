@@ -342,7 +342,7 @@ class TestResponseRewriter(unittest.TestCase):
                 "provider": "subprocess_stdio",
                 "command": [
                     "${PYTHON_EXECUTABLE}",
-                    "${WORKSPACE_ROOT}/scripts/response_rewriter_qwen_cpu.py",
+                    "${WORKSPACE_ROOT}/scripts/custom_response_rewriter.py",
                 ],
             }
         )
@@ -352,7 +352,7 @@ class TestResponseRewriter(unittest.TestCase):
         resolved = rewriter._resolve_command(config.response_rewriter_config["command"])
 
         self.assertEqual(resolved[0], sys.executable)
-        self.assertTrue(resolved[1].endswith("scripts/response_rewriter_qwen_cpu.py"))
+        self.assertTrue(resolved[1].endswith("scripts/custom_response_rewriter.py"))
 
     def test_persistent_subprocess_backend_reuses_same_process_across_rewrites(self):
         self._write_backend(

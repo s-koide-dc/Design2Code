@@ -89,17 +89,15 @@
 - `response_rewriter_config.json`
   Phase 3 の応答リライト設定。`enabled`、`provider`、`command`、`prompt_contract` などを持つ。
   現在の既定値は `enabled: false` で、決定論的応答を保つ。
-  有効化する場合の既定候補は `provider: "openai_compatible_http"` で、LM Studio の OpenAI 互換 server を `http://127.0.0.1:1234/v1/chat/completions`、`model: "qwen2.5-1.5b-instruct"` として使う構成にしている。
+  有効化する場合の既定候補は `provider: "openai_compatible_http"` で、OpenAI 互換 server を `http://127.0.0.1:1234/v1/chat/completions`、`model: "local-rewriter"` として使う構成にしている。
   `max_new_tokens: 32` は短文自然化向けの初期値で、まだ遅い場合は 24 などへ下げて再計測する。
   現状の品質確認では、安全性と多ターン継続性は良好だが、通常応答の自然化品質はまだ安定して改善できていないため、既定オンにはしていない。
   安定化のため、既定では `rewrite_allowed_intents` を空配列にし、`rewrite_allowed_action_statuses` は `success` に絞っている。
   この空配列は「まだどの intent も rewrite しない」という明示設定として扱う。そのため `FILE_CREATE` などの作業系完了メッセージに加え、`GENERAL` の標準進捗文や `WEATHER` / `TIME` / `CAPABILITY` の定型応答、意味欠落や含意追加が出やすかった `EMOTIVE` / `FEEDBACK`、改善効果が出なかった `GREETING` / `PERSONAL_Q` / `BYE` / `DEFINITION`、十分自然になった `SMALLTALK` も、明示的に allow-list を広げない限り rewrite しない。
   LM Studio / `llama.cpp server` が起動している環境で試すときだけ `enabled: true` に切り替える。
   `llama.cpp` 系や他のローカル推論サーバーへ切り替える場合は、`endpoint_url` と `model` だけ差し替えれば同じ contract で使える。
-  CPU subprocess 経路へ戻したい場合は、`provider: "persistent_subprocess_jsonl"` と `command: ["${PYTHON_EXECUTABLE}", "${WORKSPACE_ROOT}/scripts/response_rewriter_qwen_cpu_server.py"]` を使う。
-  one-shot 動作で切り分けたい場合だけ、`provider: "subprocess_stdio"` と `scripts/response_rewriter_qwen_cpu.py` に戻して単発起動で確認する。
-  subprocess 経路を使う場合のみ、ローカル Python 環境へ `transformers` と CPU 版 `torch` を入れておく必要がある。
-  Windows では、subprocess 経路で Codex/端末が仮想環境外の Python を見ている場合があるため、その場合は `command` の先頭を `C:/workspace/NLP/.venv-rewriter/Scripts/python.exe` のように実 interpreter へ固定する。
+  subprocess 経路を使う場合は、`provider: "persistent_subprocess_jsonl"` または `provider: "subprocess_stdio"` と `command` に任意の backend を明示する。
+  Windows では、subprocess 経路で Codex/端末が仮想環境外の Python を見ている場合があるため、その場合は `command` の先頭を実 interpreter へ固定する。
 
 ## 4. 実行時の一時/可変設定
 

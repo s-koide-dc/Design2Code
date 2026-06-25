@@ -17,7 +17,7 @@ from src.utils.cli_output import emit_error, emit_json_stdout
 from src.utils.design_doc_parser import DesignDocParser
 from src.utils.text_parser import extract_first_quoted_literal, extract_urls
 
-DEFAULT_MODEL_ID = "qwen2.5-3b-instruct"
+DEFAULT_MODEL_ID = "local-assist"
 
 
 def _parse_args() -> argparse.Namespace:

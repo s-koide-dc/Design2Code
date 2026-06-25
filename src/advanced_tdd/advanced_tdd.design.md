@@ -18,7 +18,7 @@
 ### Core Logic
 1. `advanced_tdd_config.json` を読み込み、デフォルトとマージする。
 2. `AdvancedTDDSupport.__init__` は `TestFailureAnalyzer`、`CodeFixSuggestionEngine`、および `AutonomousSynthesizer` を束ねる。
-3. `AutonomousSynthesizer` へは軽量な `ConfigAdapter` を渡し、`workspace_root`、`storage_dir`、`repair_knowledge_path`、`task_definitions_path`、`method_store_path` など TDD 実行に必要な設定参照点を決定論的に供給する。
+3. `AutonomousSynthesizer` へは軽量な `ConfigAdapter` を渡し、`workspace_root`、`storage_dir`、`repair_knowledge_path`、`task_definitions_path`、`method_store_path` など TDD 実行に必要な設定参照点を決定論的に供給する。`storage_dir` は `resources/vectors/vector_db` に統一し、`resources` 直下へベクトル DB 生成物を作らない。
 4. `analyze_and_fix_test_failure` で失敗情報を `TestFailure` に変換し、分析と修正提案を返す。
 5. `execute_goal_driven_tdd` で `AutonomousSynthesizer` を用いて合成を実行する。
 6. `create_sample_config` は `config/advanced_tdd_config.json` の雛形を生成し、Phase 3 / Phase 4 / integration 設定をローカル作業用に初期化する。
@@ -39,3 +39,4 @@
 - 2026-04-14: AdvancedTDDSupport 入口と目標駆動TDDの流れを現行実装に合わせて再確認。
 - 2026-06-09: `ConfigAdapter` 経由で `AutonomousSynthesizer` に repair knowledge / task definitions / method store の各パスを供給する現在の初期化経路を反映した。
 - 2026-06-18: `create_sample_config` が `phase3`, `phase4`, `integration` のサンプル設定をまとめて生成する現在の挙動と、`main.py` の最新更新時刻に合わせてモジュール設計書を同期した。
+- 2026-06-25: `ConfigAdapter.storage_dir` の fallback を `resources/vectors/vector_db` に統一し、旧仕様の `resources/*_meta.json` / `resources/*_vectors.npy` を再生成しない構成へ更新した。

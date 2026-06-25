@@ -203,7 +203,7 @@ class TestDesignInferenceEngine(unittest.TestCase):
         engine._infer_line = _fake_infer_line
         payload = {
             "provider": "openai_compatible_http",
-            "model_id": "qwen2.5-3b-instruct",
+            "model_id": "local-assist",
             "mode": "literal_roles_only",
             "result": {
                 "accepted_suggestions": [
@@ -220,7 +220,7 @@ class TestDesignInferenceEngine(unittest.TestCase):
         self.assertEqual(result["status"], "updated")
         inferred_text = Path(result["output_path"]).read_text(encoding="utf-8")
         self.assertIn("llm_literal_assist: true", inferred_text)
-        self.assertIn("llm_literal_assist_model_id: qwen2.5-3b-instruct", inferred_text)
+        self.assertIn("llm_literal_assist_model_id: local-assist", inferred_text)
         self.assertIn("llm_literal_assist_applied_steps: 1", inferred_text)
 
     def test_infer_line_adds_path_semantic_role_for_json_deserialize_filename(self):

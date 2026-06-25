@@ -11,9 +11,8 @@
   - `resources/` 配下の主要 JSON 資産について、intent / capability / role 語彙が共通定数境界に収まっているかも検証する。
 - `scripts/benchmark_response_rewriter.py`
   - 応答リライターの one-shot / persistent 実行時間を測る。
-  - 既定では `scripts/response_rewriter_qwen_cpu.py` と `scripts/response_rewriter_qwen_cpu_server.py` を比較する。
-  - 実モデルの代わりに `--command` で stub backend を指定して回帰確認もできる。
-  - `--model-id` と `--max-new-tokens` で Qwen 系モデル比較にも使える。
+  - one-shot / persistent は `--command` で任意の backend を指定して計測する。
+  - `--model-id` と `--max-new-tokens` は HTTP backend 計測時に使う。
   - `--mode http --endpoint-url http://127.0.0.1:8080/v1/chat/completions` で `llama.cpp server` などの OpenAI 互換 endpoint を直接計測できる。
 - `scripts/inspect_response_rewriter_quality.py`
   - 固定ケース群に対して、応答リライターがどの程度文面を自然化できているかを確認する。
@@ -30,6 +29,9 @@
   - `.design.md` を段階的に劣化させた variant を生成し、`infer_then_freeze` と `generate_from_design` がどこまで耐えられるかを JSON で返す。
   - 現在は `original`, `strip_tags`, `strip_tags_drop_literals`, `strip_tags_drop_plain_sources`, `strip_tags_drop_literals_and_plain_sources` を出力する。
   - `clean_generate` を見ると、return code だけでなく stderr 警告なしで通ったかまで分かる。
+  - `--variants original strip_tags strip_tags_drop_literals` のように指定すると、評価する variant 自体を絞れる。
+  - `--skip-generate` を使うと inference 境界だけを高速に確認できる。
+  - `--generate-variants original strip_tags` のように指定すると、生成確認が必要な variant だけ `generate_from_design` を実行できる。
 - `scripts/probe_design_authoring_reduction.py`
   - 同一 `.design.md` から authoring 削減段階ごとの variant を生成し、どこまで deterministic に保てるか、どこから literal boundary に入るかを JSON で返す。
   - 現在は `original`, `drop_step_meta`, `drop_step_meta_refs`, `drop_step_meta_refs_ops`, `strip_tags_keep_literals`, `strip_tags_drop_literals` を出力する。
@@ -57,13 +59,13 @@
   - `path` / `url` / `sql` の literal は original line に明示されていない限り reject する。
   - 既定では、quoted path / URL / SQL literal を含む高価値候補に優先的に絞って送る。
   - `--mode literal_roles_only` では `semantic_roles.path/url/sql` だけを提案対象にし、`step_meta` / `refs` の生成を要求しない。
-  - `openai_compatible_http` の既定 `model_id` は `qwen2.5-3b-instruct`。
+  - `openai_compatible_http` の既定 `model_id` は `local-assist`。
 - `scripts/inspect_design_tag_suggestion_quality.py`
   - 固定ケース（現状は `ComplexLinqSearch`, `SyncExternalData`, `DailyInventorySync`, `UserReportGenerator`, `FetchProductInventory` の stripped design）に対して、LLM タグ提案が expected literal suggestion を拾えているかを JSON で返す。
   - `all_expected_found` と `missing_expected` を見ると、安全性だけでなく有効性も測れる。
   - 既定では `literal_roles_only` で計測し、`path/url/sql` 回収だけを分離して評価する。
   - `expected_role_totals` / `matched_role_totals` により、`path` / `url` / `sql` の role 別回収率も確認できる。
-  - 現状の既定運用モデルは `qwen2.5-3b-instruct` を想定する。
+  - 実 backend の採用前に、`path` / `url` / `sql` の expected literal を創作せず回収できるか確認する。
 
 ## 1.1 stdout/stderr 契約
 

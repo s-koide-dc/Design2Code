@@ -302,7 +302,7 @@ Add a single traceability block near the top of the design doc (e.g., after Purp
 - llm_literal_assist: true|false
 - llm_literal_assist_mode: literal_roles_only
 - llm_literal_assist_provider: openai_compatible_http
-- llm_literal_assist_model_id: qwen2.5-3b-instruct
+- llm_literal_assist_model_id: local-assist
 - llm_literal_assist_applied_steps: 1, 3
 ```
 Notes:

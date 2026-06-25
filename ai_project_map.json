@@ -10,7 +10,7 @@
     "【整合】code_synthesis 設計書の内容差分を段階的に精査して詳細更新する。"
   ],
   "concerns": [],
-  "last_updated_by_ai": "2026-06-12T09:31:03.490901",
+  "last_updated_by_ai": "2026-06-25T13:31:04.346401",
   "modules": [
     {
       "name": "action_executor",
@@ -59,13 +59,13 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\action_synthesizer.py",
-        "last_modified": "2026-06-04T15:35:13.409307",
-        "hash": "6d813fea4ecb56a536048d1fdcc4c8454343c9fb6456075e569f783d904c7ae0"
+        "last_modified": "2026-06-24T14:09:50.827576",
+        "hash": "8c141cbc60878555c198fd42efb21d12708c40ea4ce2a40b966eb603e7c03f90"
       },
       "design_document": {
         "path": "src\\code_synthesis\\action_synthesizer.design.md",
-        "last_modified": "2026-05-13T16:52:55.262439",
-        "hash": "7bb123bf7f362d94d3429fa40034f0c1d9f6e030a3cfd1cda3774377d73580d5"
+        "last_modified": "2026-06-18T16:04:18.725192",
+        "hash": "e48df343cf2fdd8dc05a8aa37e65661a3a76f7d24b4673866d381f05b5a18a97"
       },
       "test_file": null
     },
@@ -98,8 +98,8 @@
       "source_file": null,
       "design_document": {
         "path": "src\\advanced_tdd\\advanced_tdd.design.md",
-        "last_modified": "2026-06-09T09:39:02.590552",
-        "hash": "785aab3c768ef7cfea5c5bc0cf8c21e84f70fed6748a6e65d8dc22d9c0b3c509"
+        "last_modified": "2026-06-18T09:58:04.308918",
+        "hash": "8c210c3797e67faf27a8a1aac41f68869d6a62718496081d9d94b0d687a94602"
       },
       "test_file": null
     },
@@ -258,13 +258,13 @@
       "dependencies": [],
       "source_file": {
         "path": "src\\code_synthesis\\blueprint_assembler.py",
-        "last_modified": "2026-04-09T11:35:56.280235",
-        "hash": "51d528c4637b6948f17be03f5cd102b897140bafef9d08463e04573b3cd28fc5"
+        "last_modified": "2026-06-24T13:50:06.865076",
+        "hash": "2e2631a5beb38a9e1fbcadff94bb21832b50657d5f6deb86bd9c4ef704c68ea2"
       },
       "design_document": {
         "path": "src\\code_synthesis\\blueprint_assembler.design.md",
-        "last_modified": "2026-03-31T11:51:07.459686",
-        "hash": "2d109eb40938b5a7b10b0215d166d133ffb7684858da774e5249664e17639db6"
+        "last_modified": "2026-06-24T13:50:41.265357",
+        "hash": "090eadddd80a59e9611af21a693da90e8bed900c32af9576822f010d5741c8b4"
       },
       "test_file": null
     },
@@ -485,8 +485,8 @@
       "source_file": null,
       "design_document": {
         "path": "src\\code_synthesis\\code_synthesis.design.md",
-        "last_modified": "2026-06-04T11:23:46.348601",
-        "hash": "8085edd010bc13b4cd9629488bc42bb36c0612779a953952dd02e870e31b346a"
+        "last_modified": "2026-06-18T16:04:05.558501",
+        "hash": "746ef895c4c94a2f86a8268ba146d90c237678aea38c70a1ae69691575c9604a"
       },
       "test_file": null
     },
@@ -527,13 +527,13 @@
       "status": "active",
       "source_file": {
         "path": "src\\code_verification\\compilation_verifier.py",
-        "last_modified": "2026-04-07T11:45:21.252283",
-        "hash": "d8d45c652957d3d5da59efc4a480a7b7c81b7c0351844bb6721259f32adc2870"
+        "last_modified": "2026-06-24T11:10:53.455315",
+        "hash": "bdd47d984ff28ffae3a62c48c513d8c5fa5dc04e9a8c554fa32cdbd31defa554"
       },
       "design_document": {
         "path": "src\\code_verification\\compilation_verifier.design.md",
-        "last_modified": "2026-04-08T14:14:11.733071",
-        "hash": "d583e23d4a35d2b007dff5a500e29e6a5b1a249e74963ef6fdbc13ab8cf63b29"
+        "last_modified": "2026-06-24T11:11:09.257329",
+        "hash": "29b85c89d95c3af7d9c1dbeef437a8a5ca9cc6e4059b19f79c2c38bc55e2cedb"
       },
       "test_file": null
     },
@@ -879,13 +879,13 @@
       ],
       "source_file": {
         "path": "src\\design_parser\\design_inference.py",
-        "last_modified": "2026-06-04T11:28:53.308726",
-        "hash": "93c2e6971f704d33c754e22753f05c87232b6dc705b5265669cc188c7762e270"
+        "last_modified": "2026-06-25T11:53:49.879735",
+        "hash": "01ac0ce485e18dd4be58fe87c252a61749968592e717605b5437b7f1c0d232ff"
       },
       "design_document": {
         "path": "src\\design_parser\\design_inference.design.md",
-        "last_modified": "2026-06-04T11:34:48.052560",
-        "hash": "7cd9030533d53d5ef2b125eac0af60da8f275f7e8f00abb21b3eec53ebadd6cf"
+        "last_modified": "2026-06-25T11:59:12.456433",
+        "hash": "1843b5fbf78e04bdb222fa98827c25fd6f40165d1eaa966d6bc86f3568683eea"
       },
       "test_file": "tests\\unit\\test_design_inference.py"
     },
@@ -925,8 +925,8 @@
       "source_file": null,
       "design_document": {
         "path": "src\\design_parser\\design_parser.design.md",
-        "last_modified": "2026-06-04T15:46:22.425427",
-        "hash": "5c8d6f3fe7ca7be9f4176d80af204067d5d876769e744a376c23536db76c916a"
+        "last_modified": "2026-06-18T16:03:43.907253",
+        "hash": "2f88dd29653f8ba8449477735cad31853d3797a5a9b07fb262a74cb7643f1ce2"
       },
       "test_file": null
     },
@@ -1478,13 +1478,13 @@
       "status": "active",
       "source_file": {
         "path": "src\\advanced_tdd\\knowledge_base.py",
-        "last_modified": "2026-06-11T13:14:51.503221",
+        "last_modified": "2026-06-25T13:16:45.298738",
         "hash": "535d861ea7e78894b5bb101a7eb67954b0cffb10b9d9894f0e258cb2f338fc72"
       },
       "design_document": {
         "path": "src\\advanced_tdd\\knowledge_base.design.md",
-        "last_modified": "2026-06-09T09:39:02.592948",
-        "hash": "eb8843618179dd65282950a89a21e4441f94d70ddc140ad43c6211708e104fd7"
+        "last_modified": "2026-06-25T13:29:29.340679",
+        "hash": "788fd00968cbf8b4964f172a33cfda7c10abf997e85a2d5a0e3f89e66ce91fdb"
       },
       "test_file": null
     },
@@ -1964,25 +1964,6 @@
       "test_file": "tests\\unit\\test_quality_gate_checker.py"
     },
     {
-      "name": "qwen_cpu_runner",
-      "summary": "Auto-discovered module.",
-      "status": "discovered",
-      "dependencies": [
-        "response_rewriter"
-      ],
-      "source_file": {
-        "path": "src\\response_rewriter\\qwen_cpu_runner.py",
-        "last_modified": "2026-06-11T13:07:22.133639",
-        "hash": "e3e693953f272e69d36973861ff87781367db9720af6be55bdbf283620cf62dc"
-      },
-      "design_document": {
-        "path": "src\\response_rewriter\\qwen_cpu_runner.design.md",
-        "last_modified": "2026-06-11T13:16:37.455321",
-        "hash": "781793b84130008ef3efc7455d14a930461a86fab9d428a500017b40f41f5d32"
-      },
-      "test_file": "tests\\unit\\test_qwen_cpu_runner.py"
-    },
-    {
       "name": "reason_analyzer",
       "summary": "Auto-discovered module.",
       "status": "discovered",
@@ -2160,13 +2141,13 @@
       ],
       "source_file": {
         "path": "src\\response_rewriter\\response_rewriter.py",
-        "last_modified": "2026-06-11T16:30:07.432099",
-        "hash": "a3ef85a71e771b73fb3357bc9d5a67f381f927983407c7b99431800f691d4f07"
+        "last_modified": "2026-06-25T13:26:24.575614",
+        "hash": "abc832ed1571c0705616dd2eeace9133d8cb0fa44d690e7641f5bff3f53977a3"
       },
       "design_document": {
         "path": "src\\response_rewriter\\response_rewriter.design.md",
-        "last_modified": "2026-06-11T16:31:33.445738",
-        "hash": "cc3c9d8c046400d0a114a12b773035e2dac400e69edf24a5e60a6b441dd7b1a7"
+        "last_modified": "2026-06-25T13:28:31.766083",
+        "hash": "a723d60688a069be7f9ef1e6da675fe65a20b10072ff428f9c151b8dc53ccd0e"
       },
       "test_file": "tests\\unit\\test_response_rewriter.py"
     },
@@ -2356,13 +2337,13 @@
       ],
       "source_file": {
         "path": "src\\code_synthesis\\semantic_binder.py",
-        "last_modified": "2026-06-04T15:36:34.754812",
-        "hash": "b5268db554ff416078322942a8d6fa243cb631ac3afbbece6454fa234312cb96"
+        "last_modified": "2026-06-24T13:59:14.200159",
+        "hash": "d1e6b072f4499107ed8a1ac5fcc69ce8e8fdcb825809c7e7b981f4a86c6c8ea3"
       },
       "design_document": {
         "path": "src\\code_synthesis\\semantic_binder.design.md",
-        "last_modified": "2026-06-04T15:50:06.526503",
-        "hash": "36ab2321ccf05b7043a7767a9a338fc5fea26c5a8701adbb1c8f38878804c9d9"
+        "last_modified": "2026-06-24T14:01:23.242064",
+        "hash": "f564477366830fe5925fa8eb258c1378837ac1060424299b23aba38e34089d31"
       },
       "test_file": null
     },
@@ -2639,13 +2620,13 @@
       "dependencies": [],
       "source_file": {
         "path": "src\\code_synthesis\\statement_builder.py",
-        "last_modified": "2026-06-04T15:35:36.574857",
-        "hash": "db4804c88df4ebc7bc3a350f93a47fe4d759bfc02dc7d18699d0b0f3017961f1"
+        "last_modified": "2026-06-24T14:10:26.439842",
+        "hash": "24f2de25a8f703ac20799b2b2058c0b50d66b718e807558912c62c4b74d32845"
       },
       "design_document": {
         "path": "src\\code_synthesis\\statement_builder.design.md",
-        "last_modified": "2026-06-04T15:50:17.676309",
-        "hash": "d173084d2afead4546c86580d98c2ebae11e498ee8dc158350cdb58144c50ad4"
+        "last_modified": "2026-06-24T14:11:02.812979",
+        "hash": "cb516c29b1b6d4e31f0bbbb445459cc017ec89c39bdd5a34239769b5986e5064"
       },
       "test_file": null
     },
@@ -2698,13 +2679,13 @@
       ],
       "source_file": {
         "path": "src\\design_parser\\structured_parser.py",
-        "last_modified": "2026-06-04T11:26:29.162214",
-        "hash": "281fc0e480c6bec7b5640a86aedb7b808516aa6162c8eb509559bd8d0bce8f90"
+        "last_modified": "2026-06-12T10:21:00.785223",
+        "hash": "9628751f6f11f78f535257151a504984c317a25c5c5fdce2a74f2ac8b7c6c1a1"
       },
       "design_document": {
         "path": "src\\design_parser\\structured_parser.design.md",
-        "last_modified": "2026-06-04T11:34:35.339675",
-        "hash": "bd14971307070d5ec8fd676028cb100b80b99bf134413aea98f27867f8439136"
+        "last_modified": "2026-06-12T10:22:34.527255",
+        "hash": "951ba903c0646c9c58beed68c5d22533fef33a6f61c3e35c0967fecc94d22ae2"
       },
       "test_file": null
     },
@@ -3052,13 +3033,13 @@
       ],
       "source_file": {
         "path": "src\\design_parser\\validator.py",
-        "last_modified": "2026-06-04T15:42:43.091680",
-        "hash": "80dbe4f73fc92b0577992a5f79002328f493af34b4d64564895438fea24aca5a"
+        "last_modified": "2026-06-12T15:15:52.110205",
+        "hash": "c77fa6d5ec56ac6c2eeadb1fc22f564351bdc3d43488e83ab130bde76aea5db7"
       },
       "design_document": {
         "path": "src\\design_parser\\validator.design.md",
-        "last_modified": "2026-03-30T13:25:15.039020",
-        "hash": "29e120a44b6c28fb67fa16fd5b3c994ca4414647ed103a1835c638f9c533da32"
+        "last_modified": "2026-06-12T15:16:21.581069",
+        "hash": "3bf6498a65236405a5afd33a6f7cb143528c0f2f20b0fbbc19d604b2efd2050c"
       },
       "test_file": null
     },

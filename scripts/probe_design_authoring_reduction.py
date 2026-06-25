@@ -34,7 +34,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", help="Output directory for generated probe variants")
     parser.add_argument("--skip-generate", action="store_true", help="Only evaluate inference, not end-to-end generation")
     parser.add_argument("--assist-endpoint-url", help="Optional OpenAI-compatible /v1/chat/completions endpoint")
-    parser.add_argument("--assist-model-id", default="qwen2.5-3b-instruct", help="Model id for optional literal assistance")
+    parser.add_argument("--assist-model-id", default="local-assist", help="Model id for optional literal assistance")
     parser.add_argument("--assist-timeout-seconds", type=int, default=60, help="Timeout in seconds for optional literal assistance")
     parser.add_argument("--assist-max-new-tokens", type=int, default=384, help="Generation cap for optional literal assistance")
     parser.add_argument(

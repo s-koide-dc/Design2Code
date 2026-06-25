@@ -74,3 +74,4 @@
 
 ## 5. Review Notes
 - 2026-06-09: repair knowledge のベクトルDB保存先統一、旧配置ファイル移行、`ConfigManager` 優先の metadata path 解決、および `pipeline_*.json` ログ学習の現行挙動に合わせて更新。
+- 2026-06-25: `knowledge_base.py` の現行実装を再確認。旧配置ファイル移行、`ConfigManager` 優先の保存先解決、`pipeline_*.json` / `SESSION_COMPLETED` ログ学習、負のフィードバックと未解決シンボル保持の設計記述が実装と一致していることを確認した。

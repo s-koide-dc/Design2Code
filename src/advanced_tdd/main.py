@@ -69,7 +69,7 @@ class AdvancedTDDSupport:
                 self.error_patterns_path = os.path.join(workspace_root, "resources", "error_patterns.json") # Default fallback
                 self.safety_policy_path = os.path.join(workspace_root, "config", "safety_policy.json") # Default fallback
                 self.repair_knowledge_path = os.path.join(workspace_root, "resources", "repair_knowledge.json") # Default fallback
-                self.storage_dir = os.path.join(workspace_root, "resources")
+                self.storage_dir = os.path.join(workspace_root, "resources", "vectors", "vector_db")
                 self.task_definitions_path = os.path.join(workspace_root, "resources", "task_definitions.json")
                 self.method_store_path = os.path.join(workspace_root, "resources", "method_store.json")
 

@@ -12,9 +12,8 @@ if ROOT not in sys.path:
 
 from src.utils.cli_output import emit_error, emit_progress
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORE_PATH = os.path.join(ROOT, "resources", "method_store.json")
-META_PATH = os.path.join(ROOT, "resources", "method_store_meta.json")
+META_PATH = os.path.join(ROOT, "resources", "vectors", "vector_db", "method_store_meta.json")
 
 BASE_KEYS = {"id", "name", "class", "tags", "code"}
 EXTENDED_KEYS = {

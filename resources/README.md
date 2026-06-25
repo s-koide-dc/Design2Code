@@ -23,13 +23,13 @@ README の「ベクトル/辞書の準備」で実行する主要コマンドと
 5. `python scripts/data/build_knowledge_base.py`
    - `custom_knowledge.json` の再構築または更新
 6. `python scripts/tools/manage_vector_db.py seed`
-   - `method_store_meta.json`
-   - `method_store_vectors.npy`
+   - `vectors/vector_db/method_store_meta.json`
+   - `vectors/vector_db/method_store_vectors.npy`
 7. `python scripts/tools/manage_vector_db.py harvest`
-   - `repair_knowledge_meta.json`
-   - `repair_knowledge_vectors.npy`
-   - `structural_memory_meta.json`
-   - `structural_memory_vectors.npy`
+   - `vectors/vector_db/repair_knowledge_meta.json`
+   - `vectors/vector_db/repair_knowledge_vectors.npy`
+   - `vectors/vector_db/structural_memory_meta.json`
+   - `vectors/vector_db/structural_memory_vectors.npy`
 
 ## 1. 常設参照
 
@@ -65,9 +65,9 @@ README の「ベクトル/辞書の準備」で実行する主要コマンドと
 
 - 保存先: `vectors/vector_db/`
 - 生成物:
-  - `../method_store_meta.json`, `../method_store_vectors.npy`
-  - `../repair_knowledge_meta.json`, `../repair_knowledge_vectors.npy`
-  - `../structural_memory_meta.json`, `../structural_memory_vectors.npy`
+  - `method_store_meta.json`, `method_store_vectors.npy`
+  - `repair_knowledge_meta.json`, `repair_knowledge_vectors.npy`
+  - `structural_memory_meta.json`, `structural_memory_vectors.npy`
 
 ## 5. 知識ベース/辞書
 

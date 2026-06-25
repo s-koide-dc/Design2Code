@@ -65,7 +65,7 @@
 - `rewrite_allowed_action_statuses` を使うことで、成功系 conversational 応答だけを候補にし、`in_progress` や action completion の揺れを避ける。
 - backend 固有の postprocess に依存せず、最終採用前の共通層でも文末完全性を検証し、LM Studio などの HTTP backend でも未完文を遮断する。
 - `instruction` は自然化専用であり、事実追加、コード生成、コマンド提案、Markdown block 追加を禁止する制約と対で扱う。
-- CPU 実運用では `persistent_subprocess_jsonl` を既定にし、Qwen の model load コストを毎回払わない構成を前提とする。
+- subprocess 実運用では `persistent_subprocess_jsonl` を使い、backend の初期化コストを毎回払わない構成を前提とする。
 - persistent backend の close は child process 終了に加え stdin/stdout/stderr を明示 close し、テストや長時間運用での descriptor leak を避ける。
 - `openai_compatible_http` backend は `llama.cpp server` などのローカル OpenAI 互換 endpoint を想定し、`temperature=0`, `stream=false` の deterministic 寄り設定で使う。
 - LM Studio などの実 backend を有効化する場合も、まず conversational intent 群だけで評価し、action intent への展開は quality / conversation probe の回帰を通してから行う。
