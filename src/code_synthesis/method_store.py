@@ -5,6 +5,7 @@ import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from src.symbol_matching.symbol_matcher import SymbolMatcher
 from src.semantic_search.semantic_search_base import SemanticSearchBase
+from src.code_synthesis.method_store_policy import MethodStorePolicy
 
 class MethodStore(SemanticSearchBase):
     """
@@ -27,6 +28,7 @@ class MethodStore(SemanticSearchBase):
             vector_engine = None
         super().__init__("method_store", config.storage_dir, vector_engine=vector_engine, morph_analyzer=morph_analyzer, config=config)
         self.config_manager = config
+        self.policy = MethodStorePolicy(workspace_root=str(getattr(config, "workspace_root", os.getcwd())))
         self.matcher = SymbolMatcher(config_manager=config, morph_analyzer=morph_analyzer, vector_engine=vector_engine)
         
         root = getattr(config, 'workspace_root', getattr(config, 'root_dir', os.getcwd()))
@@ -113,6 +115,9 @@ class MethodStore(SemanticSearchBase):
         # SemanticSearchBase.load() によって self.items に読み込まれたデータを検証
         valid_items = []
         for item in self.items:
+            item = self.policy.normalize(item)
+            if item is None:
+                continue
             m_name = item.get("name", "")
             m_class = item.get("class", "")
             
@@ -129,6 +134,9 @@ class MethodStore(SemanticSearchBase):
 
     def add_method(self, method_data: Dict[str, Any], overwrite: bool = True):
         """新しいメソッドをストアに追加する (ベクトル化込み)"""
+        method_data = self.policy.normalize(method_data)
+        if method_data is None:
+            return
         m_id = str(method_data.get("id", method_data.get("name")))
         
         if m_id in self.metadata_by_id:
@@ -139,22 +147,85 @@ class MethodStore(SemanticSearchBase):
                 if field in existing and field not in method_data:
                     method_data[field] = existing[field]
         
-        # ベクトル化用のテキスト
-        text = method_data.get("name", "") + " " + " ".join(method_data.get("tags", []))
-        if "summary" in method_data:
-            text += " " + method_data["summary"]
-        if "class" in method_data:
-            text += " " + method_data["class"]
-            
-        vec = self.vectorize_text(text)
-        if vec is None:
-            vec = np.zeros(300) # Fallback
+        vec = self._vectorize_method(method_data)
             
         self.add_item(method_data, vec)
         self.metadata_by_id[m_id] = method_data
 
+    def rebuild_index_from_source(self) -> int:
+        """method_store.json を唯一の入力としてベクトルDBを再構築する。"""
+        source_items = self._load_source_items()
+        self.items = source_items
+        self.metadata_by_id = {str(item.get("id", item.get("name"))): item for item in self.items}
+        self._rebuild_collection_from_items()
+        return len(self.items)
+
+    def _load_source_items(self) -> List[Dict[str, Any]]:
+        if not os.path.exists(self.metadata_path):
+            return []
+        with open(self.metadata_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            raw_items = data.get("methods", [])
+        else:
+            raw_items = data
+        items = []
+        for item in raw_items if isinstance(raw_items, list) else []:
+            normalized = self.policy.normalize(item)
+            if normalized is not None:
+                items.append(normalized)
+        return items
+
+    def _method_vector_text(self, method_data: Dict[str, Any]) -> str:
+        parts = [
+            method_data.get("name", ""),
+            method_data.get("class", ""),
+            method_data.get("summary", ""),
+            method_data.get("definition", ""),
+            method_data.get("code", ""),
+        ]
+        parts.extend(method_data.get("tags", []) or [])
+        parts.extend(method_data.get("capabilities", []) or [])
+        return " ".join(str(part) for part in parts if part)
+
+    def _vector_dimension(self) -> int:
+        vectors = getattr(self.collection, "vectors", None)
+        if vectors is not None and getattr(vectors, "ndim", 0) == 2 and vectors.shape[1] > 0:
+            return int(vectors.shape[1])
+        if self.vector_engine is not None and hasattr(self.vector_engine, "dim"):
+            try:
+                return int(self.vector_engine.dim)
+            except Exception:
+                pass
+        return 300
+
+    def _vectorize_method(self, method_data: Dict[str, Any]) -> np.ndarray:
+        vec = self.vectorize_text(self._method_vector_text(method_data))
+        if vec is None:
+            vec = np.zeros(self._vector_dimension(), dtype=np.float32)
+        return vec
+
+    def _rebuild_collection_from_items(self) -> None:
+        if not hasattr(self, "collection") or self.collection is None:
+            return
+        self.collection.items = []
+        self.collection.vectors = None
+        self.collection.id_to_index = {}
+        if not self.items:
+            self.collection._save()
+            return
+        ids = [str(item.get("id", item.get("name"))) for item in self.items]
+        vectors = [self._vectorize_method(item) for item in self.items]
+        self.collection.upsert(ids, vectors, list(self.items))
+
     def save(self):
         """現在の状態をベクトルDBとソースJSONの両方に保存する"""
+        if hasattr(self, "collection") and self.collection is not None:
+            self.collection.items = list(self.items)
+            if self.collection.vectors is None or len(self.collection.vectors) != len(self.items):
+                self._rebuild_collection_from_items()
+            else:
+                self.collection.id_to_index = {str(item.get("id", item.get("name"))): idx for idx, item in enumerate(self.items)}
         # 1. ベクトルDB (cache/) の保存
         super().save()
         

@@ -5,6 +5,7 @@ import json
 import shutil
 import numpy as np
 from src.code_synthesis.method_store import MethodStore
+from src.code_synthesis.method_store_policy import MethodStorePolicy
 
 class TestMethodStore(unittest.TestCase):
 
@@ -99,6 +100,139 @@ class TestMethodStore(unittest.TestCase):
         self.assertFalse(os.path.exists(legacy_vec))
         self.assertTrue(os.path.exists(os.path.join(target_dir, "method_store_meta.json")))
         self.assertTrue(os.path.exists(os.path.join(target_dir, "method_store_vectors.npy")))
+
+    def test_add_method_prunes_low_value_harvested_api(self):
+        """harvest 経路の低価値 API は共通 policy で MethodStore に入れない"""
+        before = len(self.store.items)
+        self.store.add_method(
+            {
+                "id": "system.consolekeyinfo.gethashcode",
+                "name": "GetHashCode",
+                "class": "System.ConsoleKeyInfo",
+                "return_type": "int",
+                "params": [],
+                "code": "value.GetHashCode()",
+                "definition": "Int32 GetHashCode()",
+                "tags": ["harvested"],
+            }
+        )
+
+        self.assertEqual(len(self.store.items), before)
+        self.assertIsNone(self.store.get_method_by_id("system.consolekeyinfo.gethashcode"))
+
+    def test_policy_reports_prune_reason_from_structured_policy(self):
+        """除外ルールは resources の構造化 policy から読み、理由を監査できる"""
+        policy = MethodStorePolicy(workspace_root=os.getcwd())
+
+        normalized = policy.normalize(
+            {
+                "id": "system.consolekeyinfo.gethashcode",
+                "name": "GetHashCode",
+                "class": "System.ConsoleKeyInfo",
+                "return_type": "int",
+                "params": [],
+                "code": "value.GetHashCode()",
+                "tags": ["harvested"],
+            }
+        )
+
+        audit = policy.get_audit_summary()
+        self.assertIsNone(normalized)
+        self.assertEqual(audit["pruned"], 1)
+        self.assertEqual(audit["prune_reasons"]["object_protocol"], 1)
+
+    def test_policy_uses_custom_policy_file_without_code_change(self):
+        """policy JSON の exact class 追加だけで pruning ルールを拡張できる"""
+        workspace_root = os.path.join(self.test_dir, "policy_workspace")
+        resources_dir = os.path.join(workspace_root, "resources")
+        os.makedirs(resources_dir, exist_ok=True)
+        policy_path = os.path.join(resources_dir, "method_store_policy.json")
+        with open(policy_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "semantic_roles": ["FETCH"],
+                    "allowed_capabilities": ["FETCH"],
+                    "pruning": {
+                        "method_names": {},
+                        "class_suffixes": {},
+                        "class_contains": {},
+                        "class_prefixes": {},
+                        "exact_classes": {"project_specific_low_value": ["App.GeneratedNoise"]},
+                        "method_allowlist_by_class": {},
+                        "header_value_suffixes": [],
+                        "header_value_methods": [],
+                    },
+                },
+                f,
+            )
+
+        policy = MethodStorePolicy(workspace_root=workspace_root)
+        normalized = policy.normalize(
+            {
+                "id": "app.generatednoise.run",
+                "name": "Run",
+                "class": "App.GeneratedNoise",
+                "return_type": "void",
+                "params": [],
+                "code": "App.GeneratedNoise.Run()",
+                "tags": ["harvested"],
+            }
+        )
+
+        audit = policy.get_audit_summary()
+        self.assertIsNone(normalized)
+        self.assertEqual(audit["prune_reasons"]["project_specific_low_value"], 1)
+
+    def test_add_method_normalizes_capabilities_for_harvested_http_api(self):
+        """harvest entry は保存前に role / capabilities / param role を補完する"""
+        self.store.add_method(
+            {
+                "id": "system.net.http.httpclient.getasync",
+                "name": "GetAsync",
+                "class": "System.Net.Http.HttpClient",
+                "return_type": "Task<HttpResponseMessage>",
+                "params": [{"name": "requestUri", "type": "string"}],
+                "code": "client.GetAsync({requestUri})",
+                "definition": "Task<HttpResponseMessage> GetAsync(string requestUri)",
+                "tags": ["harvested"],
+            }
+        )
+
+        method = self.store.get_method_by_id("system.net.http.httpclient.getasync")
+        self.assertIsNotNone(method)
+        self.assertEqual(method["role"], "HTTP_REQUEST")
+        self.assertIn("HTTP_REQUEST", method["capabilities"])
+        self.assertEqual(method["params"][0]["role"], "url")
+
+    def test_rebuild_index_from_source_replaces_stale_vector_db(self):
+        """rebuild は既存 vector DB ではなく method_store.json を正として作り直す"""
+        stale_item = {
+            "id": "stale",
+            "name": "OldMethod",
+            "class": "OldService",
+            "tags": ["old"],
+            "code": "OldService.OldMethod()",
+        }
+        self.store.collection.items = [stale_item]
+        self.store.collection.vectors = np.zeros((1, self.vector_engine.dim), dtype=np.float32)
+        self.store.collection.id_to_index = {"stale": 0}
+        self.store.collection._save()
+
+        rebuilt_count = self.store.rebuild_index_from_source()
+
+        self.assertEqual(rebuilt_count, len(self.test_data))
+        self.assertEqual([item["id"] for item in self.store.items], ["test1", "test2"])
+        self.assertNotIn("stale", self.store.collection.id_to_index)
+        self.assertEqual(len(self.store.collection.vectors), len(self.test_data))
+
+    def test_save_regenerates_vectors_when_collection_shape_is_stale(self):
+        """save は件数合わせのゼロ埋めではなく現在の items から vector を再生成する"""
+        self.store.collection.vectors = np.zeros((1, self.vector_engine.dim), dtype=np.float32)
+
+        self.store.save()
+
+        self.assertEqual(len(self.store.collection.vectors), len(self.store.items))
+        self.assertGreater(float(np.linalg.norm(self.store.collection.vectors[0])), 0.0)
 
     def test_search_happy_path(self):
         """キーワードによる検索のテスト"""

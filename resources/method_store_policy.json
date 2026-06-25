@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "semantic_roles": [
+    "FETCH",
+    "PERSIST",
+    "DISPLAY",
+    "TRANSFORM",
+    "HTTP_REQUEST",
+    "LINQ",
+    "EXISTS"
+  ],
+  "allowed_capabilities": [
+    "FETCH",
+    "PERSIST",
+    "DISPLAY",
+    "TRANSFORM",
+    "HTTP_REQUEST",
+    "LINQ",
+    "EXISTS",
+    "FILE_IO",
+    "READ",
+    "WRITE",
+    "DATA_FETCH",
+    "JSON_DESERIALIZE",
+    "JSON_SERIALIZE",
+    "HTTP_CONTROL"
+  ],
+  "pruning": {
+    "method_names": {
+      "delegate_invocation": [
+        "Invoke",
+        "BeginInvoke",
+        "EndInvoke"
+      ],
+      "object_protocol": [
+        "Equals",
+        "GetHashCode",
+        "ToString"
+      ],
+      "lifecycle": [
+        "Dispose",
+        "DisposeAsync",
+        "Finalize",
+        "MemberwiseClone",
+        "GetType"
+      ]
+    },
+    "class_suffixes": {
+      "event_handler_type": [
+        "EventHandler"
+      ]
+    },
+    "class_contains": {
+      "header_encoding_selector": [
+        "HeaderEncodingSelector`"
+      ]
+    },
+    "class_prefixes": {
+      "json_metadata_service": [
+        "System.Text.Json.Serialization.Metadata.",
+        "System.Text.Json.Serialization.JsonConverter"
+      ],
+      "http_header_value": [
+        "System.Net.Http.Headers."
+      ]
+    },
+    "exact_classes": {
+      "low_value_json_type": [
+        "System.Text.Json.JsonSerializerOptions",
+        "System.Text.Json.JsonEncodedText"
+      ],
+      "low_value_linq_type": [
+        "System.Linq.Lookup`2"
+      ]
+    },
+    "method_allowlist_by_class": {
+      "System.Net.Http.HttpMethod": [
+        "Parse"
+      ],
+      "System.Console": [
+        "Read",
+        "ReadLine",
+        "Write",
+        "WriteLine"
+      ]
+    },
+    "header_value_suffixes": [
+      "AuthenticationHeaderValue",
+      "CacheControlHeaderValue",
+      "ContentDispositionHeaderValue",
+      "ContentRangeHeaderValue",
+      "EntityTagHeaderValue",
+      "MediaTypeHeaderValue",
+      "MediaTypeWithQualityHeaderValue",
+      "NameValueHeaderValue",
+      "NameValueWithParametersHeaderValue",
+      "RangeConditionHeaderValue",
+      "RangeHeaderValue",
+      "RangeItemHeaderValue",
+      "RetryConditionHeaderValue",
+      "StringWithQualityHeaderValue",
+      "TransferCodingHeaderValue",
+      "TransferCodingWithQualityHeaderValue",
+      "ViaHeaderValue",
+      "WarningHeaderValue"
+    ],
+    "header_value_methods": [
+      "Parse",
+      "TryParse",
+      "Equals",
+      "GetHashCode",
+      "ToString"
+    ]
+  }
+}

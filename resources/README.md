@@ -41,6 +41,8 @@ README の「ベクトル/辞書の準備」で実行する主要コマンドと
   - `task_definitions.json`
   - `domain_dictionary.json`
   - `canonical_knowledge.json`
+  - `method_capability_map.json`
+  - `method_store_policy.json`
 
 ## 2. JMDict
 
@@ -78,6 +80,8 @@ README の「ベクトル/辞書の準備」で実行する主要コマンドと
 - `task_definitions.json`
 - `dependency_map.json`
 - `method_store.json`
+- `method_capability_map.json`
+- `method_store_policy.json`
 
 ## 6. その他
 

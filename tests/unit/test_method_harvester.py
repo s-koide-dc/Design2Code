@@ -61,5 +61,24 @@ class TestMethodHarvester(unittest.TestCase):
         
         self.assertIn("YamlDotNet", entry["dependencies"])
 
+    def test_create_method_entry_returns_none_for_pruned_api(self):
+        """source harvest でも共通 policy により低価値 API を保存対象にしない"""
+        entry = self.harvester._create_method_entry(
+            {
+                "name": "GetHashCode",
+                "bodyCode": "public override int GetHashCode() { return 0; }",
+                "modifiers": ["public"],
+                "accessibility": "Public",
+                "returnType": "int",
+                "parameters": [],
+                "metrics": {"cyclomaticComplexity": 1},
+            },
+            "App.ValueObject",
+        )
+
+        audit = self.harvester.policy.get_audit_summary()
+        self.assertIsNone(entry)
+        self.assertEqual(audit["prune_reasons"]["object_protocol"], 1)
+
 if __name__ == '__main__':
     unittest.main()

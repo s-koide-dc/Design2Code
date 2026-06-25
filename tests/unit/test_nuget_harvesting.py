@@ -30,5 +30,25 @@ class TestNuGetHarvesting(unittest.TestCase):
         self.assertTrue(len(read_methods) > 0)
         print(f"Harvested {len(methods)} methods from {pkg_name}")
 
+    def test_standard_library_search_requires_fully_qualified_type(self):
+        """自然言語キーワードから型を推測する旧経路は使わない"""
+        class RecordingHarvester(DynamicHarvester):
+            def __init__(self, config):
+                super().__init__(config)
+                self.requested_types = []
+
+            def harvest_from_type(self, type_name):
+                self.requested_types.append(type_name)
+                return [{"id": "dummy", "name": "Dummy", "class": type_name}]
+
+        harvester = RecordingHarvester(self.config)
+
+        self.assertEqual(harvester.search_standard_library("read file"), [])
+        self.assertEqual(harvester.requested_types, [])
+
+        results = harvester.search_standard_library("System.IO.File")
+        self.assertEqual(harvester.requested_types, ["System.IO.File"])
+        self.assertEqual(results[0]["class"], "System.IO.File")
+
 if __name__ == "__main__":
     unittest.main()

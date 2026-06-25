@@ -3,6 +3,7 @@ import json
 import os
 import hashlib
 from typing import Dict, List, Any, Optional
+from src.code_synthesis.method_store_policy import MethodStorePolicy
 
 class MethodHarvester:
     """既存コードからメソッドを自動収集してストアを更新するクラス"""
@@ -11,6 +12,8 @@ class MethodHarvester:
         self.config_manager = config_manager
         self.store_path = os.path.join(os.getcwd(), 'resources', 'method_store.json')
         self.capability_map = self._load_capability_map()
+        workspace_root = getattr(config_manager, "workspace_root", os.getcwd()) if config_manager else os.getcwd()
+        self.policy = MethodStorePolicy(workspace_root=str(workspace_root), capability_map=self.capability_map)
         from src.utils.nuget_client import NuGetClient
         self.nuget_client = NuGetClient(config_manager)
 
@@ -45,16 +48,17 @@ class MethodHarvester:
                 
                 # 部品化
                 method_entry = self._create_method_entry(m, detail.get("fullName"), detail.get("usings", []))
-                new_methods.append(method_entry)
+                if method_entry is not None:
+                    new_methods.append(method_entry)
 
         from .method_store import MethodStore
         store = MethodStore(config=self.config_manager)
         for nm in new_methods:
             store.add_method(nm, overwrite=True)
             
-        return {"status": "success", "count": len(new_methods)}
+        return {"status": "success", "count": len(new_methods), "policy_audit": self.policy.get_audit_summary()}
 
-    def _create_method_entry(self, m_detail: Dict[str, Any], class_full_name: str, usings: List[str] = None) -> Dict[Any, Any]:
+    def _create_method_entry(self, m_detail: Dict[str, Any], class_full_name: str, usings: List[str] = None) -> Optional[Dict[Any, Any]]:
         """Roslynのメソッド詳細データをストア形式に変換"""
         params = []
         for p in m_detail.get("parameters", []):
@@ -93,7 +97,7 @@ class MethodHarvester:
         if has_side_effects:
             tags.append("side-effect")
 
-        return {
+        entry = {
             "id": hashlib.md5(f"{class_full_name}.{m_detail['name']}".encode()).hexdigest()[:8],
             "name": m_detail["name"],
             "class": class_full_name,
@@ -110,6 +114,8 @@ class MethodHarvester:
             "has_side_effects": has_side_effects,
             "tier": 1 if (class_full_name.startswith("System.") or class_full_name.startswith("Common.")) else 2
         }
+        normalized = self.policy.normalize(entry)
+        return normalized
 
     def _extract_intent(self, m_detail: Dict[str, Any], class_full_name: str) -> Optional[str]:
         if isinstance(m_detail.get("intent"), str) and m_detail["intent"].strip():

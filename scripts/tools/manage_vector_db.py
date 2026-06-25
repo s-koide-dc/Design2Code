@@ -79,13 +79,9 @@ def seed_system(config_manager: ConfigManager) -> int:
 def rebuild_index(config_manager: ConfigManager) -> int:
     emit_progress("--- Rebuilding Index (Vectorization) ---")
     store = build_store(config_manager)
-
-    if store.items and (store.collection.vectors is None or len(store.items) != len(store.collection.vectors)):
-        emit_progress("Detected mismatch/missing vectors. Re-indexing...")
-        store.load()
-    else:
-        emit_progress("Index seems consistent. Forcing re-save to be sure.")
-        store.save()
+    emit_progress("Rebuilding from resources/method_store.json...")
+    store.rebuild_index_from_source()
+    store.save()
 
     emit_progress(f"Current Store Status: {len(store.items)} methods.")
     return 0

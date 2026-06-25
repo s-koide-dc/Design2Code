@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sys
+import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if ROOT not in sys.path:
@@ -14,6 +15,7 @@ from src.utils.cli_output import emit_error, emit_progress
 
 STORE_PATH = os.path.join(ROOT, "resources", "method_store.json")
 META_PATH = os.path.join(ROOT, "resources", "vectors", "vector_db", "method_store_meta.json")
+VECTOR_PATH = os.path.join(ROOT, "resources", "vectors", "vector_db", "method_store_vectors.npy")
 
 BASE_KEYS = {"id", "name", "class", "tags", "code"}
 EXTENDED_KEYS = {
@@ -155,6 +157,26 @@ def main() -> int:
 
     if len(meta_data) != len(methods):
         errors.append(f"meta length mismatch: methods={len(methods)}, meta={len(meta_data)}")
+
+    if len(meta_data) == len(methods):
+        method_ids = [entry.get("id") for entry in methods if isinstance(entry, dict)]
+        meta_ids = [entry.get("id") for entry in meta_data if isinstance(entry, dict)]
+        if method_ids != meta_ids:
+            errors.append("meta id order mismatch with method_store.json")
+        for idx, (method_entry, meta_entry) in enumerate(zip(methods, meta_data)):
+            if method_entry != meta_entry:
+                errors.append(f"[{idx}] meta entry differs from method_store.json")
+                break
+
+    if not os.path.exists(VECTOR_PATH):
+        errors.append(f"Missing file: {VECTOR_PATH}")
+    else:
+        try:
+            vectors = np.load(VECTOR_PATH)
+            if len(vectors) != len(methods):
+                errors.append(f"vector length mismatch: methods={len(methods)}, vectors={len(vectors)}")
+        except Exception as exc:
+            errors.append(f"Failed to load {VECTOR_PATH}: {exc}")
 
     ids = []
     for idx, entry in enumerate(methods):

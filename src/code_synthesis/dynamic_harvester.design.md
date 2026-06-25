@@ -6,11 +6,10 @@
 ## 2. Structured Specification
 
 ### Input
-- **Description**: 検索クエリまたは型名。クエリは自然言語形式（例: "read file", "json"）または完全修飾型名（例: "System.IO.File"）を受け付けます。
+- **Description**: 収穫対象の完全修飾型名。自然言語クエリから型を推測する経路は使用しません。
 - **Type/Format**: `str`
 - **Example**:
   ```python
-  query = "read file"
   type_name = "System.IO.File"
   ```
 
@@ -44,15 +43,14 @@
 
 #### 2.1. 初期化 (`__init__`)
 1. ロガーを初期化します。
-2. `config_manager` を保存します（将来の拡張用）。
-3. 自然言語クエリから型へのマッピング辞書 (`query_map`) を定義します。
+2. `config_manager` を保存します。
+3. `method_capability_map.json` を読み込み、`MethodStorePolicy` を初期化します。
 
 #### 2.2. 標準ライブラリ検索 (`search_standard_library`)
-1. クエリを小文字に変換します。
-2. `query_map` を使用して、クエリに一致するキーワードを検索します。
-3. 一致した型名のセットを作成します。
-4. 各型名に対して `harvest_from_type` を呼び出します。
-5. 収穫されたメソッドのリストを返します。
+1. 入力を完全修飾型名として検証します。
+2. サポート対象の名前空間でない場合は空リストを返します。
+3. 有効な型名に対して `harvest_from_type` を呼び出します。
+4. 収穫されたメソッドのリストを返します。
 
 #### 2.3. 型からの収穫 (`harvest_from_type`)
 1. 指定された型名に対するC# Inspectorコードを生成します（`_generate_inspector_code`）。
@@ -83,7 +81,9 @@
    - `dependencies`: 依存関係（空リスト）
    - `tags`: タグ（["harvested", "standard-lib"]）
    - `has_side_effects`: 副作用の有無（デフォルトは false）
-3. 変換されたメソッドのリストを返します。
+3. `MethodStorePolicy` で role / capabilities / param roles を正規化し、低価値 API を除外します。
+4. `last_policy_audit` に accepted / pruned / prune_reasons を保存します。
+5. 変換されたメソッドのリストを返します。
 
 #### 2.5. Inspectorコード生成 (`_generate_inspector_code`)
 1. 指定された型名に対するC#コードを生成します。
@@ -98,10 +98,6 @@
 ### Test Cases
 
 #### Happy Path
-- **Scenario**: 有効なクエリで標準ライブラリからメソッドを検索する
-- **Input**: `query = "read file"`
-- **Expected Output**: `System.IO.File` の public static メソッドのリストが返される
-
 - **Scenario**: 完全修飾型名でメソッドを収穫する
 - **Input**: `type_name = "System.IO.File"`
 - **Expected Output**: `System.IO.File` の public static メソッドのリストが返される
@@ -111,8 +107,8 @@
 - **Input**: `type_name = "NonExistent.Type"`
 - **Expected Output**: 空のリストが返される
 
-- **Scenario**: クエリに一致する型が見つからない
-- **Input**: `query = "unknown query"`
+- **Scenario**: 完全修飾型名ではない入力を指定する
+- **Input**: `query = "read file"`
 - **Expected Output**: 空のリストが返される
 
 - **Scenario**: dotnet run がタイムアウトする
@@ -124,8 +120,8 @@
 - **Expected Output**: 空のリストが返され、警告がログに記録される
 
 ## 3. Dependencies
-- **Internal**: `config_manager` (optional)
-- **External**: `os`, `json`, `subprocess`, `tempfile`, `logging`, `re`, `typing`
+- **Internal**: `config_manager` (optional), `MethodStorePolicy`
+- **External**: `os`, `json`, `subprocess`, `tempfile`, `logging`, `typing`
 - **Tools**: `dotnet` CLI (C# コンパイラとランタイム)
 
 ## 4. Consumers
@@ -137,8 +133,11 @@
 - リフレクションを使用するため、メソッドの実装コードは取得できません。シグネチャのみが利用可能です。
 - 一時ディレクトリとdotnet runを使用するため、実行には数秒かかる場合があります。
 - 将来的には、キャッシュ機構を追加して、同じ型の再収穫を避けることが推奨されます。
-- `query_map` は簡易的なキーワードマッチングを使用しています。より高度な自然言語処理を追加することで、検索精度を向上できます。
+- 自然言語クエリから型を推測する簡易キーワードマッチングは使用しません。呼び出し側は構造化された型名または収穫対象定義を渡します。
+- pruning ルールは `resources/method_store_policy.json` で管理し、収穫後の除外理由は `last_policy_audit` で確認できます。
 
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
+- 2026-06-25: `query_map` による自然言語キーワード推測を廃止し、完全修飾型名の明示指定と `MethodStorePolicy` による正規化・pruning に更新。
+- 2026-06-25: pruning ルールを `resources/method_store_policy.json` 管理にし、`last_policy_audit` で除外理由を追跡する構成へ更新。
 

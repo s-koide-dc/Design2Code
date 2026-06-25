@@ -4,8 +4,8 @@ import json
 import subprocess
 import tempfile
 import logging
-import re
 from typing import List, Dict, Any, Optional
+from src.code_synthesis.method_store_policy import MethodStorePolicy
 
 class DynamicHarvester:
     """
@@ -17,55 +17,30 @@ class DynamicHarvester:
         self.logger = logging.getLogger(__name__)
         self.config_manager = config_manager
         self.capability_map = self._load_capability_map()
-        
-        # 自然言語クエリから型へのマッピング辞書 (簡易版)
-        self.query_map = {
-            "read file": "System.IO.File",
-            "write file": "System.IO.File",
-            "file exists": "System.IO.File",
-            "delete file": "System.IO.File",
-            "directory": "System.IO.Directory",
-            "folder": "System.IO.Directory",
-            "path": "System.IO.Path",
-            "json": "System.Text.Json.JsonSerializer",
-            "http": "System.Net.Http.HttpClient",
-            "math": "System.Math",
-            "date": "System.DateTime",
-            "time": "System.DateTime",
-            "guid": "System.Guid",
-            "base64": "System.Convert",
-            "md5": "System.Security.Cryptography.MD5",
-            "sha256": "System.Security.Cryptography.SHA256",
-            "environment": "System.Environment",
-            "task": "System.Threading.Tasks.Task",
-            "thread": "System.Threading.Thread",
-            "average": "System.Linq.Enumerable",
-            "sum": "System.Linq.Enumerable",
-            "count": "System.Linq.Enumerable",
-            "max": "System.Linq.Enumerable",
-            "min": "System.Linq.Enumerable",
-            "filter": "System.Linq.Enumerable",
-            "select": "System.Linq.Enumerable"
-        }
+        workspace_root = getattr(config_manager, "workspace_root", os.getcwd()) if config_manager else os.getcwd()
+        self.policy = MethodStorePolicy(workspace_root=str(workspace_root), capability_map=self.capability_map)
+        self.last_policy_audit = self.policy.get_audit_summary()
 
     def search_standard_library(self, query: str) -> List[Dict[str, Any]]:
-        """クエリに基づいて標準ライブラリからメソッドを収穫する"""
-        query_lower = query.lower()
-        target_types = set()
-        
-        # 簡易キーワードマッチ
-        for key, val in self.query_map.items():
-            if key in query_lower:
-                target_types.add(val)
-        
-        results = []
-        for type_name in target_types:
-            methods = self.harvest_from_type(type_name)
-            if methods:
-                self.logger.info(f"Harvested {len(methods)} methods from {type_name}")
-                results.extend(methods)
-                
-        return results
+        """標準ライブラリの完全修飾型名を指定してメソッドを収穫する。"""
+        type_name = str(query or "").strip()
+        if not self._is_supported_type_name(type_name):
+            self.logger.warning("search_standard_library requires a fully qualified type name: %s", query)
+            return []
+        methods = self.harvest_from_type(type_name)
+        if methods:
+            self.logger.info(f"Harvested {len(methods)} methods from {type_name}")
+        return methods
+
+    def _is_supported_type_name(self, type_name: str) -> bool:
+        if not type_name or "." not in type_name:
+            return False
+        allowed_prefixes = (
+            "System.",
+            "Microsoft.",
+            "Common.",
+        )
+        return type_name.startswith(allowed_prefixes)
 
     def harvest_from_type(self, type_name: str) -> List[Dict[str, Any]]:
         """指定された型の public static メソッドを収穫する"""
@@ -164,6 +139,7 @@ class DynamicHarvester:
                 
             data = json.loads(result.stdout)
             raw_methods = data.get("methods", [])
+            self.policy.reset_audit()
             
             # 形式変換 (MethodHarvesterCLI の出力はほぼ MethodStore 互換)
             converted = []
@@ -198,17 +174,22 @@ class DynamicHarvester:
                 if "." in m["class"]:
                     m["namespace"] = m["class"].rsplit(".", 1)[0]
                 
-                converted.append(m)
+                normalized = self.policy.normalize(m)
+                if normalized is not None:
+                    converted.append(normalized)
             
+            self.last_policy_audit = self.policy.get_audit_summary()
             return converted
 
         except Exception as e:
             self.logger.error(f"Error harvesting from package {package_name}: {e}")
+            self.last_policy_audit = self.policy.get_audit_summary()
             return []
 
     def _convert_to_store_format(self, raw_methods: List[Dict[str, Any]], type_name: str) -> List[Dict[str, Any]]:
         """リフレクション結果をMethodStore形式に変換"""
         converted = []
+        self.policy.reset_audit()
         for m in raw_methods:
             # MethodStore形式
             # {
@@ -256,8 +237,11 @@ class DynamicHarvester:
                 "has_side_effects": False, # 安全側に倒す、あるいは名前で判定
                 "tier": 1 if (type_name.startswith("System.") or type_name.startswith("Common.")) else 2
             }
-            converted.append(entry)
+            normalized = self.policy.normalize(entry)
+            if normalized is not None:
+                converted.append(normalized)
             
+        self.last_policy_audit = self.policy.get_audit_summary()
         return converted
 
     def _generate_inspector_code(self, type_name: str) -> str:
