@@ -1102,12 +1102,16 @@ class DesignInferenceEngine:
             sql_literal = self._extract_sql_literal(str(line))
         if not sql_literal or self._classify_sql_intent(sql_literal) != INTENT_DATABASE_QUERY:
             return None, {}
-        source_ref = "db_main"
+        if not db_sources:
+            return None, {}
+        source_ref = ""
         for src in db_sources:
             src_id = str(src.get("id") or "").strip()
             if src_id:
                 source_ref = src_id
                 break
+        if not source_ref:
+            return None, {}
         inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer) or "Item"
         return (
             {

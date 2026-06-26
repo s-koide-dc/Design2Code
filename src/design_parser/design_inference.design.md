@@ -71,3 +71,4 @@
 
 ## 5. Review Notes
 - 2026-06-25: 低信頼 resolver 候補より構造的 fallback を優先し、採用可能な候補がない場合は `LOW_CONFIDENCE` ではなく `NO_CANDIDATE` として boundary/assist 判定へ渡す契約を反映。
+- 2026-06-26: DB query fallback は SQL literal だけでは成立させず、既存 db data source がある場合に限定する。source 不足の SQL literal は literal tag assist coverage の境界として `NO_CANDIDATE` に残す。
