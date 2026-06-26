@@ -348,80 +348,132 @@ class DesignInferenceEngine:
         command_literal = self._extract_command_literal(line, self.resolver.get_entities(line))
         env_sources, stdin_sources, http_sources, file_sources = self._collect_source_kinds()
         db_sources = [s for s in getattr(self, "_current_data_sources", []) if s.get("kind") == "db"]
+        fallback_line = self._strip_non_step_metadata_prefixes(line)
+        existing_semantic_roles = self._extract_semantic_roles(line)
+
+        def _merged_semantic_roles(extra_roles: Dict[str, Any]) -> Dict[str, Any]:
+            merged = dict(existing_semantic_roles)
+            merged.update(extra_roles or {})
+            return merged
 
         def _try_structural_fallback() -> Optional[Tuple[bool, Optional[InferenceIssue], str, List[str]]]:
-            stdin_meta = self._infer_plain_stdin_fetch_meta(line, step_idx, stdin_sources)
+            stdin_meta = self._infer_plain_stdin_fetch_meta(fallback_line, step_idx, stdin_sources)
             if stdin_meta:
                 tag = self._build_step_meta_tag(stdin_meta)
                 refs = self._build_refs_tag(step_idx)
-                new_line = self._prefix_inferred_tags(line, tag, refs, "")
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles({}))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            env_meta = self._infer_plain_env_fetch_meta(line, env_sources)
+            env_meta = self._infer_plain_env_fetch_meta(fallback_line, env_sources)
             if env_meta:
                 tag = self._build_step_meta_tag(env_meta)
                 refs = self._build_refs_tag(step_idx)
-                new_line = self._prefix_inferred_tags(line, tag, refs, "")
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles({}))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            http_meta, http_roles = self._infer_plain_http_request_meta(line, http_sources)
+            http_meta, http_roles = self._infer_plain_http_request_meta(fallback_line, http_sources)
             if http_meta:
                 tag = self._build_step_meta_tag(http_meta)
                 refs = self._build_refs_tag(step_idx)
-                semantic_roles_tag = self._build_semantic_roles_tag(http_roles)
-                new_line = self._prefix_inferred_tags(line, tag, refs, semantic_roles_tag)
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(http_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            file_fetch_meta, file_fetch_roles = self._infer_plain_file_fetch_meta(line)
+            file_source_fetch_meta, file_source_fetch_roles = self._infer_plain_file_source_fetch_meta(fallback_line, file_sources)
+            if file_source_fetch_meta:
+                tag = self._build_step_meta_tag(file_source_fetch_meta)
+                refs = self._build_refs_tag(step_idx)
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(file_source_fetch_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
+                return True, None, new_line, []
+            file_fetch_meta, file_fetch_roles = self._infer_plain_file_fetch_meta(fallback_line)
             if file_fetch_meta:
                 tag = self._build_step_meta_tag(file_fetch_meta)
                 refs = self._build_refs_tag(step_idx)
-                semantic_roles_tag = self._build_semantic_roles_tag(file_fetch_roles)
-                new_line = self._prefix_inferred_tags(line, tag, refs, semantic_roles_tag)
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(file_fetch_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            deserialize_meta = self._infer_plain_json_deserialize_meta(line)
+            deserialize_meta = self._infer_plain_json_deserialize_meta(fallback_line)
             if deserialize_meta:
                 tag = self._build_step_meta_tag(deserialize_meta)
                 refs = self._build_refs_tag(step_idx)
-                new_line = self._prefix_inferred_tags(line, tag, refs, "")
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles({}))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            linq_meta = self._infer_plain_linq_meta(line)
+            linq_meta = self._infer_plain_linq_meta(fallback_line)
             if linq_meta:
+                linq_roles: Dict[str, Any] = {}
+                filter_prop = self._infer_filter_property(fallback_line)
+                if filter_prop:
+                    linq_roles["property"] = filter_prop
                 tag = self._build_step_meta_tag(linq_meta)
                 refs = self._build_refs_tag(step_idx)
-                new_line = self._prefix_inferred_tags(line, tag, refs, "")
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(linq_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            db_persist_meta, db_persist_roles = self._infer_plain_db_persist_meta(line, db_sources)
+            db_query_meta, db_query_roles = self._infer_plain_db_query_meta(
+                fallback_line,
+                db_sources,
+                _merged_semantic_roles({}),
+            )
+            if db_query_meta:
+                tag = self._build_step_meta_tag(db_query_meta)
+                refs = self._build_refs_tag(step_idx)
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(db_query_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
+                data_sources = []
+                if db_query_meta.get("source_ref") == "db_main":
+                    data_sources.append("[data_source|db_main|db]")
+                return True, None, new_line, data_sources
+            db_persist_meta, db_persist_roles = self._infer_plain_db_persist_meta(fallback_line, db_sources)
             if db_persist_meta:
                 tag = self._build_step_meta_tag(db_persist_meta)
                 refs = self._build_refs_tag(step_idx)
-                semantic_roles_tag = self._build_semantic_roles_tag(db_persist_roles)
-                new_line = self._prefix_inferred_tags(line, tag, refs, semantic_roles_tag)
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(db_persist_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            ops_meta, ops_roles = self._infer_ops_only_fallback(line, last_output_type)
+            ops_meta, ops_roles = self._infer_ops_only_fallback(fallback_line, last_output_type)
             if ops_meta:
                 tag = self._build_step_meta_tag(ops_meta)
                 refs = self._build_refs_tag(step_idx)
-                semantic_roles_tag = self._build_semantic_roles_tag(ops_roles)
-                new_line = self._prefix_inferred_tags(line, tag, refs, semantic_roles_tag)
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(ops_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            loop_meta = self._infer_plain_loop_meta(line, last_output_type)
+            loop_meta = self._infer_plain_loop_meta(fallback_line, last_output_type)
             if loop_meta:
                 tag = self._build_step_meta_tag(loop_meta)
                 refs = self._build_refs_tag(step_idx)
-                new_line = self._prefix_inferred_tags(line, tag, refs, "")
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles({}))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            display_meta = self._infer_plain_display_meta(line, last_output_type)
+            display_meta = self._infer_plain_display_meta(fallback_line, last_output_type)
             if display_meta:
                 tag = self._build_step_meta_tag(display_meta)
                 refs = self._build_refs_tag(step_idx)
-                new_line = self._prefix_inferred_tags(line, tag, refs, "")
+                display_roles: Dict[str, Any] = {}
+                display_prop = self._infer_display_property(fallback_line)
+                if display_prop:
+                    display_roles["property"] = display_prop
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(display_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            return_true_meta, return_true_roles = self._infer_plain_return_true_meta(line, output_format, is_last_step)
+            persist_meta = self._infer_plain_persist_meta(fallback_line, file_sources)
+            if persist_meta:
+                persist_roles: Dict[str, Any] = {}
+                if persist_meta.get("source_kind") == "file" and persist_meta.get("source_ref"):
+                    persist_roles["path"] = persist_meta["source_ref"]
+                tag = self._build_step_meta_tag(persist_meta)
+                refs = self._build_refs_tag(step_idx)
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(persist_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
+                return True, None, new_line, []
+            return_true_meta, return_true_roles = self._infer_plain_return_true_meta(fallback_line, output_format, is_last_step)
             if return_true_meta:
                 tag = self._build_step_meta_tag(return_true_meta)
                 refs = self._build_refs_tag(step_idx)
-                semantic_roles_tag = self._build_semantic_roles_tag(return_true_roles)
-                new_line = self._prefix_inferred_tags(line, tag, refs, semantic_roles_tag)
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(return_true_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            if command_literal and self._is_command_execution_line(line):
+            if command_literal and self._is_command_execution_line(fallback_line):
                 if not self._is_allowed_command_literal(command_literal):
                     return False, InferenceIssue(step_idx, "UNSAFE_COMMAND", command_literal), line, []
                 meta = {
@@ -431,10 +483,10 @@ class DesignInferenceEngine:
                     "output_type": "void",
                     "side_effect": "NONE",
                 }
-                semantic_roles_tag = f'[semantic_roles:{{"command":{json.dumps(command_literal)}}}]'
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles({"command": command_literal}))
                 tag = self._build_step_meta_tag(meta)
                 refs = self._build_refs_tag(step_idx)
-                new_line = self._prefix_inferred_tags(line, tag, refs, semantic_roles_tag)
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
             if is_last_step and output_format and output_format not in ["void", "none"] and last_persist_path:
                 meta = {
@@ -444,10 +496,12 @@ class DesignInferenceEngine:
                     "output_type": self._normalize_output_type(output_format) or "void",
                     "side_effect": "NONE",
                 }
-                semantic_roles_tag = f'[semantic_roles:{{"return_value":{json.dumps(str(last_persist_path))}}}]'
+                semantic_roles_tag = self._build_semantic_roles_tag(
+                    _merged_semantic_roles({"return_value": str(last_persist_path)})
+                )
                 tag = self._build_step_meta_tag(meta)
                 refs = self._build_refs_tag(step_idx)
-                new_line = self._prefix_inferred_tags(line, tag, refs, semantic_roles_tag)
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
             return None
 
@@ -484,7 +538,7 @@ class DesignInferenceEngine:
         if not meta:
             return False, InferenceIssue(step_idx, "UNMAPPED_TOKEN", step_token), line, []
 
-        semantic_roles: Dict[str, Any] = {}
+        semantic_roles: Dict[str, Any] = dict(existing_semantic_roles)
         sql_literal = ""
         entities = self.resolver.get_entities(line)
         command_literal = command_literal or self._extract_command_literal(line, entities)
@@ -659,6 +713,8 @@ class DesignInferenceEngine:
         persist_meta = self._infer_plain_persist_meta(line, file_sources)
         if persist_meta:
             meta = persist_meta
+            if meta.get("source_kind") == "file" and meta.get("source_ref"):
+                semantic_roles.setdefault("path", meta["source_ref"])
         db_persist_meta, db_persist_roles = self._infer_plain_db_persist_meta(line, db_sources)
         if db_persist_meta:
             meta = db_persist_meta
@@ -847,6 +903,31 @@ class DesignInferenceEngine:
             {"path": quoted},
         )
 
+    def _infer_plain_file_source_fetch_meta(
+        self,
+        line: str,
+        file_sources: List[Dict[str, str]],
+    ) -> Tuple[Optional[Dict[str, str]], Dict[str, Any]]:
+        normalized = str(line).strip()
+        if "読み込" not in normalized and "ロード" not in normalized:
+            return None, {}
+        for src in file_sources:
+            src_id = str(src.get("id") or "").strip()
+            if src_id == "input_path" and "入力ファイルパス" in normalized:
+                return (
+                    {
+                        "kind": NODE_ACTION,
+                        "intent": INTENT_FETCH,
+                        "target_entity": "string",
+                        "output_type": "string",
+                        "side_effect": "IO",
+                        "source_ref": src_id,
+                        "source_kind": "file",
+                    },
+                    {"path": src_id},
+                )
+        return None, {}
+
     def _looks_like_plain_json_deserialize(self, line: str) -> bool:
         normalized = str(line).strip()
         return "変換" in normalized and any(token in normalized for token in ["リスト", "一覧", "配列"])
@@ -1000,6 +1081,40 @@ class DesignInferenceEngine:
                 "intent": INTENT_PERSIST,
                 "target_entity": "Item",
                 "output_type": "void",
+                "side_effect": "DB",
+                "source_ref": source_ref,
+                "source_kind": "db",
+            },
+            {"sql": sql_literal},
+        )
+
+    def _infer_plain_db_query_meta(
+        self,
+        line: str,
+        db_sources: List[Dict[str, str]],
+        semantic_roles: Dict[str, Any],
+    ) -> Tuple[Optional[Dict[str, str]], Dict[str, Any]]:
+        sql_literal = ""
+        role_sql = semantic_roles.get("sql") if isinstance(semantic_roles, dict) else None
+        if isinstance(role_sql, str) and role_sql.strip():
+            sql_literal = role_sql.strip()
+        if not sql_literal:
+            sql_literal = self._extract_sql_literal(str(line))
+        if not sql_literal or self._classify_sql_intent(sql_literal) != INTENT_DATABASE_QUERY:
+            return None, {}
+        source_ref = "db_main"
+        for src in db_sources:
+            src_id = str(src.get("id") or "").strip()
+            if src_id:
+                source_ref = src_id
+                break
+        inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer) or "Item"
+        return (
+            {
+                "kind": NODE_ACTION,
+                "intent": INTENT_DATABASE_QUERY,
+                "target_entity": inferred_entity,
+                "output_type": f"IEnumerable<{inferred_entity}>",
                 "side_effect": "DB",
                 "source_ref": source_ref,
                 "source_kind": "db",
@@ -1203,6 +1318,24 @@ class DesignInferenceEngine:
         if remainder.startswith("["):
             return f"{prefix}{tags} {remainder}"
         return f"{prefix}{tags} {remainder}".rstrip()
+
+    def _strip_non_step_metadata_prefixes(self, line: str) -> str:
+        prefix, remainder = self._split_line_prefix(line)
+        text = remainder.strip()
+        while text.startswith("["):
+            end = self._find_bracket_end(text)
+            if end == -1:
+                break
+            meta = text[1:end].strip()
+            lowered = meta.lower()
+            if not (
+                lowered.startswith("refs:")
+                or lowered.startswith("ops:")
+                or lowered.startswith("semantic_roles:")
+            ):
+                break
+            text = text[end + 1 :].strip()
+        return f"{prefix}{text}".rstrip()
 
     def _split_line_prefix(self, line: str) -> Tuple[str, str]:
         s = line.rstrip("\n")

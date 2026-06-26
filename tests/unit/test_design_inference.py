@@ -68,6 +68,14 @@ class TestDesignInferenceEngine(unittest.TestCase):
                                 "Price": "decimal",
                                 "Id": "int",
                             },
+                        },
+                        {
+                            "name": "Inventory",
+                            "keywords": ["在庫"],
+                            "properties": {
+                                "Id": "int",
+                                "Stock": "int",
+                            },
                         }
                     ]
                 },
@@ -614,6 +622,28 @@ class TestDesignInferenceEngine(unittest.TestCase):
         self.assertIsNone(issue)
         self.assertEqual(data_sources, [])
         self.assertIn("[ACTION|LINQ|User|List<User>|NONE]", new_line)
+        self.assertIn('"property":"Name"', new_line)
+
+    def test_infer_line_strips_non_step_metadata_prefixes_for_fallback(self):
+        engine = self._build_engine()
+        engine.resolver = _ConfigurableResolver(
+            step_token=None,
+            score=0.0,
+        )
+
+        inferred, issue, new_line, data_sources = engine._infer_line(
+            '1. [refs:step_2] [semantic_roles:{"property":"Price"}] 価格が 500 より大きいユーザーを抽出する',
+            step_idx=4,
+            module_name="Sample",
+            last_output_type="List<User>",
+        )
+
+        self.assertTrue(inferred)
+        self.assertIsNone(issue)
+        self.assertEqual(data_sources, [])
+        self.assertIn("[ACTION|LINQ|User|List<User>|NONE] [refs:step_3]", new_line)
+        self.assertIn('[semantic_roles:{"property":"Price"}]', new_line)
+        self.assertNotIn("[refs:step_2] [semantic_roles", new_line)
 
     def test_infer_line_adds_filter_property_for_price_linq(self):
         engine = self._build_engine()
@@ -663,6 +693,69 @@ class TestDesignInferenceEngine(unittest.TestCase):
         self.assertEqual(data_sources, [])
         self.assertIn("[ACTION|PERSIST|Item|void|DB|local_db|db]", new_line)
         self.assertIn('"sql":"INSERT INTO Products (Name, Price) VALUES (@Name, @Price)"', new_line)
+
+    def test_infer_line_falls_back_to_plain_db_query_with_existing_sql_role(self):
+        engine = self._build_engine()
+        engine.resolver = _ConfigurableResolver(
+            step_token=None,
+            score=0.0,
+        )
+        engine._current_data_sources = [{"id": "inventory_db", "kind": "db", "description": "Inventory Database"}]
+
+        inferred, issue, new_line, data_sources = engine._infer_line(
+            '1. [semantic_roles:{"sql":"SELECT * FROM Inventory"}] SQL を実行して在庫情報を取得する',
+            step_idx=1,
+            module_name="Sample",
+            last_output_type=None,
+        )
+
+        self.assertTrue(inferred)
+        self.assertIsNone(issue)
+        self.assertEqual(data_sources, [])
+        self.assertIn("[ACTION|DATABASE_QUERY|Inventory|IEnumerable<Inventory>|DB|inventory_db|db]", new_line)
+        self.assertIn('[semantic_roles:{"sql":"SELECT * FROM Inventory"}]', new_line)
+
+    def test_infer_line_falls_back_to_file_data_source_fetch(self):
+        engine = self._build_engine()
+        engine.resolver = _ConfigurableResolver(
+            step_token=None,
+            score=0.0,
+        )
+        engine._current_data_sources = [{"id": "input_path", "kind": "file", "description": "入力CSV"}]
+
+        inferred, issue, new_line, data_sources = engine._infer_line(
+            "入力ファイルパスのCSVを読み込む",
+            step_idx=1,
+            module_name="Sample",
+            last_output_type=None,
+        )
+
+        self.assertTrue(inferred)
+        self.assertIsNone(issue)
+        self.assertEqual(data_sources, [])
+        self.assertIn("[ACTION|FETCH|string|string|IO|input_path|file]", new_line)
+        self.assertIn('[semantic_roles:{"path":"input_path"}]', new_line)
+
+    def test_infer_line_falls_back_to_file_data_source_persist_with_path_role(self):
+        engine = self._build_engine()
+        engine.resolver = _ConfigurableResolver(
+            step_token=None,
+            score=0.0,
+        )
+        engine._current_data_sources = [{"id": "output_path", "kind": "file", "description": "出力CSV"}]
+
+        inferred, issue, new_line, data_sources = engine._infer_line(
+            "出力ファイルパスにCSVを書き出す",
+            step_idx=7,
+            module_name="Sample",
+            last_output_type="string",
+        )
+
+        self.assertTrue(inferred)
+        self.assertIsNone(issue)
+        self.assertEqual(data_sources, [])
+        self.assertIn("[ACTION|PERSIST|string|void|IO|output_path|file]", new_line)
+        self.assertIn('[semantic_roles:{"path":"output_path"}]', new_line)
 
     def test_infer_line_falls_back_to_plain_return_true(self):
         engine = self._build_engine()

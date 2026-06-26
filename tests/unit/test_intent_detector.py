@@ -216,6 +216,20 @@ class TestIntentDetector(unittest.TestCase):
         self.assertEqual(result["analysis"]["intent"], INTENT_SMALLTALK)
         self.assertGreater(result["analysis"]["intent_confidence"], 0.60)
 
+    def test_detect_uses_exact_corpus_example_without_vector_engine(self):
+        detector = IntentDetector(self.task_manager, corpus_path=str(self.corpus_path))
+        context = {
+            "original_text": "雑談しよう",
+            "session_id": "default_session",
+            "analysis": {"tokens": [{"base": "雑談しよう", "surface": "雑談しよう", "pos": "名詞"}]},
+            "pipeline_history": [],
+        }
+
+        result = detector.detect(context)
+
+        self.assertEqual(result["analysis"]["intent"], INTENT_SMALLTALK)
+        self.assertGreater(result["analysis"]["intent_confidence"], 0.60)
+
     def test_detect_maps_feedback_variation_to_feedback_intent(self):
         result = self._detect("ありがとう")
         self.assertEqual(result["analysis"]["intent"], INTENT_FEEDBACK)

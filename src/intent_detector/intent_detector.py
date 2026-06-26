@@ -145,6 +145,34 @@ class IntentDetector:
                     words.append(word)
         return words
 
+    def _normalize_example_text(self, text):
+        normalized = str(text or "").strip().lower()
+        terminal_marks = {"。", "．", ".", "！", "!", "？", "?"}
+        while normalized and normalized[-1] in terminal_marks:
+            normalized = normalized[:-1].strip()
+        return "".join(ch for ch in normalized if not ch.isspace())
+
+    def _match_exact_corpus_example(self, text):
+        normalized_text = self._normalize_example_text(text)
+        if not normalized_text:
+            return None
+        matched_intents = []
+        for intent in self.intents:
+            name = intent.get("name")
+            if not name:
+                continue
+            for example in intent.get("examples", []) or []:
+                if self._normalize_example_text(example) == normalized_text:
+                    matched_intents.append(name)
+                    break
+        unique_matches = []
+        for name in matched_intents:
+            if name not in unique_matches:
+                unique_matches.append(name)
+        if len(unique_matches) == 1:
+            return unique_matches[0]
+        return None
+
     def add_intent_rule(self, intent_name, pattern, confidence_score, example=None):
         """
         Adds a new example to an existing intent or creates a new one.
@@ -197,6 +225,11 @@ class IntentDetector:
         detected_intent = INTENT_GENERAL
         detected_confidence = 0.5 # Default low confidence
 
+        exact_example_intent = self._match_exact_corpus_example(text)
+        if exact_example_intent:
+            detected_intent = exact_example_intent
+            detected_confidence = 0.95
+
         # Get current task context for state-dependent intent detection
         current_task = context.get("task", {})
         task_name = current_task.get("name")
@@ -215,7 +248,7 @@ class IntentDetector:
             debug_print(f"[DEBUG] Awaiting confirmation for task {current_task.get('name') if current_task else 'unknown'}")
 
         # 2. Sentence Vector Match (Fallback)
-        if hasattr(self, 'intent_vectors') and self.intent_vectors:
+        if detected_intent == INTENT_GENERAL and hasattr(self, 'intent_vectors') and self.intent_vectors:
             tokens = context.get("analysis", {}).get("tokens", [])
             query_words = self._extract_content_words(tokens)
             query_vec = self.vector_engine.get_sentence_vector(query_words)

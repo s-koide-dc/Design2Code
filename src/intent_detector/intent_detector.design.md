@@ -39,14 +39,15 @@
 4. `_extract_content_words` は助詞/助動詞/記号/接続詞を除外し、拡張子トークン（`txt`, `md`, `json` など）をノイズとして除外する。拡張子が含まれる場合は ASCII トークンの大半を除外してファイル名誤検出を抑制する。
 5. `detect` は `original_text` が空の場合、`INTENT_GENERAL` と `intent_confidence=0.5` を返す。
 6. 承認待ちの判定は `clarification_needed` と `clarification_type == "APPROVAL"` に基づく。`active_tasks` に同条件があれば `awaiting_conf` を真とする。
-7. 意図候補の文ベクトルが存在する場合のみ、入力文のベクトルと全意図ベクトルの類似度を比較する。
-8. ベースラインの `threshold=0.60` を超える最良意図を採用する。
-9. 状態に応じたブーストを適用する（例: `FILE_CREATE` の `AWAITING_CONTENT` → `PROVIDE_CONTENT` に加点）。
-10. 承認待ち状態では `src.utils.confirmation_response` の承認 / 拒否インテントに追加ブーストを適用する。
-11. アクション系意図（例: `INTENT_FILE_CREATE`, `INTENT_FILE_DELETE`, `INTENT_FILE_COPY`, `INTENT_FILE_MOVE`, `INTENT_CMD_RUN`, `INTENT_GENERATE_TESTS`）は一定スコア以上で小さなブーストを加えて、`GREETING` の誤判定を抑制する。
-12. `GREETING` は高スコア時のみ追加ブーストを許可する。
-13. `GREETING` / `BYE` / `PERSONAL_Q` / `TIME` / `WEATHER` / `CAPABILITY` / `DEFINITION` のような短い conversational utterance は、内容語が数語に収まりやすく `GENERAL` に落ちやすいため、十分近い候補に対してのみ小さな短文ブーストを加える。
-14. `context.analysis.intent` / `intent_confidence` を更新し、`pipeline_history` に `intent_detector` を追加する。
+7. ベクトル判定前に、入力文を正規化し、corpus `examples` と完全一致する単一 intent があれば、その intent を `intent_confidence=0.95` で採用する。複数 intent に同じ example がある場合は曖昧として採用しない。
+8. exact example で決まらず、意図候補の文ベクトルが存在する場合のみ、入力文のベクトルと全意図ベクトルの類似度を比較する。
+9. ベースラインの `threshold=0.60` を超える最良意図を採用する。
+10. 状態に応じたブーストを適用する（例: `FILE_CREATE` の `AWAITING_CONTENT` → `PROVIDE_CONTENT` に加点）。
+11. 承認待ち状態では `src.utils.confirmation_response` の承認 / 拒否インテントに追加ブーストを適用する。
+12. アクション系意図（例: `INTENT_FILE_CREATE`, `INTENT_FILE_DELETE`, `INTENT_FILE_COPY`, `INTENT_FILE_MOVE`, `INTENT_CMD_RUN`, `INTENT_GENERATE_TESTS`）は一定スコア以上で小さなブーストを加えて、`GREETING` の誤判定を抑制する。
+13. `GREETING` は高スコア時のみ追加ブーストを許可する。
+14. `GREETING` / `BYE` / `PERSONAL_Q` / `TIME` / `WEATHER` / `CAPABILITY` / `DEFINITION` のような短い conversational utterance は、内容語が数語に収まりやすく `GENERAL` に落ちやすいため、十分近い候補に対してのみ小さな短文ブーストを加える。
+15. `context.analysis.intent` / `intent_confidence` を更新し、`pipeline_history` に `intent_detector` を追加する。
 
 ### Test Cases
 - **Happy Path**:
@@ -66,6 +67,8 @@
   - **Expected Output / Behavior**: `BYE` / `PERSONAL_Q` が `GENERAL` に潰れず、短文 conversational boost により候補意図へ収束する。
   - **Scenario**: 「今日の天気は？」「何ができる？」「AIとは何？」のような conversational / definition 系短文。
   - **Expected Output / Behavior**: `WEATHER` / `CAPABILITY` / `DEFINITION` が `GENERAL` に潰れず、会話制御 intent として収束する。
+  - **Scenario**: vector engine が未設定で、入力が corpus `examples` と完全一致する。
+  - **Expected Output / Behavior**: `examples` の単一 intent を採用し、`GENERAL` に落とさない。
 
 ## 3. Dependencies
 - **Internal**: `vector_engine`, `morph_analyzer`, `task_manager`, `config_manager`

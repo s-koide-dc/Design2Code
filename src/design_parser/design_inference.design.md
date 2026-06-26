@@ -29,6 +29,9 @@
 5. 補完時の内部 semantic intent (`GENERAL`, `FETCH`, `TRANSFORM`, `DISPLAY`, `PERSIST`, `HTTP_REQUEST`, `DATABASE_QUERY`, `JSON_DESERIALIZE`, `LINQ`, `CALC`) と node kind (`ACTION`, `CONDITION`, `LOOP`, `ELSE`, `END`) は `src.utils.semantic_intents` の共通定数を使う。
 6. resolver 候補が confidence threshold を下回る場合は、plain source / HTTP / file / JSON deserialize / LINQ / DB persist / ops / display / return などの構造的 fallback を先に試す。
    - fallback が成立する場合は、低信頼な resolver 候補ではなく fallback の metadata を採用する。
+   - `refs` / `ops` / `semantic_roles` だけが残った authoring reduction 行は、これらの prefix を解析用本文から外し、既存 `semantic_roles` を新規 metadata に統合してから出力する。
+   - `semantic_roles.sql` または SQL literal が `SELECT` / `WITH` を示す場合は、既存 db data source と entity schema に基づいて `DATABASE_QUERY` として復元する。
+   - `input_path` / `output_path` の file data source があり、本文が入力ファイルパスの読み込みまたは出力ファイルパスへの書き出しを示す場合は、`source_ref` と `semantic_roles.path` を同じ source id で補完する。
    - fallback も成立しない場合は、assist 対象判定と boundary probe の契約に合わせて `NO_CANDIDATE` issue で `blocked` を返す。
 7. accepted 済みの literal suggestion は explicit tag を上書きせず、missing な `semantic_roles.path/url/sql` にだけ反映する。
 8. 変更があれば元文書は書き換えず、`.inferred.design.md` に書き出す。
@@ -64,6 +67,7 @@
 - `ops` は現時点では `trim_upper`、`split_lines`、`csv_serialize`、`aggregate_by_product`、`display_names` のみを明示表現から補完し、必要に応じて `output_type` / `target_entity` も対応する既定値へ補正する。
 - resolver が別 intent に寄った後で `TRANSFORM` / `CALC` / `DISPLAY` に補正された場合でも、最終 intent に対して `ops` 推論を再評価する。
 - resolver が低信頼候補を返した場合でも、構造的 fallback が成立するなら fallback を優先する。これにより method store の pruning や vector DB 再構築で候補集合が変わっても、明示 literal / data source / refs を保持する authoring reduction variant は決定的に復元される。
+- vector model が無い CI 環境でも、`semantic_roles` と data source が残る authoring reduction variant は構造的 fallback だけで復元できる必要がある。
 
 ## 5. Review Notes
 - 2026-06-25: 低信頼 resolver 候補より構造的 fallback を優先し、採用可能な候補がない場合は `LOW_CONFIDENCE` ではなく `NO_CANDIDATE` として boundary/assist 判定へ渡す契約を反映。
