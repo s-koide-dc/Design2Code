@@ -8,6 +8,7 @@ import logging
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -411,10 +412,20 @@ def collect_probe_payload(args: argparse.Namespace) -> Dict[str, object]:
     assist_args = _build_assist_args(args)
     results: List[Dict[str, object]] = []
     content = design_path.read_text(encoding="utf-8")
-    probe_root = Path(args.output_dir) if args.output_dir else WORKSPACE_ROOT / "cache" / f"{design_path.stem}.authoring_reduction_probe"
-    if probe_root.exists():
-        shutil.rmtree(probe_root)
-    probe_root.mkdir(parents=True, exist_ok=True)
+    if args.output_dir:
+        probe_root = Path(args.output_dir)
+        if probe_root.exists():
+            shutil.rmtree(probe_root)
+        probe_root.mkdir(parents=True, exist_ok=True)
+    else:
+        cache_root = WORKSPACE_ROOT / "cache"
+        cache_root.mkdir(parents=True, exist_ok=True)
+        probe_root = Path(
+            tempfile.mkdtemp(
+                prefix=f"{design_path.stem}.authoring_reduction_probe.",
+                dir=str(cache_root),
+            )
+        )
 
     for variant in VARIANTS:
         variant_name = str(variant["name"])

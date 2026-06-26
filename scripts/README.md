@@ -35,6 +35,7 @@
 - `scripts/probe_design_authoring_reduction.py`
   - 同一 `.design.md` から authoring 削減段階ごとの variant を生成し、どこまで deterministic に保てるか、どこから literal boundary に入るかを JSON で返す。
   - 現在は `original`, `drop_step_meta`, `drop_step_meta_refs`, `drop_step_meta_refs_ops`, `strip_tags_keep_literals`, `strip_tags_drop_literals` を出力する。
+  - `--output-dir` 未指定時は `cache/` 配下に実行ごとの一意ディレクトリを作成するため、CI の並列実行でも別プロセスの probe artifact を削除しない。
   - `--assist-endpoint-url` を付けると、同じ variant 群に対して `literal_roles_only` assist の回復可否も並べて観測できる。
   - `--skip-generate` を使うと inference 比較だけに絞れるため、JSON 契約確認や高速な境界観測に向く。
 - `scripts/validate_design_authoring.py`
