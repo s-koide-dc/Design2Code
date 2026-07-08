@@ -24,7 +24,7 @@ class CSharpOperations:
             os.path.dirname(analyzer_project),
         ]
         files = []
-        for root in roots:
+        for root_index, root in enumerate(roots):
             for current_root, directories, filenames in os.walk(root):
                 directories[:] = sorted(
                     directory
@@ -33,9 +33,10 @@ class CSharpOperations:
                 )
                 for filename in sorted(filenames):
                     if os.path.splitext(filename)[1].lower() in accepted_suffixes:
-                        files.append(os.path.join(current_root, filename))
-        for file_path in sorted(set(files)):
-            digest.update(os.path.relpath(file_path, roots[0]).encode("utf-8"))
+                        files.append((root_index, os.path.join(current_root, filename)))
+        for root_index, file_path in sorted(set(files)):
+            relative_path = os.path.relpath(file_path, roots[root_index])
+            digest.update(f"{root_index}:{relative_path}".encode("utf-8"))
             with open(file_path, "rb") as source:
                 for chunk in iter(lambda: source.read(1024 * 1024), b""):
                     digest.update(chunk)
