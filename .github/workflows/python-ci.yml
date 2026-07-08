@@ -35,7 +35,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run unit tests
-        run: python -m unittest discover -s tests/unit -p "test_*.py" -v
+        run: python scripts/validate/run_unit_by_file.py --verbosity 2
 
   documented-entrypoints:
     runs-on: windows-latest
