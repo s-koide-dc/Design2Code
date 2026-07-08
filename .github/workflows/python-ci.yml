@@ -63,7 +63,13 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run documented entrypoints regression
-        run: python -m unittest tests.integration.test_documented_entrypoints -v
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "resources/vectors/vector_db/method_store_meta.json")) {
+            Write-Host "Skipping documented entrypoints regression in asset-free CI; run locally with generated method-store vector DB."
+            exit 0
+          }
+          python -m unittest tests.integration.test_documented_entrypoints -v
 
   integration:
     runs-on: windows-latest
@@ -98,7 +104,14 @@ jobs:
             # Real model assets are intentionally unavailable on GitHub.
             # See docs/real_vector_model_validation.md for the local validation contract.
             "test_semantic_method_search.py",
-            "test_vector_engine_real_model.py"
+            "test_vector_engine_real_model.py",
+            # These suites rely on dictionary/vector/generated method-store assets
+            # that are intentionally not stored in GitHub.
+            "test_conversation_scenarios.py",
+            "test_end_to_end_scenarios.py",
+            "test_full_integrated_pipeline.py",
+            "test_pipeline_core.py",
+            "test_reverse_lookup_flow.py"
           )
           $failed = @()
           Get-ChildItem tests/integration -Filter "test_*.py" |
