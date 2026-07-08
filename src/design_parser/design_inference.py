@@ -63,18 +63,21 @@ class DesignInferenceEngine:
             "intents": {INTENT_TRANSFORM},
             "requires_all": ["行", "分割"],
             "meta": {"target_entity": "string", "output_type": "List<string>"},
+            "allow_implicit_fallback": True,
         },
         "csv_serialize": {
             "intents": {INTENT_TRANSFORM},
             "requires_all": ["csv"],
             "requires_any": ["文字列", "形式", "変換"],
             "meta": {"target_entity": "string", "output_type": "string"},
+            "allow_implicit_fallback": True,
         },
         "aggregate_by_product": {
             "intents": {INTENT_CALC},
             "requires_all": ["商品別"],
             "requires_any": ["合計", "集計"],
             "meta": {"target_entity": "decimal", "output_type": "Dictionary<string, decimal>"},
+            "allow_implicit_fallback": True,
         },
         "display_names": {
             "intents": {INTENT_DISPLAY},
@@ -345,7 +348,8 @@ class DesignInferenceEngine:
         last_persist_path: Optional[str] = None,
     ) -> Tuple[bool, Optional[InferenceIssue], str, List[str]]:
         step_token, score = self.resolver.infer_step_with_score(line, module_name)
-        command_literal = self._extract_command_literal(line, self.resolver.get_entities(line))
+        initial_entities = self.resolver.get_entities(line)
+        command_literal = self._extract_command_literal(line, initial_entities)
         env_sources, stdin_sources, http_sources, file_sources = self._collect_source_kinds()
         db_sources = [s for s in getattr(self, "_current_data_sources", []) if s.get("kind") == "db"]
         fallback_line = self._strip_non_step_metadata_prefixes(line)
@@ -353,6 +357,12 @@ class DesignInferenceEngine:
         explicit_ops = self._extract_ops_tag(line)
         if explicit_ops and "ops" not in existing_semantic_roles:
             existing_semantic_roles["ops"] = explicit_ops
+        if self._extract_sql_literal(fallback_line) and not db_sources:
+            return False, InferenceIssue(
+                step_idx,
+                "NO_CANDIDATE",
+                "SQL literal requires an explicit db data source.",
+            ), line, []
 
         def _merged_semantic_roles(extra_roles: Dict[str, Any]) -> Dict[str, Any]:
             merged = dict(existing_semantic_roles)
@@ -562,6 +572,22 @@ class DesignInferenceEngine:
         meta = self._map_step_token_to_meta(step_token)
         if not meta:
             return False, InferenceIssue(step_idx, "UNMAPPED_TOKEN", step_token), line, []
+        quoted_literal = extract_first_quoted_literal(line)
+        filename_entity = (
+            initial_entities.get("filename", {}).get("value")
+            if isinstance(initial_entities.get("filename"), dict)
+            else None
+        )
+        has_file_literal = bool(
+            (quoted_literal and self._is_likely_filename(quoted_literal))
+            or (filename_entity and self._is_likely_filename(str(filename_entity)))
+        )
+        if meta.get("intent") == INTENT_JSON_DESERIALIZE and not last_output_type and not has_file_literal:
+            return False, InferenceIssue(
+                step_idx,
+                "NO_CANDIDATE",
+                "JSON_DESERIALIZE requires an upstream textual payload.",
+            ), line, []
 
         semantic_roles: Dict[str, Any] = dict(existing_semantic_roles)
         sql_literal = ""
@@ -657,6 +683,13 @@ class DesignInferenceEngine:
             url_literal = self._extract_url_literal(line, entities)
             if url_literal:
                 semantic_roles["url"] = url_literal
+        if meta.get("intent") == INTENT_HTTP_REQUEST and str(meta.get("target_entity") or "") in ["", "Item", "string"]:
+            inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
+            if not inferred_entity or inferred_entity == "Item":
+                inferred_entity = self._entity_from_source_ref(str(meta.get("source_ref") or ""))
+            if inferred_entity and inferred_entity != "Item":
+                meta = dict(meta)
+                meta["target_entity"] = inferred_entity
         if meta.get("intent") == INTENT_CMD_RUN:
             if not command_literal:
                 return False, InferenceIssue(step_idx, "MISSING_COMMAND", "Command literal required for CMD_RUN."), line, []
@@ -687,8 +720,18 @@ class DesignInferenceEngine:
                 meta["side_effect"] = "IO" if meta["intent"] in [INTENT_FETCH, INTENT_FILE_IO] else meta.get("side_effect", "NONE")
                 if meta.get("intent") == INTENT_FETCH:
                     meta["output_type"] = meta.get("output_type") or "string"
+                if meta.get("intent") == INTENT_HTTP_REQUEST and str(meta.get("target_entity") or "") in ["", "Item", "string"]:
+                    inferred_entity = self._entity_from_source_ref(str(meta.get("source_ref") or ""))
+                    if inferred_entity and inferred_entity != "Item":
+                        meta["target_entity"] = inferred_entity
                 source_override_applied = True
         if meta.get("intent") in [INTENT_DATABASE_QUERY, INTENT_PERSIST]:
+            if not db_sources:
+                return False, InferenceIssue(
+                    step_idx,
+                    "NO_CANDIDATE",
+                    "Database operations require an explicit db data source.",
+                ), line, []
             sql_literal = self._extract_sql_literal(line)
             if not sql_literal:
                 alt_token, alt_score = self.resolver.infer_step_with_score_excluding_intents(
@@ -1063,7 +1106,11 @@ class DesignInferenceEngine:
             if len(intents) != 1:
                 continue
             candidate_intent = intents[0]
-            op_matches = self._infer_explicit_ops(line, candidate_intent)
+            op_matches = self._infer_explicit_ops(
+                line,
+                candidate_intent,
+                allow_natural=bool(hint.get("allow_implicit_fallback")),
+            )
             if op_name not in op_matches:
                 continue
             if inferred_intent and inferred_intent != candidate_intent:
@@ -1654,9 +1701,10 @@ class DesignInferenceEngine:
             return ""
         return f"[semantic_roles:{json.dumps(semantic_roles, ensure_ascii=False, separators=(',', ':'))}]"
 
-    def _infer_explicit_ops(self, line: str, intent: str) -> List[str]:
+    def _infer_explicit_ops(self, line: str, intent: str, *, allow_natural: bool = True) -> List[str]:
         if not intent:
             return []
+        normalized_line = str(line or "").lower()
         semantic_roles = self._extract_semantic_roles(line)
         candidates = []
         role_ops = semantic_roles.get("ops") if isinstance(semantic_roles, dict) else None
@@ -1664,13 +1712,26 @@ class DesignInferenceEngine:
             candidates.extend(role_ops)
         candidates.extend(self._extract_ops_tag(line))
         explicit_ops = self._normalize_explicit_ops(candidates)
-        if not explicit_ops:
-            return []
         inferred: List[str] = []
         for op_name in explicit_ops:
             hint = self._EXPLICIT_OP_HINTS.get(op_name) or {}
             allowed_intents = hint.get("intents") or set()
             if allowed_intents and intent not in allowed_intents:
+                continue
+            inferred.append(op_name)
+        if inferred:
+            return inferred
+        if not allow_natural:
+            return []
+        for op_name, hint in self._EXPLICIT_OP_HINTS.items():
+            allowed_intents = hint.get("intents") or set()
+            if allowed_intents and intent not in allowed_intents:
+                continue
+            required_all = [str(value).lower() for value in (hint.get("requires_all") or []) if value]
+            required_any = [str(value).lower() for value in (hint.get("requires_any") or []) if value]
+            if required_all and not all(value in normalized_line for value in required_all):
+                continue
+            if required_any and not any(value in normalized_line for value in required_any):
                 continue
             inferred.append(op_name)
         return inferred
@@ -1794,6 +1855,23 @@ class DesignInferenceEngine:
             inner = text[:-2].strip()
             return inner if inner else ""
         return ""
+
+    def _entity_from_source_ref(self, source_ref: str) -> Optional[str]:
+        cleaned = str(source_ref or "").strip()
+        if not cleaned:
+            return None
+        parts = [part for part in cleaned.replace("-", "_").split("_") if part]
+        while parts and parts[-1].lower() in {"api", "http", "source", "endpoint"}:
+            parts.pop()
+        if not parts:
+            return None
+        candidate = "".join(part[:1].upper() + part[1:] for part in parts)
+        if not isinstance(self.entity_schema, dict):
+            return None
+        for entity in self.entity_schema.get("entities", []):
+            if entity.get("name") == candidate:
+                return candidate
+        return None
 
     def _is_likely_filename(self, value: str) -> bool:
         if not value:

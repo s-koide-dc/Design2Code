@@ -25,7 +25,7 @@
         "hash": "3aba7f08a7ebbf5f94a34defa3a5ef8a3da7a26d5ae878faad293817b9ba16dc"
       },
       "design_document": {
-        "path": "src\\action_executor\\missing_action_executor.design.md",
+        "path": "src\\action_executor\\action_executor.design.md",
         "last_modified": "2026-06-04T11:07:58.055874",
         "hash": "9bae8d51d50176996e9470367307dc0bd614783e2f4942ff56f53fa57bba9cb1"
       },

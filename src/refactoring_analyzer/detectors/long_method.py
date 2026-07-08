@@ -94,6 +94,7 @@ class LongMethodDetector(BaseSmellDetector):
             method=object_details.get("name"),
             line_start=object_details.get("startLine"),
             line_end=object_details.get("endLine"),
+            line_count=object_details.get("metrics", {}).get("lineCount"),
         )]
 
     @staticmethod
@@ -103,7 +104,11 @@ class LongMethodDetector(BaseSmellDetector):
         method: str,
         line_start: int,
         line_end: int,
+        line_count: int = None,
     ) -> Dict[str, Any]:
+        resolved_line_count = line_count
+        if resolved_line_count is None and isinstance(line_start, int) and isinstance(line_end, int):
+            resolved_line_count = max(0, line_end - line_start + 1)
         return {
             "type": "long_method",
             "severity": "medium",
@@ -113,6 +118,7 @@ class LongMethodDetector(BaseSmellDetector):
             "line_end": line_end,
             "metrics": {
                 "structural_facts": ["long_method"],
+                "line_count": resolved_line_count,
             },
             "description": f"メソッド '{method}' にlong_method factがあります。",
             "impact": "責務分割の妥当性を確認してください。",
