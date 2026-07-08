@@ -1,34 +1,40 @@
 import unittest
 import os
-import json
-import shutil
+import tempfile
 from src.config.config_manager import ConfigManager
 from src.code_synthesis.code_synthesizer import CodeSynthesizer
 from src.code_verification.compilation_verifier import CompilationVerifier
-from src.code_synthesis.method_store import MethodStore
 
 class TestDynamicMethodStore(unittest.TestCase):
 
     def setUp(self):
+        self.original_suppress_vector_warnings = os.environ.get(
+            "SUPPRESS_VECTOR_WARNINGS"
+        )
         os.environ["SUPPRESS_VECTOR_WARNINGS"] = "1"
 
+        self.temp_dir = tempfile.TemporaryDirectory()
         self.cm = ConfigManager()
+        self.cm.method_store_path = os.path.join(self.temp_dir.name, "method_store.json")
+        self.cm.storage_dir = os.path.join(self.temp_dir.name, "vectors")
+        with open(os.path.join("resources", "method_store.json"), "r", encoding="utf-8") as source:
+            with open(self.cm.method_store_path, "w", encoding="utf-8") as target:
+                target.write(source.read())
         self.synthesizer = CodeSynthesizer(self.cm)
         self.verifier = CompilationVerifier(self.cm)
-        
-        # バックアップ
-        self.original_store_path = os.path.join('resources', 'method_store.json')
-        self.backup_store_path = os.path.join('resources', 'method_store_backup.json')
-        if os.path.exists(self.original_store_path):
-            shutil.copy(self.original_store_path, self.backup_store_path)
+        self.original_store_path = self.cm.method_store_path
 
         # CsvHelper を使うメソッドをストアに追加
         self._inject_csv_method()
 
     def tearDown(self):
-        # リストア
-        if os.path.exists(self.backup_store_path):
-            shutil.move(self.backup_store_path, self.original_store_path)
+        self.temp_dir.cleanup()
+        if self.original_suppress_vector_warnings is None:
+            os.environ.pop("SUPPRESS_VECTOR_WARNINGS", None)
+        else:
+            os.environ["SUPPRESS_VECTOR_WARNINGS"] = (
+                self.original_suppress_vector_warnings
+            )
 
     def _inject_csv_method(self):
         # MethodHarvesterによって生成されるであろうエントリ構造を模倣
@@ -69,18 +75,13 @@ namespace Common.Serialization {
             "id": "data_factory_create"
         }
         
-        # ストアに直接書き込み
-        with open(self.original_store_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        data['methods'].append(new_method)
-        data['methods'].append(dummy_data_method)
-        
-        with open(self.original_store_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2)
-
-        # インメモリのストアをリロード
-        self.synthesizer.method_store = MethodStore(self.cm)
+        # 公開APIを通してメタデータと索引を一貫して更新する
+        self.synthesizer.method_store.add_method(new_method)
+        self.synthesizer.method_store.add_method(dummy_data_method)
+        self.synthesizer = CodeSynthesizer(
+            self.cm,
+            method_store=self.synthesizer.method_store,
+        )
 
     def test_synthesize_and_verify_with_dynamic_dependencies(self):
         print("\n--- Test: Dynamic Dependency Injection (CsvHelper) ---")

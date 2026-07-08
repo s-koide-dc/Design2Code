@@ -28,7 +28,7 @@
 このモジュールの主な特徴は、大規模な単語ベクトルモデルを効率的に処理するための**PretrainedVectorStore による構造分離**です。
 
 1.  **初期化とモデル読み込み (`load_with_cache`)**:
-    -   環境変数 `SKIP_VECTOR_MODEL=1` が設定されている場合、モデルロードをスキップする高速起動モードで動作し、`is_ready=True` を返す。
+    -   `skip_load=True` または環境変数 `SKIP_VECTOR_MODEL=1` の場合、モデルロードをスキップする高速起動モードで動作し、`is_ready=True` を返す。埋め込み利用側はプロセス環境を変更せず明示引数を優先する。
     -   `model_path` 未指定時は `resources/vectors/chive-1.3-mc90.txt` → `resources/vectors/vectors.txt` の順で既定パスを探索する。
     -   バイナリキャッシュ（`.v{max_vocab}.vocab.npy` / `.v{max_vocab}.matrix.npy`）があれば `PretrainedVectorStore` で読み込む。
     -   テストモードや `DISABLE_VECTOR_MMAP=1` の場合は mmap を無効化する。

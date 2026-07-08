@@ -1,18 +1,15 @@
 # MethodStore 設計ドキュメント
 
 ## 1. 目的 (Purpose)
-`MethodStore` は収集されたメソッド部品を管理し、検索機能を提供します。建築的な制約（ループ内でのシリアライズ禁止など）をスコアリングで強制し、実績ベースの学習（セマンティック・フィードバック）によって自律的に精度を向上させます。
+`MethodStore` は収集されたメソッド部品を管理し、構造メタデータによる候補絞り込みと、その候補内でのベクトル検索を提供します。
 
 ## 2. 構造化仕様 (Structured Specification)
 
 ### 2.1. 検索ロジック (search)
-1.  **ハイブリッド検索**: セマンティック（ベクトル）とキーワードのマッチングを統合。
-2.  **語彙クリーニング**: `internal` や特殊型（`Span<T>`, `Pointer`）を含むメソッドを自動減点。
-3.  **スコアリングルール**:
-    - **Intent Boosting**: `FILE_IO`, `DATABASE_QUERY`, `EXISTS` 等の意図に応じたタグマッチ加点。
-    - **Loop Body Hard Block**: 意図が `LOOP_BODY` かつ明示的な `DISPLAY` 等のインテントがない場合、`serialize` や `json` を含むメソッドにペナルティ。
-    - **Project Priority**: プロジェクト内コード (`reuse`, `manual_override`) を優先。
-4.  **依存関係フィルタリング**: `current_project_context.json` を参照し、未参照パッケージに依存するメソッドを完全に除外。
+1.  **構造フィルタ**: `intent`, `role`, `required_capabilities`, `input_type`, `return_type` を明示メタデータへ照合する。
+2.  **要求と候補の分離**: メタデータを持たない候補へ検索要求のintent/capabilityを後付けしない。
+3.  **意味距離の利用境界**: ベクトル検索は構造条件を満たす候補内の順序付けにだけ使用する。名称類似度との合成スコアは使わない。
+4.  **モデルなし経路**: 構造条件を満たす候補をclass・name・IDの安定順で返し、scoreは`None`とする。
 
 ### 2.2. Harvest 正規化 / 品質ゲート
 1.  **共通 Policy**: `MethodStorePolicy` が source analysis、reflection、NuGet、seed script 由来の entry を同じ規則で正規化する。
@@ -31,8 +28,8 @@
 - **セマンティック・フィードバック**: `record_semantic_feedback` により、意図ごとの成功・失敗履歴を記録し、動的にスコアを調整。
 
 ### 2.5. 入力 / 出力
-- **Input**: `query` (str), `limit` (int), `intent` (str).
-- **Output**: スコアリング済みのメソッド候補リスト。
+- **Input**: `query`, `limit` と任意の構造条件。
+- **Output**: 構造条件を満たすメソッド候補リスト。
 
 ## 3. 依存関係
 - `scoring_rules.json`: 基本配点ルール。
@@ -44,5 +41,6 @@
 - 2026-04-21: `method_store_meta.json` / `method_store_vectors.npy` は `config.storage_dir`（`resources/vectors/vector_db`）へ統一し、旧配置（workspace root / `resources` / `cache`）は起動時移行で整理する構成に更新。
 - 2026-06-25: `MethodStorePolicy` を追加し、複数 harvest 経路から入る method entry を共通の正規化・pruning・capability map 適用で品質ゲートする構成へ更新。
 - 2026-06-25: vector DB の rebuild は `method_store.json` を唯一の入力として強制再生成し、保存時の不整合は再ベクトル化で修復する構成へ更新。
+- 2026-07-01: intent/capabilityの事前フィルタを必須化し、要求メタデータの候補への後付けと名称類似度合成を削除。
 - 2026-06-25: pruning ルールを `resources/method_store_policy.json` に移し、pruning 理由の audit を harvest 経路から追跡できる構成へ更新。
 

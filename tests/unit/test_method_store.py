@@ -71,6 +71,19 @@ class TestMethodStore(unittest.TestCase):
         self.assertEqual(len(self.store.items), 2)
         self.assertEqual(self.store.items[0]["name"], "ValidateEmail")
 
+    def test_search_does_not_assign_requested_intent_to_untyped_items(self):
+        original_items = [item.copy() for item in self.store.items]
+        self.store.vector_engine = None
+
+        results = self.store.search(
+            "save data",
+            intent="PERSIST",
+            required_capabilities=["WRITE"],
+        )
+
+        self.assertEqual(results, [])
+        self.assertEqual(self.store.items, original_items)
+
     def test_legacy_vector_store_files_are_migrated_to_vector_db(self):
         """旧 resources 直下の method_store ベクトルDBファイルを統一保存先へ移行する"""
         workspace_root = os.path.join(self.test_dir, "workspace")
