@@ -8,8 +8,8 @@
 
 import os
 import json
+import sys
 import subprocess
-import re
 import shlex
 import ast  # For Python complexity calculation
 from datetime import datetime
@@ -169,18 +169,22 @@ class GapAnalyzer:
             }
         }
 
-    def _calculate_complexity(self, file_path_abs: str, roslyn_data: Optional[Dict[str, Any]] = None) -> int:
+    def _calculate_complexity(
+        self,
+        file_path_abs: str,
+        roslyn_data: Optional[Dict[str, Any]] = None,
+    ) -> Optional[int]:
         """
         ファイル内容を読み込み、複雑度を計算する。
         C#: Roslynアナライザーの結果を使用 (正確)
         Python: ASTを使用 (正確)
-        JS: キーワードカウントによるヒューリスティック (近似値)
+        JavaScript: 構造解析データが未対応のため不明
         """
         if self.language == "csharp" and roslyn_data:
             return self._get_complexity_from_roslyn(file_path_abs, roslyn_data)
 
         if not os.path.exists(file_path_abs):
-            return 1
+            return None
 
         try:
             with open(file_path_abs, 'r', encoding='utf-8', errors='ignore') as f:
@@ -197,48 +201,60 @@ class GapAnalyzer:
                             complexity += len(node.values) - 1
                     return complexity
                 except SyntaxError:
-                    return self._heuristic_complexity(content)
-            else:
-                return self._heuristic_complexity(content)
-        except Exception:
-            return 1
+                    return None
+            return None
+        except (OSError, UnicodeError):
+            return None
 
-    def _get_complexity_from_roslyn(self, file_path_abs: str, roslyn_data: Dict[str, Any]) -> int:
+    def _get_complexity_from_roslyn(
+        self,
+        file_path_abs: str,
+        roslyn_data: Dict[str, Any],
+    ) -> Optional[int]:
         """Roslynの解析結果から該当ファイルの合計複雑度を取得"""
         total_complexity = 0
-        file_found = False
-        
-        manifest = roslyn_data.get("manifest", [])
-        objects = roslyn_data.get("objects", [])
-        
-        target_ids = []
-        for entry in manifest:
-            if os.path.normpath(entry.get("filePath", "")) == os.path.normpath(file_path_abs):
-                target_ids.append(entry.get("id"))
-                file_found = True
-        
-        if not file_found:
-            return 1
-            
-        for obj in objects:
-            if obj.get("id") in target_ids:
-                metrics = obj.get("metrics", {})
-                total_complexity += metrics.get("TotalComplexity", 0)
-        
-        return max(1, total_complexity)
+        metric_found = False
+        manifest = roslyn_data.get("manifest", {})
+        manifest_objects = (
+            manifest.get("objects", [])
+            if isinstance(manifest, dict)
+            else manifest
+        )
+        details_by_id = roslyn_data.get("details_by_id", {})
+        normalized_target = os.path.normcase(os.path.abspath(file_path_abs))
 
-    def _heuristic_complexity(self, content: str) -> int:
-        complexity = 1
-        keywords = [
-            r'\\bif\\b', r'\\bwhile\\b', r'\\bfor\\b', r'\\bforeach\\b', 
-            r'\\bcase\\b', r'\\bdefault\\b', r'\\bcatch\\b', 
-            r'\\&\\&', r'\\|\\|', r'\\?\\?'
-        ]
-        lines = [line.split('//')[0] for line in content.splitlines()]
-        clean_content = '\n'.join(lines)
-        for pattern in keywords:
-            complexity += len(re.findall(pattern, clean_content))
-        return complexity
+        for entry in manifest_objects:
+            entry_path = entry.get("filePath")
+            if not entry_path:
+                continue
+            normalized_entry = os.path.normcase(os.path.abspath(entry_path))
+            if normalized_entry != normalized_target:
+                continue
+            detail = details_by_id.get(entry.get("id"), {})
+            for method in detail.get("methods", []):
+                complexity = method.get("metrics", {}).get(
+                    "cyclomaticComplexity"
+                )
+                if isinstance(complexity, int):
+                    total_complexity += complexity
+                    metric_found = True
+
+        return total_complexity if metric_found else None
+
+    @staticmethod
+    def _priority_for_gap(
+        uncovered_count: int,
+        complexity: Optional[int],
+    ) -> str:
+        if uncovered_count > 20 or (
+            complexity is not None and complexity > 20
+        ):
+            return "high"
+        if uncovered_count > 5 or (
+            complexity is not None and complexity > 10
+        ):
+            return "medium"
+        return "low"
     
     def _find_uncovered_files(self, coverage_data: Dict[str, Any], project_path: str, roslyn_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         uncovered_files_list = []
@@ -270,11 +286,10 @@ class GapAnalyzer:
                     rel_file_path = os.path.relpath(file_path_abs, project_path)
                     calculated_complexity_score = self._calculate_complexity(file_path_abs, roslyn_data)
                     uncovered_lines_count = len(uncovered_lines_in_file)
-                    calculated_priority = "low"
-                    if uncovered_lines_count > 20 or calculated_complexity_score > 20:
-                        calculated_priority = "high"
-                    elif uncovered_lines_count > 5 or calculated_complexity_score > 10:
-                        calculated_priority = "medium"
+                    calculated_priority = self._priority_for_gap(
+                        uncovered_lines_count,
+                        calculated_complexity_score,
+                    )
 
                     uncovered_files_list.append({
                         "file": rel_file_path,
@@ -290,11 +305,10 @@ class GapAnalyzer:
                     rel_file_path = os.path.relpath(file_path_abs, project_path)
                     calculated_complexity_score = self._calculate_complexity(file_path_abs)
                     missing_lines_count = len(file_info["missing_lines"])
-                    calculated_priority = "low"
-                    if missing_lines_count > 20 or calculated_complexity_score > 20:
-                        calculated_priority = "high"
-                    elif missing_lines_count > 5 or calculated_complexity_score > 10:
-                        calculated_priority = "medium"
+                    calculated_priority = self._priority_for_gap(
+                        missing_lines_count,
+                        calculated_complexity_score,
+                    )
                     uncovered_files_list.append({
                         "file": rel_file_path,
                         "uncovered_lines": file_info["missing_lines"],
@@ -310,11 +324,10 @@ class GapAnalyzer:
                     if uncovered_lines_in_file:
                         rel_file_path = os.path.relpath(file_path_abs, project_path)
                         calculated_complexity_score = self._calculate_complexity(file_path_abs)
-                        calculated_priority = "low"
-                        if len(uncovered_lines_in_file) > 20 or calculated_complexity_score > 20:
-                            calculated_priority = "high"
-                        elif len(uncovered_lines_in_file) > 5 or calculated_complexity_score > 10:
-                            calculated_priority = "medium"
+                        calculated_priority = self._priority_for_gap(
+                            len(uncovered_lines_in_file),
+                            calculated_complexity_score,
+                        )
                         uncovered_files_list.append({
                             "file": rel_file_path,
                             "uncovered_lines": sorted(uncovered_lines_in_file),
@@ -385,11 +398,19 @@ class BaseCoverageCollector:
 class CSharpCoverageCollector(BaseCoverageCollector):
     def collect_coverage(self, project_path: str, options: Dict[str, Any]) -> Dict[str, Any]:
         try:
+            project_path = os.path.abspath(project_path)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_path = os.path.join(project_path, "coverage_output", f"coverage_{timestamp}.json")
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            command = f'dotnet test "{project_path}" /p:CollectCoverage=true /p:CoverletOutputFormat=json /p:CoverletOutput="{output_path}"'
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, cwd=project_path)
+            command = [
+                "dotnet", "test", project_path,
+                "/p:CollectCoverage=true",
+                "/p:CoverletOutputFormat=json",
+                f"/p:CoverletOutput={output_path}",
+            ]
+            result = subprocess.run(
+                command, capture_output=True, text=True, cwd=project_path, check=False
+            )
             
             # Restore error handling: check return code!
             if result.returncode != 0:
@@ -419,13 +440,39 @@ class CSharpCoverageCollector(BaseCoverageCollector):
 class PythonCoverageCollector(BaseCoverageCollector):
     def collect_coverage(self, project_path: str, options: Dict[str, Any]) -> Dict[str, Any]:
         try:
+            project_path = os.path.abspath(project_path)
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             out = os.path.join(project_path, f"coverage_{timestamp}.json")
             tp = options.get("test_path", "tests/unit")
-            
-            # Use 'py' command and unittest discover
-            subprocess.run(f"py -m coverage run --source=src -m unittest discover {tp}", shell=True, cwd=project_path)
-            subprocess.run(f"py -m coverage json -o {out}", shell=True, cwd=project_path)
+
+            test_result = subprocess.run(
+                [
+                    sys.executable, "-m", "coverage", "run", "--source=src",
+                    "-m", "unittest", "discover", tp,
+                ],
+                capture_output=True,
+                text=True,
+                cwd=project_path,
+                check=False,
+            )
+            if test_result.returncode != 0:
+                return {
+                    "status": "error",
+                    "message": f"coverage test run failed: {test_result.stderr}",
+                }
+
+            report_result = subprocess.run(
+                [sys.executable, "-m", "coverage", "json", "-o", out],
+                capture_output=True,
+                text=True,
+                cwd=project_path,
+                check=False,
+            )
+            if report_result.returncode != 0:
+                return {
+                    "status": "error",
+                    "message": f"coverage report failed: {report_result.stderr}",
+                }
             
             if not os.path.exists(out):
                 return {"status": "error", "message": "Coverage JSON file not generated"}
@@ -448,8 +495,20 @@ class PythonCoverageCollector(BaseCoverageCollector):
 class JavaScriptCoverageCollector(BaseCoverageCollector):
     def collect_coverage(self, project_path: str, options: Dict[str, Any]) -> Dict[str, Any]:
         try:
+            project_path = os.path.abspath(project_path)
             out = os.path.join(project_path, f"coverage_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
-            subprocess.run(f"jest --coverage --coverageReporters=json --coverageDirectory={out}", shell=True, cwd=project_path)
+            result = subprocess.run(
+                [
+                    "jest", "--coverage", "--coverageReporters=json",
+                    f"--coverageDirectory={out}",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=project_path,
+                check=False,
+            )
+            if result.returncode != 0:
+                return {"status": "error", "message": f"jest failed: {result.stderr}"}
             with open(os.path.join(out, "coverage-final.json"), 'r') as f: data = json.load(f)
             tl, cl = 0, 0
             for f, fd in data.items():

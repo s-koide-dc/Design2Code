@@ -139,8 +139,14 @@ class QualityGateChecker:
     
     def _check_test_results(self) -> Dict[str, Any]:
         """テスト結果を確認"""
+        parse_errors = []
+        def result_with_errors(passed: bool) -> Dict[str, Any]:
+            result = {"all_tests_pass": passed}
+            if parse_errors:
+                result["test_result_errors"] = list(parse_errors)
+            return result
         # TRX (Visual Studio Test Results)
-        trx_files = self._find_files("TestResults/**/*.trx") + self._find_files("**/*.trx")
+        trx_files = list(dict.fromkeys(self._find_files("TestResults/**/*.trx") + self._find_files("**/*.trx")))
         for trx in trx_files:
             try:
                 tree = ET.parse(trx)
@@ -162,15 +168,16 @@ class QualityGateChecker:
                         failed = True
                 
                 if failed:
-                    return {"all_tests_pass": False}
+                    return result_with_errors(False)
                 # If we parsed a file and found no failures, assume pass for this file
                 # Continue checking others? Usually one file is enough for CI run
-                return {"all_tests_pass": True}
-            except Exception:
+                return result_with_errors(True)
+            except (ET.ParseError, OSError, ValueError, TypeError) as exc:
+                parse_errors.append({"file": trx, "error_type": type(exc).__name__})
                 continue
 
         # JUnit XML
-        junit_files = self._find_files("**/test-results/**/*.xml") + self._find_files("**/junit.xml")
+        junit_files = list(dict.fromkeys(self._find_files("**/test-results/**/*.xml") + self._find_files("**/junit.xml")))
         for xml in junit_files:
             try:
                 tree = ET.parse(xml)
@@ -185,15 +192,22 @@ class QualityGateChecker:
                         failures += 1
                 
                 if failures > 0 or errors > 0:
-                    return {"all_tests_pass": False}
-                return {"all_tests_pass": True}
-            except Exception:
+                    return result_with_errors(False)
+                return result_with_errors(True)
+            except (ET.ParseError, OSError, ValueError, TypeError) as exc:
+                parse_errors.append({"file": xml, "error_type": type(exc).__name__})
                 continue
 
-        return {"all_tests_pass": False} # Default to False if no results found
+        return result_with_errors(False) # Default to False if no results found
     
     def _check_coverage_results(self) -> Dict[str, Any]:
         """カバレッジ結果を確認"""
+        parse_errors = []
+        def result_with_errors(coverage: float) -> Dict[str, Any]:
+            result = {"coverage": coverage}
+            if parse_errors:
+                result["coverage_result_errors"] = list(parse_errors)
+            return result
         
         # 1. Cobertura (XML)
         xml_files = self._find_files("**/coverage.cobertura.xml") + self._find_files("**/coverage.xml")
@@ -203,8 +217,9 @@ class QualityGateChecker:
                 root = tree.getroot()
                 # <coverage line-rate="0.5" ...>
                 line_rate = float(root.get('line-rate', 0.0))
-                return {"coverage": line_rate * 100.0}
-            except Exception:
+                return result_with_errors(line_rate * 100.0)
+            except (ET.ParseError, OSError, ValueError, TypeError) as exc:
+                parse_errors.append({"file": xml, "error_type": type(exc).__name__})
                 continue
 
         # 2. JSON (Coverlet / Custom / coverage.py)
@@ -217,13 +232,14 @@ class QualityGateChecker:
                 # Check known formats
                 # custom format from CoverageAnalyzer?
                 if "summary" in data and "line_coverage" in data["summary"]:
-                    return {"coverage": float(data["summary"]["line_coverage"])}
+                    return result_with_errors(float(data["summary"]["line_coverage"]))
                 
                 # coverage.py json
                 if "totals" in data and "percent_covered" in data["totals"]:
-                    return {"coverage": float(data["totals"]["percent_covered"])}
+                    return result_with_errors(float(data["totals"]["percent_covered"]))
                 
-            except Exception:
+            except (json.JSONDecodeError, OSError, ValueError, TypeError) as exc:
+                parse_errors.append({"file": json_file, "error_type": type(exc).__name__})
                 continue
         
         # 3. LCOV (Simple parsing)
@@ -239,11 +255,12 @@ class QualityGateChecker:
                         if line.startswith('LH:'): # Lines Hit
                             covered_lines += int(line.split(':')[1])
                 if total_lines > 0:
-                    return {"coverage": (covered_lines / total_lines) * 100.0}
-            except Exception:
+                    return result_with_errors((covered_lines / total_lines) * 100.0)
+            except (OSError, ValueError, TypeError) as exc:
+                parse_errors.append({"file": lcov, "error_type": type(exc).__name__})
                 continue
 
-        return {"coverage": 0.0}
+        return result_with_errors(0.0)
     
     def _check_quality_results(self) -> Dict[str, Any]:
         """品質結果を確認"""
@@ -285,8 +302,8 @@ class QualityGateChecker:
             if json_files:
                 # 最新のファイルを返す
                 return max(json_files, key=os.path.getmtime)
-        except Exception:
-            pass
+        except OSError as exc:
+            self._emit_stderr(f"品質レポート探索エラー ({type(exc).__name__})")
         
         return None
     

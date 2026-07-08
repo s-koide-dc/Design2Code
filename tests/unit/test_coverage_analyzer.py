@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import MagicMock, patch, mock_open
 import json
 import os
+import tempfile
 from src.coverage_analyzer.coverage_analyzer import GapAnalyzer
 
 class TestGapAnalyzer(unittest.TestCase):
@@ -78,6 +79,67 @@ class TestGapAnalyzer(unittest.TestCase):
         
         # Assert
         self.assertEqual(len(scenarios), 0)
+
+    def test_python_complexity_uses_ast(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = os.path.join(temp_dir, "sample.py")
+            with open(source, "w", encoding="utf-8") as stream:
+                stream.write(
+                    "def select(value):\n"
+                    "    if value > 0 and value < 10:\n"
+                    "        return value\n"
+                    "    return 0\n"
+                )
+            complexity = GapAnalyzer("python")._calculate_complexity(source)
+
+        self.assertEqual(complexity, 3)
+
+    def test_invalid_python_complexity_is_unknown(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = os.path.join(temp_dir, "invalid.py")
+            with open(source, "w", encoding="utf-8") as stream:
+                stream.write("if:\n")
+
+            complexity = GapAnalyzer("python")._calculate_complexity(source)
+
+        self.assertIsNone(complexity)
+
+    def test_javascript_complexity_is_unknown_without_structural_analyzer(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = os.path.join(temp_dir, "sample.js")
+            with open(source, "w", encoding="utf-8") as stream:
+                stream.write("if (ready) { run(); }\n")
+
+            complexity = GapAnalyzer("javascript")._calculate_complexity(source)
+
+        self.assertIsNone(complexity)
+
+    def test_csharp_complexity_uses_roslyn_method_metrics(self):
+        source = os.path.abspath("Example.cs")
+        roslyn_data = {
+            "manifest": {
+                "objects": [{
+                    "id": "type-1",
+                    "filePath": source,
+                }]
+            },
+            "details_by_id": {
+                "type-1": {
+                    "methods": [
+                        {"metrics": {"cyclomaticComplexity": 2}},
+                        {"metrics": {"cyclomaticComplexity": 4}},
+                    ]
+                }
+            },
+        }
+
+        complexity = GapAnalyzer("csharp")._calculate_complexity(
+            source,
+            roslyn_data,
+        )
+
+        self.assertEqual(complexity, 6)
+
 
 class TestQualityAnalyzer(unittest.TestCase):
     def setUp(self):
@@ -258,6 +320,37 @@ class TestCSharpCoverageCollector(unittest.TestCase):
         # Assert
         self.assertEqual(result["status"], "error")
         self.assertIn("Error", result["message"])
+
+
+class TestPythonCoverageCollector(unittest.TestCase):
+    @patch('src.coverage_analyzer.coverage_analyzer.subprocess.run')
+    def test_test_path_is_passed_as_one_argument(self, mock_run):
+        from src.coverage_analyzer.coverage_analyzer import PythonCoverageCollector
+        mock_run.return_value = MagicMock(returncode=1, stderr="test failed")
+
+        result = PythonCoverageCollector({}).collect_coverage(
+            ".", {"test_path": "tests/unit; echo injected"}
+        )
+
+        command = mock_run.call_args.args[0]
+        self.assertIsInstance(command, list)
+        self.assertIn("tests/unit; echo injected", command)
+        self.assertNotIn("shell", mock_run.call_args.kwargs)
+        self.assertEqual(result["status"], "error")
+
+
+class TestJavaScriptCoverageCollector(unittest.TestCase):
+    @patch('src.coverage_analyzer.coverage_analyzer.subprocess.run')
+    def test_nonzero_exit_is_an_error(self, mock_run):
+        from src.coverage_analyzer.coverage_analyzer import JavaScriptCoverageCollector
+        mock_run.return_value = MagicMock(returncode=1, stderr="jest failed")
+
+        result = JavaScriptCoverageCollector({}).collect_coverage(".", {})
+
+        self.assertEqual(result["status"], "error")
+        self.assertIn("jest failed", result["message"])
+        self.assertIsInstance(mock_run.call_args.args[0], list)
+        self.assertNotIn("shell", mock_run.call_args.kwargs)
 
 
 class TestRecommendationEngine(unittest.TestCase):
