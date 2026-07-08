@@ -64,6 +64,20 @@ def run_module(module_name: str, verbosity: int) -> tuple[bool, int, str]:
     return result.wasSuccessful(), test_count, stream.getvalue().strip()
 
 
+def emit_github_failure_summary(failed_modules: list[str]) -> None:
+    message = "Unit failures: " + ", ".join(failed_modules)
+    print(f"::error title=Unit failures::{message}")
+
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+
+    with open(summary_path, "a", encoding="utf-8") as summary:
+        summary.write("## Unit failures\n\n")
+        for module_name in failed_modules:
+            summary.write(f"- `{module_name}`\n")
+
+
 def main() -> int:
     args = parse_args()
     start_directory = Path(args.start_directory)
@@ -84,6 +98,7 @@ def main() -> int:
                 emit_error(output)
 
     if failed_modules:
+        emit_github_failure_summary(failed_modules)
         emit_error("Unit failures: " + ", ".join(failed_modules))
         return 1
 
