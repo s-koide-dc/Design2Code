@@ -46,9 +46,9 @@
 ### Core Logic
 
 #### 2.2. プロジェクトルールの読み込み (`_load_rules`)
-1. `resources/project_rules.json` のパスを構築します。
+1. `config/project_rules.json` のパスを構築します。
 2. ファイルが存在する場合、JSONとして読み込みます。
-3. 読み込みに失敗した場合、空の辞書を返します。
+3. 欠落・JSON不正・I/O失敗は `AUDIT_CONFIGURATION_ERROR` として監査結果へ追加します。
 
 #### 2.3. 全項目監査の実行 (`run_full_audit`)
 1. `findings` リストをクリアします。
@@ -61,15 +61,10 @@
 
 #### 2.4. 設計書の品質監査 (`_audit_document_quality`)
 1. `src/` ディレクトリが存在するか確認します。
-2. **プレースホルダーパターンの定義**:
-   - "ここにモジュールの目的を記述してください"
-   - "ロギングの詳細をここに記述してください"
-   - "ロジックの詳細をここに記述してください"
-   - "Skeleton only"
-   - "TODO:"
+2. `document_contract` からレベル2セクションの最低数と本文必須設定を取得します。
 3. `src/` ディレクトリを再帰的に走査し、`.design.md` ファイルを検索します。
-4. 各設計書ファイルの内容を読み込み、プレースホルダーパターンが含まれているか正規表現で検索します。
-5. プレースホルダーが見つかった場合、以下の情報を `findings` に追加します：
+4. Markdown見出し階層を解析し、タイトル、レベル2セクション数、各セクション本文を検証します。
+5. 構造契約を満たさない場合、以下の情報を `findings` に追加します：
    - `type`: "DOCUMENT_INCOMPLETE"
    - `severity`: "low"
    - `file`: 設計書の相対パス
@@ -99,28 +94,23 @@
 1. 対象ディレクトリ（`source_prefix`）が存在するか確認します。
 2. ディレクトリを再帰的に走査し、`.py` ファイルを検索します。
 3. 各Pythonファイルの内容を読み込みます。
-4. **禁止された依存先のチェック**:
-   - 各禁止対象に対して、正規表現パターンを構築します：
-     - `^\s*(import|from)\s+{target.replace("/", ".")}`
-   - パターンがファイル内に見つかった場合、以下の情報を `findings` に追加します：
+4. Python ASTの `Import` / `ImportFrom` ノードから依存モジュールを取得します。
+5. 禁止対象と完全一致またはそのサブモジュールへの依存が見つかった場合、以下の情報を `findings` に追加します：
      - `type`: "DEPENDENCY_VIOLATION"
      - `severity`: "high"
      - `file`: 違反ファイルの相対パス
      - `message`: 依存関係違反の説明
 
 #### 2.9. 意味的重複の監査 (`_audit_semantic_overlaps`)
-1. `structural_memory` が存在し、`collection.vectors` とコンポーネントが2つ以上あるか確認します。
-2. **類似度行列の計算**:
-   - `np.dot(vectors, vectors.T)` で全ペアの類似度を計算します。
-3. **重複の検出**:
-   - 類似度のしきい値を 0.95 に設定します。
-   - 上三角行列のみを走査し、類似度がしきい値以上のペアを検出します。
-   - 同じファイル内のコンポーネントは除外します。
-4. 重複が見つかった場合、以下の情報を `findings` に追加します：
+1. `structural_memory.components` が存在するか確認します。
+2. 各コンポーネントの明示メタデータ `duplicate_group_id` でグループ化します。
+3. 同じグループに属し、異なるファイルにあるコンポーネントの組を検出します。
+4. ベクトル類似度や固定しきい値から重複を推測しません。
+5. 重複が見つかった場合、以下の情報を `findings` に追加します：
    - `type`: "SEMANTIC_DUPLICATION"
    - `severity`: "low"
-   - `message`: 機能の重複が疑われる旨の説明
-   - `details`: 両コンポーネントの情報と類似度
+   - `message`: 明示された重複グループの説明
+   - `details`: 両コンポーネント、`duplicate_group_id`、根拠種別
 
 #### 2.10. プロアクティブ提案の生成 (`generate_proactive_suggestion`)
 1. `findings` が空の場合、`None` を返します。
@@ -160,7 +150,7 @@
   - ファイルの読み込みに失敗した場合（エンコーディングエラー等）、エラーなく次のファイルに進むこと
 - **_audit_semantic_overlaps**: 
   - `structural_memory` が `None` の場合、エラーなく処理をスキップすること
-  - コンポーネントが2つ未満の場合、処理をスキップすること
+  - `duplicate_group_id` がないコンポーネントから重複を推測しないこと
   - 同じファイル内のコンポーネントが重複として報告されないこと
 - **generate_proactive_suggestion**: 
   - `findings` が空の場合、`None` を返すこと
@@ -172,11 +162,11 @@
   - **Expected**: 監査レポートに "DEPENDENCY_VIOLATION" が含まれ、severity が "high" であること
   
 - **Scenario 2: 機能重複の検知**
-  - **Context**: 酷似した役割を持つ2つのクラスが異なるファイルに存在する
-  - **Expected**: 監査レポートに "SEMANTIC_DUPLICATION" が含まれ、類似度が 0.95 以上であること
+  - **Context**: 同じ `duplicate_group_id` を持つ2つのクラスが異なるファイルに存在する
+  - **Expected**: 監査レポートに "SEMANTIC_DUPLICATION" と明示グループIDが含まれること
   
 - **Scenario 3: 設計書の品質問題**
-  - **Context**: 設計書に "TODO:" が含まれている
+  - **Context**: 設計書の必須見出しまたは本文が欠落している
   - **Expected**: 監査レポートに "DOCUMENT_INCOMPLETE" が含まれること
   
 - **Scenario 4: プロアクティブ提案**
@@ -199,7 +189,7 @@
 - **ActionExecutor**: プロアクティブ提案に基づいて、設計書生成やリファクタリングを実行
 
 ## 5. Configuration
-`resources/project_rules.json` の構造例:
+`config/project_rules.json` の構造例:
 ```json
 {
   "structural_rules": [
@@ -244,11 +234,12 @@
   {
     "type": "SEMANTIC_DUPLICATION",
     "severity": "low",
-    "message": "機能の重複が疑われます: 'ComponentA' と 'ComponentB' は極めて類似した役割を持っています。",
+    "message": "明示された重複グループに ComponentA と ComponentB が登録されています。",
     "details": {
-      "component1": {"name": "ComponentA", "file": "src/module_a/component.py"},
-      "component2": {"name": "ComponentB", "file": "src/module_b/component.py"},
-      "similarity": 0.97
+      "component1": {"name": "ComponentA", "file": "src/module_a/component.py", "duplicate_group_id": "duplicate.group"},
+      "component2": {"name": "ComponentB", "file": "src/module_b/component.py", "duplicate_group_id": "duplicate.group"},
+      "duplicate_group_id": "duplicate.group",
+      "evidence_type": "declared_duplicate_group"
     }
   }
 ]

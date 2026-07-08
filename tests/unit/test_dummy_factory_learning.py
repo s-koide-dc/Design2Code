@@ -19,9 +19,7 @@ class TestDummyFactoryLearning(unittest.TestCase):
         # 未知のクラス
         self.assertEqual(self.factory.generate_instantiation('User'), 'new User()')
 
-    def test_learning_loop_from_null_ref(self):
-        # NullReferenceException を模した失敗データ
-        # メッセージに "user.Profile is null" を含む
+    def test_unstructured_failure_does_not_create_type_rules(self):
         failure = TestFailure(
             test_file="UserTests.cs",
             test_method="Test_ProcessUser",
@@ -30,55 +28,71 @@ class TestDummyFactoryLearning(unittest.TestCase):
             stack_trace="..."
         )
         
-        # 学習前
+        learned = self.factory.learn_from_failure(failure)
+
+        self.assertFalse(learned)
         self.assertEqual(self.factory.generate_instantiation('User'), 'new User()')
-        
-        # 学習
-        self.factory.learn_from_failure(failure)
-        
-        # 学習後: Profile プロパティが初期化子に含まれる
-        result = self.factory.generate_instantiation('User')
-        self.assertIn('new User {', result)
-        self.assertIn('Profile = new Profile()', result)
 
-    def test_learning_loop_from_missing_field(self):
-        # MissingFieldException を模した失敗データ
-        failure = TestFailure(
-            test_file="OrderTests.cs",
-            test_method="Test_CreateOrder",
-            error_type="runtime_error",
-            error_message="Property 'Amount' not found on type 'Order'",
-            stack_trace="..."
+    def test_register_property_uses_resolved_numeric_type(self):
+        self.assertTrue(
+            self.factory.register_property("Order", "Amount", "decimal")
         )
-        
-        # 学習
-        self.factory.learn_from_failure(failure)
-        
-        # 学習後: Amount プロパティが含まれる (guess_value_for_prop により 10 と推測される)
         result = self.factory.generate_instantiation('Order')
-        self.assertIn('Amount = 10', result)
+        self.assertIn('Amount = 0.0m', result)
 
-    def test_multiple_properties_learning(self):
-        # 複数のエラーから複数のプロパティを学習
-        f1 = TestFailure(test_file="f1", test_method="m1", error_type="e1", 
-                         error_message="user.Name is null", stack_trace="")
-        f2 = TestFailure(test_file="f2", test_method="m2", error_type="e2", 
-                         error_message="user.Age is null", stack_trace="")
-        
-        self.factory.learn_from_failure(f1)
-        self.factory.learn_from_failure(f2)
-        
+    def test_multiple_structured_properties(self):
+        self.factory.register_property("User", "Name", "System.String")
+        self.factory.register_property("User", "Age", "System.Int32")
         result = self.factory.generate_instantiation('User')
-        # 両方のプロパティが含まれる (セマンティックな値)
-        self.assertIn('Name = "Test User"', result)
-        self.assertIn('Age = 25', result)
+        self.assertIn('Name = ""', result)
+        self.assertIn('Age = 0', result)
 
-    def test_semantic_data_generation(self):
-        # プロパティ名に基づいたセマンティックな値の生成
-        self.assertEqual(self.factory._guess_value_for_prop('Email'), '"test@example.com"')
-        self.assertEqual(self.factory._guess_value_for_prop('FirstName'), '"John"')
-        self.assertEqual(self.factory._guess_value_for_prop('CreatedAt'), 'DateTime.Now')
-        self.assertEqual(self.factory._guess_value_for_prop('Price'), '1000')
+    def test_reference_and_collection_defaults_are_type_driven(self):
+        self.assertEqual(
+            self.factory._default_for_type("Example.Profile"),
+            "new Profile()",
+        )
+        self.assertEqual(
+            self.factory._default_for_type("IEnumerable<string>"),
+            "new System.Collections.Generic.List<string>()",
+        )
+
+    def test_register_accessed_properties_uses_roslyn_symbol_ids(self):
+        analysis_results = {
+            "manifest": {
+                "objects": [
+                    {"id": "type-1", "fullName": "Example.DataItem"}
+                ]
+            },
+            "details_by_id": {
+                "type-1": {
+                    "properties": [
+                        {
+                            "id": "prop-value",
+                            "name": "Value",
+                            "type": "System.String",
+                        },
+                        {
+                            "id": "prop-count",
+                            "name": "Count",
+                            "type": "System.Int32",
+                        },
+                    ]
+                }
+            },
+        }
+        factory = DummyDataFactory(analysis_results=analysis_results)
+
+        registered = factory.register_accessed_properties(
+            "DataItem",
+            ["prop-value"],
+        )
+
+        self.assertEqual(registered, 1)
+        self.assertEqual(
+            factory.generate_instantiation("DataItem"),
+            'new DataItem { Value = "" }',
+        )
 
 if __name__ == '__main__':
     unittest.main()

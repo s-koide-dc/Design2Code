@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import ast
-import re
 import os
 import logging
 from typing import Dict, List, Any, Optional
@@ -19,7 +18,12 @@ class ASTAnalyzer:
             elif language == 'csharp':
                 if roslyn_data:
                     return self._analyze_csharp_from_roslyn(roslyn_data)
-                return self._analyze_csharp_structure(code)
+                return {
+                    'status': 'structural_analysis_required',
+                    'language': 'csharp',
+                    'diagnostic': 'CSharp analysis requires Roslyn data.',
+                    'structure': self._empty_csharp_structure(),
+                }
             else:
                 return self._analyze_generic_structure(code)
                 
@@ -38,6 +42,11 @@ class ASTAnalyzer:
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
+            if lang == 'csharp':
+                return {
+                    "error": "CSharp analysis requires Roslyn data",
+                    "diagnostic": "STRUCTURAL_ANALYSIS_REQUIRED",
+                }
             res = self.analyze_code_structure(content, language=lang)
             return res.get('structure', {})
         except Exception as e:
@@ -49,7 +58,7 @@ class ASTAnalyzer:
             'classes': [],
             'functions': [],
             'methods': [], # Flattened for easy search
-            'all_keywords': set(),
+            'all_identifiers': set(),
             'files_analyzed': 0
         }
         
@@ -66,15 +75,21 @@ class ASTAnalyzer:
                         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                             content = f.read()
                         
+                        if language == 'csharp':
+                            self.logger.warning(
+                                "Skipping C# file without Roslyn data: %s",
+                                file_path,
+                            )
+                            continue
+
                         res = self.analyze_code_structure(content, language)
                         if res.get('status') == 'success':
                             struct = res.get('structure', {})
                             combined_structure['classes'].extend(struct.get('classes', []))
                             combined_structure['functions'].extend(struct.get('functions', []))
-                            
-                            # 単語のインデックス化（ロジック検索用）
-                            words = re.findall(r'[a-zA-Z]{3,}', content)
-                            combined_structure['all_keywords'].update([w.lower() for w in words])
+                            combined_structure['all_identifiers'].update(
+                                self._collect_python_identifiers(content)
+                            )
                             combined_structure['files_analyzed'] += 1
                             
                             # メソッド名のフラット化
@@ -87,14 +102,24 @@ class ASTAnalyzer:
                         self.logger.warning(f"Failed to analyze {file_path}: {e}")
 
         # JSON変換のためにセットをリストに戻す
-        combined_structure['all_keywords'] = list(combined_structure['all_keywords'])
+        combined_structure['all_identifiers'] = sorted(combined_structure['all_identifiers'])
         
         return {
             'status': 'success',
             'language': language,
             'structure': combined_structure
-        }
+            }
     
+    @staticmethod
+    def _empty_csharp_structure() -> Dict[str, Any]:
+        return {
+            'classes': [],
+            'methods': [],
+            'properties': [],
+            'using_statements': [],
+            'namespace': None,
+        }
+
     def _analyze_csharp_from_roslyn(self, roslyn_data: Dict[str, Any]) -> Dict[str, Any]:
         """MyRoslynAnalyzerのデータからC#構造を構築"""
         try:
@@ -256,106 +281,12 @@ class ASTAnalyzer:
             }
     
     def _analyze_csharp_structure(self, code: str) -> Dict[str, Any]:
-        """C#コードの構造解析（簡易版）"""
-        structure = {
-            'classes': [],
-            'methods': [],
-            'properties': [],
-            'using_statements': [],
-            'namespace': 'Generated'
-        }
-        
-        lines = code.split('\n')
-        current_namespace = 'Generated'
-        current_class_idx = -1
-        
-        for i, line in enumerate(lines, 1):
-            line = line.strip()
-            
-            # namespaceの検出
-            if line.startswith('namespace '):
-                ns_match = re.search(r'namespace\s+([\w\.]+)', line)
-                if ns_match:
-                    current_namespace = ns_match.group(1)
-                    structure['namespace'] = current_namespace
-                    for cls in structure['classes']:
-                        if cls.get('namespace') == 'Generated':
-                            cls['namespace'] = current_namespace
-            
-            # using文の検出
-            if line.startswith('using ') and line.endswith(';'):
-                namespace = line[6:-1].strip()
-                structure['using_statements'].append({'namespace': namespace, 'line': i})
-            
-            # クラス定義の検出 (修飾子を考慮)
-            elif 'class ' in line:
-                class_match = re.search(r'(?:public|private|internal|protected)?\s*(?:static|abstract|sealed)?\s*class\s+(\w+)', line)
-                if class_match:
-                    current_class_name = class_match.group(1)
-                    structure['classes'].append({
-                        'name': current_class_name,
-                        'line': i,
-                        'access_modifier': self._extract_access_modifier(line),
-                        'namespace': current_namespace,
-                        'methods': [],
-                        'properties': []
-                    })
-                    current_class_idx = len(structure['classes']) - 1
-            
-            # メソッド定義の検出 (戻り値型とメソッド名をより正確に)
-            else:
-                # メソッド正規表現: アクセス修飾子 + 型 + メソッド名 + 引数カッコ
-                method_match = re.search(r'(public|private|protected|internal|static)\s+([\w<>\[\]]+)\s+(\w+)\s*\(([^)]*)\)', line)
-                if method_match:
-                    # 前方のXMLコメント(summary)を探索
-                    docstring_lines = []
-                    j = i - 2  # Current line is lines[i-1], so previous is lines[i-2]
-                    while j >= 0:
-                        prev_line = lines[j].strip()
-                        if prev_line.startswith('///'):
-                            # Remove tags or '///'
-                            clean = re.sub(r'///\s*<.*?>', '', prev_line).replace('///', '').strip()
-                            if clean:
-                                docstring_lines.append(clean)
-                        elif not prev_line or prev_line.startswith('['):
-                            # Skip empty lines or attributes
-                            pass
-                        else:
-                            # Stop at any other line
-                            break
-                        j -= 1
-                    
-                    docstring = " ".join(reversed(docstring_lines))
-                    
-                    method_info = {
-                        'access_modifier': method_match.group(1),
-                        'return_type': method_match.group(2),
-                        'name': method_match.group(3),
-                        'parameters': method_match.group(4),
-                        'line': i,
-                        'docstring': docstring
-                    }
-                    structure['methods'].append(method_info)
-                    if current_class_idx != -1:
-                        structure['classes'][current_class_idx]['methods'].append(method_info)
-                
-                # プロパティの検出
-                prop_match = re.search(r'(public|private|protected|internal)\s+([\w<>\[\]]+)\s+(\w+)\s*{\s*(?:get|set)', line)
-                if prop_match:
-                    prop_info = {
-                        'access_modifier': prop_match.group(1),
-                        'type': prop_match.group(2),
-                        'name': prop_match.group(3),
-                        'line': i
-                    }
-                    structure['properties'].append(prop_info)
-                    if current_class_idx != -1:
-                        structure['classes'][current_class_idx]['properties'].append(prop_info)
-        
+        """C#コードの直接解析は行わない。Roslyn解析結果を使用する。"""
         return {
-            'status': 'success',
+            'status': 'structural_analysis_required',
             'language': 'csharp',
-            'structure': structure
+            'diagnostic': 'CSharp analysis requires Roslyn data.',
+            'structure': self._empty_csharp_structure(),
         }
     
     def _analyze_generic_structure(self, code: str) -> Dict[str, Any]:
@@ -367,32 +298,37 @@ class ASTAnalyzer:
             'non_empty_lines': len([line for line in lines if line.strip()]),
             'comment_lines': len([line for line in lines if line.strip().startswith(('//', '#', '/*'))]),
             'functions': [],
-            'complexity_estimate': 0
+            'complexity_estimate': None,
+            'diagnostic': 'STRUCTURAL_ANALYSIS_REQUIRED',
         }
-        
-        # 関数/メソッドの検出
-        for i, line in enumerate(lines, 1):
-            if re.search(r'(function|def|public|private)\s+\w+\s*\(', line):
-                func_match = re.search(r'(function|def|public|private)\s+(\w+)\s*\(', line)
-                if func_match:
-                    structure['functions'].append({
-                        'name': func_match.group(2),
-                        'line': i,
-                        'type': func_match.group(1)
-                    })
-        
-        # 複雑度の推定
-        complexity_keywords = ['if', 'else', 'for', 'while', 'switch', 'case', 'try', 'catch']
-        for line in lines:
-            for keyword in complexity_keywords:
-                if keyword in line.lower():
-                    structure['complexity_estimate'] += 1
-        
+
         return {
-            'status': 'success',
+            'status': 'structural_analysis_required',
             'language': 'generic',
             'structure': structure
         }
+
+    @staticmethod
+    def _collect_python_identifiers(code: str) -> set[str]:
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return set()
+        identifiers = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                identifiers.add(node.id.lower())
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                identifiers.add(node.name.lower())
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    for arg in node.args.args:
+                        identifiers.add(arg.arg.lower())
+            elif isinstance(node, ast.Attribute):
+                identifiers.add(node.attr.lower())
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                for alias in node.names:
+                    identifiers.add((alias.asname or alias.name).split('.')[0].lower())
+        return identifiers
     
     def _extract_return_type(self, node: ast.FunctionDef) -> Optional[str]:
         """関数の戻り値型を抽出"""
@@ -410,34 +346,12 @@ class ASTAnalyzer:
         matches = []
         for line in lines:
             line = line.strip()
-            # C# stack trace pattern: "at ... in C:\path\file.cs:line 123"
-            if ' in ' in line:
-                m = re.search(r' in (.*?):(?:line|行|line:)\s*(\d+)', line)
-                if m:
-                    file_path = m.group(1).strip()
-                    line_num = int(m.group(2))
-                    # メソッド名の抽出
-                    method_m = re.search(r'at\s+([\w\.]+)\(', line)
-                    method_name = method_m.group(1).split('.')[-1] if method_m else None
-                    matches.append({'file': file_path, 'line': line_num, 'method': method_name})
-            # Simplified C# pattern for tests: "at Namespace.Class.Method"
-            elif line.startswith('at '):
-                m = re.search(r'at ([\w\.]+)', line)
-                if m:
-                    full_name = m.group(1).rstrip('.')
-                    parts = full_name.split('.')
-                    method_name = parts[-1] if parts else None
-                    if len(parts) >= 2:
-                        class_name = parts[-2]
-                        if class_name:
-                            matches.append({'file': f"{class_name}.cs", 'line': 0, 'method': method_name})
-                    elif len(parts) == 1:
-                         matches.append({'file': f"{parts[0]}.cs", 'line': 0, 'method': method_name})
-            # Python stack trace pattern: "File \"...\", line 123, in ..."
-            elif 'File "' in line and '", line ' in line:
-                m = re.search(r'File "(.+?)", line (\d+)', line)
-                if m:
-                    matches.append({'file': m.group(1), 'line': int(m.group(2))})
+            parsed = (
+                self._parse_csharp_stack_frame(line)
+                or self._parse_python_stack_frame(line)
+            )
+            if parsed:
+                matches.append(parsed)
 
         primary = matches[0] if matches else None
         return {
@@ -449,6 +363,89 @@ class ASTAnalyzer:
                 'test_method': primary['method'] if primary else None
             } if primary else {}
         }
+
+    @staticmethod
+    def _parse_csharp_stack_frame(line: str) -> Optional[Dict[str, Any]]:
+        if not line.startswith('at '):
+            return None
+        frame = line[3:].strip()
+        method_part = frame
+        file_path = None
+        line_number = 0
+
+        if ' in ' in frame:
+            method_part, location_part = frame.split(' in ', 1)
+            parsed_location = ASTAnalyzer._parse_dotnet_location(location_part)
+            if parsed_location:
+                file_path, line_number = parsed_location
+            else:
+                return None
+
+        method_name = ASTAnalyzer._method_name_from_frame(method_part)
+        if not file_path:
+            class_name = ASTAnalyzer._class_name_from_frame(method_part)
+            file_path = f"{class_name}.cs" if class_name else None
+        if not file_path:
+            return None
+        return {'file': file_path, 'line': line_number, 'method': method_name}
+
+    @staticmethod
+    def _parse_dotnet_location(location_part: str) -> Optional[tuple[str, int]]:
+        markers = [':line ', ':line:', ':行 ']
+        for marker in markers:
+            marker_index = location_part.rfind(marker)
+            if marker_index == -1:
+                continue
+            file_path = location_part[:marker_index].strip()
+            digits = []
+            for char in location_part[marker_index + len(marker):]:
+                if char.isdigit():
+                    digits.append(char)
+                elif digits:
+                    break
+            if file_path and digits:
+                return file_path, int(''.join(digits))
+        return None
+
+    @staticmethod
+    def _parse_python_stack_frame(line: str) -> Optional[Dict[str, Any]]:
+        if not line.startswith('File "'):
+            return None
+        after_prefix = line[len('File "'):]
+        if '", line ' not in after_prefix:
+            return None
+        file_path, rest = after_prefix.split('", line ', 1)
+        digits = []
+        index = 0
+        while index < len(rest) and rest[index].isdigit():
+            digits.append(rest[index])
+            index += 1
+        if not file_path or not digits:
+            return None
+        method_name = None
+        in_marker = ', in '
+        in_index = rest.find(in_marker, index)
+        if in_index != -1:
+            method_name = rest[in_index + len(in_marker):].strip() or None
+        return {'file': file_path, 'line': int(''.join(digits)), 'method': method_name}
+
+    @staticmethod
+    def _method_name_from_frame(method_part: str) -> Optional[str]:
+        before_params = method_part.split('(', 1)[0].strip().rstrip('.')
+        if not before_params:
+            return None
+        parts = [part for part in before_params.split('.') if part]
+        return parts[-1] if parts else None
+
+    @staticmethod
+    def _class_name_from_frame(method_part: str) -> Optional[str]:
+        before_params = method_part.split('(', 1)[0].strip().rstrip('.')
+        parts = [part for part in before_params.split('.') if part]
+        if len(parts) >= 2:
+            return parts[-2]
+        if len(parts) == 1:
+            return parts[0]
+        return None
     
     def _calculate_complexity(self, node: ast.FunctionDef) -> int:
         """関数の循環複雑度を計算"""
@@ -500,27 +497,12 @@ class ASTAnalyzer:
                                 dependencies.append(child.id)
             
             elif language == 'csharp':
-                # C#の場合は簡易的な解析
-                lines = code.split('\n')
-                in_method = False
-                
-                for line in lines:
-                    if f'{method_name}(' in line:
-                        in_method = True
-                    elif in_method and '}' in line:
-                        column = line.find('}')
-                        if column != -1:
-                            in_method = False
-                    elif in_method:
-                        # メソッド呼び出しの検出
-                        method_calls = re.findall(r'(\w+)\s*\(', line)
-                        dependencies.extend(method_calls)
+                self.logger.warning(
+                    "C# dependency analysis requires Roslyn data for method %s",
+                    method_name,
+                )
         
         except Exception as e:
             self.logger.error(f"依存関係分析中にエラー: {e}")
         
         return list(set(dependencies))  # 重複を除去
-        # TODO: Implement Logic: 指定ディレクトリ配下の全ファイルを再帰的にスキャン。
-        # TODO: Implement Logic: **メタデータ抽出**:
-            # TODO: Implement Logic: クラス名、メソッド名、引数リスト、アクセス修飾子を抽出。
-            # TODO: Implement Logic: 特定のメソッド内で呼び出されている他の関数やメソッドのリストを抽出。

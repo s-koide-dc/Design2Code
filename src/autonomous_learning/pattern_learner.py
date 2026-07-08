@@ -3,7 +3,7 @@
 
 import logging
 from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from .log_analyzer import LearningPattern
 
 @dataclass
@@ -16,6 +16,7 @@ class RuleSuggestion:
     risk_level: str  # 'low', 'medium', 'high'
     explanation: str
     supporting_evidence: List[Dict[str, Any]]
+    safety_evidence: Dict[str, Any] = field(default_factory=dict)
 
 class PatternLearner:
     """パターン学習を担当するクラス"""
@@ -23,115 +24,89 @@ class PatternLearner:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.logger = logging.getLogger(__name__)
+        self.validation_diagnostics: List[Dict[str, Any]] = []
     
     def learn_from_patterns(self, patterns: Dict[str, List[LearningPattern]]) -> List[RuleSuggestion]:
         """パターンから新しいルールを学習"""
+        self.validation_diagnostics = []
         suggestions = []
-        for pattern in patterns['success']:
-            if pattern.context.get('type') == 'intent_detection':
-                suggestion = self._create_intent_rule_suggestion(pattern)
-                if suggestion: suggestions.append(suggestion)
-        
-        for pattern in patterns['error']:
-            suggestion = self._create_retry_rule_suggestion(pattern)
-            if suggestion: suggestions.append(suggestion)
-        
-        for pattern in patterns['improvement']:
-            suggestion = self._create_clarification_rule_suggestion(pattern)
-            if suggestion: suggestions.append(suggestion)
-
-        for pattern in patterns.get('clarification_fix', []):
-            suggestion = self._create_intent_rule_suggestion(pattern)
-            if suggestion: suggestions.append(suggestion)
+        expected_rule_types = {
+            "success": "intent_rule",
+            "error": "retry_rule",
+            "improvement": "clarification_rule",
+            "clarification_fix": "intent_rule",
+        }
+        for category, expected_rule_type in expected_rule_types.items():
+            for pattern in patterns.get(category, []):
+                suggestion = self._create_structured_suggestion(
+                    pattern,
+                    expected_rule_type,
+                )
+                if suggestion:
+                    suggestions.append(suggestion)
         return suggestions
-    
-    def _check_rule_conflicts(self, rule_definition: Dict[str, Any]) -> bool:
-        """既存ルールとの競合をチェック"""
-        if not rule_definition: return True
-        return False
 
-    def _create_intent_rule_suggestion(self, pattern: LearningPattern) -> Optional[RuleSuggestion]:
-        """意図検出ルールの提案を作成"""
-        intent = pattern.context.get('intent')
-        if not intent or pattern.confidence < 0.7: return None
-        
-        rule_definition = {
-            'type': 'intent_detection',
-            'pattern': pattern.pattern,
-            'intent': intent,
-            'confidence_boost': 0.2,
-            'priority': 'normal'
-        }
-        
-        if self._check_rule_conflicts(rule_definition): return None
-        
-        return RuleSuggestion(
-            rule_type='intent_rule',
-            rule_definition=rule_definition,
-            confidence=pattern.confidence,
-            impact_scope='intent_detection',
-            risk_level='low',
-            explanation=f"「{intent}」意図の検出精度向上のため、パターン「{pattern.pattern}」を追加",
-            supporting_evidence=[{'frequency': pattern.frequency, 'examples': len(pattern.examples)}]
-        )
-    
-    def _create_retry_rule_suggestion(self, pattern: LearningPattern) -> Optional[RuleSuggestion]:
-        """リトライルールの提案を作成"""
-        error_type = pattern.context.get('error_type')
-        if not error_type or pattern.frequency < 2: return None
-        
-        rule_definition = {
-            'type': 'retry_strategy',
-            'error_pattern': error_type,
-            'max_retries': 2,
-            'backoff_strategy': 'exponential',
-            'conditions': ['same_error_type']
-        }
-        
-        if self._check_rule_conflicts(rule_definition): return None
-
-        return RuleSuggestion(
-            rule_type='retry_rule',
-            rule_definition=rule_definition,
-            confidence=0.8,
-            impact_scope='error_handling',
-            risk_level='medium',
-            explanation=f"「{error_type}」エラーの自動回復のため、リトライ戦略を追加",
-            supporting_evidence=[{'error_frequency': pattern.frequency, 'error_type': error_type}]
-        )
-    
-    def _create_clarification_rule_suggestion(self, pattern: LearningPattern) -> Optional[RuleSuggestion]:
-        """明確化ルールの提案を作成"""
-        issue = pattern.context.get('issue')
-        if not issue: return None
-        
-        if issue == 'low_intent_confidence':
-            rule_definition = {
-                'type': 'clarification_trigger',
-                'condition': 'intent_confidence < 0.6',
-                'message_template': 'より具体的に教えていただけますか？',
-                'context_hints': True
-            }
-            explanation = "意図検出の信頼度が低い場合の明確化メッセージを改善"
-        elif issue == 'frequent_clarification':
-            rule_definition = {
-                'type': 'clarification_optimization',
-                'reduce_threshold': 0.1,
-                'smart_suggestions': True,
-                'context_aware': True
-            }
-            explanation = "頻繁な明確化要求を減らすため、より賢い明確化戦略を導入"
-        else:
+    def _create_structured_suggestion(
+        self,
+        pattern: LearningPattern,
+        expected_rule_type: str,
+    ) -> Optional[RuleSuggestion]:
+        proposal = pattern.context.get("proposed_rule")
+        if not isinstance(proposal, dict):
+            self._record_invalid(pattern, "proposed_rule_missing")
             return None
-        
-        if self._check_rule_conflicts(rule_definition): return None
+
+        rule_type = proposal.get("rule_type")
+        rule_definition = proposal.get("rule_definition")
+        impact_scope = proposal.get("impact_scope")
+        risk_level = proposal.get("risk_level")
+        explanation = proposal.get("explanation")
+        if rule_type != expected_rule_type:
+            self._record_invalid(pattern, "rule_type_mismatch")
+            return None
+        if not isinstance(rule_definition, dict) or not rule_definition:
+            self._record_invalid(pattern, "rule_definition_invalid")
+            return None
+        if not isinstance(impact_scope, str) or not impact_scope:
+            self._record_invalid(pattern, "impact_scope_invalid")
+            return None
+        if risk_level not in {"low", "medium", "high"}:
+            self._record_invalid(pattern, "risk_level_invalid")
+            return None
+        if not isinstance(explanation, str) or not explanation:
+            self._record_invalid(pattern, "explanation_invalid")
+            return None
+
+        supporting_evidence = proposal.get("supporting_evidence", [])
+        if not isinstance(supporting_evidence, list) or any(
+            not isinstance(item, dict) for item in supporting_evidence
+        ):
+            self._record_invalid(pattern, "supporting_evidence_invalid")
+            return None
+        safety_evidence = proposal.get("safety_evidence")
+        if not isinstance(safety_evidence, dict):
+            self._record_invalid(pattern, "safety_evidence_invalid")
+            return None
 
         return RuleSuggestion(
-            rule_type='clarification_rule',
-            rule_definition=rule_definition,
-            confidence=pattern.confidence,
-            impact_scope='user_experience',
-            risk_level='low',
+            rule_type=rule_type,
+            rule_definition=dict(rule_definition),
+            confidence=1.0,
+            impact_scope=impact_scope,
+            risk_level=risk_level,
             explanation=explanation,
-            supporting_evidence=[{'frequency': pattern.frequency, 'issue': issue}]
+            supporting_evidence=list(supporting_evidence),
+            safety_evidence=dict(safety_evidence),
         )
+
+    def _record_invalid(
+        self,
+        pattern: LearningPattern,
+        reason: str,
+    ) -> None:
+        self.validation_diagnostics.append({
+            "type": "INVALID_RULE_PROPOSAL",
+            "reason": reason,
+            "evidence_type": pattern.context.get("evidence_type"),
+            "pattern": pattern.pattern,
+        })

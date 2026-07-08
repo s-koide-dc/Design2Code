@@ -1,14 +1,14 @@
 # ASTAnalyzer Design Document
 
 ## 1. Purpose
-`ASTAnalyzer` は、ソースコード（Python, C#）を解析し、クラス構造、メソッド定義、引数情報、循環複雑度、および単語インデックスなどのメタデータを抽出する責任を負います。これにより、静的なコード監査や、テスト生成のためのメタデータ提供が可能になります。
+`ASTAnalyzer` は、Python AST または C# Roslyn 解析結果から、クラス構造、メソッド定義、引数情報、循環複雑度、および識別子メタデータを抽出する責任を負います。C# ソース文字列を正規表現で解析しません。
 
 ## 2. Structured Specification
 
 ### 2.1. Public Methods & Inputs
 
 - **`analyze_code_structure(code: str, language: str, roslyn_data: dict)`**:
-    - **Input**: ソースコード文字列、言語 ('python' | 'csharp')、(C#用) Roslyn解析データ。
+    - **Input**: ソースコード文字列、言語 ('python' | 'csharp')、C#用 Roslyn解析データ。
     - **Purpose**: 単一のコードブロックの構造を解析します。
 - **`analyze_file(file_path: str)`**:
     - **Input**: ファイルパス。
@@ -42,7 +42,7 @@
 - **Directory Analysis Result**:
     - `classes`, `functions`: 各ファイルの定義を統合したリスト。
     - `methods`: メソッド名のフラットリスト（検索用）。
-    - `all_keywords`: コード内の全単語（3文字以上）のセット（検索・類似度判定用）。
+    - `all_identifiers`: Python AST から抽出した識別子セット。
     - `files_analyzed`: 解析したファイル数。
 
 - **Stack Trace Analysis Result**:
@@ -53,19 +53,21 @@
 
 ### 2.3. Core Logic
 
-1.  **言語判定とディスパッチ**: 入力（ファイル拡張子や引数）に基づき、`_analyze_python_ast` (ASTモジュール使用) または `_analyze_csharp_structure` (Regex使用) / `_analyze_csharp_from_roslyn` に処理を振り分けます。
-2.  **再帰的ディレクトリ解析**: `analyze_directory` は `os.walk` を使用してファイルを探索し、個々のファイルの解析結果（構造、キーワード）を単一の結果オブジェクトに集約します。
+1.  **言語判定とディスパッチ**: Python は `ast`、C# は Roslyn 解析データだけを使用します。C# の Roslyn データがない場合は `structural_analysis_required` を返します。
+2.  **再帰的ディレクトリ解析**: `analyze_directory` は `os.walk` を使用してファイルを探索し、Python の構造と識別子を単一の結果オブジェクトに集約します。C# は Roslyn データなしではスキップします。
 3.  **Python AST解析**:
     - `ast.walk` でノードを巡回し、`ClassDef`, `FunctionDef`, `Assign`, `Import` を抽出。
     - 制御フロー構文（If, For, While等）をカウントして循環複雑度を算出。
-4.  **C# 構造解析 (Regexベース)**:
-    - 正規表現を用いて `namespace`, `class`, `method`, `property`, `using` を抽出。
-    - XMLドキュメントコメント (`///`) を後方探索して取得し、メソッド情報に付与。
+4.  **C# 構造解析**:
+    - MyRoslynAnalyzer の `manifest` と `details_by_id` だけを入力とする。
+    - ソーステキストから `namespace`, `class`, `method`, `property`, `using` を推定しない。
 5.  **スタックトレース解析**:
-    - Python形式 (`File "...", line ...`) と C#形式 (`at ... in ...:line ...` または `at Namespace.Class.Method`) の両方のパターンに対して正規表現マッチングを行い、構造化データに変換します。
+    - Python形式 (`File "...", line ...`) と C#形式 (`at ... in ...:line ...` または `at Namespace.Class.Method`) を、固定区切りの文字列走査で構造化データに変換します。
+    - スタックトレース解析に正規表現を使いません。
 
 
 ## 3. Test Cases
 - **Happy Path (Python)**: 標準的なクラスと関数を含むコードを正しく解析し、メソッド一覧とDocstringを取得できること。
-- **Happy Path (C#)**: 簡易パーサーにより、C#のクラス定義とメソッドシグネチャを抽出できること。
+- **Happy Path (C#)**: Roslyn解析結果から、C#のクラス定義とメソッドシグネチャを抽出できること。
+- **Edge Case (C#)**: Roslyn解析結果なしでC#ソース文字列だけが渡された場合、構造解析要求の診断を返すこと。
 - **Edge Case**: 構文エラーを含むコードが渡された場合、適切にエラーメッセージを返し、システムをクラッシュさせないこと。

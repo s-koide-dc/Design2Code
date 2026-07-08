@@ -4,7 +4,6 @@
 import os
 import shutil
 import subprocess
-import re
 import logging
 from datetime import datetime
 from typing import Dict, Any
@@ -32,6 +31,168 @@ class TDDOperations:
         metadata.update({k: v for k, v in kwargs.items() if v not in [None, "", [], {}]})
         return metadata
 
+    def _build_failure_analysis_context(self, failure: Dict[str, Any]) -> Dict[str, Any]:
+        analysis_context: Dict[str, Any] = {}
+        explicit_root_cause = failure.get("root_cause")
+        if isinstance(explicit_root_cause, str) and explicit_root_cause:
+            analysis_context["root_cause"] = explicit_root_cause
+        explicit_exception_type = failure.get("exception_type")
+        if isinstance(explicit_exception_type, str) and explicit_exception_type:
+            analysis_context["exception_type"] = explicit_exception_type
+        return analysis_context
+
+    def _extract_build_error_details(self, raw_output: str):
+        details = []
+        for line in raw_output.splitlines():
+            parsed = self._parse_build_error_line(line)
+            if not parsed:
+                continue
+            details.append({
+                "method": "BuildError",
+                "file": parsed["file"],
+                "line": parsed["line"],
+                "location": f"{parsed['file']}:line {parsed['line']}",
+                "message": f"{parsed['code']}: {parsed['message']}",
+                "stack_trace": line,
+                "is_build_error": True,
+            })
+        return details
+
+    @staticmethod
+    def _parse_build_error_line(line: str):
+        stripped = line.strip()
+        marker = "): error "
+        marker_index = stripped.find(marker)
+        if marker_index < 0:
+            return None
+
+        location = stripped[:marker_index]
+        open_paren = location.rfind("(")
+        if open_paren < 0:
+            return None
+        file_path = location[:open_paren].strip()
+        line_col = location[open_paren + 1:].split(",", 1)
+        if not file_path or not line_col or not line_col[0].isdigit():
+            return None
+
+        rest = stripped[marker_index + len(marker):]
+        code, separator, message = rest.partition(":")
+        if not separator:
+            return None
+        code = code.strip()
+        if not code.startswith("CS") or not code[2:].isdigit():
+            return None
+        return {
+            "file": file_path,
+            "line": int(line_col[0]),
+            "code": code,
+            "message": message.strip(),
+        }
+
+    @staticmethod
+    def _strip_line_suffix(path_text: str) -> str:
+        stripped = path_text.strip()
+        separator_index = stripped.rfind(":")
+        if separator_index < 0:
+            return stripped
+        suffix = stripped[separator_index + 1:].strip()
+        prefix = stripped[:separator_index].rstrip()
+        if suffix.isdigit():
+            return prefix
+        line_marker = "line "
+        if suffix.startswith(line_marker) and suffix[len(line_marker):].strip().isdigit():
+            return prefix
+        return stripped
+
+    def _validate_test_fix_behavior(self, target_files) -> Dict[str, Any]:
+        project_paths = set()
+        for target_file in target_files:
+            current_dir = os.path.dirname(os.path.abspath(target_file))
+            while current_dir:
+                projects = [
+                    os.path.join(current_dir, name)
+                    for name in os.listdir(current_dir)
+                    if name.endswith(".csproj")
+                ]
+                if len(projects) == 1:
+                    project_paths.add(projects[0])
+                    break
+                if len(projects) > 1:
+                    return {
+                        "valid": False,
+                        "error": f"対象プロジェクトを一意に解決できません: {current_dir}",
+                    }
+                if current_dir == self.ae.workspace_root:
+                    break
+                parent_dir = os.path.dirname(current_dir)
+                if parent_dir == current_dir:
+                    break
+                current_dir = parent_dir
+
+        if not project_paths:
+            return {
+                "valid": False,
+                "error": "修正後テストを実行するプロジェクトが見つかりません。",
+            }
+
+        for project_path in sorted(project_paths):
+            try:
+                result = subprocess.run(
+                    ["dotnet", "test", project_path, "--no-restore", "--nologo"],
+                    cwd=os.path.dirname(project_path),
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=120,
+                    shell=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                return {
+                    "valid": False,
+                    "error": f"修正後テストの実行に失敗しました: {type(exc).__name__}",
+                }
+            if result.returncode != 0:
+                output = (result.stdout or "") + (result.stderr or "")
+                return {
+                    "valid": False,
+                    "error": output[-4000:],
+                }
+        return {"valid": True, "error": ""}
+
+    def _load_failure_project_analysis(
+        self,
+        context: Dict[str, Any],
+        parameters: Dict[str, Any],
+    ):
+        project_path = self.ae._get_entity_value(parameters.get("project_path"))
+        if not project_path:
+            for past_context in reversed(context.get("history", [])):
+                past_plan = past_context.get("plan", {}).get("parameters", {})
+                project_path = self.ae._get_entity_value(
+                    past_plan.get("project_path")
+                )
+                if project_path:
+                    break
+                past_result = past_context.get("action_result", {})
+                project_path = past_result.get("target_name")
+                if project_path:
+                    break
+        if not project_path:
+            return None
+        analysis_context = {
+            "session_id": context.get("session_id", "failure_analysis"),
+            "analysis": {"entities": {}},
+        }
+        result_context = self.ae.csharp_ops.analyze_csharp(
+            analysis_context,
+            {"filename": project_path},
+        )
+        result = result_context.get("action_result", {})
+        if result.get("status") != "success":
+            return None
+        return result.get("analysis")
+
     def analyze_test_failure(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """テスト失敗を分析して修正提案を生成"""
         parameters = context.get("plan", {}).get("parameters", {})
@@ -46,19 +207,7 @@ class TDDOperations:
         # Build error handling: if no error_details but we have build_failed and raw_output
         if not error_details and last_result.get("build_failed") and last_result.get("raw_output"):
             raw_output = last_result["raw_output"]
-            # Extract C# build errors: file(line,col): error CSxxxx: message
-            # Example: C:\path\file.cs(17,34): error CS1026: ) expected
-            build_error_matches = re.finditer(r'^\s*([a-zA-Z]:[^\s(]+)\((\d+),\d+\):\s+error\s+(CS\d+):\s+(.+)', raw_output, re.MULTILINE)
-            for match in build_error_matches:
-                error_details.append({
-                    "method": "BuildError",
-                    "file": match.group(1),
-                    "line": int(match.group(2)),
-                    "location": f"{match.group(1)}:line {match.group(2)}",
-                    "message": f"{match.group(3)}: {match.group(4)}",
-                    "stack_trace": match.group(0),
-                    "is_build_error": True
-                })
+            error_details.extend(self._extract_build_error_details(raw_output))
 
         if not error_details:
             # Check history
@@ -75,74 +224,19 @@ class TDDOperations:
                 # Check for build errors in history
                 if past_result.get("build_failed") and past_result.get("raw_output"):
                     raw_output = past_result["raw_output"]
-                    build_error_matches = re.finditer(r'^\s*([a-zA-Z]:[^\s(]+)\((\d+),\d+\):\s+error\s+(CS\d+):\s+(.+)', raw_output, re.MULTILINE)
-                    for match in build_error_matches:
-                        error_details.append({
-                            "method": "BuildError",
-                            "file": match.group(1),
-                            "line": int(match.group(2)),
-                            "location": f"{match.group(1)}:line {match.group(2)}",
-                            "message": f"{match.group(3)}: {match.group(4)}",
-                            "stack_trace": match.group(0),
-                            "is_build_error": True
-                        })
+                    error_details.extend(self._extract_build_error_details(raw_output))
                     if error_details:
                         break
 
         all_suggestions = []
         all_analyses = []
+        project_analysis = self._load_failure_project_analysis(
+            context,
+            parameters,
+        )
         
         for failure in error_details:
             test_method = failure.get("method", "")
-            
-            # --- NEW: Resolve target code from test_method name ---
-            target_file = ""
-            target_method = ""
-            current_impl = ""
-            
-            if test_method:
-                # Heuristic: Extract Class and Method from "Namespace.Tests.ClassTests.Method_Should..."
-                match = re.search(r'([\w\.]+)\.([\w\.]+)Tests\.([\w\.]+)_Should', test_method)
-                if match:
-                    # Remove '.Tests' from namespace if present
-                    namespace = match.group(1).replace(".Tests", "")
-                    target_class_full = f"{namespace}.{match.group(2)}"
-                    target_method_name = match.group(3)
-                    
-                    # Use knowledge graph to find file and implementation
-                    output_path = self.ae._get_entity_value(parameters.get("output_path"))
-                    if not output_path:
-                        # Try to find output_path in history
-                        history = context.get("history", [])
-                        for past_context in reversed(history):
-                            if past_context.get("analysis", {}).get("entities", {}).get("output_path"):
-                                output_path = past_context["analysis"]["entities"]["output_path"]["value"]
-                                break
-                    
-                    if output_path:
-                        try:
-                            manifest, details_by_id = self.ae.csharp_ops.load_csharp_analysis_results(output_path)
-                            class_obj = next((obj for obj in manifest.get("objects", []) if obj.get("fullName") == target_class_full), None)
-                            if class_obj:
-                                detail = details_by_id.get(class_obj["id"], {})
-                                target_file = class_obj.get("filePath", "")
-                                m_detail = next((m for m in detail.get("methods", []) if m.get("name") == target_method_name), None)
-                                if m_detail:
-                                    target_method = target_method_name
-                                    # --- NEW: Read actual source code ---
-                                    try:
-                                        if os.path.exists(target_file):
-                                            with open(target_file, 'r', encoding='utf-8') as f:
-                                                full_source = f.read().splitlines()
-                                                s_line = m_detail.get("startLine", 1)
-                                                e_line = m_detail.get("endLine", s_line + 5)
-                                                # Extract the method body
-                                                current_impl = "\n".join(full_source[max(0, s_line-1):min(len(full_source), e_line)])
-                                        else:
-                                            current_impl = f"// File not found: {target_file}"
-                                    except Exception as e:
-                                        current_impl = f"// Error reading source: {e}"
-                        except: pass
 
             test_failure_data = {
                 'test_file': failure.get("file", failure.get("location", "")),
@@ -151,15 +245,21 @@ class TDDOperations:
                 'error_message': failure.get("message", ""),
                 'stack_trace': failure.get("stack_trace", ""),
                 'line_number': failure.get("line"),
+                'analysis_context': self._build_failure_analysis_context(failure),
                 'target_code': {
-                    'file': target_file,
-                    'method': target_method,
-                    'current_implementation': current_impl
+                    'file': "",
+                    'method': "",
+                    'current_implementation': "",
+                    'analysis_results': None,
+                    'target_method_analysis': None,
                 }
             }
             
             try:
-                result = self.ae.advanced_tdd_support.analyze_and_fix_test_failure(test_failure_data)
+                result = self.ae.advanced_tdd_support.analyze_and_fix_test_failure(
+                    test_failure_data,
+                    roslyn_data=project_analysis,
+                )
                 if result['status'] == 'success':
                     all_analyses.append(result['analysis'])
                     # Tag each suggestion with the test method it fixes
@@ -207,9 +307,8 @@ class TDDOperations:
         ]
         
         for i, suggestion in enumerate(all_suggestions[:5], 1): # Show top 5
-            safety_indicator = "🟢" if suggestion['safety_score'] > 0.9 else "🟡" if suggestion['safety_score'] > 0.7 else "🔴"
-            auto_indicator = "✅" if suggestion.get('auto_applicable', True) else "⚠️"
-            message_parts.append(f"{i}. [{suggestion.get('test_method', '不明')}] {suggestion['description']} {safety_indicator} {auto_indicator}")
+            applicability = "自動適用可" if suggestion.get('auto_applicable', True) else "手動確認"
+            message_parts.append(f"{i}. [{suggestion.get('test_method', '不明')}] {suggestion['description']} ({applicability})")
 
         if len(all_suggestions) > 5:
             message_parts.append(f"...他 {len(all_suggestions) - 5} 件の提案があります。")
@@ -388,7 +487,8 @@ class TDDOperations:
         backup_enabled = parameters.get("backup_enabled", True)
         
         # If fix_id_requested doesn't look like a real ID, treat as "all"
-        is_valid_id = fix_id_requested and (fix_id_requested.startswith("heal_") or fix_id_requested.startswith("manual_") or fix_id_requested.startswith("calc_") or fix_id_requested.startswith("nullcheck_"))
+        known_id_prefixes = ("fix_", "heal_", "manual_", "calc_", "nullcheck_")
+        is_valid_id = fix_id_requested and fix_id_requested.startswith(known_id_prefixes)
         if fix_id_requested and not is_valid_id:
             fix_id_requested = "all"
         
@@ -433,6 +533,7 @@ class TDDOperations:
         failed_count = 0
         files_modified = set()
         backups = {} # target_path -> backup_path
+        package_failures = []
 
         try:
             # ファイルごとに修正をグループ化して適用
@@ -468,7 +569,7 @@ class TDDOperations:
                             
                             # Remove line suffix
                             if target_file:
-                                target_file = re.sub(r':(?:line\s+)?\d+$', '', target_file)
+                                target_file = self._strip_line_suffix(target_file)
                             break
                 
                 if target_file:
@@ -510,8 +611,16 @@ class TDDOperations:
                                     subprocess.run(['dotnet', 'add', 'package', package_name], cwd=proj_dir, check=True, capture_output=True)
                                     applied_count += 1
                                     files_modified.add(os.path.relpath(os.path.join(proj_dir, csproj_files[0]), self.ae.workspace_root))
-                                except:
+                                except (
+                                    OSError,
+                                    subprocess.CalledProcessError,
+                                    subprocess.TimeoutExpired,
+                                ) as exc:
                                     failed_count += 1
+                                    package_failures.append({
+                                        "package": package_name,
+                                        "error_type": type(exc).__name__,
+                                    })
                             else:
                                 failed_count += 1
                     
@@ -577,6 +686,21 @@ class TDDOperations:
                     f.write("".join(lines))
                 files_modified.add(target_file)
 
+            if package_failures and applied_count == 0 and not files_modified:
+                context["action_result"] = {
+                    "status": "error",
+                    "message": "NuGetパッケージの追加に失敗しました。",
+                    "package_failures": package_failures,
+                    "dialogue_metadata": self._build_dialogue_metadata(
+                        "code_fix",
+                        skipped_count=failed_count,
+                        reason="パッケージ追加コマンドを完了できませんでした。",
+                        recommended_action="inspect_package_failure",
+                        next_action="inspect_package_failure",
+                    ),
+                }
+                return context
+
             # バリデーション
             all_valid = True
             error_msg = ""
@@ -587,6 +711,22 @@ class TDDOperations:
                     all_valid = False
                     error_msg = val_result['error']
                     break
+
+            test_fix_types = {"test_arrange_fix", "test_self_healing"}
+            requires_test_validation = any(
+                suggestion.get("type") in test_fix_types
+                for suggestion in target_suggestions
+            )
+            if all_valid and requires_test_validation:
+                test_targets = [
+                    os.path.join(self.ae.workspace_root, target_file)
+                    for target_file in files_modified
+                    if target_file.endswith(".cs")
+                ]
+                behavioral_result = self._validate_test_fix_behavior(test_targets)
+                if not behavioral_result["valid"]:
+                    all_valid = False
+                    error_msg = behavioral_result["error"]
             
             should_rollback = not all_valid
             has_add_package = any(s.get("type") == "add_package" for s in target_suggestions)
@@ -599,6 +739,7 @@ class TDDOperations:
                     "status": "success",
                     "message": f"一括コード修正を完了しました。\n適用成功: {applied_count}件, スキップ: {failed_count}件\n修正ファイル: {', '.join(files_modified)}",
                     "applied_fixes": {"count": applied_count, "files": list(files_modified)},
+                    "package_failures": package_failures,
                     "generated_files": modified_files_list,
                     "target_name": modified_files_list[0] if modified_files_list else None,
                     "dialogue_metadata": self._build_dialogue_metadata(

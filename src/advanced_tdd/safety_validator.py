@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
-import re
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from .models import CodeFixSuggestion
 from .ast_analyzer import ASTAnalyzer
 
@@ -17,19 +16,6 @@ class SafetyValidator:
         
         # 安全性評価の設定
         self.safety_config = config.get('code_fix', {})
-        self.risk_thresholds = {
-            'low': 0.8,
-            'medium': 0.6,
-            'high': 0.3
-        }
-        
-        # 危険なパターン (単語境界 \b を追加して System 名前空間などとの誤認を防ぐ)
-        self.dangerous_patterns = [
-            r'\bdelete\b|\bremove\b|\bdrop\b|\btruncate\b',
-            r'\bformat\b|\bwipe\b|\bclear\b',
-            r'\bexec\s*\(|\beval\s*\(|\bsystem\s*\(', # 関数呼び出し形式に限定
-            r'\bunsafe\b|\bunmanaged\b'
-        ]
     
     def validate_fix_safety(self, suggestions: List[CodeFixSuggestion], target_code: Dict[str, Any]) -> List[CodeFixSuggestion]:
         """修正提案の安全性を検証"""
@@ -49,18 +35,13 @@ class SafetyValidator:
                 # 4. 承認ワークフロー判定
                 approval_workflow = self._determine_approval_workflow(risk_assessment)
                 
-                # 安全性情報を更新
-                suggestion.safety_score = basic_safety['score']
+                # 安全性情報を更新。safety_score は既存 API 互換の表示値として保持し、
+                # 適用可否の根拠には使わない。
                 suggestion.impact_analysis = impact_analysis
                 suggestion.risk_assessment = risk_assessment
                 suggestion.approval_workflow = approval_workflow
                 
-                # 安全性基準を満たす場合のみ追加
-                # 緩和: 構文エラー修正やテスト自動修復は、危険なパターンさえなければ通過させる
-                is_remedial_fix = suggestion.type in ['syntax_fix', 'test_self_healing', 'logic_gap_fix']
-                
-                if (basic_safety['passed'] and risk_assessment['level'] != 'critical') or \
-                   (is_remedial_fix and basic_safety['score'] > 0.4):
+                if basic_safety['passed'] and risk_assessment['decision'] != 'reject':
                     validated_suggestions.append(suggestion)
                     self.logger.info(f"修正提案 {suggestion.id} が安全性検証を通過 (Type: {suggestion.type})")
                 else:
@@ -74,44 +55,12 @@ class SafetyValidator:
     
     def _check_basic_safety(self, suggestion: CodeFixSuggestion) -> Dict[str, Any]:
         """基本的な安全性チェック"""
-        score = 1.0
-        issues = []
-        
-        # 危険なパターンのチェック
-        suggested_code_lower = suggestion.suggested_code.lower()
-        for pattern in self.dangerous_patterns:
-            if re.search(pattern, suggested_code_lower):
-                score *= 0.3
-                issues.append(f"危険なパターンを検出: {pattern}")
-        
-        # 修正タイプによる安全性評価
-        type_safety_scores = {
-            'method_implementation': 0.9,
-            'null_validation': 0.95,
-            'calculation_fix': 0.7,
-            'syntax_fix': 0.85,
-            'variable_declaration': 0.9,
-            'logic_gap_fix': 0.95
-        }
-        
-        type_score = type_safety_scores.get(suggestion.type, 0.5)
-        score *= type_score
-        
-        # コード変更量による調整
-        current_lines = len(suggestion.current_code.split('\n'))
-        suggested_lines = len(suggestion.suggested_code.split('\n'))
-        change_ratio = abs(suggested_lines - current_lines) / max(current_lines, 1)
-        
-        if change_ratio > 0.5:  # 50%以上の変更
-            score *= 0.7
-            issues.append("大幅なコード変更")
-        elif change_ratio > 0.2:  # 20%以上の変更
-            score *= 0.85
-            issues.append("中程度のコード変更")
+        evidence = self._get_safety_evidence(suggestion)
+        issues = self._normalise_evidence_list(evidence.get('blocking_risks', []))
         
         return {
-            'score': max(0.0, min(1.0, score)),
-            'passed': score >= self.risk_thresholds['high'],
+            'score': suggestion.safety_score,
+            'passed': len(issues) == 0,
             'issues': issues,
             'reason': '; '.join(issues) if issues else 'OK'
         }
@@ -128,6 +77,7 @@ class SafetyValidator:
             'dependency_changes': False,
             'risk_factors': []
         }
+        impact.update(suggestion.impact_analysis or {})
         
         # 言語の特定
         target_file = target_code.get('file', '')
@@ -144,10 +94,11 @@ class SafetyValidator:
             impact['breaking_changes'] = True
             impact['risk_factors'].append('APIシグネチャの変更')
             
-        # 2. 危険な操作の検出 (DB削除、ファイル上書きなど)
-        risky_ops = self._detect_risky_operations(suggestion.suggested_code)
-        if risky_ops:
-            impact['risk_factors'].extend(risky_ops)
+        # 2. リスク要因は上流の構造化 evidence のみ採用する。
+        evidence = self._get_safety_evidence(suggestion)
+        impact['risk_factors'].extend(self._normalise_evidence_list(evidence.get('risk_factors', [])))
+        if evidence.get('dependency_changes') is not None:
+            impact['dependency_changes'] = bool(evidence['dependency_changes'])
 
         # 3. 依存関係の分析 (SemanticAnalyzer活用)
         dependencies = target_code.get('dependencies', [])
@@ -155,16 +106,9 @@ class SafetyValidator:
         
         if self.semantic_analyzer:
             try:
-                # 提案コードの意味解析
+                # 提案コードの意味解析結果は参考情報として保存する。
+                # ここからクラス名やリスクを推定しない。
                 analysis = self.semantic_analyzer.analyze_text(suggestion.suggested_code)
-                entities = analysis.get('entities', [])
-                
-                # エンティティに基づく影響クラスの推論
-                for entity in entities:
-                    if entity[0].isupper(): # 簡易的なクラス名判定
-                         if entity not in impact['affected_classes']:
-                             impact['affected_classes'].append(entity)
-                             
                 impact['semantic_analysis'] = analysis
             except Exception as e:
                  self.logger.warning(f"SemanticAnalyzerによる影響分析に失敗: {e}")
@@ -191,90 +135,59 @@ class SafetyValidator:
         elif suggestion.type == 'calculation_fix':
             impact['test_impact'] = 'positive'
 
-        # 依存関係の変更チェック
-        if 'using ' in suggestion.suggested_code or 'import ' in suggestion.suggested_code:
-            impact['dependency_changes'] = True
-
         return impact
-    
-    def _detect_risky_operations(self, code: str) -> List[str]:
-        """危険な操作を検出"""
-        risks = []
-        code_lower = code.lower()
-        
-        if 'drop table' in code_lower or 'delete from' in code_lower:
-            risks.append('データベース削除操作')
-        
-        if 'open(' in code_lower and ('w' in code_lower or 'wb' in code_lower):
-            risks.append('ファイル上書き操作')
-            
-        if 'os.system' in code_lower or 'subprocess' in code_lower:
-            risks.append('外部プロセス実行')
-            
-        return risks
 
     def _assess_risk_level(self, suggestion: CodeFixSuggestion, impact_analysis: Dict[str, Any]) -> Dict[str, Any]:
         """リスクレベルを評価"""
-        risk_score = suggestion.safety_score
-        
-        # 影響範囲による調整
-        if impact_analysis['breaking_changes']:
-            risk_score *= 0.5
-        
-        if impact_analysis['dependency_changes']:
-            risk_score *= 0.8
-        
-        if len(impact_analysis['affected_methods']) > 3:
-            risk_score *= 0.7
-        
-        # リスクレベルの決定
-        if risk_score >= self.risk_thresholds['low']:
-            level = 'low'
-        elif risk_score >= self.risk_thresholds['medium']:
-            level = 'medium'
-        elif risk_score >= self.risk_thresholds['high']:
-            level = 'high'
+        evidence = self._get_safety_evidence(suggestion)
+        factors = self._identify_risk_factors(suggestion, impact_analysis)
+        blocking_risks = self._normalise_evidence_list(evidence.get('blocking_risks', []))
+
+        explicit_level = evidence.get('risk_level') or impact_analysis.get('risk_level')
+        level = explicit_level if explicit_level in {'low', 'medium', 'high', 'critical'} else 'unclassified'
+
+        if blocking_risks:
+            decision = 'reject'
+            if level == 'unclassified':
+                level = 'critical'
+            factors.extend(blocking_risks)
+        elif bool(evidence.get('requires_approval')):
+            decision = 'review'
         else:
-            level = 'critical'
+            decision = 'accept'
         
         return {
             'level': level,
-            'score': risk_score,
-            'factors': self._identify_risk_factors(suggestion, impact_analysis)
+            'score': suggestion.safety_score,
+            'decision': decision,
+            'requires_approval': bool(evidence.get('requires_approval')),
+            'factors': self._deduplicate_preserving_order(factors)
         }
     
     def _determine_approval_workflow(self, risk_assessment: Dict[str, Any]) -> Dict[str, Any]:
         """承認ワークフローを決定"""
-        level = risk_assessment['level']
-        
-        workflows = {
-            'low': {
+        if risk_assessment['decision'] == 'accept':
+            return {
                 'auto_applicable': True,
                 'approval_required': False,
                 'reviewers': [],
                 'estimated_time': '即座'
-            },
-            'medium': {
+            }
+
+        if risk_assessment['decision'] == 'review':
+            return {
                 'auto_applicable': False,
                 'approval_required': True,
                 'reviewers': ['developer'],
                 'estimated_time': '5分'
-            },
-            'high': {
-                'auto_applicable': False,
-                'approval_required': True,
-                'reviewers': ['developer', 'senior_developer'],
-                'estimated_time': '15分'
-            },
-            'critical': {
-                'auto_applicable': False,
-                'approval_required': True,
-                'reviewers': ['developer', 'senior_developer', 'architect'],
-                'estimated_time': '30分以上'
             }
-        }
         
-        return workflows.get(level, workflows['critical'])
+        return {
+            'auto_applicable': False,
+            'approval_required': True,
+            'reviewers': ['developer', 'senior_developer', 'architect'],
+            'estimated_time': '30分以上'
+        }
     
     def _check_breaking_changes(self, suggestion: CodeFixSuggestion, language: str = 'generic') -> bool:
         """破壊的変更をチェック"""
@@ -282,6 +195,14 @@ class SafetyValidator:
             # 言語ごとの構造解析
             current_struct = self.ast_analyzer.analyze_code_structure(suggestion.current_code, language)
             suggested_struct = self.ast_analyzer.analyze_code_structure(suggestion.suggested_code, language)
+            if (
+                language == 'csharp'
+                and (
+                    current_struct.get('status') == 'structural_analysis_required'
+                    or suggested_struct.get('status') == 'structural_analysis_required'
+                )
+            ):
+                return False
             
             # 1. クラス名の変更チェック
             current_classes = [c['name'] for c in current_struct.get('structure', {}).get('classes', [])]
@@ -296,8 +217,7 @@ class SafetyValidator:
             suggested_methods = suggested_struct.get('structure', {}).get('methods', [])
             
             if not current_methods or not suggested_methods:
-                # 構造化データがない場合は簡易文字列比較にフォールバック
-                return self._check_breaking_changes_fallback(suggestion)
+                return False
 
             # 最初のメソッド同士を比較（単一メソッド修正を想定）
             curr = current_methods[0]
@@ -320,19 +240,9 @@ class SafetyValidator:
             return False
             
         except Exception as e:
-            self.logger.warning(f"シグネチャ比較中にエラーが発生。フォールバックを使用: {e}")
-            return self._check_breaking_changes_fallback(suggestion)
+            self.logger.warning(f"シグネチャ比較中にエラーが発生: {e}")
+            return False
 
-    def _check_breaking_changes_fallback(self, suggestion: CodeFixSuggestion) -> bool:
-        """シグネチャ比較のフォールバック（文字列ベース）"""
-        current_sig = self._extract_method_signature(suggestion.current_code)
-        suggested_sig = self._extract_method_signature(suggestion.suggested_code)
-        
-        if not current_sig or not suggested_sig:
-             return False
-             
-        return current_sig.strip() != suggested_sig.strip()
-    
     def _identify_risk_factors(self, suggestion: CodeFixSuggestion, impact_analysis: Dict[str, Any]) -> List[str]:
         """リスク要因を特定"""
         factors = []
@@ -346,36 +256,40 @@ class SafetyValidator:
         if len(impact_analysis['affected_methods']) > 1:
             factors.append('複数メソッドへの影響')
         
-        if suggestion.safety_score < 0.7:
-            factors.append('低い安全性スコア')
-        
-        return factors
-    
-    def _extract_method_signature(self, code: str) -> str:
-        """メソッドシグネチャを抽出"""
-        lines = code.split('\n')
-        for line in lines:
-            if 'public ' in line and '(' in line and ')' in line:
-                return line.strip()
-        return ''
-    
-    def _extract_return_type_from_code(self, code: str) -> str:
-        """コードから戻り値の型を抽出"""
-        signature = self._extract_method_signature(code)
-        if signature:
-            parts = signature.split()
-            for i, part in enumerate(parts):
-                if part in ['public', 'private', 'protected', 'static']:
-                    continue
-                return part
-        return ''
-    
-    def _count_parameters(self, code: str) -> int:
-        """パラメータ数をカウント"""
-        match = re.search(r'\(([^)]*)\)', code)
-        if match:
-            params = match.group(1).strip()
-            if not params:
-                return 0
-            return len([p.strip() for p in params.split(',') if p.strip()])
-        return 0
+        factors.extend(self._normalise_evidence_list(impact_analysis.get('risk_factors', [])))
+        return self._deduplicate_preserving_order(factors)
+
+    def _get_safety_evidence(self, suggestion: CodeFixSuggestion) -> Dict[str, Any]:
+        """提案に付与された構造化された安全性根拠を取得する"""
+        impact = suggestion.impact_analysis or {}
+        evidence = impact.get('safety_evidence', {})
+        if isinstance(evidence, dict):
+            return evidence
+        return {}
+
+    def _normalise_evidence_list(self, raw_items: Any) -> List[str]:
+        """構造化 evidence のリスト表現を表示用の文字列リストへ正規化する"""
+        if not raw_items:
+            return []
+        if not isinstance(raw_items, list):
+            raw_items = [raw_items]
+
+        items: List[str] = []
+        for item in raw_items:
+            if isinstance(item, dict):
+                code = item.get('code') or item.get('id') or item.get('description')
+                if code is not None:
+                    items.append(str(code))
+            elif item is not None:
+                items.append(str(item))
+        return self._deduplicate_preserving_order(items)
+
+    def _deduplicate_preserving_order(self, items: List[str]) -> List[str]:
+        seen = set()
+        result = []
+        for item in items:
+            if item in seen:
+                continue
+            seen.add(item)
+            result.append(item)
+        return result

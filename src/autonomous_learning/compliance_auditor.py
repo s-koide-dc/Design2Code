@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-import re
-import numpy as np
+import ast
 import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -15,23 +14,44 @@ class ComplianceAuditor:
         self.workspace_root = Path(workspace_root)
         self.memory = structural_memory
         self.logger = logging.getLogger(__name__)
-        
+        self.configuration_diagnostics = []
         self.rules = self._load_rules()
         self.findings = []
 
     def _load_rules(self) -> dict:
-        path = self.workspace_root / 'resources' / 'project_rules.json'
-        if path.exists():
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except:
-                pass
-        return {}
+        path = self.workspace_root / "config" / "project_rules.json"
+        if not path.exists():
+            self.configuration_diagnostics.append({
+                "type": "AUDIT_CONFIGURATION_ERROR",
+                "severity": "high",
+                "file": str(path.relative_to(self.workspace_root)),
+                "message": "Project rule file is missing.",
+            })
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as rules_file:
+                rules = json.load(rules_file)
+        except (OSError, json.JSONDecodeError) as exc:
+            self.configuration_diagnostics.append({
+                "type": "AUDIT_CONFIGURATION_ERROR",
+                "severity": "high",
+                "file": str(path.relative_to(self.workspace_root)),
+                "message": f"Project rule file could not be loaded: {type(exc).__name__}",
+            })
+            return {}
+        if not isinstance(rules, dict):
+            self.configuration_diagnostics.append({
+                "type": "AUDIT_CONFIGURATION_ERROR",
+                "severity": "high",
+                "file": str(path.relative_to(self.workspace_root)),
+                "message": "Project rule root must be an object.",
+            })
+            return {}
+        return rules
 
     def run_full_audit(self) -> List[Dict[str, Any]]:
         """全項目の監査を実行"""
-        self.findings = []
+        self.findings = list(self.configuration_diagnostics)
         self._audit_mandatory_files()
         self._audit_document_quality() # NEW: Check content quality
         self._audit_dependencies()
@@ -44,13 +64,9 @@ class ComplianceAuditor:
         src_dir = self.workspace_root / 'src'
         if not src_dir.exists(): return
 
-        placeholders = [
-            r"ここにモジュールの目的を記述してください",
-            r"ロギングの詳細をここに記述してください",
-            r"ロジックの詳細をここに記述してください",
-            r"Skeleton only",
-            r"TODO:"
-        ]
+        contract = self.rules.get("document_contract", {})
+        minimum_sections = contract.get("minimum_level_2_sections", 2)
+        require_section_body = contract.get("require_section_body", True)
 
         for root, _, files in os.walk(src_dir):
             for file in files:
@@ -58,18 +74,55 @@ class ComplianceAuditor:
                     path = Path(root) / file
                     try:
                         with open(path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            for p in placeholders:
-                                if re.search(p, content):
-                                    self.findings.append({
-                                        "type": "DOCUMENT_INCOMPLETE",
-                                        "severity": "low",
-                                        "file": str(path.relative_to(self.workspace_root)),
-                                        "message": f"設計書に未記入の項目（プレースホルダー）が残っています: '{p}'"
-                                    })
-                                    break
-                    except:
-                        pass
+                            lines = f.read().splitlines()
+                    except OSError as exc:
+                        self.findings.append({
+                            "type": "DOCUMENT_READ_ERROR",
+                            "severity": "medium",
+                            "file": str(path.relative_to(self.workspace_root)),
+                            "message": f"設計書を読み取れません: {type(exc).__name__}",
+                        })
+                        continue
+
+                    title_present = any(
+                        line.startswith("# ") for line in lines
+                    )
+                    section_indexes = [
+                        index for index, line in enumerate(lines)
+                        if line.startswith("## ")
+                    ]
+                    empty_sections = []
+                    if require_section_body:
+                        for position, section_index in enumerate(section_indexes):
+                            end_index = (
+                                section_indexes[position + 1]
+                                if position + 1 < len(section_indexes)
+                                else len(lines)
+                            )
+                            body = lines[section_index + 1:end_index]
+                            if not any(
+                                line.strip() and not line.startswith("#")
+                                for line in body
+                            ):
+                                empty_sections.append(lines[section_index][3:].strip())
+
+                    if (
+                        not title_present
+                        or len(section_indexes) < minimum_sections
+                        or empty_sections
+                    ):
+                        self.findings.append({
+                            "type": "DOCUMENT_INCOMPLETE",
+                            "severity": "low",
+                            "file": str(path.relative_to(self.workspace_root)),
+                            "message": "設計書が構造契約を満たしていません。",
+                            "details": {
+                                "title_present": title_present,
+                                "level_2_section_count": len(section_indexes),
+                                "minimum_level_2_sections": minimum_sections,
+                                "empty_sections": empty_sections,
+                            },
+                        })
 
     def _audit_mandatory_files(self):
         """必須ファイル（設計書等）の存在チェック"""
@@ -115,48 +168,82 @@ class ComplianceAuditor:
             for file in files:
                 if file.endswith('.py'):
                     path = Path(root) / file
-                    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                        for target in forbidden_list:
-                            # Simple regex for Python imports
-                            # Matches 'import target' or 'from target import'
-                            pattern = rf'^\s*(import|from)\s+{target.replace("/", ".")}'
-                            if re.search(pattern, content, re.MULTILINE):
-                                self.findings.append({
-                                    "type": "DEPENDENCY_VIOLATION",
-                                    "severity": "high",
-                                    "file": str(path.relative_to(self.workspace_root)),
-                                    "message": f"依存関係違反: {description} (禁止対象: {target})"
-                                })
+                    try:
+                        with open(path, 'r', encoding='utf-8') as source_file:
+                            tree = ast.parse(source_file.read(), filename=str(path))
+                    except OSError as exc:
+                        self.findings.append({
+                            "type": "SOURCE_READ_ERROR",
+                            "severity": "medium",
+                            "file": str(path.relative_to(self.workspace_root)),
+                            "message": f"ソースを読み取れません: {type(exc).__name__}",
+                        })
+                        continue
+                    except SyntaxError as exc:
+                        self.findings.append({
+                            "type": "SOURCE_PARSE_ERROR",
+                            "severity": "medium",
+                            "file": str(path.relative_to(self.workspace_root)),
+                            "message": f"Python構文を解析できません: line {exc.lineno}",
+                        })
+                        continue
+
+                    imported_modules = set()
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.Import):
+                            imported_modules.update(
+                                alias.name for alias in node.names
+                            )
+                        elif isinstance(node, ast.ImportFrom) and node.module:
+                            imported_modules.add(node.module)
+
+                    for target in forbidden_list:
+                        forbidden_module = target.replace("/", ".")
+                        if any(
+                            module == forbidden_module
+                            or module.startswith(forbidden_module + ".")
+                            for module in imported_modules
+                        ):
+                            self.findings.append({
+                                "type": "DEPENDENCY_VIOLATION",
+                                "severity": "high",
+                                "file": str(path.relative_to(self.workspace_root)),
+                                "message": f"依存関係違反: {description} (禁止対象: {target})"
+                            })
 
     def _audit_semantic_overlaps(self):
-        """意味的な重複（コピペコードや類似機能）のチェック"""
-        if not self.memory or not hasattr(self.memory, 'collection') or self.memory.collection.vectors is None or len(self.memory.components) < 2:
+        """明示された重複グループの整合性を監査する。"""
+        if not self.memory or not hasattr(self.memory, "components"):
             return
-
-        vectors = self.memory.collection.vectors
         components = self.memory.components
-        threshold = 0.95 # 重複とみなす類似度のしきい値
+        duplicate_groups = {}
+        for component in components:
+            if not isinstance(component, dict):
+                continue
+            group_id = component.get("duplicate_group_id")
+            if isinstance(group_id, str) and group_id:
+                duplicate_groups.setdefault(group_id, []).append(component)
 
-        # 全ペアの類似度を計算（上三角行列のみ）
-        sim_matrix = np.dot(vectors, vectors.T)
-        
-        for i in range(len(components)):
-            for j in range(i + 1, len(components)):
-                if sim_matrix[i, j] >= threshold:
-                    c1, c2 = components[i], components[j]
-                    # 同じファイル内の別メソッド等は除外（要件に応じて調整）
-                    if c1['file'] != c2['file']:
-                        self.findings.append({
-                            "type": "SEMANTIC_DUPLICATION",
-                            "severity": "low",
-                            "message": f"機能の重複が疑われます: '{c1['name']}' と '{c2['name']}' は極めて類似した役割を持っています。",
-                            "details": {
-                                "component1": c1,
-                                "component2": c2,
-                                "similarity": float(sim_matrix[i, j])
-                            }
-                        })
+        for group_id, group_components in duplicate_groups.items():
+            for index, first in enumerate(group_components):
+                for second in group_components[index + 1:]:
+                    if first.get("file") == second.get("file"):
+                        continue
+                    self.findings.append({
+                        "type": "SEMANTIC_DUPLICATION",
+                        "severity": "low",
+                        "message": (
+                            f"明示された重複グループ '{group_id}' に "
+                            f"'{first.get('name')}' と '{second.get('name')}' "
+                            "が登録されています。"
+                        ),
+                        "details": {
+                            "component1": first,
+                            "component2": second,
+                            "duplicate_group_id": group_id,
+                            "evidence_type": "declared_duplicate_group",
+                        },
+                    })
 
     def generate_proactive_suggestion(self) -> Optional[Dict[str, Any]]:
         """監査結果に基づき、ユーザーに提案する最も重要なタスクを1つ選択"""

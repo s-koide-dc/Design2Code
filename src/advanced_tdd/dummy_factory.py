@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import re
 from typing import Dict, Any, Optional, Set
 from .models import TestFailure
 
@@ -19,57 +18,117 @@ class DummyDataFactory:
         self.analysis_results = analysis_results
         self.property_types: Dict[str, str] = {}
 
-    def learn_from_failure(self, failure: TestFailure) -> None:
-        """テスト失敗から必要なプロパティや型を学習"""
-        msg = failure.error_message
-        
-        # Pattern 1: CS1061 'Type' does not contain a definition for 'Member'
-        m1 = re.search(r"'([^']+)' does not contain a definition for '([^']+)'", msg)
-        
-        # Pattern 2: "user.Profile is null" -> 変数名から型を推測
-        m2 = re.search(r"(\w+)\.(\w+) is null", msg)
-        
-        # Pattern 3: "Property 'Amount' not found on type 'Order'"
-        m3 = re.search(r"Property '(\w+)' not found on type '(\w+)'", msg)
+    def learn_from_failure(self, failure: TestFailure) -> bool:
+        """非構造化エラーメッセージからは型情報を推測しない。"""
+        return False
 
-        if m1:
-            type_name, prop_name = m1.groups()
-            self._add_learned_prop(type_name, prop_name)
-        elif m2:
-            var_name, prop_name = m2.groups()
-            # 変数名から型名を推測 (簡易的に、先頭大文字に)
-            type_name = var_name[0].upper() + var_name[1:]
-            self._add_learned_prop(type_name, prop_name)
-        elif m3:
-            prop_name, type_name = m3.groups()
-            self._add_learned_prop(type_name, prop_name)
-
-    def _add_learned_prop(self, type_name: str, prop_name: str):
+    def register_property(
+        self,
+        type_name: str,
+        property_name: str,
+        property_type: str,
+    ) -> bool:
+        """Roslyn等で解決済みのプロパティ情報を登録する。"""
+        if not type_name or not property_name or not property_type:
+            return False
+        value = self._default_for_type(property_type)
+        if value is None:
+            return False
         if type_name not in self.learned_rules:
             self.learned_rules[type_name] = {}
-        
-        val = self._guess_value_for_prop(prop_name)
-        self.learned_rules[type_name][prop_name] = val
-        
-        # ナレッジベースにも保存
-        if self.kb and hasattr(self.kb, 'add_type_mapping'):
-            self.kb.add_type_mapping(type_name, prop_name, val)
+        self.learned_rules[type_name][property_name] = value
+        self.property_types[property_name] = property_type
 
-    def _guess_value_for_prop(self, prop_name: str) -> str:
-        """プロパティ名から適切な値を推測 (テスト期待値に準拠)"""
-        name_low = prop_name.lower()
-        if 'email' in name_low: return '"test@example.com"'
-        if 'firstname' in name_low: return '"John"'
-        if 'name' in name_low: return '"Test User"'
-        if 'age' in name_low: return '25'
-        if 'amount' in name_low: return '10'
-        if 'price' in name_low: return '1000'
-        if 'createdat' in name_low or 'date' in name_low: return 'DateTime.Now'
-        
-        # デフォルトのオブジェクト生成
-        if prop_name[0].isupper():
-            return f"new {prop_name}()"
-        return '"test_data"'
+        if self.kb and hasattr(self.kb, 'add_type_mapping'):
+            self.kb.add_type_mapping(type_name, property_name, value)
+        return True
+
+    def register_accessed_properties(
+        self,
+        type_name: str,
+        accessed_symbol_ids,
+    ) -> int:
+        """Roslynのsymbol IDで参照された対象型プロパティを登録する。"""
+        if not self.analysis_results or not type_name:
+            return 0
+        manifest = self.analysis_results.get("manifest", {})
+        details_by_id = self.analysis_results.get("details_by_id", {})
+        normalized_type = type_name.replace("global::", "").strip()
+        target_object = next(
+            (
+                item
+                for item in manifest.get("objects", [])
+                if item.get("fullName") == normalized_type
+                or item.get("fullName", "").endswith(f".{normalized_type}")
+            ),
+            None,
+        )
+        if not target_object:
+            return 0
+        detail = details_by_id.get(target_object.get("id"), {})
+        accessed_ids = {
+            str(symbol_id)
+            for symbol_id in accessed_symbol_ids or []
+            if symbol_id
+        }
+        registered = 0
+        for prop in detail.get("properties", []):
+            if str(prop.get("id")) not in accessed_ids:
+                continue
+            if self.register_property(
+                normalized_type.rsplit(".", 1)[-1],
+                prop.get("name"),
+                prop.get("type"),
+            ):
+                registered += 1
+        return registered
+
+    def _default_for_type(self, type_name: str) -> Optional[str]:
+        normalized = type_name.strip().replace("global::", "")
+        aliases = {
+            "System.String": '""',
+            "string": '""',
+            "System.Boolean": "false",
+            "bool": "false",
+            "System.Int16": "0",
+            "short": "0",
+            "System.Int32": "0",
+            "int": "0",
+            "System.Int64": "0L",
+            "long": "0L",
+            "System.Single": "0.0f",
+            "float": "0.0f",
+            "System.Double": "0.0d",
+            "double": "0.0d",
+            "System.Decimal": "0.0m",
+            "decimal": "0.0m",
+            "System.DateTime": "default(DateTime)",
+            "DateTime": "default(DateTime)",
+        }
+        if normalized in aliases:
+            return aliases[normalized]
+        if normalized.endswith("[]"):
+            element_type = normalized[:-2].strip()
+            return f"System.Array.Empty<{element_type}>()"
+        if "<" in normalized and normalized.endswith(">"):
+            outer, inner = normalized.split("<", 1)
+            inner = inner[:-1].strip()
+            collection_types = {
+                "List",
+                "System.Collections.Generic.List",
+                "IEnumerable",
+                "System.Collections.Generic.IEnumerable",
+                "ICollection",
+                "System.Collections.Generic.ICollection",
+                "IReadOnlyList",
+                "System.Collections.Generic.IReadOnlyList",
+            }
+            if outer in collection_types:
+                return f"new System.Collections.Generic.List<{inner}>()"
+        if normalized.endswith("?"):
+            return None
+        simple_name = normalized.rsplit(".", 1)[-1]
+        return f"new {simple_name}()"
 
     def generate_instantiation(self, type_name: str) -> str:
         """型名からインスタンス化コードを生成"""
@@ -99,14 +158,12 @@ class DummyDataFactory:
             base_type = t_clean.replace('[]', '').strip()
             return f"new {base_type}[0]"
         if 'List<' in t or 'IEnumerable<' in t:
-            inner_match = re.search(r'<(.*)>', t)
-            inner = inner_match.group(1).split('.')[-1] if inner_match else "object"
+            inner = t.split("<", 1)[1].rsplit(">", 1)[0].split('.')[-1]
             return f"new List<{inner}>()"
 
         # 2. モック化の判定
         is_interface = t_clean.startswith('I') and len(t_clean) > 1 and t_clean[1].isupper()
-        abstract_hints = ['Model', 'Node', 'Symbol', 'Context', 'Provider', 'Service', 'Converter', 'Client']
-        if is_interface or any(hint in t_clean for hint in abstract_hints):
+        if is_interface:
             return f"Substitute.For<{t_clean}>()"
         
         # 3. 特殊なシステム型

@@ -1,20 +1,22 @@
 # PatternLearner Design Document
 
 ## 1. Purpose
-`PatternLearner` は、抽出された対話パターンやエラーパターンを、具体的な「改善ルール（Rule Suggestion）」へと変換するモジュールです。成功体験からは意図検出の強化ルールを、失敗体験からは自動リトライや明確化の戦略を学習します。
+`PatternLearner` は、承認済みの構造化学習根拠に含まれる
+`proposed_rule` を検証し、具体的な `RuleSuggestion` へ変換するモジュールです。
+頻度、信頼度、入力文字列からルール内容を推測しません。
 
 ## 2. Structured Specification
 
 ### 2.1. ルール学習フロー (`learn_from_patterns`)
 - **Input**: `patterns` (Dict[str, List[LearningPattern]]) - `LogAnalyzer` により抽出されたパターンの辞書。
 - **Logic**:
-  1. **成功パターンからの学習**: 頻出する意図検出の成功例（信頼度 0.7 以上）を元に、`intent_rule`（正規表現パターン）を生成します。
-  2. **エラーパターンからの学習**: 2回以上発生した同一タイプのエラーに対し、指数バックオフ等を含む `retry_rule` を生成します。
-  3. **改善機会からの学習**: 意図検出の失敗や頻繁な聞き返しが発生している入力に対し、より適切な `clarification_rule`（明確化メッセージの改善等）を生成します。
-  4. **明確化復帰パターン**: ユーザーの訂正によって成功した事例から、既存の誤認を修正する `intent_rule` を生成します。
-
-### 2.2. 競合チェック (`_check_rule_conflicts`)
-- 新しいルール提案が既存の定義と矛盾しないか、または既に存在していないかを検証します。
+  1. 各パターンの `context.proposed_rule` がobjectであることを確認します。
+  2. カテゴリごとの `rule_type`、非空の `rule_definition`、`impact_scope`、
+     `risk_level`、`explanation` を検証します。
+  3. `supporting_evidence` が指定された場合はobject配列であることを検証します。
+  4. `safety_evidence` がobjectとして添付されていることを検証します。
+  5. 検証済みの値を変更せず `RuleSuggestion` へ変換します。
+  6. 不正な提案は生成せず、理由を `validation_diagnostics` に記録します。
 
 ## 3. Dependencies
 - `LogAnalyzer`: パターン情報の提供元

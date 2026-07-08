@@ -1,6 +1,8 @@
 import unittest
 import sys
 import os
+import subprocess
+from unittest.mock import patch
 
 # Ensure src is in path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
@@ -10,6 +12,28 @@ from src.advanced_tdd.failure_analyzer import TestFailureAnalyzer
 class TestFailureAnalyzerLogic(unittest.TestCase):
     def setUp(self):
         self.analyzer = TestFailureAnalyzer({})
+
+    @patch('src.advanced_tdd.failure_analyzer.subprocess.run')
+    def test_execute_python_test_uses_argument_list(self, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess([], 0, stdout='1 passed', stderr='')
+
+        self.analyzer._execute_test('tests/test file.py; echo injected', 'python', '.')
+
+        command = mock_run.call_args.args[0]
+        self.assertIsInstance(command, list)
+        self.assertIn('tests/test file.py; echo injected', command)
+        self.assertNotIn('shell', mock_run.call_args.kwargs)
+
+    @patch('src.advanced_tdd.failure_analyzer.subprocess.run')
+    def test_execute_javascript_test_passes_actual_test_file(self, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess([], 0, stdout='{}', stderr='')
+
+        self.analyzer._execute_test('tests/example.test.js', 'javascript', '.')
+
+        command = mock_run.call_args.args[0]
+        self.assertIn('--testPathPattern=tests/example.test.js', command)
+        self.assertNotIn('--testPathPattern={test_file}', command)
+        self.assertNotIn('shell', mock_run.call_args.kwargs)
 
     def test_evaluate_complex_condition_and(self):
         # A && B
@@ -73,6 +97,7 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
         # String comparison
         self.assertTrue(self.analyzer._evaluate_condition("Admin", '==', '"Admin"'))
         self.assertFalse(self.analyzer._evaluate_condition("User", '==', '"Admin"'))
+        self.assertFalse(self.analyzer._evaluate_condition("not-a-number", '>', '5'))
 
     def test_resolve_identifier_value(self):
         # Mock Roslyn Data
@@ -142,7 +167,7 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
         from src.advanced_tdd.models import TestFailure
         failure = TestFailure(
             test_file="MyTest.cs",
-            test_method="Test_WhenValueIs5", # Input inferred as 5
+            test_method="AnyTestName",
             error_type="assertion_failure",
             error_message="Error",
             stack_trace=stack_trace
@@ -150,26 +175,52 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
 
         # Mock Roslyn Data
         roslyn_data = {
+            'manifest': {
+                'objects': [
+                    {
+                        'id': 'class1',
+                        'filePath': 'C:\\MyApp\\Service.cs',
+                    },
+                    {
+                        'id': 'class2',
+                        'filePath': 'C:\\MyApp\\Validator.cs',
+                    },
+                ]
+            },
             'details_by_id': {
                 'class1': {
                     'name': 'Service',
                     'methods': [
-                        {'name': 'Process', 'branches': []} # No branches here
+                        {
+                            'name': 'Process',
+                            'startLine': 15,
+                            'endLine': 25,
+                            'branches': [],
+                        }
                     ]
                 },
                 'class2': {
                     'name': 'Validator',
                     'methods': [
-                        {'name': 'Validate', 'branches': [
+                        {
+                            'name': 'Validate',
+                            'startLine': 5,
+                            'endLine': 15,
+                            'branches': [
                             {'condition': 'val > 10'} # 5 > 10 is False -> Mismatch!
-                        ]}
+                            ],
+                        }
                     ]
                 }
             }
         }
 
         # Execute Analysis
-        result = self.analyzer._analyze_logic_mismatch(failure, roslyn_data)
+        result = self.analyzer._analyze_logic_mismatch(
+            failure,
+            roslyn_data,
+            {'input_values': {'val': 5}},
+        )
         
         # Verify
         self.assertIsNotNone(result)
@@ -180,7 +231,6 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
         self.assertIn('Validator.cs', result['blamed_frame']['file'])
 
     def test_property_based_reasoning(self):
-        # Test method suggests Age=15
         from src.advanced_tdd.models import TestFailure
         failure = TestFailure(
             test_file="UserTests.cs",
@@ -193,11 +243,11 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
         # Condition: user.Age >= 18
         condition = "user.Age >= 18"
         
-        # Default input (e.g. 15 from 15 in method name) might be extracted by _extract_input_value,
-        # but _evaluate_complex_condition should specifically look for Age=15 using _extract_property_value.
-        
-        # Pass 15 as default input_val just in case, but the key is property extraction
-        result = self.analyzer._evaluate_complex_condition(condition, 15, test_failure=failure)
+        result = self.analyzer._evaluate_complex_condition(
+            condition,
+            {'Age': 15},
+            test_failure=failure,
+        )
         
         self.assertTrue(result['evaluated'])
         self.assertFalse(result['is_satisfied']) # 15 >= 18 is False
@@ -210,8 +260,73 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
             error_message="...",
             stack_trace=""
         )
-        result_success = self.analyzer._evaluate_complex_condition(condition, 20, test_failure=failure_success)
+        result_success = self.analyzer._evaluate_complex_condition(
+            condition,
+            {'Age': 20},
+            test_failure=failure_success,
+        )
         self.assertTrue(result_success['is_satisfied']) # 20 >= 18 is True
+
+    def test_logic_analysis_requires_explicit_input_values(self):
+        from src.advanced_tdd.models import TestFailure
+        failure = TestFailure(
+            test_file="ExampleTests.cs",
+            test_method="NameContains999",
+            error_type="assertion_failure",
+            error_message="Expected: True, Actual: False",
+            stack_trace=(
+                "at Example.Check(Int32 value) "
+                "in C:\\Example\\Example.cs:line 10"
+            ),
+        )
+        roslyn_data = {
+            'manifest': {
+                'objects': [{
+                    'id': 'example',
+                    'filePath': 'C:\\Example\\Example.cs',
+                }]
+            },
+            'details_by_id': {
+                'example': {
+                    'methods': [{
+                        'name': 'Check',
+                        'startLine': 1,
+                        'endLine': 20,
+                        'branches': [{'condition': 'value > 10'}],
+                    }]
+                }
+            },
+        }
+
+        result = self.analyzer.analyze_test_failure(failure, roslyn_data)
+
+        self.assertIsNone(result['logic_analysis'])
+
+    def test_semantic_mismatch_uses_explicit_roles_only(self):
+        from src.advanced_tdd.models import TestFailure
+        failure = TestFailure(
+            test_file="ExampleTests.cs",
+            test_method="SerializeNamedTest",
+            error_type="assertion_failure",
+            error_message="Expected: value, Actual: other",
+            stack_trace="",
+        )
+
+        without_role = self.analyzer.analyze_test_failure(
+            failure,
+            expected_intent="PARSE",
+        )
+        with_role = self.analyzer.analyze_test_failure(
+            failure,
+            expected_intent="PARSE",
+            analysis_context={'executed_role': 'SERIALIZE'},
+        )
+
+        self.assertIsNone(without_role['semantic_mismatch'])
+        self.assertEqual(
+            with_role['semantic_mismatch']['executed_role'],
+            'SERIALIZE',
+        )
 
     def test_analyze_test_failure_adds_analysis_summary(self):
         from src.advanced_tdd.models import TestFailure

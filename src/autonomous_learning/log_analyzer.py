@@ -2,14 +2,12 @@
 # src/autonomous_learning/log_analyzer.py
 
 import json
-import re
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
-from collections import defaultdict, Counter
+from typing import Dict, List, Any
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from src.utils.confirmation_response import INTENT_AGREE
 
 @dataclass
 class LearningPattern:
@@ -27,37 +25,67 @@ class LogAnalyzer:
     def __init__(self, log_directory: str):
         self.log_directory = Path(log_directory)
         self.logger = logging.getLogger(__name__)
+        self.collection_diagnostics: List[Dict[str, Any]] = []
     
     def collect_logs(self, days_back: int = 7) -> List[Dict[str, Any]]:
         """指定期間のログを収集し、トランザクションごとに集約"""
+        if not isinstance(days_back, int) or isinstance(days_back, bool):
+            raise TypeError("days_back must be an integer")
+        if days_back < 0:
+            raise ValueError("days_back must be non-negative")
+        self.collection_diagnostics = []
         cutoff_date = datetime.now() - timedelta(days=days_back)
         raw_events = []
-        
-        try:
-            if not self.log_directory.exists():
-                return []
-
-            for file_path in self.log_directory.glob('*.json'):
-                if 'learning_queue' in str(file_path):
-                    continue
-
-                file_date = datetime.fromtimestamp(file_path.stat().st_mtime)
-                
-                if file_date >= cutoff_date:
-                    with file_path.open('r', encoding='utf-8') as f:
-                        for line in f:
-                            line = line.strip()
-                            if not line: continue
-                            if line.endswith(','): line = line[:-1]
-                            try:
-                                event = json.loads(line)
-                                raw_events.append(event)
-                            except: continue
-        except Exception as e:
-            self.logger.error(f"ログ収集中にエラーが発生: {e}")
+        if not self.log_directory.exists():
             return []
 
-        raw_events.sort(key=lambda x: x.get('timestamp', ''))
+        for file_path in self.log_directory.glob('*.json'):
+            if file_path.name == "learning_queue.json":
+                continue
+            try:
+                file_date = datetime.fromtimestamp(file_path.stat().st_mtime)
+                if file_date < cutoff_date:
+                    continue
+                with file_path.open('r', encoding='utf-8') as log_file:
+                    for line_number, line in enumerate(log_file, start=1):
+                        record = line.strip()
+                        if not record:
+                            continue
+                        if record.endswith(','):
+                            record = record[:-1].rstrip()
+                        try:
+                            event = json.loads(record)
+                        except json.JSONDecodeError as exc:
+                            self.collection_diagnostics.append({
+                                "type": "INVALID_LOG_RECORD",
+                                "file": str(file_path),
+                                "line": line_number,
+                                "error_type": type(exc).__name__,
+                            })
+                            continue
+                        if not isinstance(event, dict):
+                            self.collection_diagnostics.append({
+                                "type": "INVALID_LOG_EVENT",
+                                "file": str(file_path),
+                                "line": line_number,
+                                "error_type": "event_must_be_object",
+                            })
+                            continue
+                        raw_events.append(event)
+            except OSError as exc:
+                self.collection_diagnostics.append({
+                    "type": "LOG_FILE_READ_ERROR",
+                    "file": str(file_path),
+                    "error_type": type(exc).__name__,
+                })
+
+        raw_events.sort(
+            key=lambda event: (
+                event.get("timestamp")
+                if isinstance(event.get("timestamp"), str)
+                else ""
+            )
+        )
 
         transactions = defaultdict(lambda: {
             'original_text': '',
@@ -67,6 +95,7 @@ class LogAnalyzer:
             'errors': [],
             'clarification_needed': False,
             'suggested_intent': None,
+            'learning_evidence': [],
             'timestamp': ''
         })
 
@@ -74,6 +103,13 @@ class LogAnalyzer:
 
         for event in raw_events:
             data = event.get('data', {})
+            if not isinstance(data, dict):
+                self.collection_diagnostics.append({
+                    "type": "INVALID_LOG_EVENT",
+                    "error_type": "data_must_be_object",
+                    "event_type": event.get("event_type"),
+                })
+                continue
             session_id = data.get('session_id', 'unknown')
             event_type = event.get('event_type')
             
@@ -86,6 +122,17 @@ class LogAnalyzer:
             
             tx_key = current_tx_id.get(session_id)
             if not tx_key: continue
+
+            learning_evidence = data.get("learning_evidence")
+            if isinstance(learning_evidence, dict):
+                transactions[tx_key]["learning_evidence"].append(
+                    learning_evidence
+                )
+            elif isinstance(learning_evidence, list):
+                transactions[tx_key]["learning_evidence"].extend(
+                    evidence for evidence in learning_evidence
+                    if isinstance(evidence, dict)
+                )
 
             if event_type == 'pipeline_stage_completion':
                 summary = data.get('context_summary', {})
@@ -135,140 +182,148 @@ class LogAnalyzer:
         return patterns
 
     def _extract_clarification_fix_patterns(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
-        """明確化後に成功した事例から、新しい意図パターンを抽出"""
+        """明示承認された意図訂正だけを学習候補として抽出する。"""
         patterns = []
-        session_logs = defaultdict(list)
         for log in logs:
-            if 'session_id' not in log:
-                continue
-            session_logs[log['session_id']].append(log)
-        
-        for session_id, turns in session_logs.items():
-            turns.sort(key=lambda x: x['timestamp'])
-            
-            for i in range(len(turns) - 1):
-                current_turn = turns[i]
-                next_turn = turns[i+1]
-                
-                if current_turn.get('clarification_needed') and current_turn.get('suggested_intent'):
-                    suggested = current_turn['suggested_intent']
-                    original_text = current_turn['original_text']
-                    
-                    if next_turn['analysis'].get('intent') == INTENT_AGREE or next_turn['analysis'].get('intent') == suggested:
-                        patterns.append(LearningPattern(
-                            pattern_type='improvement',
-                            pattern=original_text,
-                            frequency=1,
-                            confidence=0.8,
-                            context={'intent': suggested, 'issue': 'clarification_learned'},
-                            examples=[current_turn]
-                        ))
-        return patterns
-    
-    def _extract_success_patterns(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
-        """成功パターンを抽出"""
-        success_logs = [log for log in logs if self._is_successful_interaction(log)]
-        intent_patterns = defaultdict(list)
-        for log in success_logs:
-            if 'analysis' in log and 'intent' in log['analysis']:
-                intent = log['analysis']['intent']
-                original_text = log.get('original_text', '')
-                confidence = log['analysis'].get('intent_confidence', 0.0)
-                
-                if confidence > 0.7:
-                    intent_patterns[intent].append({
-                        'text': original_text,
-                        'confidence': confidence,
-                        'context': log
-                    })
-        
-        patterns = []
-        for intent, examples in intent_patterns.items():
-            if len(examples) >= 2:
-                common_pattern = self._find_common_pattern([ex['text'] for ex in examples])
-                avg_confidence = sum(ex['confidence'] for ex in examples) / len(examples)
-                if common_pattern:
-                    patterns.append(LearningPattern(
-                        pattern_type='success',
-                        pattern=common_pattern,
-                        frequency=len(examples),
-                        confidence=avg_confidence,
-                        context={'intent': intent, 'type': 'intent_detection'},
-                        examples=examples[:5]
-                    ))
-                elif len(examples) >= 3:
-                    patterns.append(LearningPattern(
-                        pattern_type='success',
-                        pattern=f"{intent}_pattern",
-                        frequency=len(examples),
-                        confidence=avg_confidence,
-                        context={'intent': intent, 'type': 'intent_detection'},
-                        examples=examples[:5]
-                    ))
-        return patterns
-    
-    def _extract_error_patterns(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
-        """エラーパターンを抽出"""
-        error_logs = [log for log in logs if self._has_error(log)]
-        error_types = defaultdict(list)
-        for log in error_logs:
-            error_info = self._extract_error_info(log)
-            if error_info:
-                error_types[error_info['type']].append({
-                    'error': error_info,
-                    'context': log
-                })
-        
-        patterns = []
-        for error_type, examples in error_types.items():
-            if len(examples) >= 2:
+            for evidence in self._approved_evidence(log, "intent_correction"):
+                source_text = evidence.get("source_text")
+                corrected_intent = evidence.get("corrected_intent")
+                if not isinstance(source_text, str) or not source_text:
+                    continue
+                if not isinstance(corrected_intent, str) or not corrected_intent:
+                    continue
                 patterns.append(LearningPattern(
-                    pattern_type='error',
-                    pattern=error_type,
-                    frequency=len(examples),
+                    pattern_type="improvement",
+                    pattern=source_text,
+                    frequency=1,
                     confidence=1.0,
-                    context={'error_type': error_type},
-                    examples=examples[:5]
+                    context={
+                        "intent": corrected_intent,
+                        "issue": "clarification_learned",
+                        "evidence_type": "intent_correction",
+                        "proposed_rule": evidence.get("proposed_rule"),
+                    },
+                    examples=[log],
                 ))
         return patterns
     
-    def _identify_improvement_opportunities(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
-        """改善機会を特定"""
+    def _extract_success_patterns(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
+        """明示承認された意図例だけを抽出する。"""
+        success_logs = [log for log in logs if self._is_successful_interaction(log)]
+        intent_patterns = defaultdict(list)
+        for log in success_logs:
+            for evidence in self._approved_evidence(log, "intent_example"):
+                intent = evidence.get("intent")
+                pattern = evidence.get("pattern")
+                if not isinstance(intent, str) or not intent:
+                    continue
+                if not isinstance(pattern, str) or not pattern:
+                    continue
+                intent_patterns[(intent, pattern)].append({
+                    "log": log,
+                    "evidence": evidence,
+                })
+        
         patterns = []
-        low_confidence_logs = [
-            log for log in logs 
-            if 'analysis' in log and 
-            log['analysis'].get('intent_confidence', 1.0) < 0.6
-        ]
-        
-        if len(low_confidence_logs) >= 3:
-            texts = [log.get('original_text', '') for log in low_confidence_logs]
-            common_pattern = self._find_common_pattern(texts)
-            pattern_name = common_pattern if common_pattern else 'low_confidence_general'
+        for (intent, pattern), entries in intent_patterns.items():
             patterns.append(LearningPattern(
-                pattern_type='improvement',
-                pattern=pattern_name,
-                frequency=len(low_confidence_logs),
-                confidence=0.7,
-                context={'issue': 'low_intent_confidence'},
-                examples=low_confidence_logs[:5]
-            ))
-        
-        clarification_logs = [
-            log for log in logs 
-            if log.get('clarification_needed', False)
-        ]
-        
-        if len(clarification_logs) >= 3:
-            patterns.append(LearningPattern(
-                pattern_type='improvement',
-                pattern='frequent_clarification',
-                frequency=len(clarification_logs),
-                confidence=0.8,
-                context={'issue': 'frequent_clarification'},
-                examples=clarification_logs[:5]
+                pattern_type="success",
+                pattern=pattern,
+                frequency=len(entries),
+                confidence=1.0,
+                context={
+                    "intent": intent,
+                    "type": "intent_detection",
+                    "evidence_type": "intent_example",
+                    "proposed_rule": entries[0]["evidence"].get(
+                        "proposed_rule"
+                    ),
+                },
+                examples=[
+                    entry["log"] for entry in entries[:5]
+                ],
             ))
         return patterns
+    
+    def _extract_error_patterns(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
+        """明示されたエラーコードだけを学習候補として抽出する。"""
+        error_logs = [log for log in logs if self._has_error(log)]
+        error_types = defaultdict(list)
+        for log in error_logs:
+            for evidence in self._approved_evidence(log, "error"):
+                error_code = evidence.get("error_code")
+                if isinstance(error_code, str) and error_code:
+                    error_types[error_code].append(log)
+        
+        patterns = []
+        for error_type, examples in error_types.items():
+            patterns.append(LearningPattern(
+                pattern_type="error",
+                pattern=error_type,
+                frequency=len(examples),
+                confidence=1.0,
+                context={
+                    "error_type": error_type,
+                    "evidence_type": "error",
+                    "proposed_rule": next(
+                        (
+                            evidence.get("proposed_rule")
+                            for evidence in examples[0].get(
+                                "learning_evidence",
+                                [],
+                            )
+                            if isinstance(evidence, dict)
+                            and evidence.get("type") == "error"
+                            and evidence.get("error_code") == error_type
+                        ),
+                        None,
+                    ),
+                },
+                examples=examples[:5],
+            ))
+        return patterns
+    
+    def _identify_improvement_opportunities(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
+        """明示承認された改善根拠だけを抽出する。"""
+        patterns = []
+        for log in logs:
+            for evidence in self._approved_evidence(log, "improvement"):
+                issue = evidence.get("issue")
+                pattern = evidence.get("pattern")
+                if not isinstance(issue, str) or not issue:
+                    continue
+                if not isinstance(pattern, str) or not pattern:
+                    continue
+                patterns.append(LearningPattern(
+                    pattern_type="improvement",
+                    pattern=pattern,
+                    frequency=1,
+                    confidence=1.0,
+                    context={
+                        "issue": issue,
+                        "evidence_type": "improvement",
+                        "proposed_rule": evidence.get("proposed_rule"),
+                    },
+                    examples=[log],
+                ))
+        return patterns
+
+    @staticmethod
+    def _approved_evidence(
+        log: Dict[str, Any],
+        evidence_type: str,
+    ) -> List[Dict[str, Any]]:
+        evidence_items = log.get("learning_evidence", [])
+        if isinstance(evidence_items, dict):
+            evidence_items = [evidence_items]
+        if not isinstance(evidence_items, list):
+            return []
+        return [
+            evidence for evidence in evidence_items
+            if isinstance(evidence, dict)
+            and evidence.get("type") == evidence_type
+            and evidence.get("approved") is True
+        ]
     
     def _is_successful_interaction(self, log: Dict[str, Any]) -> bool:
         """成功した対話かどうかを判定"""
@@ -284,45 +339,3 @@ class LogAnalyzer:
             return log['action_result'].get('status') == 'error'
         return False
     
-    def _extract_error_info(self, log: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """エラー情報を抽出"""
-        if 'errors' in log and log['errors']:
-            return {
-                'type': 'pipeline_error',
-                'message': str(log['errors'][0]) if log['errors'] else 'Unknown error'
-            }
-        if 'action_result' in log and log['action_result'].get('status') == 'error':
-            return {
-                'type': 'action_error',
-                'message': log['action_result'].get('message', 'Unknown action error')
-            }
-        return None
-    
-    def _find_common_pattern(self, texts: List[str]) -> Optional[str]:
-        """テキストリストから共通パターンを見つける"""
-        if len(texts) < 2: return None
-        if not texts: return None
-        
-        first_text = texts[0]
-        potential_patterns = []
-        for length in range(3, min(20, len(first_text) + 1)):
-            for start in range(len(first_text) - length + 1):
-                sub = first_text[start:start+length]
-                if all(sub in t for t in texts[1:]):
-                    potential_patterns.append(sub)
-        
-        if potential_patterns:
-            return max(potential_patterns, key=len)
-
-        words_counter = Counter()
-        for text in texts:
-            words = re.findall(r'\w+', text.lower())
-            words_counter.update(words)
-        
-        common_words = [
-            word for word, count in words_counter.items() 
-            if count >= len(texts) * 0.5
-        ]
-        if len(common_words) >= 2:
-            return '|'.join(sorted(common_words))
-        return None

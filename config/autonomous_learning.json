@@ -1,17 +1,12 @@
 {
   "learning": {
-    "min_pattern_frequency": 3,
-    "confidence_threshold": 0.7,
     "days_back": 7
   },
   "safety": {
-    "dangerous_keywords": [
-      "delete",
-      "remove",
-      "destroy",
-      "format"
+    "allowed_risk_levels": [
+      "low",
+      "medium"
     ],
-    "max_risk_level": "medium",
-    "require_approval": true
+    "require_safety_review": true
   }
 }

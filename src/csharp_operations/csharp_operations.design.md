@@ -13,18 +13,22 @@
 - **Input**: `filename` (対象ファイル名)
 - **Core Logic**:
     1. 内部ツール `MyRoslynAnalyzer` を `dotnet run` で実行します。
-    2. 解析結果（manifest.json および詳細 JSON）を一時ディレクトリに出力します。
-    3. 解析結果を読み込み、クラス名、メソッド一覧、メトリクス（サイクロマティック複雑度等）を抽出します。
+    2. 対象プロジェクトのC#・プロジェクト設定ファイルとAnalyzer自身の内容からSHA-256 fingerprintを生成します。
+    3. fingerprintに対応する完全な `manifest.json` / `details` があれば再利用し、無ければ解析結果を生成します。
+    4. 新規解析は同一ファイルシステム上の一意なwork directoryへ出力し、完了後にディレクトリ単位でcache pathへ原子的に公開します。同時実行で別プロセスが先に公開した場合は、その完全な結果を採用します。
+    5. 解析結果を読み込み、クラス名、メソッド一覧、メトリクス（サイクロマティック複雑度等）を抽出します。
 - **Output**: 抽出されたクラスとメトリクスのサマリー。`output_path` をコンテキストに保持し、後続のクエリで使用可能にします。
 
 ### 2.3. .NET テスト実行 (`run_dotnet_test`)
 - **Input**: `project_path` (プロジェクトまたはソリューションのパス)
 - **Core Logic**:
     1. **スマート・パス解決**: ターゲットが指定されない場合、`tests/generated/GeneratedTests.csproj` を優先的に探索し、自動的にテスト対象を決定します。
-    2. **先行ビルド検証**: `dotnet test` 実行前に `dotnet clean` および `dotnet build` を実行します。ビルドに失敗した場合は、エラーログから主要な3件のエラーメッセージを抽出し、テスト実行をスキップして即時エラーを返します。
+    2. **先行ビルド検証**: `dotnet test` 実行前に `dotnet clean` および `dotnet build` を実行します。ビルドに失敗した場合は、`file(line,col): error CSxxxx: message` 形式を固定区切りで構造化し、主要な3件のエラーを返してテスト実行をスキップします。
     3. **結果解析 (`parse_dotnet_test_result`)**: 
-       - `dotnet test` の出力をパースし、失敗したテストメソッド名、期待値と実際値の乖離（Assertionメッセージ）を抽出します。
+       - `dotnet test` の出力を固定区切りでパースし、失敗したテストメソッド名、エラーメッセージ、スタックトレース、例外型を抽出します。
+       - ANSI escape sequence の除去、失敗ブロック分割、件数抽出は専用パーサで行い、正規表現には依存しません。
        - 合計、成功、失敗のカウントを構造化データとして返します。
+    4. **プロセス境界**: `dotnet test` は引数配列と `shell=False` で実行し、標準出力と標準エラーを捕捉後に `logs/last_dotnet_test.log` へ保存します。
 - **Output**: テスト実行結果のサマリー。
 
 ### 2.4. 解析結果クエリ (`query_csharp_analysis_results`)
@@ -40,9 +44,16 @@
 
 ## 3. Dependencies
 - **Internal**: `ActionExecutor` (移行用依存), `MyRoslynAnalyzer` (ツール)
-- **External**: `os`, `json`, `subprocess`, `re`, `time`
+- **External**: `os`, `json`, `subprocess`, `hashlib`
 
 ## 4. Error Handling
 - ビルドエラー時の詳細メッセージ出力
 - 解析ツール失敗時のエラーログ取得
 - パス不備のチェック
+
+## 5. Review Notes
+- 2026-06-29: `dotnet test` の非シェル実行、出力捕捉、ログ保存契約を反映。
+- 2026-06-30: 対象プロジェクトとAnalyzer内容のSHA-256に基づく解析結果キャッシュを追加。
+- 2026-06-30: 一意なwork directoryからの原子的公開により、同一fingerprintの並行解析で不完全なcacheを公開しない構成へ変更。
+- 2026-06-30: 解析失敗・manifest未生成時のwork directory安全削除を反映。
+- 2026-07-07: `dotnet test` 出力解析とビルドエラー抽出から正規表現依存を除去し、固定区切りの専用パーサへ移行。

@@ -1,26 +1,28 @@
 # SafetyEvaluator Design Document
 
 ## 1. Purpose
-`SafetyEvaluator` は、`PatternLearner` が生成した改善ルールの「安全性」を、事前定義されたポリシーとスコアリングロジックに基づいて評価するモジュールです。システムに悪影響を及ぼす可能性のあるルールの自動適用を阻止し、リスクレベル（Low, Medium, High）を判定します。
+`SafetyEvaluator` は、`PatternLearner` が検証した改善ルールに添付された
+構造化安全レビューを確認するモジュールです。ルール本文のキーワードや
+係数スコアから安全性を推測しません。
 
 ## 2. Structured Specification
 
 ### 2.1. 安全性評価フロー (`evaluate_suggestions`)
 - **Input**: `suggestions` (List[RuleSuggestion]) - 学習されたルール提案のリスト。
 - **Logic**:
-  1. 各提案に対し、`_calculate_safety_score` を用いて 0.0 〜 1.0 のスコアを算出します。
-  2. スコアに基づき、リスクレベル（0.8以上: Low, 0.6以上: Medium, それ未満: High）を決定します。
-  3. `_passes_safety_constraints` を呼び出し、以下の制約をチェックします。
-     - リスクレベルが `High` のものは一律却下。
-     - ルール定義内に `dangerous_keywords`（delete, format等）が含まれる場合は却下。
-  4. 制約をパスした「安全な」提案のみをリストとして返します。
-
-### 2.2. スコアリングロジック (`_calculate_safety_score`)
-- 基準スコアを 1.0 とし、以下の係数を乗算します。
-  - **タイプ係数**: 意図ルール（0.95）、明確化ルール（0.98）、リトライルール（0.7）。
-  - **信頼度係数**: 学習時の `confidence`。
-  - **影響範囲係数**: 全体的（0.5）、ユーザー体験（0.9）、意図検出（0.95）。
+  1. 提案の `risk_level` が設定の `allowed_risk_levels` に含まれることを確認します。
+  2. `safety_evidence.reviewed` が `true` であることを確認します。
+  3. `safety_evidence.decision` が `approve` であることを確認します。
+  4. 1件以上のcontrolがあり、各controlに `control_id` と `passed: true` があることを確認します。
+  5. 不足・拒否・control失敗は `evaluation_diagnostics` に理由を記録して除外します。
 
 ## 3. Dependencies
 - `PatternLearner`: ルール提案の定義
-- `json`, `logging`, `typing`: 基本機能
+- `logging`, `typing`: 基本機能
+
+## 4. Operational Logging
+- 安全性制約による提案拒否は期待されたポリシー判断なので `INFO` とする。
+- 評価処理自体の障害と設定破損のみをwarning/error対象とし、正常拒否でテスト・運用ログを汚染しない。
+
+## 5. Review Notes
+- 2026-06-30: 正常な安全性拒否のログレベルをINFOへ同期。
