@@ -42,8 +42,9 @@ jobs:
           $output | ForEach-Object { Write-Host $_ }
           if ($code -ne 0) {
             if (Test-Path unit_failures.txt) {
-              $failed = (Get-Content unit_failures.txt) -join ", "
-              Write-Host "::error file=scripts/validate/run_unit_by_file.py,title=Unit failures::Unit failures: $failed"
+              $failed = Get-Content unit_failures.txt -Raw
+              $failed = $failed.Replace("`r", "").Replace("`n", "%0A")
+              Write-Host "::error file=scripts/validate/run_unit_by_file.py,title=Unit failures::$failed"
             } else {
               $tail = ($output | Select-Object -Last 80) -join "%0A"
               Write-Host "::error file=scripts/validate/run_unit_by_file.py,title=Unit failure output::Unit test runner failed before writing unit_failures.txt.%0A$tail"

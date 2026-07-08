@@ -55,17 +55,21 @@ def module_name_for(test_file: Path) -> str:
     return ".".join(relative.parts)
 
 
-def run_module(module_name: str, verbosity: int) -> tuple[bool, int, str]:
+def run_module(module_name: str, verbosity: int) -> tuple[bool, int, str, list[str]]:
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromName(module_name)
     test_count = suite.countTestCases()
     if test_count == 0:
-        return True, test_count, f"{module_name}: no tests loaded; skipped"
+        return True, test_count, f"{module_name}: no tests loaded; skipped", []
 
     stream = io.StringIO()
     runner = unittest.TextTestRunner(stream=stream, verbosity=verbosity)
     result = runner.run(suite)
-    return result.wasSuccessful(), test_count, stream.getvalue().strip()
+    failed_test_ids = [
+        test.id()
+        for test, _traceback in [*result.failures, *result.errors]
+    ]
+    return result.wasSuccessful(), test_count, stream.getvalue().strip(), failed_test_ids
 
 
 def emit_github_failure_summary(failed_modules: list[str]) -> None:
@@ -86,10 +90,11 @@ def main() -> int:
     args = parse_args()
     start_directory = Path(args.start_directory)
     failed_modules: list[str] = []
+    failure_details: list[str] = []
 
     for test_file in sorted(start_directory.glob(args.pattern)):
         module_name = module_name_for(test_file)
-        ok, test_count, output = run_module(module_name, args.verbosity)
+        ok, test_count, output, failed_test_ids = run_module(module_name, args.verbosity)
         header = f"=== {module_name} ({test_count} tests) ==="
         if ok:
             emit_progress(header)
@@ -97,6 +102,17 @@ def main() -> int:
                 emit_progress(output)
         else:
             failed_modules.append(module_name)
+            tail = "\n".join(output.splitlines()[-80:])
+            detail = "\n".join(
+                [
+                    header,
+                    "Failed tests:",
+                    *(f"- {test_id}" for test_id in failed_test_ids),
+                    "Output tail:",
+                    tail,
+                ]
+            )
+            failure_details.append(detail)
             emit_error(header)
             if output:
                 emit_error(output)
@@ -104,7 +120,7 @@ def main() -> int:
     if failed_modules:
         if args.failure_report:
             with open(args.failure_report, "w", encoding="utf-8") as report:
-                report.write("\n".join(failed_modules))
+                report.write("\n\n".join(failure_details))
                 report.write("\n")
         emit_github_failure_summary(failed_modules)
         emit_error("Unit failures: " + ", ".join(failed_modules))
