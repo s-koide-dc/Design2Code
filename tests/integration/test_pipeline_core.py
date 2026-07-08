@@ -6,7 +6,10 @@ from unittest.mock import MagicMock, patch
 
 from src.pipeline_core.pipeline_core import Pipeline
 from src.response_generator.response_generator import ResponseGenerator
+from src.utils.action_intents import INTENT_BACKUP_AND_DELETE
+from src.utils.confirmation_response import INTENT_AGREE
 from src.utils.control_intents import INTENT_GENERAL, INTENT_GREETING
+from tests.fixtures.task_definitions import get_test_definitions
 
 class TestPipelineCore(unittest.TestCase):
     @classmethod
@@ -210,49 +213,46 @@ class TestPipelineCore(unittest.TestCase):
         )
 
     def test_pipeline_compound_task_full_flow(self):
-        # Mock Task Definitions (similar to how test_conversation_scenarios.py sets them up)
-        mock_task_definitions = {
-            "FILE_COPY": {
-                "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
-                "required_entities": ["source_filename", "destination_filename"],
-                "transitions": {"INIT": [{"condition": {"type": "all_of", "predicates": [{"type": "entity_exists", "key": "source_filename"}, {"type": "entity_exists", "key": "destination_filename"}]}, "next_state": "READY_FOR_EXECUTION"}]}
-            },
-            "FILE_DELETE": {
-                "states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"],
-                "required_entities": ["filename"],
-                "transitions": {"INIT": [{"condition": {"type": "entity_exists", "key": "filename"}, "next_state": "READY_FOR_EXECUTION"}]}
-            },
-            "BACKUP_AND_DELETE": {
-                "type": "COMPOUND_TASK",
-                "subtasks": [
-                    {"name": "FILE_COPY", "parameter_mapping": {"source_filename": "source_filename", "destination_filename": "destination_filename"}},
-                    {"name": "FILE_DELETE", "parameter_mapping": {"filename": "source_filename"}}
-                ],
-                "required_entities": ["source_filename", "destination_filename"],
-                "templates": {
-                    "overall_approval": "ファイル '{source_filename}' を '{destination_filename}' にバックアップして削除します。よろしいですか？"
-                },
-                "clarification_messages": {
-                    "source_filename": "バックアップし削除する元のファイル名を教えていただけますか？",
-                    "destination_filename": "バックアップ先のファイル名を教えていただけますか？"
-                }
-            },
-            "CLARIFICATION_RESPONSE": {
-                "states": ["INIT", "AGREED", "DISAGREED", "COMPLETED"],
-                "required_entities": ["user_response"],
-                "transitions": {
-                    "INIT": [
-                        { "condition": { "type": "entity_value_is", "key": "user_response", "value": "AGREE" }, "next_state": "AGREED" },
-                        { "condition": { "type": "entity_value_is", "key": "user_response", "value": "DISAGREE" }, "next_state": "DISAGREED" }
-                    ]
-                }
-            }
+        mock_task_definitions = get_test_definitions()
+        mock_task_definitions[INTENT_BACKUP_AND_DELETE]["templates"] = {
+            "overall_approval": "ファイル '{source_filename}' を '{destination_filename}' にバックアップして削除します。よろしいですか？"
         }
+
+        def detect_side_effect(context):
+            if context["original_text"] == "はい":
+                context["analysis"] = {
+                    "intent": INTENT_AGREE,
+                    "intent_confidence": 0.99,
+                    "entities": {
+                        "user_response": {
+                            "value": INTENT_AGREE,
+                            "confidence": 0.99,
+                        }
+                    },
+                }
+            else:
+                context["analysis"] = {
+                    "intent": INTENT_BACKUP_AND_DELETE,
+                    "intent_confidence": 0.99,
+                    "entities": {
+                        "source_filename": {
+                            "value": "src.txt",
+                            "confidence": 0.99,
+                        },
+                        "destination_filename": {
+                            "value": "dest.txt",
+                            "confidence": 0.99,
+                        },
+                    },
+                }
+            return context
         
         # Patch TaskManager's _load_task_definitions to use our mock
         with patch.object(self.pipeline.task_manager, '_load_task_definitions', return_value=mock_task_definitions):
             # Reload task definitions with the mocked data
             self.pipeline.task_manager.task_definitions = self.pipeline.task_manager._load_task_definitions("mock_path")
+            self.pipeline.intent_detector.detect = MagicMock(side_effect=detect_side_effect)
+            self.pipeline.semantic_analyzer.analyze = MagicMock(side_effect=lambda c: c)
 
             # Mock ActionExecutor to simulate success for subtasks
             self.pipeline.action_executor._copy_file = MagicMock(side_effect=lambda c, p: {
@@ -273,11 +273,10 @@ class TestPipelineCore(unittest.TestCase):
 
             # Assert confirmation is requested for the compound task
             self.assertTrue(final_context1.get("clarification_needed"))
-            # Either confirmation message (expected) or clarification when intent resolution fails
-            self.assertTrue(
-                "src.txt' を 'dest.txt' にバックアップして削除します。よろしいですか？" in final_context1["response"]["text"]
-                or "意図が明確ではありません" in final_context1["response"]["text"]
-            )
+            self.assertEqual(final_context1["task"]["name"], INTENT_BACKUP_AND_DELETE)
+            self.assertEqual(final_context1["task"]["state"], "INIT")
+            self.assertIn("src.txt", final_context1["response"]["text"])
+            self.assertIn("dest.txt", final_context1["response"]["text"])
 
             # Simulate user confirmation
             text2 = "はい"
@@ -286,9 +285,6 @@ class TestPipelineCore(unittest.TestCase):
             )
 
             # Assert the final message indicates completion of the compound task
-            if final_context2.get("clarification_needed"):
-                self.assertIn("意図が明確ではありません", final_context2["response"]["text"])
-                return
             self.assertIn("完了しました。", final_context2["response"]["text"])
             self.assertIn(final_context2["task"]["state"], ["COMPLETED", "FAILED"])
 
