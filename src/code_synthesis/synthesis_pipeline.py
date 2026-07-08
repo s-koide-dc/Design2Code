@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from src.design_parser import validate_structured_spec_or_raise
+from src.design_parser.validator import validate_structured_spec_or_raise
+
+
+def audit_spec(spec_auditor, structured_spec: dict, result: dict) -> list:
+    if spec_auditor is None:
+        return []
+    try:
+        return spec_auditor.audit(structured_spec, result)
+    except Exception as exc:
+        return [f"SPEC_AUDIT_ERROR|{type(exc).__name__}"]
 
 
 def build_input_defs(spec: dict) -> list:
@@ -66,12 +75,7 @@ def synthesize_structured_spec(
     trace = result.get("trace", {}) if isinstance(result.get("trace"), dict) else {}
     ir_tree = trace.get("ir_tree")
 
-    spec_issues = []
-    if spec_auditor is not None:
-        try:
-            spec_issues = spec_auditor.audit(structured_spec, result)
-        except Exception:
-            spec_issues = []
+    spec_issues = audit_spec(spec_auditor, structured_spec, result)
 
     dependencies = result.get("dependencies", []) or []
     resolved_deps = resolve_nuget_deps(dependencies, nuget_client)
@@ -132,11 +136,7 @@ def synthesize_structured_spec(
         resolved_deps = resolve_nuget_deps(dependencies, nuget_client)
         if verifier is not None:
             v_result = verifier.verify(code, dependencies=resolved_deps)
-        if spec_auditor is not None:
-            try:
-                spec_issues = spec_auditor.audit(structured_spec, result)
-            except Exception:
-                spec_issues = []
+        spec_issues = audit_spec(spec_auditor, structured_spec, result)
 
     result["spec_issues"] = spec_issues
     result["verification"] = v_result

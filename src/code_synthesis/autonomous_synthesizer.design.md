@@ -35,9 +35,9 @@ It also integrates the legacy `GoalDrivenTDDEngine` capabilities, enabling it to
 
 #### A. 高レベル・ゴール駆動フロー (`decompose_and_synthesize`)
 1. **要件分解**: `TDDGoal` の受入条件（acceptance_criteria）を、`IntentDetector` や `SemanticAnalyzer` を用いて個別のサブタスク（Requirement）に分解します。
-2. **重複排除と再利用**: 
-   - 各サブタスクの実装前に `StructuralMemory` を検索し、プロジェクト内に類似機能が既に存在しないか確認します。
-   - 重複が検出された場合、既存のコードを `MethodStore` に **Call Pattern（呼び出しテンプレート）** としてインジェクトし、新規生成の代わりに再利用を試みます。メソッド本体の埋め込みではなく、`ClassName.MethodName({param1}, {param2})` 形式の型安全な呼び出しを生成します。
+2. **既存実装の再利用境界**:
+   - 自然言語の類似度だけでは重複と断定せず、自動的なCall Pattern注入は行いません。
+   - 再利用は、解析器が同一の `structural_fingerprint` または明示的なsymbol参照を提供できる経路に限定します。
 3. **順次合成と文脈維持**:
    - 分解された要件を一つずつ `synthesize_safely` で合成します。
    - 直前のメソッドの戻り値型やシグネチャを「セッションコンテキスト」として次の合成ステップに引き継ぎ、メソッド間の整合性を保ちます。
@@ -84,3 +84,4 @@ It also integrates the legacy `GoalDrivenTDDEngine` capabilities, enabling it to
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
 - 2026-04-21: StructuralMemory の保存先は `config_manager.storage_dir`（`resources/vectors/vector_db`）を使用し、`cache` への分散保存を避ける構成に更新。
 - 2026-05-07: 自律合成ループの進行表示は `src.utils.stdout_guard.debug_print` に統一し、通常実行では stdout を汚さず `NLP_DEBUG_STDOUT=1` でのみ補助トレースを有効化する。
+- 2026-07-01: 説明文のベクトル類似度による重複判定と既存メソッド注入を停止。

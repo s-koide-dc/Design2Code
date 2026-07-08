@@ -105,7 +105,7 @@ class TestCodeSynthesizerRefinement(unittest.TestCase):
         # It should ideally use the int result in ProcessLong
         # Even if it's dynamic, we want to see if it links them.
         self.assertIn("ProcessLong", code)
-        self.assertIn("var result0 = Counter.GetCount()", code)
+        self.assertIn("int result0 = Counter.GetCount()", code)
         # Check if result0 is passed to ProcessLong
         self.assertIn("ProcessLong(result0)", code)
 

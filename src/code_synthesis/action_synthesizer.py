@@ -4,6 +4,7 @@ import sys
 import json
 import os
 from typing import List, Dict, Any, Optional
+from src.code_synthesis.unified_knowledge_base import AmbiguousMethodCandidatesError
 
 from src.utils.text_parser import (
     contains_word,
@@ -150,6 +151,25 @@ class ActionSynthesizer:
             project_ops = self._process_project_ops(node, path, roles.get("ops") or [])
             if project_ops is not None:
                 return project_ops
+        if node_type == NODE_ACTION and (
+            runtime_node.get("explicit_method_id")
+            or runtime_node.get("explicit_method_name")
+        ):
+            target_entity = runtime_node.get("target_entity", "Item")
+            explicit_results = []
+            for method in self._gather_candidates(runtime_node, path, target_entity):
+                result = self._synthesize_single_method(
+                    method,
+                    runtime_node,
+                    path,
+                    target_entity,
+                    future_hint=future_hint,
+                )
+                if result:
+                    result.setdefault("consumed_ids", set()).add(node.get("id"))
+                    explicit_results.append(result)
+            if explicit_results:
+                return explicit_results
         if node_type == NODE_LOOP:
             return handle_loop(self, runtime_node, path, consumed_ids=consumed_ids)
         if node_type == NODE_CONDITION:
@@ -198,15 +218,32 @@ class ActionSynthesizer:
             return handle_json(self, runtime_node, path)
         
         candidates = gather_candidates(self, runtime_node, path, target_entity)
+        if runtime_node.get("_ambiguous_method_candidates"):
+            return self._unresolved_path(
+                path,
+                runtime_node,
+                "ambiguous_method_candidates",
+                details={
+                    "candidate_ids": runtime_node["_ambiguous_method_candidates"],
+                },
+            )
         results = []
+        successful_candidate_ids = []
         for m in candidates:
             if "steps" in m:
-                results.extend(self._process_htn_plan(runtime_node, path, m["steps"]))
+                planned_results = self._process_htn_plan(runtime_node, path, m["steps"])
+                results.extend(planned_results)
+                successful_candidate_ids.extend(
+                    [str(m.get("id") or m.get("name"))] * len(planned_results)
+                )
             else:
                 res = self._synthesize_single_method(m, runtime_node, path, target_entity, future_hint=future_hint)
                 if res:
                     res.setdefault("consumed_ids", set()).add(node.get("id"))
                     results.append(res)
+                    successful_candidate_ids.append(
+                        str(m.get("id") or m.get("full_name") or m.get("name"))
+                    )
         if not results:
             fallback_paths = apply_fallbacks(self, runtime_node, path)
             if fallback_paths is not None:
@@ -216,18 +253,36 @@ class ActionSynthesizer:
                 f"[DEBUG] ActionSynthesizer: no results for node={node.get('id')}, "
                 f"intent={node.get('intent')}"
             )
-            todo_path = self.synthesizer._copy_path(path)
-            intent_val = node.get("intent", "UNKNOWN")
-            target_val = node.get("target_entity", "Unknown")
-            error_msg = f'throw new NotImplementedException("TODO: Implement {intent_val} for {target_val}");'
-            todo_path["statements"].append({"type": "raw", "code": error_msg, "node_id": node.get("id")})
-            todo_path.setdefault("consumed_ids", set()).add(node.get("id"))
-            todo_path["completed_nodes"] += 1
-            return [todo_path]
-        return sorted(results, key=lambda x: x["rank_tuple"], reverse=True)[:10]
+            return self._unresolved_path(
+                path,
+                node,
+                "no_structural_candidate",
+            )
+        unique_candidate_ids = list(dict.fromkeys(successful_candidate_ids))
+        if len(unique_candidate_ids) > 1:
+            return self._unresolved_path(
+                path,
+                runtime_node,
+                "ambiguous_method_candidates",
+                details={"candidate_ids": unique_candidate_ids},
+            )
+        return results[:1]
 
     def _process_condition_node(self, node, path, consumed_ids=None) -> List[Dict[str, Any]]:
         cond_expr = self.semantic_binder.generate_logic_expression(node.get("semantic_map", {}), node.get("target_entity", "Item"), path, node=node)
+        input_link = str(node.get("input_link") or "").strip()
+        if input_link:
+            linked_bool_vars = path.get("type_to_vars", {}).get("bool", [])
+            linked_bool = next(
+                (
+                    entry.get("var_name")
+                    for entry in reversed(linked_bool_vars)
+                    if entry.get("node_id") == input_link and entry.get("var_name")
+                ),
+                None,
+            )
+            if linked_bool:
+                cond_expr = linked_bool
         check_kind = str(node.get("semantic_map", {}).get("check_kind") or "").strip().lower()
         if node.get("intent") == INTENT_EXISTS and check_kind == "exists_check":
             coll_var = None
@@ -576,10 +631,11 @@ class ActionSynthesizer:
             if ret_var:
                 new_path["statements"].append({"type": "raw", "code": f"return {ret_var};", "node_id": node.get("id"), "intent": INTENT_RETURN})
             else:
-                if desired_type == "bool":
-                    new_path["statements"].append({"type": "raw", "code": "return true;", "node_id": node.get("id"), "intent": INTENT_RETURN})
-                else:
-                    new_path["statements"].append({"type": "comment", "text": "TODO: Return target not found", "intent": INTENT_RETURN, "node_id": node.get("id")})
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "return_source_not_resolved",
+                )
         new_path.setdefault("consumed_ids", set()).add(node.get("id"))
         new_path["completed_nodes"] += 1
         return [new_path]
@@ -728,16 +784,11 @@ class ActionSynthesizer:
         weak_filter_provenance = predicate_resolution == "default_predicate" or collection_resolution == "default_collection"
         history_filter_provenance = predicate_resolution == "history_predicate" or collection_resolution == "history_collection"
         if weak_filter_provenance:
-            new_path = self.synthesizer._copy_path(path)
-            new_path["statements"].append({
-                "type": "raw",
-                "code": 'throw new NotImplementedException("TODO: Resolve weak FILTER provenance before generating property-aware filter.");',
-                "node_id": node.get("id"),
-                "intent": intent,
-            })
-            new_path.setdefault("consumed_ids", set()).add(node.get("id"))
-            new_path["completed_nodes"] += 1
-            return [new_path]
+            return self._unresolved_path(
+                path,
+                node,
+                "filter_provenance_not_explicit",
+            )
         coll_var, coll_type = None, None
         for vt, vs in reversed(list(path["type_to_vars"].items())):
             if any(k in vt for k in ["IEnumerable", "List", "[]"]) and vt != "string":
@@ -840,12 +891,32 @@ class ActionSynthesizer:
         new_path = self.synthesizer._copy_path(path)
         new_path.setdefault("all_usings", set()).add("System.Linq")
         out_var = self.stmt_builder.get_semantic_var_name(node, coll_type, "filtered", new_path, role="data")
-        new_path["statements"].append({"type": "raw", "code": f"var {out_var} = {coll_var}.Where({item_name} => {logic_expr}).ToList();", "node_id": node.get("id"), "out_var": out_var, "var_type": coll_type, "intent": intent})
+        terminal = "ToArray()" if str(coll_type).endswith("[]") else "ToList()"
+        new_path["statements"].append({"type": "raw", "code": f"var {out_var} = {coll_var}.Where({item_name} => {logic_expr}).{terminal};", "node_id": node.get("id"), "out_var": out_var, "var_type": coll_type, "intent": intent})
         new_path.setdefault("type_to_vars", {}).setdefault(coll_type, []).append({"var_name": out_var, "node_id": node.get("id"), "intent": INTENT_LINQ, "target_entity": item_type})
         new_path["active_scope_item"] = out_var
         new_path.setdefault("consumed_ids", set()).add(node.get("id"))
         new_path["completed_nodes"] += 1
         return [new_path]
+
+    def _unresolved_path(
+        self,
+        path: Dict[str, Any],
+        node: Dict[str, Any],
+        reason: str,
+        details: Dict[str, Any] | None = None,
+    ) -> List[Dict[str, Any]]:
+        unresolved = self.synthesizer._copy_path(path)
+        error = {
+            "node_id": node.get("id"),
+            "intent": node.get("intent"),
+            "target_entity": node.get("target_entity"),
+            "reason": reason,
+        }
+        if details:
+            error["details"] = details
+        unresolved.setdefault("resolution_errors", []).append(error)
+        return [unresolved]
 
     def _process_htn_plan(self, node: Dict[str, Any], path: Dict[str, Any], plan: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         current_paths = [self.synthesizer._copy_path(path)]
@@ -990,7 +1061,18 @@ class ActionSynthesizer:
             if unwrapped_ret != "void":
                 method_ret = new_path.get("method_return_type") or path.get("method_return_type", "")
                 want_count_return = intent == INTENT_PERSIST and method_ret in ["int", "long", "Task<int>", "Task<long>"]
-                is_side_effect_only = intent in [INTENT_DISPLAY] or (intent == INTENT_PERSIST and not want_count_return) or (node.get("side_effect") in ["IO", "DB"] and unwrapped_ret in ["int", "long"] and not want_count_return)
+                is_side_effect_only = (
+                    m.get("origin") != "explicit"
+                    and (
+                        intent in [INTENT_DISPLAY]
+                        or (intent == INTENT_PERSIST and not want_count_return)
+                        or (
+                            node.get("side_effect") in ["IO", "DB"]
+                            and unwrapped_ret in ["int", "long"]
+                            and not want_count_return
+                        )
+                    )
+                )
                 if not is_side_effect_only:
                     var_role = self._get_effective_runtime_role(node, m.get("role")) or "data"
                     var_name = self.stmt_builder.get_semantic_var_name(node, unwrapped_ret, m.get("name"), new_path, role=var_role)
@@ -1007,14 +1089,239 @@ class ActionSynthesizer:
                         reuse_path["completed_nodes"] += 1
                         return reuse_path
         semantic_roles = self._get_semantic_roles(node)
+        error_policy = str(
+            semantic_roles.get("error_policy") or "return_default"
+        ).strip().lower()
+        if error_policy not in {"return_default", "rethrow", "continue"}:
+            return self._unresolved_path(
+                path,
+                node,
+                "invalid_error_policy",
+                details={"error_policy": error_policy},
+            )[0]
+        cancellation_input = str(
+            semantic_roles.get("cancellation_token_input") or ""
+        ).strip()
+        if cancellation_input and (
+            intent == INTENT_DATABASE_QUERY
+            or (intent == INTENT_PERSIST and node.get("source_kind") == "db")
+        ):
+            input_types = {
+                definition.get("name"): definition.get("type")
+                for definition in new_path.get("input_defs", []) or []
+                if isinstance(definition, dict) and definition.get("name")
+            }
+            if input_types.get(cancellation_input) != "CancellationToken":
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "db_cancellation_input_invalid",
+                    details={"cancellation_token_input": cancellation_input},
+                )[0]
+            sql_argument = params[0] if params else None
+            parameter_argument = params[1] if len(params) > 1 else "null"
+            if not sql_argument:
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "db_command_metadata_not_explicit",
+                )[0]
+            command_expression = (
+                f"new CommandDefinition({sql_argument}, "
+                f"parameters: {parameter_argument}, "
+                f"cancellationToken: {cancellation_input})"
+            )
+            if intent == INTENT_DATABASE_QUERY:
+                call_expr = (
+                    f"_dbConnection.QueryAsync<{render_target}>"
+                    f"({command_expression})"
+                )
+            else:
+                call_expr = f"_dbConnection.ExecuteAsync({command_expression})"
+            stmt["method"] = call_expr.split("(", 1)[0]
+            stmt["method_name"] = stmt["method"]
+            stmt["args"] = [command_expression]
+            stmt["call_expr"] = call_expr
+            stmt["is_async"] = True
+            new_path.setdefault("all_usings", set()).update({
+                "Dapper",
+                "System.Threading",
+            })
         ops = semantic_roles.get("ops", []) or []
-        if intent == INTENT_HTTP_REQUEST and "use_api_key_header" in ops:
+        if intent == INTENT_HTTP_REQUEST and (
+            "structured_http_request" in ops or "use_api_key_header" in ops
+        ):
             input_defs = new_path.get("input_defs") or []
-            if input_defs and input_defs[0].get("name"):
-                input_name = input_defs[0]["name"]
-                new_path["statements"].append({"type": "raw", "code": "_httpClient.DefaultRequestHeaders.Remove(\"X-API-Key\");", "node_id": node.get("id"), "intent": intent})
-                new_path["statements"].append({"type": "raw", "code": f"_httpClient.DefaultRequestHeaders.Add(\"X-API-Key\", {input_name});", "node_id": node.get("id"), "intent": intent})
-                new_path.setdefault("all_usings", set()).add("System.Net.Http")
+            input_types = {
+                definition.get("name"): definition.get("type")
+                for definition in input_defs
+                if isinstance(definition, dict) and definition.get("name")
+            }
+            api_key_input = str(
+                semantic_roles.get("api_key_input") or ""
+            ).strip()
+            cancellation_input = str(
+                semantic_roles.get("cancellation_token_input") or ""
+            ).strip()
+            http_method = str(semantic_roles.get("http_method") or "").strip().upper()
+            header_name = str(semantic_roles.get("api_key_header") or "").strip()
+            payload_input = str(
+                semantic_roles.get("payload_input") or ""
+            ).strip()
+            content_type = str(
+                semantic_roles.get("content_type") or ""
+            ).strip()
+            request_url = semantic_roles.get("url")
+            timeout_ms = semantic_roles.get("timeout_ms")
+            if not request_url:
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "http_request_metadata_not_explicit",
+                )[0]
+            use_api_key = "use_api_key_header" in ops
+            if use_api_key and (
+                not api_key_input
+                or api_key_input not in input_types
+                or input_types.get(api_key_input) != "string"
+                or not header_name
+            ):
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "http_api_key_metadata_not_explicit",
+                )[0]
+            if cancellation_input and (
+                cancellation_input not in input_types
+                or input_types.get(cancellation_input) != "CancellationToken"
+            ):
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "http_cancellation_input_invalid",
+                    details={"cancellation_token_input": cancellation_input},
+                )[0]
+            if (
+                not isinstance(timeout_ms, int)
+                or isinstance(timeout_ms, bool)
+                or timeout_ms <= 0
+            ):
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "http_timeout_not_explicit",
+                )[0]
+            method_expressions = {
+                "GET": "HttpMethod.Get",
+                "POST": "HttpMethod.Post",
+                "PUT": "HttpMethod.Put",
+                "PATCH": "HttpMethod.Patch",
+            }
+            if http_method not in method_expressions:
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "unsupported_explicit_http_method",
+                    details={"http_method": http_method},
+                )[0]
+            has_payload = http_method in {"POST", "PUT", "PATCH"}
+            if has_payload and (
+                not payload_input
+                or payload_input not in input_types
+                or input_types.get(payload_input) != "string"
+                or not content_type
+            ):
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "http_payload_metadata_not_explicit",
+                    details={"http_method": http_method},
+                )[0]
+            if not has_payload and (payload_input or content_type):
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "http_get_payload_not_allowed",
+                )[0]
+            if not stmt.get("out_var"):
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "http_response_target_not_explicit",
+                )[0]
+            request_var = self.stmt_builder.get_semantic_var_name(
+                node,
+                "HttpRequestMessage",
+                "request",
+                new_path,
+                prefix="request",
+                role="request",
+            )
+            response_var = self.stmt_builder.get_semantic_var_name(
+                node,
+                "HttpResponseMessage",
+                "response",
+                new_path,
+                prefix="response",
+                role="response",
+            )
+            cancellation_var = self.stmt_builder.get_semantic_var_name(
+                node,
+                "CancellationTokenSource",
+                "requestTimeout",
+                new_path,
+                prefix="requestTimeout",
+                role="cancellation",
+            )
+            url_literal = to_csharp_string_literal(str(request_url))
+            request_lines = [
+                f"using var {request_var} = new HttpRequestMessage("
+                f"{method_expressions[http_method]}, {url_literal});"
+            ]
+            if has_payload:
+                content_type_literal = to_csharp_string_literal(content_type)
+                request_lines.append(
+                    f"{request_var}.Content = new StringContent("
+                    f"{payload_input}, Encoding.UTF8, {content_type_literal});"
+                )
+            if use_api_key:
+                header_literal = to_csharp_string_literal(header_name)
+                request_lines.append(
+                    f"{request_var}.Headers.Add({header_literal}, {api_key_input});"
+                )
+            if cancellation_input:
+                cancellation_setup = (
+                    f"using var {cancellation_var} = "
+                    f"CancellationTokenSource.CreateLinkedTokenSource({cancellation_input});\n"
+                    f"{cancellation_var}.CancelAfter(TimeSpan.FromMilliseconds({timeout_ms}));"
+                )
+            else:
+                cancellation_setup = (
+                    f"using var {cancellation_var} = "
+                    f"new CancellationTokenSource(TimeSpan.FromMilliseconds({timeout_ms}));"
+                )
+            stmt = {
+                "type": "raw",
+                "code": (
+                    f"{chr(10).join(request_lines)}\n"
+                    f"{cancellation_setup}\n"
+                    f"using var {response_var} = await _httpClient.SendAsync({request_var}, {cancellation_var}.Token);\n"
+                    f"{response_var}.EnsureSuccessStatusCode();\n"
+                    f"{stmt['out_var']} = await {response_var}.Content.ReadAsStringAsync("
+                    f"{cancellation_var}.Token);"
+                ),
+                "node_id": node.get("id"),
+                "intent": intent,
+                "out_var": stmt.get("out_var"),
+                "var_type": stmt.get("var_type"),
+            }
+            new_path.setdefault("all_usings", set()).update({
+                "System",
+                "System.Net.Http",
+                "System.Threading",
+            })
+            if has_payload:
+                new_path["all_usings"].add("System.Text")
         use_wrap = True
         try:
             from unittest.mock import Mock
@@ -1022,7 +1329,13 @@ class ActionSynthesizer:
                 use_wrap = False
         except Exception:
             use_wrap = True
-        wrapped_stmt = self.stmt_builder.wrap_with_try_catch(stmt, node.get("intent"), m.get("name"), new_path) if use_wrap else stmt
+        wrapped_stmt = self.stmt_builder.wrap_with_try_catch(
+            stmt,
+            node.get("intent"),
+            m.get("name"),
+            new_path,
+            error_policy=error_policy,
+        ) if use_wrap else stmt
         if isinstance(wrapped_stmt, list):
             for s in wrapped_stmt:
                 new_path["statements"].append(s)
@@ -1133,11 +1446,22 @@ class ActionSynthesizer:
             "payload" in semantic_roles or "content" in semantic_roles
         )
         requested_role = effective_role
-        ukb_results = self.ukb.search(node.get("original_text", ""), limit=10, intent=intent, target_entity=target_entity, requested_role=requested_role) if self.ukb is not None else []
-        ukb_results = [c for c in ukb_results if c.get("name") not in ["Enumerable.ToList", "List.Add", "GenericAction"]]
-        
-        # 27.445: Ensure templates also get the same ranking logic if possible, 
-        # or at least don't bypass role filtering.
+        requested_return_type = node.get("output_type")
+        if requested_return_type in (None, "", "void"):
+            requested_return_type = None
+        try:
+            ukb_results = self.ukb.search(
+                node.get("original_text", ""),
+                limit=10,
+                intent=intent,
+                target_entity=target_entity,
+                return_type=requested_return_type,
+                requested_role=requested_role,
+                source_kind=source_kind,
+            ) if self.ukb is not None else []
+        except AmbiguousMethodCandidatesError as error:
+            node["_ambiguous_method_candidates"] = error.candidate_ids
+            return []
         candidates = templates + ukb_results
         if wants_payload:
             def _has_http_content(cand: Dict[str, Any]) -> bool:
@@ -1148,9 +1472,10 @@ class ActionSynthesizer:
             candidates = [c for c in candidates if _has_http_content(c)] or candidates
         filtered = []
         for c in candidates:
-            c_class = c.get("class", "")
             c_role = c.get("role")
             c_name = str(c.get("name") or "")
+            c_capabilities = set(c.get("capabilities") or [])
+            c_intent = c.get("intent", INTENT_GENERAL)
             if " " in c_name:
                 continue
             role_mismatch = False
@@ -1167,16 +1492,16 @@ class ActionSynthesizer:
             if intent == INTENT_JSON_DESERIALIZE:
                 if c.get("steps"):
                     continue
-                is_json = ("JsonSerializer" in c_class) or ("Deserialize" in c_name) or ("deserialize" in str(c.get("id", "")).lower())
-                if not is_json:
+                if (
+                    c_intent != INTENT_JSON_DESERIALIZE
+                    and INTENT_JSON_DESERIALIZE not in c_capabilities
+                ):
                     continue
 
             if source_kind == "env":
                 if c.get("steps"):
                     continue
-                if c.get("source_kind") and c.get("source_kind") != "env":
-                    continue
-                if c_class and c_class not in ["Environment", "System.Environment"]:
+                if c.get("source_kind") != "env":
                     continue
 
             if c.get("steps"):
@@ -1185,24 +1510,17 @@ class ActionSynthesizer:
                         continue
 
             if intent == INTENT_DATABASE_QUERY or source_kind == "db":
-                is_db_candidate = (c.get("target") == "_dbConnection" or "IDbConnection" in c_class or "Dapper" in c_class)
-                tag_list = c.get("tags", []) or []
-                is_query_like = ("sql" in tag_list or "query" in tag_list or "Query" in c.get("name", ""))
-                if not (is_db_candidate or is_query_like):
+                is_db_candidate = (
+                    c.get("source_kind") == "db"
+                    or c.get("target") == "_dbConnection"
+                    or INTENT_DATABASE_QUERY in c_capabilities
+                )
+                if not is_db_candidate:
                     continue
             if c.get("origin") != "template":
-                c_intent = c.get("intent", INTENT_GENERAL)
                 if intent and intent not in [INTENT_GENERAL, INTENT_ACTION] and c_intent not in [intent, INTENT_ACTION, INTENT_GENERAL]:
                     continue
             filtered.append(c)
-        if wants_payload and filtered:
-            send_like = []
-            for c in filtered:
-                name = str(c.get("name") or "")
-                if name in ["PostAsync", "PutAsync", "PatchAsync"]:
-                    send_like.append(c)
-            if send_like:
-                filtered = send_like
         if node.get("cardinality") == "COLLECTION":
             collection_filtered = []
             for c in filtered:

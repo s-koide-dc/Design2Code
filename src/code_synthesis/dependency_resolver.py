@@ -58,17 +58,27 @@ class DependencyResolver:
         for error in errors:
             if error.get("code") == "CS0246":
                 msg = error.get("message", "")
-                import re
-                match = re.search(r"'(.*?)'", msg)
-                if match:
-                    symbol = match.group(1)
-                    if symbol not in seen_symbols:
-                        seen_symbols.add(symbol)
-                        res = self.resolve(symbol)
-                        if res:
-                            results.append(res)
+                symbol = self._extract_single_quoted_value(msg)
+                if symbol and symbol not in seen_symbols:
+                    seen_symbols.add(symbol)
+                    res = self.resolve(symbol)
+                    if res:
+                        results.append(res)
                             
         return results
+
+    @staticmethod
+    def _extract_single_quoted_value(message: str) -> Optional[str]:
+        """Extract the first value enclosed by single quotes without regex."""
+        if not isinstance(message, str):
+            return None
+        start = message.find("'")
+        if start < 0:
+            return None
+        end = message.find("'", start + 1)
+        if end <= start + 1:
+            return None
+        return message[start + 1:end]
 
     def save_mappings(self):
         """解決に成功したマッピングを永続化する"""

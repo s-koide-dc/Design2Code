@@ -24,6 +24,16 @@ def handle_json(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) 
             method_sig = {"params": [{"name": "path", "type": "string", "role": "path"}]}
             params = action_synthesizer.semantic_binder.bind_parameters(method_sig, node, path)
             if params:
+                error_policy = str(
+                    semantic_roles.get("error_policy") or "return_default"
+                ).strip().lower()
+                if error_policy not in {"return_default", "rethrow", "continue"}:
+                    return action_synthesizer._unresolved_path(
+                        path,
+                        node,
+                        "invalid_error_policy",
+                        details={"error_policy": error_policy},
+                    )
                 json_var = action_synthesizer.stmt_builder.get_semantic_var_name(
                     node,
                     "string",
@@ -32,12 +42,23 @@ def handle_json(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) 
                     prefix="json",
                     role="content"
                 )
-                new_p["statements"].append({
+                file_stmt = {
                     "type": "raw",
-                    "code": f"var {json_var} = File.ReadAllText({params[0]});",
+                    "code": f"{json_var} = File.ReadAllText({params[0]});",
                     "node_id": node.get("id"),
-                    "intent": INTENT_FILE_IO
-                })
+                    "intent": INTENT_FILE_IO,
+                    "out_var": json_var,
+                    "var_type": "string",
+                }
+                new_p["statements"].append(
+                    action_synthesizer.stmt_builder.wrap_with_try_catch(
+                        file_stmt,
+                        INTENT_FILE_IO,
+                        "File.ReadAllText",
+                        new_p,
+                        error_policy=error_policy,
+                    )
+                )
                 new_p.setdefault("type_to_vars", {}).setdefault("string", []).append({
                     "var_name": json_var,
                     "node_id": node.get("id"),
@@ -99,11 +120,23 @@ def handle_json(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) 
         "out_var": result_var,
         "var_type": output_type
     }
+    semantic_roles = action_synthesizer._get_semantic_roles(node)
+    error_policy = str(
+        semantic_roles.get("error_policy") or "return_default"
+    ).strip().lower()
+    if error_policy not in {"return_default", "rethrow", "continue"}:
+        return action_synthesizer._unresolved_path(
+            path,
+            node,
+            "invalid_error_policy",
+            details={"error_policy": error_policy},
+        )
     wrapped_stmt = action_synthesizer.stmt_builder.wrap_with_try_catch(
         stmt,
         intent,
         "JsonSerializer.Deserialize",
-        new_p
+        new_p,
+        error_policy=error_policy,
     )
     if isinstance(wrapped_stmt, list):
         new_p["statements"].extend(wrapped_stmt)

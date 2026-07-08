@@ -539,7 +539,7 @@ Flow
    3. `spec_role=CHECK` keeps condition synthesis on the binder path
    4. `spec_role=CALCULATE` routes into calc handlers
 4. `SemanticBinder` consumes `CHECK` metadata and provenance-strength to generate conservative conditions.
-5. `calc_ops` consumes `entity_resolution` to decide whether to concretize, stay generic, or emit explicit TODO stop points.
+5. `calc_ops` consumes explicit source/property resolution metadata; unresolved or ambiguous calculations are reported through structured `resolution_errors`.
 
 Outputs
 1. A ranked list of synthesis paths.

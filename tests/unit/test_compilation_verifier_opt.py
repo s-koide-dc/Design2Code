@@ -57,5 +57,26 @@ class TestCompilationVerifierOptimization(unittest.TestCase):
         if build_calls:
             self.assertIn('--no-restore', build_calls[0])
 
+    def test_parse_msbuild_errors_without_regex(self):
+        output = (
+            r"C:\workspace\NLP\src\Example.cs(17,34): error CS1026: ) expected"
+            "\n"
+            "noise line"
+        )
+
+        errors = self.verifier._parse_errors(output)
+
+        self.assertEqual(
+            [{
+                "file": r"C:\workspace\NLP\src\Example.cs",
+                "line": 17,
+                "column": 34,
+                "code": "CS1026",
+                "error_type": "UNKNOWN",
+                "message": ") expected",
+            }],
+            errors,
+        )
+
 if __name__ == '__main__':
     unittest.main()

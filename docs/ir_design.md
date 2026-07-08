@@ -172,8 +172,10 @@ IR は保存して終わりではなく、`src/code_synthesis` で消費され�
 - provenance が弱い場合は schema 逆引きを抑止する。
 
 ### 10.3 `calc_ops`
-- `entity_resolution` に応じて保守度を変える。
-- `ambiguous` は cross-entity fallback を止め、必要なら TODO 停止する。
+- 計算元、代入先、集計対象は `semantic_roles` の明示メタデータだけから解決する。
+- 数量と単価の積は `quantity_prop` と `price_prop`、集計は `value_prop`、更新先は
+  `assignment_target`（または `property`）を要求する。
+- 解決できない場合は `resolution_errors` を返し、プロパティ名や直前変数から推測しない。
 
 ## 11. 設計上の主張
 この IR 設計の要点は次の 3 点にある。

@@ -467,73 +467,31 @@ class SemanticBinder:
                     if any(v.get("var_name") == name for v in vs):
                         return name, None
 
-        if self.strict_semantics:
-            # Strict mode forbids heuristic selection. Require explicit preferred_vars or input_refs.
-            return None, None
+        input_link = str(node.get("input_link") or "").strip()
+        linked_candidates = []
+        if input_link:
+            for variable_type, variables in path.get("type_to_vars", {}).items():
+                compatible = variable_type == target_type
+                if not compatible:
+                    compatible = self.type_system.is_compatible(target_type, variable_type)[0]
+                if not compatible:
+                    continue
+                linked_candidates.extend(
+                    variable.get("var_name")
+                    for variable in variables or []
+                    if isinstance(variable, dict)
+                    and variable.get("node_id") == input_link
+                    and variable.get("var_name")
+                )
+        linked_candidates = list(dict.fromkeys(linked_candidates))
+        if len(linked_candidates) == 1:
+            return linked_candidates[0], None
 
-        # 27.299: Phase 5 D-2 Intelligent Persistence & Context Selection
-        if role_hint in ["data", "params", "item"]:
+        if path.get("in_loop") and role_hint in ["data", "params", "item"]:
             scope_item = path.get("active_scope_item")
             if scope_item:
-                # If we have an active scope item (e.g. user.First()), check if it's compatible
-                # Since active_scope_item is often string-injected (x.Prop), we can't easily check type
-                # but we'll prioritize it for data/params roles.
                 return scope_item, None
 
-        # 27.460: Phase 7 F-1 Role-based context selection with scoring
-        role_synonyms = self.ukb.get("role_synonyms", {}) if (self.ukb and hasattr(self.ukb, "get")) else {}
-        if not isinstance(role_synonyms, dict):
-            role_synonyms = {}
-        syns = role_synonyms.get(role_hint, [])
-        
-        best_candidate = None
-        best_role_score = -1
-        
-        all_compat_vars = []
-        if target_type in path.get("type_to_vars", {}):
-            all_compat_vars.extend(path["type_to_vars"][target_type])
-        
-        # Also check compatible types
-        for t, vs in path.get("type_to_vars", {}).items():
-            if t == target_type: continue
-            is_compat, score, _ = self.type_system.is_compatible(target_type, t)
-            if is_compat:
-                all_compat_vars.extend(vs)
-                
-        # recency index
-        var_count = len(all_compat_vars)
-        for i, v in enumerate(reversed(all_compat_vars)):
-            v_name = v["var_name"]
-            v_role = v.get("role")
-            recency_score = (var_count - i) / var_count
-            
-            # Prevent accidental DI service usage
-            if role_hint in ["data", "params"] and v_name.startswith("_"): continue
-            
-            scoring = self.ukb.get("role_scoring", {}) if (self.ukb and hasattr(self.ukb, "get")) else {}
-            if not isinstance(scoring, dict):
-                scoring = {}
-            exact_score = scoring.get("exact_match", 10)
-            synonym_score = scoring.get("synonym_match", 5)
-            fallback_score = scoring.get("fallback", 1)
-            penalty = scoring.get("transform_penalty", -2)
-
-            r_score = 0
-            if v_role == role_hint: r_score = exact_score
-            elif role_hint and v_role in syns: r_score = synonym_score
-            elif role_hint is None: r_score = fallback_score
-            
-            # 27.470: Penalize old READ/FETCH variables if TRANSFORM result exists
-            if v_role in [ROLE_READ, ROLE_FETCH] and role_hint in ["data", "content", ROLE_TRANSFORM]:
-                r_score += penalty # Slight penalty
-            
-            total_score = r_score + recency_score
-            if total_score > best_role_score:
-                best_role_score = total_score
-                best_candidate = (v_name, None)
-        
-        if best_candidate:
-            return best_candidate
         return None, None
 
     def _resolve_prop(self, hint: str, goal_type: str, props: Dict[str, str], node: Dict[str, Any], target_hint: Optional[str] = None) -> Optional[str]:
@@ -553,14 +511,6 @@ class SemanticBinder:
             text_clean = (text or "").strip("\"' ")
             if not text_clean:
                 return None
-            if self.matcher:
-                best_res = self.matcher.find_best_match(text_clean, list(props.keys()))
-                if isinstance(best_res, tuple):
-                    best_prop, _score = best_res
-                    if best_prop in props:
-                        return best_prop
-                elif best_res and best_res in props:
-                    return best_res
             for p in props.keys():
                 if p.lower() == text_clean.lower():
                     return p
@@ -582,14 +532,6 @@ class SemanticBinder:
                 return matched
             return None
 
-        if goal_type == "numeric":
-            for p, pt in props.items():
-                if pt in ["int", "long", "decimal", "double", "float"]:
-                    return p
-        if goal_type == "string":
-            for p, pt in props.items():
-                if "string" in str(pt).lower():
-                    return p
         return None
 
     def _build_arithmetic_expr(self, goal: Dict[str, Any], props: Dict[str, str], path: Dict[str, Any]) -> Optional[str]:
@@ -599,7 +541,7 @@ class SemanticBinder:
         target_prop = self._resolve_prop(hint, "numeric", props, None, target_hint=target_hint)
         
         if not target_prop:
-            target_prop = list(props.keys())[0] if props else "TotalAmount"
+            return None
         if props and target_prop not in props:
             if target_prop.endswith("Amount"):
                 base = target_prop[:-6]
