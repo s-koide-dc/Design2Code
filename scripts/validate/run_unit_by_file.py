@@ -43,6 +43,10 @@ def parse_args() -> argparse.Namespace:
         default=2,
         help="unittest verbosity level.",
     )
+    parser.add_argument(
+        "--failure-report",
+        help="Optional path to write failing module names, one per line.",
+    )
     return parser.parse_args()
 
 
@@ -98,6 +102,10 @@ def main() -> int:
                 emit_error(output)
 
     if failed_modules:
+        if args.failure_report:
+            with open(args.failure_report, "w", encoding="utf-8") as report:
+                report.write("\n".join(failed_modules))
+                report.write("\n")
         emit_github_failure_summary(failed_modules)
         emit_error("Unit failures: " + ", ".join(failed_modules))
         return 1

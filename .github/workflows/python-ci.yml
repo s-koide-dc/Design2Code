@@ -35,7 +35,17 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run unit tests
-        run: python scripts/validate/run_unit_by_file.py --verbosity 2
+        shell: pwsh
+        run: |
+          python scripts/validate/run_unit_by_file.py --verbosity 2 --failure-report unit_failures.txt
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            if (Test-Path unit_failures.txt) {
+              $failed = (Get-Content unit_failures.txt) -join ", "
+              Write-Host "::error file=scripts/validate/run_unit_by_file.py,title=Unit failures::Unit failures: $failed"
+            }
+            exit $code
+          }
 
   documented-entrypoints:
     runs-on: windows-latest
