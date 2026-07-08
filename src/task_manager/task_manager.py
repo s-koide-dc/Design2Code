@@ -220,6 +220,14 @@ class TaskManager:
         self._log_debug(f"Managing task state for session {session_id}, intent: {intent}")
 
         current_task = self.active_tasks.get(session_id)
+        if current_task:
+            awaiting_entity = current_task.get("awaiting_entity")
+            if (
+                awaiting_entity in {"source_filename", "destination_filename", "project_path"}
+                and awaiting_entity not in entities
+                and entities.get("filename")
+            ):
+                entities[awaiting_entity] = entities.pop("filename")
 
         # If PROVIDE_CONTENT arrives without an active task but includes a filename,
         # treat it as FILE_CREATE to avoid orphan content intents.

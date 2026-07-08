@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sqlite3
+from contextlib import closing
 from typing import Optional, List, Dict
 
 from src.utils.text_parser import extract_urls
@@ -28,6 +29,7 @@ class SemanticAnalyzer:
         self.task_manager = task_manager
         self.config_manager = config_manager
         self.morph_analyzer = morph_analyzer
+        self.data_source_diagnostics: List[Dict[str, str]] = []
         
         # 1. Load Custom Knowledge (templates, specific terms)
         kb_path = knowledge_file_path
@@ -39,6 +41,16 @@ class SemanticAnalyzer:
         
         # 2. Database Connection for Dictionary
         self.db_path = config_manager.dictionary_db_path if config_manager else os.path.join('resources', 'dictionary.db')
+
+    def _record_data_source_error(self, source: str, operation: str, error_type: str) -> None:
+        diagnostic = {
+            "module": "semantic_analyzer",
+            "source": source,
+            "operation": operation,
+            "error_type": error_type,
+        }
+        if diagnostic not in self.data_source_diagnostics:
+            self.data_source_diagnostics.append(diagnostic)
 
     def _get_meaning(self, word: str) -> Optional[str]:
         """Looks up meaning in custom knowledge first, then in dictionary DB."""
@@ -52,14 +64,13 @@ class SemanticAnalyzer:
             return None
             
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT meaning FROM dictionary WHERE word = ?", (word,))
-            row = cursor.fetchone()
-            conn.close()
-            
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT meaning FROM dictionary WHERE word = ?", (word,))
+                row = cursor.fetchone()
             return row[0] if row else None
-        except Exception:
+        except sqlite3.Error as exc:
+            self._record_data_source_error("dictionary_db", "lookup_word", type(exc).__name__)
             return None
 
     def search_by_meaning(self, query: str, limit: int = 5) -> List[Dict[str, str]]:
@@ -68,17 +79,17 @@ class SemanticAnalyzer:
             return []
             
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            # FTS5 MATCH query
-            cursor.execute(
-                "SELECT word, meaning FROM dictionary_fts WHERE meaning MATCH ? LIMIT ?",
-                (query, limit)
-            )
-            results = [{"word": row[0], "meaning": row[1]} for row in cursor.fetchall()]
-            conn.close()
+            with closing(sqlite3.connect(self.db_path)) as conn:
+                cursor = conn.cursor()
+                # FTS5 MATCH query
+                cursor.execute(
+                    "SELECT word, meaning FROM dictionary_fts WHERE meaning MATCH ? LIMIT ?",
+                    (query, limit)
+                )
+                results = [{"word": row[0], "meaning": row[1]} for row in cursor.fetchall()]
             return results
-        except Exception:
+        except sqlite3.Error as exc:
+            self._record_data_source_error("dictionary_db", "search_meaning", type(exc).__name__)
             return []
 
     def _load_knowledge_base(self, filepath: str) -> dict:
@@ -89,10 +100,16 @@ class SemanticAnalyzer:
             
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                loaded = json.load(f)
+            if not isinstance(loaded, dict):
+                self._record_data_source_error("custom_knowledge", "load", "InvalidTopLevelType")
+                return {}
+            return loaded
         except json.JSONDecodeError:
+            self._record_data_source_error("custom_knowledge", "load", "JSONDecodeError")
             return {}
-        except Exception:
+        except OSError as exc:
+            self._record_data_source_error("custom_knowledge", "load", type(exc).__name__)
             return {}
 
     def analyze(self, context: dict) -> dict:
@@ -131,6 +148,9 @@ class SemanticAnalyzer:
         existing = context["analysis"].get("entities", {})
         existing.update(extracted)
         context["analysis"]["entities"] = existing
+        for diagnostic in self.data_source_diagnostics:
+            if diagnostic not in context["errors"]:
+                context["errors"].append(dict(diagnostic))
         context["pipeline_history"].append("semantic_analyzer")
         return context
 
@@ -244,11 +264,17 @@ class SemanticAnalyzer:
                   del extracted["content"]
 
         # 5. Aggressive extraction for awaiting states
+        awaiting = context.get("analysis", {}).get("awaiting_entity")
+        if (
+            awaiting in ["source_filename", "destination_filename", "project_path"]
+            and extracted.get("filename")
+            and not extracted.get(awaiting)
+        ):
+            extracted[awaiting] = extracted.pop("filename")
         if not extracted.get("filename") and not extracted.get("destination_filename") and not extracted.get("source_filename"):
             from src.utils.context_utils import extract_path_from_text
             val = extract_path_from_text(text)
             if val:
-                awaiting = context.get("analysis", {}).get("awaiting_entity")
                 if awaiting in ["filename", "source_filename", "destination_filename", "project_path"]:
                     extracted[awaiting] = {"value": val, "confidence": 1.0}
                 elif task_name == INTENT_FILE_MOVE:

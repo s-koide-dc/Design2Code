@@ -29,18 +29,25 @@ from src.pipeline_core.stages import (
 )
 
 class Pipeline:
-    def __init__(self, clarification_thresholds=None, planner_intent_threshold=None, is_test_mode=False):
+    def __init__(
+        self,
+        clarification_thresholds=None,
+        planner_intent_threshold=None,
+        is_test_mode=False,
+        workspace_root=None,
+    ):
         # 1. Initialize Configuration Manager
-        self.config_manager = ConfigManager()
+        self.config_manager = ConfigManager(workspace_root=workspace_root)
         force_vector = os.environ.get("FORCE_VECTOR_MODEL") == "1"
         test_mode = is_test_mode or os.environ.get("PYTEST_CURRENT_TEST") or "unittest" in sys.modules
+        self._skip_vector_model = os.environ.get("SKIP_VECTOR_MODEL") == "1"
         if test_mode and not force_vector:
             # Skip vector loading only when cache is not available
             model_path = self.config_manager.vector_model_path
             vocab_cache = model_path + ".v0.vocab.npy"
             matrix_cache = model_path + ".v0.matrix.npy"
             if not (os.path.exists(vocab_cache) and os.path.exists(matrix_cache)):
-                os.environ["SKIP_VECTOR_MODEL"] = "1"
+                self._skip_vector_model = True
 
         self._vector_engine = None
         self._vector_engine_future = None
@@ -54,18 +61,14 @@ class Pipeline:
         self.context_manager = ContextManager()
         self.log_manager = LogManager(config_manager=self.config_manager)
         
-        # --- NEW: Maintenance ---
-        try:
-            from scripts.rotate_logs import rotate_logs
-            rotate_logs()
-        except: pass
-        # ------------------------
+        self._rotate_expired_logs()
 
         # Start background loading of VectorEngine using paths from config
         self._start_vector_engine_loading()
 
         self.action_executor = ActionExecutor(
             log_manager=self.log_manager,
+            workspace_root=str(self.config_manager.workspace_root),
             autonomous_learning=self.autonomous_learning,
             morph_analyzer=self.morph_analyzer,
             config_manager=self.config_manager
@@ -116,11 +119,33 @@ class Pipeline:
             ResponseStage()
         ]
 
+    def _rotate_expired_logs(self):
+        """Archive expired logs while preserving unexpected programming failures."""
+        try:
+            from scripts.rotate_logs import rotate_logs
+            rotate_logs(
+                log_dir=self.log_manager.log_dir,
+                file_prefix=self.log_manager.log_file_prefix,
+            )
+        except OSError as exc:
+            self.log_manager.log_event(
+                "log_rotation_error",
+                {
+                    "error_type": type(exc).__name__,
+                    "message": str(exc),
+                },
+                level="WARNING",
+            )
+
     def _start_vector_engine_loading(self):
         """Starts loading VectorEngine in a background thread."""
         import concurrent.futures
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        self._vector_engine_future = executor.submit(VectorEngine, model_path=self.config_manager.vector_model_path)
+        self._vector_engine_future = executor.submit(
+            VectorEngine,
+            model_path=self.config_manager.vector_model_path,
+            skip_load=self._skip_vector_model,
+        )
 
     @property
     def vector_engine(self):
@@ -133,9 +158,15 @@ class Pipeline:
                 except Exception as e:
                     self.log_manager.log_event("vector_engine_load_error", {"message": str(e)})
                     # Fallback to synchronous load if background failed
-                    self._vector_engine = VectorEngine(model_path=v_path)
+                    self._vector_engine = VectorEngine(
+                        model_path=v_path,
+                        skip_load=self._skip_vector_model,
+                    )
             else:
-                self._vector_engine = VectorEngine(model_path=v_path)
+                self._vector_engine = VectorEngine(
+                    model_path=v_path,
+                    skip_load=self._skip_vector_model,
+                )
 
             # Only set if action_executor already exists
             if hasattr(self, 'action_executor') and self.action_executor:

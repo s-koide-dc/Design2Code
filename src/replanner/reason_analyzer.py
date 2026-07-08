@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import re
 from typing import List, Dict, Any, Optional
 from src.utils.logic_auditor import LogicAuditor
 
@@ -33,17 +32,16 @@ class ReasonAnalyzer:
         line_num = error.get("line", 0)
         
         # MSBuild エラーメッセージからシングルクォートで囲まれたシンボルを抽出
-        symbol_match = re.search(r"'([^']+)'", msg)
-        symbol = symbol_match.group(1) if symbol_match else ""
+        symbol = self._extract_single_quoted_value(msg)
         
         # エラー発生行の直近上部にある Node ID コメントを探索
         target_node_id = None
         if full_code and line_num > 0:
             lines = full_code.split('\n')
             for i in range(min(line_num - 1, len(lines) - 1), -1, -1):
-                node_match = re.search(r"// Node: ([\w_]+)", lines[i])
-                if node_match:
-                    target_node_id = node_match.group(1)
+                node_id = self._parse_node_comment(lines[i])
+                if node_id:
+                    target_node_id = node_id
                     break
 
         patch = {}
@@ -82,8 +80,9 @@ class ReasonAnalyzer:
             def _find_todos(body):
                 for s in body:
                     if s.get("type") == "comment" and "TODO: Step failed" in s.get("text", ""):
-                        match = re.search(r"TODO: Step failed - (.*)", s["text"])
-                        if match: failed_node_ids.append(match.group(1))
+                        failed_node_id = self._parse_step_failed_comment(s["text"])
+                        if failed_node_id:
+                            failed_node_ids.append(failed_node_id)
                     if "body" in s: _find_todos(s["body"])
                     if "else_body" in s: _find_todos(s["else_body"])
             
@@ -193,20 +192,20 @@ class ReasonAnalyzer:
             }
 
         # Legacy semantic issues
-        match_call = re.search(r"required call is missing: (\w+)(?: \[([\w_]+)\])?", issue)
-        if match_call:
-            method = match_call.group(1)
-            target_id = match_call.group(2)
+        missing_call = self._parse_required_call_missing(issue)
+        if missing_call:
+            method = missing_call.get("method")
+            target_id = missing_call.get("target_id")
             return {
                 "reason": "SEMANTIC_CALL_MISSING",
                 "detail": issue,
                 "patch": {"type": "FORCE_INTENT_RESOLUTION", "method": method, "target_id": target_id}
             }
         
-        match_link = re.search(r"node '([\w_]+)' is not consumed by node '([\w_]+)'", issue)
-        if match_link:
-            source_id = match_link.group(1)
-            target_id = match_link.group(2)
+        disconnected = self._parse_data_flow_disconnection(issue)
+        if disconnected:
+            source_id = disconnected.get("source_id")
+            target_id = disconnected.get("target_id")
             return {
                 "reason": "DATA_FLOW_DISCONNECTION",
                 "detail": issue,
@@ -214,6 +213,84 @@ class ReasonAnalyzer:
             }
 
         return None
+
+    @staticmethod
+    def _extract_single_quoted_value(text: str) -> str:
+        value = str(text)
+        start = value.find("'")
+        if start == -1:
+            return ""
+        end = value.find("'", start + 1)
+        if end == -1:
+            return ""
+        return value[start + 1:end]
+
+    @staticmethod
+    def _is_identifier_token(value: str) -> bool:
+        if not value:
+            return False
+        for ch in value:
+            if not (ch.isalnum() or ch == "_"):
+                return False
+        return True
+
+    @classmethod
+    def _parse_node_comment(cls, line: str) -> str:
+        marker = "// Node:"
+        text = str(line).strip()
+        if not text.startswith(marker):
+            return ""
+        node_id = text[len(marker):].strip()
+        return node_id if cls._is_identifier_token(node_id) else ""
+
+    @classmethod
+    def _parse_step_failed_comment(cls, text: str) -> str:
+        marker = "TODO: Step failed - "
+        value = str(text)
+        index = value.find(marker)
+        if index == -1:
+            return ""
+        node_id = value[index + len(marker):].strip()
+        return node_id if cls._is_identifier_token(node_id) else ""
+
+    @classmethod
+    def _parse_required_call_missing(cls, issue: str) -> Optional[Dict[str, str]]:
+        prefix = "required call is missing: "
+        text = str(issue)
+        if not text.startswith(prefix):
+            return None
+        remainder = text[len(prefix):].strip()
+        if not remainder:
+            return None
+        method = remainder
+        target_id = None
+        bracket_start = remainder.find(" [")
+        if bracket_start != -1 and remainder.endswith("]"):
+            method = remainder[:bracket_start].strip()
+            target_id = remainder[bracket_start + 2:-1].strip()
+        if not cls._is_identifier_token(method):
+            return None
+        if target_id is not None and not cls._is_identifier_token(target_id):
+            return None
+        return {"method": method, "target_id": target_id}
+
+    @classmethod
+    def _parse_data_flow_disconnection(cls, issue: str) -> Optional[Dict[str, str]]:
+        prefix = "node '"
+        separator = "' is not consumed by node '"
+        suffix = "'"
+        text = str(issue)
+        if not text.startswith(prefix) or not text.endswith(suffix):
+            return None
+        body = text[len(prefix):-len(suffix)]
+        sep_index = body.find(separator)
+        if sep_index == -1:
+            return None
+        source_id = body[:sep_index]
+        target_id = body[sep_index + len(separator):]
+        if not cls._is_identifier_token(source_id) or not cls._is_identifier_token(target_id):
+            return None
+        return {"source_id": source_id, "target_id": target_id}
 
     def analyze_logic_mismatch(self, ir_tree: Dict[str, Any], synthesis_result: Dict[str, Any]) -> List[Dict[str, Any]]:
         """

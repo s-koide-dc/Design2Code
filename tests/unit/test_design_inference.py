@@ -240,7 +240,7 @@ class TestDesignInferenceEngine(unittest.TestCase):
         )
 
         inferred, issue, new_line, data_sources = engine._infer_line(
-            "users.json を読み込み、ユーザー一覧に変換する",
+            '1. [semantic_roles:{"target_entity":"User"}] users.json を読み込み、一覧に変換する',
             step_idx=1,
             module_name="Sample",
             last_output_type=None,
@@ -250,7 +250,8 @@ class TestDesignInferenceEngine(unittest.TestCase):
         self.assertIsNone(issue)
         self.assertEqual(data_sources, [])
         self.assertIn("[ACTION|JSON_DESERIALIZE|User|List<User>|NONE]", new_line)
-        self.assertIn('[semantic_roles:{"path":"users.json"}]', new_line)
+        self.assertIn('"target_entity":"User"', new_line)
+        self.assertIn('"path":"users.json"', new_line)
 
     def test_infer_line_adds_url_semantic_role_for_http_request(self):
         engine = self._build_engine()
@@ -323,7 +324,7 @@ class TestDesignInferenceEngine(unittest.TestCase):
         )
 
         inferred, issue, new_line, data_sources = engine._infer_line(
-            "取得した文字列をトリムし、大文字に変換する",
+            "[ops:trim_upper] 取得した文字列をトリムし、大文字に変換する",
             step_idx=2,
             module_name="Sample",
             last_output_type="string",
@@ -343,7 +344,7 @@ class TestDesignInferenceEngine(unittest.TestCase):
         )
 
         inferred, issue, new_line, data_sources = engine._infer_line(
-            "CSVを行配列に分割する",
+            "[ops:split_lines] CSVを行配列に分割する",
             step_idx=2,
             module_name="Sample",
             last_output_type="string",
@@ -363,7 +364,7 @@ class TestDesignInferenceEngine(unittest.TestCase):
         )
 
         inferred, issue, new_line, data_sources = engine._infer_line(
-            "商品別の合計金額を集計する",
+            "[ops:aggregate_by_product] 商品別の合計金額を集計する",
             step_idx=4,
             module_name="Sample",
             last_output_type="List<string>",
@@ -451,7 +452,7 @@ class TestDesignInferenceEngine(unittest.TestCase):
         self.assertIn("[ACTION|HTTP_REQUEST|Item|string|NETWORK|product_api|http]", new_line)
         self.assertIn('[semantic_roles:{"url":"https://api.example.com/products"}]', new_line)
 
-    def test_infer_line_falls_back_to_ops_only_transform(self):
+    def test_infer_line_blocks_ops_only_transform_without_explicit_ops(self):
         engine = self._build_engine()
         engine.resolver = _ConfigurableResolver(
             step_token=None,
@@ -460,6 +461,26 @@ class TestDesignInferenceEngine(unittest.TestCase):
 
         inferred, issue, new_line, data_sources = engine._infer_line(
             "取得した文字列をトリムし、大文字に変換する",
+            step_idx=2,
+            module_name="Sample",
+            last_output_type="string",
+        )
+
+        self.assertFalse(inferred)
+        self.assertIsNotNone(issue)
+        self.assertEqual("NO_CANDIDATE", issue.reason)
+        self.assertEqual(data_sources, [])
+        self.assertEqual("取得した文字列をトリムし、大文字に変換する", new_line)
+
+    def test_infer_line_falls_back_to_ops_only_transform_with_explicit_ops(self):
+        engine = self._build_engine()
+        engine.resolver = _ConfigurableResolver(
+            step_token=None,
+            score=0.0,
+        )
+
+        inferred, issue, new_line, data_sources = engine._infer_line(
+            "[ops:trim_upper] 取得した文字列をトリムし、大文字に変換する",
             step_idx=2,
             module_name="Sample",
             last_output_type="string",
@@ -491,7 +512,7 @@ class TestDesignInferenceEngine(unittest.TestCase):
         )
 
         inferred, issue, new_line, data_sources = engine._infer_line(
-            "各行の1列目を商品名、2列目を金額として商品別に合計金額を集計する",
+            "[ops:aggregate_by_product] 各行の1列目を商品名、2列目を金額として商品別に合計金額を集計する",
             step_idx=4,
             module_name="Sample",
             last_output_type="List<string>",
@@ -542,6 +563,26 @@ class TestDesignInferenceEngine(unittest.TestCase):
         self.assertEqual(data_sources, [])
         self.assertIn("[LOOP|GENERAL|List<string>|void|NONE]", new_line)
 
+    def test_infer_line_blocks_plain_loop_without_structural_input_type(self):
+        engine = self._build_engine()
+        engine.resolver = _ConfigurableResolver(
+            step_token=None,
+            score=0.0,
+        )
+
+        inferred, issue, new_line, data_sources = engine._infer_line(
+            "各行を順に処理する",
+            step_idx=1,
+            module_name="Sample",
+            last_output_type=None,
+        )
+
+        self.assertFalse(inferred)
+        self.assertIsNotNone(issue)
+        self.assertEqual("NO_CANDIDATE", issue.reason)
+        self.assertEqual(data_sources, [])
+        self.assertEqual("各行を順に処理する", new_line)
+
     def test_infer_line_overrides_last_return_phrase_to_return_value(self):
         engine = self._build_engine()
         engine.resolver = _ConfigurableResolver(
@@ -585,7 +626,7 @@ class TestDesignInferenceEngine(unittest.TestCase):
         self.assertIn("[ACTION|FETCH|string|string|IO]", new_line)
         self.assertIn('[semantic_roles:{"path":"users.json"}]', new_line)
 
-    def test_infer_line_falls_back_to_plain_json_deserialize(self):
+    def test_infer_line_blocks_plain_json_deserialize_without_structural_entity(self):
         engine = self._build_engine()
         engine.resolver = _ConfigurableResolver(
             step_token=None,
@@ -599,10 +640,31 @@ class TestDesignInferenceEngine(unittest.TestCase):
             last_output_type="string",
         )
 
+        self.assertFalse(inferred)
+        self.assertIsNotNone(issue)
+        self.assertEqual("NO_CANDIDATE", issue.reason)
+        self.assertEqual(data_sources, [])
+        self.assertEqual("データをユーザーリストに変換する", new_line)
+
+    def test_infer_line_falls_back_to_plain_json_deserialize_with_explicit_entity_role(self):
+        engine = self._build_engine()
+        engine.resolver = _ConfigurableResolver(
+            step_token=None,
+            score=0.0,
+        )
+
+        inferred, issue, new_line, data_sources = engine._infer_line(
+            '1. [semantic_roles:{"target_entity":"User"}] データをリストに変換する',
+            step_idx=2,
+            module_name="Sample",
+            last_output_type="string",
+        )
+
         self.assertTrue(inferred)
         self.assertIsNone(issue)
         self.assertEqual(data_sources, [])
         self.assertIn("[ACTION|JSON_DESERIALIZE|User|List<User>|NONE]", new_line)
+        self.assertIn('[semantic_roles:{"target_entity":"User"}]', new_line)
 
     def test_infer_line_falls_back_to_plain_linq_filter(self):
         engine = self._build_engine()
@@ -797,6 +859,26 @@ class TestDesignInferenceEngine(unittest.TestCase):
         self.assertIsNone(issue)
         self.assertEqual(data_sources, [])
         self.assertIn("[ACTION|DISPLAY|User|void|NONE]", new_line)
+
+    def test_infer_line_blocks_plain_display_without_structural_input_type(self):
+        engine = self._build_engine()
+        engine.resolver = _ConfigurableResolver(
+            step_token=None,
+            score=0.0,
+        )
+
+        inferred, issue, new_line, data_sources = engine._infer_line(
+            "結果を表示する",
+            step_idx=1,
+            module_name="Sample",
+            last_output_type=None,
+        )
+
+        self.assertFalse(inferred)
+        self.assertIsNotNone(issue)
+        self.assertEqual("NO_CANDIDATE", issue.reason)
+        self.assertEqual(data_sources, [])
+        self.assertEqual("結果を表示する", new_line)
 
     def test_infer_line_resolver_display_still_uses_collection_item_entity(self):
         engine = self._build_engine()

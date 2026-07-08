@@ -116,10 +116,6 @@ class SessionManager:
             "task_id": task.get("id"),
             "task_name": task.get("name")
         }
-        # TODO: Implement Logic: **ライフサイクル管理**: 最終活動時刻の更新と、アクティブなタスク状態の保持。
-            # TODO: Implement Logic: **統計収集**:
-                # TODO: Implement Logic: アクティブセッション数、メモリ使用量の推定値を取得。
-                # TODO: Implement Logic: 必須フィールドの欠落や、定義されていないタスクの実行、不整合なサブタスクインデックスを検出。
 
 def _extract_session_id(text: str) -> str | None:
     if not text:

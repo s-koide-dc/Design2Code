@@ -20,7 +20,7 @@ The `ReasonAnalyzer` [Phase 23.4] is the diagnostic engine of the self-correctio
 
 #### 2.3.1 Compilation Error Analysis (`_analyze_compilation_error`)
 1.  **Parse Error**: Extract error code (e.g., "CS0103") and message.
-2.  **Locate Node**: Map line numbers back to Node IDs using `// Node: ID` comments in the source code.
+2.  **Locate Node**: Map line numbers back to Node IDs using fixed-format `// Node: ID` comments in the source code. Node IDs must be identifier tokens.
 3.  **Heuristic Mapping**:
     -   **CS0103** (Name doesn't exist): `ENSURE_FIELD_OR_LOCAL` (Inject field/variable).
     -   **CS1061** (Type missing member): `ADD_POCO_PROPERTY` (Extend POCO).
@@ -28,12 +28,12 @@ The `ReasonAnalyzer` [Phase 23.4] is the diagnostic engine of the self-correctio
     -   **Default**: `FIX_LOGIC_GAPS` (Trigger general retry logic for the node).
 
 #### 2.3.2 Semantic Issue Analysis (`_analyze_semantic_issue`)
-1.  **TODO Detection**: If code contains "TODO: Step failed", find the failing node ID and suggest `FIX_LOGIC_GAPS`.
+1.  **TODO Detection**: If code contains fixed-format `TODO: Step failed - <node_id>`, find the failing node ID and suggest `FIX_LOGIC_GAPS`. Node IDs must be identifier tokens.
 2.  **Spec Violations**:
     -   `SPEC_STEP_NOT_EMITTED`: Suggest `FIX_LOGIC_GAPS` for the missing step.
     -   `SPEC_OUTPUT_TYPE_MISMATCH`: Suggest `FIX_LOGIC_GAPS` to retry binding.
 3.  **Data Flow**:
-    -   "Node X not consumed by Y": Suggest `REBIND_INPUT_LINK`.
+    -   Fixed-format `node '<source_id>' is not consumed by node '<target_id>'`: Suggest `REBIND_INPUT_LINK` when both IDs are identifier tokens.
 
 #### 2.3.3 Logic Mismatch Analysis (`analyze_logic_mismatch`)
 1.  **Delusional Literals**: Scan code for `Console.WriteLine` calls that output hardcoded strings instead of data variables (when the intent was data display). Suggest `FORCE_VARIABLE_BINDING`.

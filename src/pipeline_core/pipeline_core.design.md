@@ -24,8 +24,8 @@
   ```
 
 ### Core Logic
-1. `Pipeline.__init__` で `ConfigManager` を構成し、`MorphAnalyzer`、`SyntacticAnalyzer`、`SemanticAnalyzer`、`TaskManager`、`ClarificationManager`、`Planner`、`ActionExecutor`、`LogManager` を初期化する。
-2. テスト実行時はキャッシュ（`<model>.v0.vocab.npy` / `<model>.v0.matrix.npy`）が無い場合のみ `SKIP_VECTOR_MODEL=1` を設定し、VectorEngine のロードをスキップできるようにする。
+1. `Pipeline.__init__` で任意の `workspace_root` を受け取り、そのrootで `ConfigManager` を構成して `MorphAnalyzer`、`SyntacticAnalyzer`、`SemanticAnalyzer`、`TaskManager`、`ClarificationManager`、`Planner`、`ActionExecutor`、`LogManager` を初期化する。未指定時は従来どおり現在のworkspaceを使用する。
+2. テスト実行時はキャッシュ（`<model>.v0.vocab.npy` / `<model>.v0.matrix.npy`）が無い場合、Pipeline内部の `skip_load` 状態でVectorEngineのロードを省略する。プロセス環境変数は変更しない。
 3. 起動時に `scripts.rotate_logs.rotate_logs` を呼び出し、ログのメンテナンスを実施する（失敗時は無視）。
 4. `VectorEngine` は `_start_vector_engine_loading` でバックグラウンドロードを開始し、`vector_engine` プロパティ初回アクセス時に完了待ち（タイムアウト 30 秒）または同期ロードへフォールバックする。
 5. `IntentDetector` と `ResponseGenerator` はプロパティで遅延生成され、必要時に `vector_engine` を注入する。`ResponseGenerator` には `config_manager` も渡し、Phase 3 の `response_rewriter` 設定を参照できるようにする。
@@ -45,6 +45,8 @@
   - **Scenario**: 全ステージが正常に完走する。
   - **Input**: 任意の短文。
   - **Expected Output**: `context.response.text` が生成され、ログファイルが作成される。
+  - **Scenario**: `workspace_root` に一時ディレクトリを指定する。
+  - **Expected Output**: プロセスのcurrent directoryを変更せず、ファイル操作と設定解決が指定root内で行われる。
 - **Edge Cases**:
   - **Scenario**: 途中のステージが `_early_exit` を設定する。
   - **Input**: 明示的に早期終了するケース。
@@ -68,3 +70,7 @@
 - `Pipeline.run()` 自体は構造化 `context` を返し、標準出力へ直接書き込まない。
 - `__main__` の REPL だけが正式な対話 I/O を持ち、ユーザー応答は `AI: ...` 形式で stdout に出力する。
 - REPL 実行時の予期しない例外は stderr に出力し、通常の応答チャネルと混在させない。
+
+## 7. Review Notes
+
+- 2026-06-30: `workspace_root` をConfigManagerとActionExecutorへ一貫して注入し、モデルskip判定で環境変数を変更しない構成へ更新。

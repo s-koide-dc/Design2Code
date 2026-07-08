@@ -110,51 +110,61 @@ class LogManager:
         try:
             with open(self.json_log_file_path, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
-                if not content: return []
-                
-                # The log file has objects followed by ",\n"
-                # Remove trailing comma and newline
-                content = content.rstrip(',\n ')
-                
-                # Wrap in [] to make it a list
-                json_content = "[" + content + "]"
-                try:
-                    raw_events = json.loads(json_content)
-                    for ev in raw_events:
-                        ev_time = datetime.fromisoformat(ev["timestamp"])
-                        if ev_time >= adjusted_start:
-                            events.append(ev)
-                except json.JSONDecodeError as jde:
-                    # print(f"[DEBUG] JSONDecodeError: {jde} at {jde.pos}")
-                    # Brute force extraction as fallback
-                    import re
-                    # Find all { ... } structures
-                    start_pos = 0
-                    while True:
-                        s = content.find('{', start_pos)
-                        if s == -1: break
-                        
-                        count = 0
-                        e = -1
-                        for i in range(s, len(content)):
-                            if content[i] == '{': count += 1
-                            elif content[i] == '}':
-                                count -= 1
-                                if count == 0:
-                                    e = i
-                                    break
-                        if e != -1:
-                            try:
-                                ev = json.loads(content[s:e+1])
-                                ev_time = datetime.fromisoformat(ev["timestamp"])
-                                if ev_time >= adjusted_start:
-                                    events.append(ev)
-                            except: pass
-                            start_pos = e + 1
-                        else: break
-        except Exception as e:
-            self.logger.error("Error reading log: %s", e)
-            
+                if not content:
+                    return []
+
+                raw_events = self._decode_json_events(content)
+                for event_index, event in enumerate(raw_events):
+                    if not isinstance(event, dict):
+                        self.logger.warning(
+                            "Ignoring non-object log event at index %s",
+                            event_index,
+                        )
+                        continue
+                    try:
+                        event_time = datetime.fromisoformat(event["timestamp"])
+                    except (KeyError, TypeError, ValueError) as exc:
+                        self.logger.warning(
+                            "Ignoring log event with invalid timestamp at index %s: %s",
+                            event_index,
+                            exc,
+                        )
+                        continue
+                    if event_time >= adjusted_start:
+                        events.append(event)
+        except OSError as exc:
+            self.logger.error("Error reading log: %s", exc)
+
+        return events
+
+    def _decode_json_events(self, content: str):
+        """Decode JSON Lines and the previous comma-terminated line format."""
+        try:
+            decoded = json.loads(content)
+            if isinstance(decoded, list):
+                return decoded
+            if isinstance(decoded, dict):
+                return [decoded]
+        except json.JSONDecodeError:
+            pass
+
+        events = []
+        for line_number, line in enumerate(content.splitlines(), start=1):
+            record = line.strip()
+            if not record:
+                continue
+            if record.endswith(","):
+                record = record[:-1].rstrip()
+            if not record:
+                continue
+            try:
+                events.append(json.loads(record))
+            except json.JSONDecodeError as exc:
+                self.logger.warning(
+                    "Ignoring malformed JSON log record at line %s: %s",
+                    line_number,
+                    exc,
+                )
         return events
 
     def _format_message(self, level, message):
@@ -233,7 +243,7 @@ class LogManager:
 
         # Write to JSON log
         with open(self.json_log_file_path, 'a', encoding='utf-8') as f_json:
-            f_json.write(json.dumps(json_entry, ensure_ascii=False) + ",\n")
+            f_json.write(json.dumps(json_entry, ensure_ascii=False) + "\n")
 
     def _handle_error_summary(self, data):
         """Logs a summary of action execution errors."""
@@ -265,4 +275,3 @@ class LogManager:
         
         with open(self.error_summary_file_path, 'w', encoding='utf-8') as f:
             json.dump(error_records, f, indent=4, ensure_ascii=False)
-            # TODO: Implement Logic: **初期化**:

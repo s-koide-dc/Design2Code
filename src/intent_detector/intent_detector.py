@@ -1,6 +1,7 @@
 import json
 import os
 import logging
+import hashlib
 
 from src.utils.confirmation_response import INTENT_AGREE, INTENT_DISAGREE
 from src.utils.action_intents import (
@@ -73,8 +74,11 @@ class IntentDetector:
             return
 
         cache_dir = "cache"
-        cache_file = os.path.join(cache_dir, "intent_vectors.pkl")
-        corpus_mtime = os.path.getmtime(self.corpus_path) if os.path.exists(self.corpus_path) else 0
+        cache_signature = self._vector_cache_signature()
+        cache_file = os.path.join(
+            cache_dir,
+            f"intent_vectors_{cache_signature[:16]}.pkl",
+        )
         
         # Try to load from cache
         import pickle
@@ -82,7 +86,7 @@ class IntentDetector:
             try:
                 with open(cache_file, 'rb') as f:
                     cache_data = pickle.load(f)
-                    if cache_data.get("mtime") == corpus_mtime:
+                    if cache_data.get("signature") == cache_signature:
                         self.intent_vectors = cache_data.get("vectors", {})
                         # print(f"Loaded {len(self.intent_vectors)} intent vectors from cache.")
                         return
@@ -114,10 +118,34 @@ class IntentDetector:
             os.makedirs(cache_dir, exist_ok=True)
         try:
             with open(cache_file, 'wb') as f:
-                pickle.dump({"mtime": corpus_mtime, "vectors": self.intent_vectors}, f)
+                pickle.dump({
+                    "signature": cache_signature,
+                    "vectors": self.intent_vectors,
+                }, f)
         except Exception as e:
             # print(f"Error saving cache: {e}")
             pass
+
+    def _vector_cache_signature(self) -> str:
+        digest = hashlib.sha256()
+        with open(self.corpus_path, "rb") as corpus:
+            for chunk in iter(lambda: corpus.read(1024 * 1024), b""):
+                digest.update(chunk)
+        digest.update(type(self.vector_engine).__qualname__.encode("utf-8"))
+        model_path = getattr(self.vector_engine, "model_path", None)
+        if model_path:
+            resolved_model = os.path.abspath(str(model_path))
+            digest.update(resolved_model.encode("utf-8"))
+            if os.path.exists(resolved_model):
+                stat = os.stat(resolved_model)
+                digest.update(str(stat.st_size).encode("ascii"))
+                digest.update(str(stat.st_mtime_ns).encode("ascii"))
+        store = getattr(self.vector_engine, "store", None)
+        matrix = getattr(store, "matrix", None)
+        shape = getattr(matrix, "shape", None)
+        if shape:
+            digest.update(repr(tuple(shape)).encode("ascii"))
+        return digest.hexdigest()
 
     def _extract_content_words(self, tokens):
         """Filters tokens to keep only content-bearing words."""

@@ -7,12 +7,21 @@ import ast
 import re
 from typing import Dict, List, Any, Optional
 
+
+class TestGenerationError(Exception):
+    def __init__(self, reason: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(reason)
+        self.reason = reason
+        self.details = details or {}
+
+
 class TestGenerator:
     """テストケース生成を支援するクラス (解説コメント・ブリッジ対応版)"""
     
     def __init__(self, workspace_root: str = ".", knowledge_base=None):
         self.workspace_root = workspace_root
         self.ukb = knowledge_base
+        self.configuration_diagnostics: List[Dict[str, str]] = []
         self.templates = self._load_templates()
         self.current_analysis_data = None # ナレッジグラフを一時保持
 
@@ -30,9 +39,24 @@ class TestGenerator:
                 cfg = data.get("test_generator", {})
                 if isinstance(cfg, dict):
                     return cfg
-        except Exception:
-            pass
+        except json.JSONDecodeError:
+            self.configuration_diagnostics.append({
+                "source": "canonical_knowledge",
+                "operation": "load_test_config",
+                "error_type": "JSONDecodeError",
+            })
+        except OSError as exc:
+            self.configuration_diagnostics.append({
+                "source": "canonical_knowledge",
+                "operation": "load_test_config",
+                "error_type": type(exc).__name__,
+            })
         return {}
+
+    @staticmethod
+    def _looks_like_json_container(value: str) -> bool:
+        stripped = str(value or "").lstrip()
+        return stripped.startswith("{") or stripped.startswith("[")
     
     def _load_templates(self) -> Dict[str, str]:
         t = {}
@@ -40,20 +64,6 @@ class TestGenerator:
         t['csharp_file'] = 'using Xunit;\nusing System;\nusing System.Collections.Generic;\nusing System.Threading.Tasks;\nusing NSubstitute;\n{extra_usings}\n\nnamespace {namespace}.Tests\n{{\n    public class {class_name}Tests\n    {{\n{test_methods}\n    }}\n}}'
         t['csharp_method'] = '\n        [Fact]\n        public void {method_name}_ShouldReturnExpectedValue_When{condition}()\n        {{\n            // Arrange\n            // {original_condition}\n            {arrange_code}\n            \n            // Act\n            {act_code}\n            \n            // Assert\n            {assert_code}\n        }}\n'
         return t
-
-    def _generate_minimal_code(self, requirement: Dict[str, Any], language: str) -> str:
-        """要求に基づいて最小限のスタブコードを生成"""
-        desc = requirement.get('description', '')
-        # クラス名の推測
-        class_name = "GeneratedClass"
-        m = re.search(r'(\w+)(?:クラス|Service|Processor)', desc)
-        if m: class_name = m.group(1)
-        
-        if language == 'csharp':
-            return f"using System;\n\nnamespace Generated\n{{\n    public class {class_name}\n    {{\n        // TODO: Implement based on requirements\n    }}\n}}"
-        elif language == 'python':
-            return f"class {class_name}:\n    def __init__(self):\n        pass"
-        return ""
 
     def _normalize_identifier(self, text: str) -> str:
         safe = []
@@ -223,7 +233,18 @@ class TestGenerator:
                 'analysis': analysis,
                 'message': f"{len(generated_files)} 個のオブジェクトに対して汎用テストを生成しました。"
             }
-        except Exception as e: return {'status': 'error', 'message': str(e)}
+        except TestGenerationError as exc:
+            return {
+                "status": "error",
+                "message": exc.reason,
+                "error": {
+                    "type": "test_generation_unresolved",
+                    "reason": exc.reason,
+                    "details": exc.details,
+                },
+            }
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
 
     def _generate_method_test_code(self, class_info, m_info, scenario, lang):
         if lang == 'csharp':
@@ -297,11 +318,17 @@ class TestGenerator:
                 assert_code=assert_code
             )
         elif lang == 'python':
-            # Python 用の簡易実装
-            m_name = m_info['name']
-            cond = scenario['condition']
-            return f"\n    def test_{m_name}_{cond}(self):\n        # Arrange\n        target = {class_info['name']}()\n        \n        # Act\n        # TODO: parameters\n        result = target.{m_name}()\n        \n        # Assert\n        self.assertIsNotNone(result)\n"
-        return ''
+            raise TestGenerationError(
+                "python_method_signature_not_available",
+                {
+                    "class_name": class_info.get("name"),
+                    "method_name": m_info.get("name"),
+                },
+            )
+        raise TestGenerationError(
+            "unsupported_test_language",
+            {"language": lang},
+        )
 
     def _parse_parameters(self, p_str):
         if not p_str: return []
@@ -519,6 +546,7 @@ class TestGenerator:
     def _generate_tests_from_design_impl(self, design_path: str, source_path: str = None) -> Dict[str, Any]:
         """設計書(.design.md)のTest CasesからPythonユニットテストを生成する"""
         try:
+            generation_diagnostics = list(self.configuration_diagnostics)
             from ..utils.design_doc_parser import DesignDocParser
             parser = DesignDocParser(knowledge_base=self.ukb)
             design_data = parser.parse_file(design_path)
@@ -561,7 +589,7 @@ class TestGenerator:
                 "        # Default initialization (overridden if init_args present)",
                 "        try:",
                 f"            self.target = {class_name}()",
-                "        except:",
+                "        except TypeError:",
                 "            self.target = None # Defer initialization",
                 "",
                 "    def assertDictSubset(self, expected, actual):",
@@ -592,10 +620,18 @@ class TestGenerator:
                 
                 # JSON判定
                 input_json = None
+                input_json_invalid = False
+                expected_json_invalid = False
                 try:
-                    import json
                     input_json = json.loads(input_str)
-                except:
+                except json.JSONDecodeError:
+                    if self._looks_like_json_container(input_str):
+                        input_json_invalid = True
+                        generation_diagnostics.append({
+                            "scenario": scenario,
+                            "operation": "parse_input_json",
+                            "error_type": "JSONDecodeError",
+                        })
                     input_json = None
 
                 lines.append(f"    def test_{safe_scenario}(self):")
@@ -657,8 +693,12 @@ class TestGenerator:
                                                         if isinstance(item, ast.FunctionDef) and item.name == '__init__':
                                                             constructor_params = [arg.arg for arg in item.args.args if arg.arg != 'self']
                                                             break
-                        except:
-                            pass
+                        except (OSError, SyntaxError, KeyError, TypeError) as exc:
+                            generation_diagnostics.append({
+                                "scenario": scenario,
+                                "operation": "inspect_constructor",
+                                "error_type": type(exc).__name__,
+                            })
 
                     if constructor_params:
                         # If we have constructor info, try to fill it
@@ -725,7 +765,14 @@ class TestGenerator:
                         lines.append(f"        expected = {repr(expected_json)}")
                         lines.append(f"        # Recursive Subset Verification")
                         lines.append(f"        self.assertDictSubset(expected, result)")
-                    except:
+                    except json.JSONDecodeError:
+                        if self._looks_like_json_container(expected_str):
+                            expected_json_invalid = True
+                            generation_diagnostics.append({
+                                "scenario": scenario,
+                                "operation": "parse_expected_json",
+                                "error_type": "JSONDecodeError",
+                            })
                         lines.append(f"        expected = {repr(expected_str)}")
                         lines.append(f"        self.assertEqual(result, expected)")
 
@@ -761,7 +808,8 @@ class TestGenerator:
                     lines.append(f"             result = self.target.evaluate(condition, mock_context)")
                     lines.append(f"        ")
                     lines.append(f"        # Assert")
-                    lines.append(f"        expected = {expected_str}")
+                    expected_expr = repr(expected_str) if input_json_invalid or expected_json_invalid else expected_str
+                    lines.append(f"        expected = {expected_expr}")
                     lines.append(f"        self.assertEqual(result, expected)")
 
                 lines.append("")
@@ -776,7 +824,12 @@ class TestGenerator:
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(output_code)
                 
-            return {'status': 'success', 'output_file': output_file, 'test_count': len(test_cases)}
+            return {
+                'status': 'warning' if generation_diagnostics else 'success',
+                'output_file': output_file,
+                'test_count': len(test_cases),
+                'generation_diagnostics': generation_diagnostics,
+            }
             
         except Exception as e:
             return {'status': 'error', 'message': str(e)}

@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
-import sys
 import os
+import uuid
 from unittest.mock import MagicMock, patch
-
-# Add project root to sys.path
-sys.path.append(os.getcwd())
 
 from src.pipeline_core.pipeline_core import Pipeline
 from src.response_generator.response_generator import ResponseGenerator
@@ -21,6 +18,9 @@ class TestPipelineCore(unittest.TestCase):
         pass
 
     def setUp(self):
+        self.original_suppress_vector_warnings = os.environ.get(
+            "SUPPRESS_VECTOR_WARNINGS"
+        )
         os.environ["SUPPRESS_VECTOR_WARNINGS"] = "1"
 
         # Mock LogManager for each test to track calls independently
@@ -43,7 +43,7 @@ class TestPipelineCore(unittest.TestCase):
         # Explicitly access the property to force lazy loading and then set the mock
         _ = self.pipeline.response_generator 
         self.pipeline.response_generator.log_manager = self.mock_log_manager
-        
+
         # Mock methods with specific side effects
         self.pipeline.response_generator.generate_confirmation_message = MagicMock(side_effect=lambda c: {
             "response": {"text": "ファイル 'src.txt' を 'dest.txt' にバックアップして削除します。よろしいですか？"},
@@ -67,6 +67,14 @@ class TestPipelineCore(unittest.TestCase):
 
         # Reset clarification history to ensure test isolation
         self.pipeline.clarification_manager.clarification_history = {}
+
+    def tearDown(self):
+        if self.original_suppress_vector_warnings is None:
+            os.environ.pop("SUPPRESS_VECTOR_WARNINGS", None)
+        else:
+            os.environ["SUPPRESS_VECTOR_WARNINGS"] = (
+                self.original_suppress_vector_warnings
+            )
 
     def test_pipeline_end_to_end_weather_question(self):
         text = "今日の天気は？"
@@ -257,8 +265,11 @@ class TestPipelineCore(unittest.TestCase):
             })
 
             # Simulate the initial user input for the compound task
+            session_id = f"pipeline_core_{uuid.uuid4().hex}"
             text1 = "src.txtをdest.txtにバックアップして削除"
-            final_context1 = self.pipeline.run(text1)
+            final_context1 = self.pipeline.run(
+                f"session_id:{session_id} {text1}"
+            )
 
             # Assert confirmation is requested for the compound task
             self.assertTrue(final_context1.get("clarification_needed"))
@@ -270,7 +281,9 @@ class TestPipelineCore(unittest.TestCase):
 
             # Simulate user confirmation
             text2 = "はい"
-            final_context2 = self.pipeline.run(text2)
+            final_context2 = self.pipeline.run(
+                f"session_id:{session_id} {text2}"
+            )
 
             # Assert the final message indicates completion of the compound task
             if final_context2.get("clarification_needed"):
@@ -281,14 +294,22 @@ class TestPipelineCore(unittest.TestCase):
 
             # Assert logging for the compound task flow
             # Should have logs for the main pipeline stages + subtask execution
-            self.mock_log_manager.log_event.assert_any_call("pipeline_start", {"original_text": text1, "session_id": "default_session"}, level="INFO")
+            self.mock_log_manager.log_event.assert_any_call(
+                "pipeline_start",
+                {"original_text": text1, "session_id": session_id},
+                level="INFO",
+            )
             # Log for the first confirmation step
             self.mock_log_manager.log_event.assert_any_call(
                 "clarification_needed",
                 {"message": unittest.mock.ANY},
                 level="INFO"
             )
-            self.mock_log_manager.log_event.assert_any_call("pipeline_start", {"original_text": text2, "session_id": "default_session"}, level="INFO")
+            self.mock_log_manager.log_event.assert_any_call(
+                "pipeline_start",
+                {"original_text": text2, "session_id": session_id},
+                level="INFO",
+            )
             
             # Assertions for internal subtask execution (FILE_COPY)
             self.mock_log_manager.log_event.assert_any_call(

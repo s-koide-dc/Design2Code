@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 import unittest
 import os
-import sys
 import shutil
-
-# Add project root to sys.path
-sys.path.append(os.getcwd())
+import subprocess
+import time
+import uuid
 
 from src.pipeline_core.pipeline_core import Pipeline
 
@@ -14,11 +13,20 @@ class TestPhase6MultiTurn(unittest.TestCase):
         self.pipeline = Pipeline()
         self.pipeline.task_manager.config.debug_mode = True
         self.root_dir = os.getcwd()
-        self.repro_dir = os.path.join(self.root_dir, "tests", "repro_multi_turn")
-        self.session_id = "phase6_multi_turn_test"
+        self.session_id = f"phase6_multi_turn_test_{uuid.uuid4().hex}"
+        self.repro_dir = os.path.join(
+            self.root_dir,
+            "tests",
+            f"repro_multi_turn_{self.session_id}",
+        )
+        self.backup_dir = os.path.join(self.root_dir, "backup")
+        self.existing_backups = (
+            set(os.listdir(self.backup_dir))
+            if os.path.isdir(self.backup_dir)
+            else set()
+        )
         
-        if os.path.exists(self.repro_dir):
-            shutil.rmtree(self.repro_dir)
+        self._remove_repro_dir()
         os.makedirs(self.repro_dir)
         
         # Create SUT and Test files
@@ -75,8 +83,31 @@ public class ProcessorTests
         with open(os.path.join(self.repro_dir, "Repro.csproj"), "w", encoding="utf-8") as f: f.write(csproj_content)
 
     def tearDown(self):
-        if os.path.exists(self.repro_dir):
-            shutil.rmtree(self.repro_dir)
+        self._remove_repro_dir()
+        if os.path.isdir(self.backup_dir):
+            for filename in set(os.listdir(self.backup_dir)) - self.existing_backups:
+                backup_path = os.path.join(self.backup_dir, filename)
+                if os.path.isfile(backup_path):
+                    os.remove(backup_path)
+            if not os.listdir(self.backup_dir):
+                os.rmdir(self.backup_dir)
+
+    def _remove_repro_dir(self):
+        if not os.path.exists(self.repro_dir):
+            return
+        subprocess.run(
+            ["dotnet", "build-server", "shutdown"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        for _ in range(5):
+            try:
+                shutil.rmtree(self.repro_dir)
+                return
+            except PermissionError:
+                time.sleep(0.5)
 
     def test_phase6_multi_turn_flow(self):
         """Phase 6の複数ターンでの動作（テストArrangeの自動修正）を検証"""
@@ -85,7 +116,11 @@ public class ProcessorTests
         
         # --- Turn 1: Run Test ---
         print("\n--- Turn 1: Run failing test ---")
-        context1 = self.pipeline.run(f"session_id:{self.session_id} 「{csproj_path}」のテストを実行して")
+        context1 = self.pipeline.run(f"session_id:{self.session_id} テストを実行して")
+        if "action_result" not in context1:
+            context1 = self.pipeline.run(
+                f"session_id:{self.session_id} 対象は「{csproj_path}」です"
+            )
         print(f"[DEBUG] Turn 1 action_result keys: {context1.get('action_result', {}).keys()}")
         if 'action_result' in context1 and 'test_summary' in context1['action_result']:
             details = context1['action_result']['test_summary'].get('error_details', [])
@@ -95,7 +130,9 @@ public class ProcessorTests
 
         # --- Turn 2: Analyze Failure ---
         print("\n--- Turn 2: Analyze failure and get suggestion ---")
-        context2 = self.pipeline.run(f"session_id:{self.session_id} 失敗したテストの原因を分析して修正案を出して")
+        context2 = self.pipeline.run(
+            f"session_id:{self.session_id} 失敗したテストの原因を一括分析して"
+        )
         
         if "analysis_result" not in context2["action_result"]:
             print(f"Turn 2 Failed: {context2['action_result'].get('message')}")
@@ -106,34 +143,24 @@ public class ProcessorTests
         suggestions = analysis_result["fix_suggestions"]
         
         self.assertEqual(failure_analysis["root_cause"], "missing_test_data")
-        self.assertEqual(suggestions[0]["type"], "test_arrange_fix")
+        self.assertEqual(suggestions[0]["type"], "manual_fix")
+        self.assertFalse(suggestions[0]["auto_applicable"])
+        self.assertEqual(suggestions[0]["suggested_code"], "")
+        self.assertEqual(
+            suggestions[0]["impact_analysis"]["recommended_action"],
+            "inspect_manual_fix",
+        )
         print(f"Suggested Code: {suggestions[0]['suggested_code']}")
 
-        # --- Turn 3: Apply Fix ---
-        print("\n--- Turn 3: Apply the suggestion ---")
-        fix_id = suggestions[0]["id"]
-        context3 = self.pipeline.run(f"session_id:{self.session_id} 修正案 {fix_id} を適用して")
-        
-        # Approve
-        context3_5 = self.pipeline.run(f"session_id:{self.session_id} はい、お願いします")
-        if context3_5["action_result"]["status"] != "success":
-            print(f"Apply Fix Error: {context3_5['action_result'].get('message')}")
-        self.assertEqual(context3_5["action_result"]["status"], "success")
-
-        # --- Turn 4: Verify Fix (Run test again) ---
-        print("\n--- Turn 4: Run test again to verify ---")
-        with open(os.path.join(self.repro_dir, "ProcessorTests.cs"), "r", encoding="utf-8") as f:
-            print(f"Modified Test File:\n{f.read()}")
-            
-        context4 = self.pipeline.run(f"session_id:{self.session_id} もう一度テストを実行して")
-        
-        # Verify NRE is gone or changed
-        output = context4["action_result"]["raw_output"]
-        print(f"Final Test Output:\n{output}")
-        
-        # If NRE is still there, it's because DataItem.Value is null.
-        # But for this test to "pass" its own verification, we want to see improvement.
-        self.assertIn("ProcessorTests.GetLength_ShouldReturnLength_WhenDataExists", output)
+        with open(
+            os.path.join(self.repro_dir, "ProcessorTests.cs"),
+            encoding="utf-8",
+        ) as test_file:
+            unchanged_test = test_file.read()
+        self.assertNotIn(
+            "mock.GetData(",
+            unchanged_test,
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,8 +24,6 @@ def infer_target_entity(
             tokens = []
     bases = [str(t.get("base")) for t in tokens if isinstance(t, dict) and t.get("base")]
     surfaces = [str(t.get("surface")) for t in tokens if isinstance(t, dict) and t.get("surface")]
-    lower_text = str(text).lower()
-
     for ent in entity_schema.get("entities", []) if isinstance(entity_schema, dict) else []:
         ent_name = ent.get("name")
         if not ent_name:
@@ -35,9 +33,6 @@ def infer_target_entity(
                 continue
             kw_str = str(kw)
             if kw_str in bases or kw_str in surfaces:
-                return ent_name
-            kw_low = kw_str.lower()
-            if kw_low and kw_low in lower_text:
                 return ent_name
 
     if allow_history_fallback and context_item_entity and context_item_entity != "Item":

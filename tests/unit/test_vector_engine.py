@@ -3,8 +3,6 @@ import unittest
 import os
 import tempfile
 import numpy as np
-import sys
-import io
 
 from src.vector_engine.vector_engine import VectorEngine
 
@@ -36,24 +34,15 @@ class TestVectorEngine(unittest.TestCase):
         else:
             if "SKIP_VECTOR_MODEL" in os.environ:
                 del os.environ["SKIP_VECTOR_MODEL"]
-        # Use ignore_errors=True to handle Windows file locks on mmap .npy files
-        import shutil
-        shutil.rmtree(self.test_dir.name, ignore_errors=True)
+        self.test_dir.cleanup()
 
     def test_01_initialization_and_cache_creation(self):
         """Test if the engine initializes and creates cache files correctly."""
-        # Redirect stdout to check print statements
-        captured_output = io.StringIO()
-        old_stdout = sys.stdout
-        sys.stdout = captured_output
-        try:
+        with self.assertLogs("src.vector_engine.vector_engine", level="INFO") as captured_logs:
             engine = VectorEngine(model_path=self.model_path, max_vocab=self.max_vocab)
-        finally:
-            sys.stdout = old_stdout
-            
-        output = captured_output.getvalue()
 
         self.assertTrue(engine.is_ready)
+        output = "\n".join(captured_logs.output)
         self.assertIn("Parsing text file", output)
         self.assertIn("Saving binary cache", output)
         self.assertTrue(os.path.exists(self.vocab_cache_path))

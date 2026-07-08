@@ -34,8 +34,15 @@ class ContextManager:
         
         history_list = self.history[session_id]
         history_list.append(entry)
+        self._trim_history(session_id)
+
+    def _trim_history(self, session_id: str):
+        """Keeps a session history within the configured retention limit."""
+        history_list = self.history.get(session_id)
+        if not history_list:
+            return
         if len(history_list) > self.max_history:
-            history_list.pop(0)
+            del history_list[:-self.max_history]
 
     def get_last_context(self, session_id="default_session"):
         """Returns the most recent history entry or None for a session."""
@@ -62,7 +69,7 @@ class ContextManager:
         """Clears the stored pending confirmation plan."""
         if session_id in self.pending_confirmation_plans:
             del self.pending_confirmation_plans[session_id]
-            # TODO: Implement Logic: **履歴の整理（対話ターン制限）**:
+        self._trim_history(session_id)
 
     def set_awaiting_feedback(self, session_id: str, is_awaiting: bool):
         """Sets the feedback awaiting state for a session."""

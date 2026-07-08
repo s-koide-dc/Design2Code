@@ -104,62 +104,82 @@ class LogicAuditor:
             goals = self.extract_assertion_goals(design_data)
             return self.verify_logic_goals(goals, code)
 
-        # Structured design doc path: return an audit report dict.
-        design_steps = []
-        if isinstance(design_data, dict):
-            design_steps = design_data.get("specification", {}).get("core_logic", []) or []
+        design_steps = design_data.get("steps") if isinstance(design_data, dict) else None
+        implemented_steps = (
+            source_structure.get("implemented_steps")
+            if isinstance(source_structure, dict)
+            else None
+        )
+        if not isinstance(design_steps, list) or not isinstance(implemented_steps, list):
+            return self._indeterminate_audit_result(
+                "design steps and implemented steps must be provided as structured lists"
+            )
 
-        findings = []
-        total = len(design_steps)
-        missing = 0
+        design_by_id = self._index_structured_steps(design_steps)
+        implementation_by_id = self._index_structured_steps(implemented_steps)
+        if design_by_id is None or implementation_by_id is None:
+            return self._indeterminate_audit_result(
+                "every design and implementation step must have a unique string id"
+            )
 
-        def _normalize_step(step: str) -> str:
-            text = (step or "").strip()
-            i = 0
-            while i < len(text) and (text[i].isdigit() or text[i] in [".", " ", "\t"]):
-                i += 1
-            return text[i:].strip()
+        missing_ids = sorted(set(design_by_id) - set(implementation_by_id))
+        unexpected_ids = sorted(set(implementation_by_id) - set(design_by_id))
+        findings = [
+            {
+                "type": "missing_step",
+                "step_id": step_id,
+                "design_step": design_by_id[step_id],
+            }
+            for step_id in missing_ids
+        ]
+        findings.extend(
+            {
+                "type": "unexpected_step",
+                "step_id": step_id,
+                "implementation_step": implementation_by_id[step_id],
+            }
+            for step_id in unexpected_ids
+        )
 
-        def _is_step_covered(step: str, code_text: str) -> bool:
-            if not step or not code_text:
-                return False
-            if not self.vector_engine:
-                return False
-            if self.morph_analyzer:
-                step_tokens = self.morph_analyzer.tokenize(step)
-                step_tokens = [t["surface"] if isinstance(t, dict) else str(t) for t in step_tokens]
-            else:
-                step_tokens = self._tokenize_fallback(step)
-            code_snippet = code_text[:1000]
-            if self.morph_analyzer:
-                code_tokens = self.morph_analyzer.tokenize(code_snippet)
-                code_tokens = [t["surface"] if isinstance(t, dict) else str(t) for t in code_tokens]
-            else:
-                code_tokens = self._tokenize_fallback(code_snippet)
-            step_vec = self.vector_engine.get_sentence_vector(step_tokens)
-            code_vec = self.vector_engine.get_sentence_vector(code_tokens)
-            if step_vec is None or code_vec is None:
-                return False
-            sim = self.vector_engine.vector_similarity(step_vec, code_vec)
-            return sim > 0.35
-
-        for idx, raw_step in enumerate(design_steps, start=1):
-            step_text = _normalize_step(str(raw_step))
-            if not _is_step_covered(step_text, code):
-                missing += 1
-                findings.append({
-                    "type": "logic_gap",
-                    "detail": f"Missing logic for step '{step_text}'",
-                    "step_index": idx,
-                    "step_text": step_text
-                })
-
-        consistency = 1.0 if total == 0 else max(0.0, (total - missing) / total)
         status = "consistent" if not findings else "inconsistent"
         return {
             "status": status,
-            "consistency_score": consistency,
-            "findings": findings
+            "consistency_score": None,
+            "findings": findings,
+            "coverage": {
+                "required_step_count": len(design_by_id),
+                "implemented_required_step_count": (
+                    len(design_by_id) - len(missing_ids)
+                ),
+                "missing_step_count": len(missing_ids),
+                "unexpected_step_count": len(unexpected_ids),
+            },
+        }
+
+    @staticmethod
+    def _index_structured_steps(
+        steps: List[Dict[str, Any]],
+    ) -> Optional[Dict[str, Dict[str, Any]]]:
+        indexed: Dict[str, Dict[str, Any]] = {}
+        for step in steps:
+            if not isinstance(step, dict):
+                return None
+            step_id = step.get("id")
+            if not isinstance(step_id, str) or not step_id or step_id in indexed:
+                return None
+            indexed[step_id] = step
+        return indexed
+
+    @staticmethod
+    def _indeterminate_audit_result(reason: str) -> Dict[str, Any]:
+        return {
+            "status": "indeterminate",
+            "consistency_score": None,
+            "findings": [{
+                "type": "insufficient_structural_data",
+                "detail": reason,
+            }],
+            "coverage": None,
         }
 
     def verify_logic_goals(self, goals: List[Dict[Any, Any]], code: str) -> List[Dict[str, Any]]:

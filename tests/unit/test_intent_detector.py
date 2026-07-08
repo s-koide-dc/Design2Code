@@ -142,6 +142,19 @@ class TestIntentDetector(unittest.TestCase):
         self.assertEqual(result["analysis"]["intent"], INTENT_FILE_DELETE)
         self.assertGreater(result["analysis"]["intent_confidence"], 0.60)
 
+    def test_vector_cache_signature_depends_on_corpus_content(self):
+        original_signature = self.detector._vector_cache_signature()
+        corpus = json.loads(self.corpus_path.read_text(encoding="utf-8"))
+        corpus["intents"][0]["examples"].append("削除の別表現")
+        self.corpus_path.write_text(
+            json.dumps(corpus, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        changed_signature = self.detector._vector_cache_signature()
+
+        self.assertNotEqual(original_signature, changed_signature)
+
     def test_detect_maps_copy_synonym_to_file_copy(self):
         result = self._detect("コピーを作って")
         self.assertEqual(result["analysis"]["intent"], INTENT_FILE_COPY)

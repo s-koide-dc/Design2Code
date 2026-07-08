@@ -16,6 +16,10 @@
 3.  **サマリー生成**: アクティブタスク数、完了タスク数、および全カウンターの合計を辞書形式で出力。
 4.  **クリーンアップ**: 
     - `cleanup_stale_tasks`: 指定時間（デフォルト 24時間）を経過したアクティブタスクを自動的に `TIMEOUT` 状態として完了処理。
+    - `TIMEOUT` は `COMPLETED` / `FAILED` / `CANCELLED` と同様に終端状態であり、`TaskMetrics.is_completed == true` とする。
 
 ## 3. Dependencies
 - **External**: `time`, `collections`, `dataclasses`
+
+## 4. Review Notes
+- 2026-06-29: `TIMEOUT` の終端状態契約を明文化。

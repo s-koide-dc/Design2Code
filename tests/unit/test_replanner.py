@@ -31,6 +31,59 @@ class TestReplanner(unittest.TestCase):
         self.assertEqual(hints[0]["patch"]["type"], "FORCE_INTENT_RESOLUTION")
         self.assertEqual(hints[0]["patch"]["target_id"], "step_1")
 
+    def test_reason_analyzer_todo_parser_uses_fixed_format(self):
+        analyzer = ReasonAnalyzer()
+        synthesis_result = {
+            "trace": {
+                "blueprint": {
+                    "methods": [{
+                        "body": [
+                            {"type": "comment", "text": "TODO: Step failed - step_2"},
+                            {"type": "comment", "text": "TODO: Step failed - step-unsafe"},
+                        ]
+                    }]
+                }
+            }
+        }
+
+        hints = analyzer.analyze(
+            synthesis_result,
+            {"valid": True},
+            ["GENERATED_CODE_CONTAINS_TODOS"],
+        )
+
+        self.assertEqual(["step_2"], hints[0]["patch"]["failed_texts"])
+
+    def test_reason_analyzer_locates_node_comment_without_regex(self):
+        analyzer = ReasonAnalyzer()
+        synthesis_result = {
+            "code": "// Node: step_1\nvar x = missing;\n"
+        }
+        verification_result = {
+            "valid": False,
+            "errors": [{
+                "code": "CS0103",
+                "message": "The name 'missing' does not exist in the current context",
+                "line": 2,
+            }],
+        }
+
+        hints = analyzer.analyze(synthesis_result, verification_result, [])
+
+        self.assertEqual("step_1", hints[0]["patch"]["target_node_id"])
+        self.assertEqual("missing", hints[0]["patch"]["name"])
+
+    def test_reason_analyzer_rejects_malformed_legacy_semantic_issue(self):
+        analyzer = ReasonAnalyzer()
+
+        hints = analyzer.analyze(
+            {},
+            {"valid": True},
+            ["required call is missing: Save-Changes [step_1]"],
+        )
+
+        self.assertEqual([], hints)
+
     def test_ir_patcher_intent(self):
         patcher = IRPatcher()
         ir_tree = {

@@ -3,7 +3,6 @@
 
 import os
 import subprocess
-import re
 import json
 import shlex
 import shutil
@@ -518,8 +517,18 @@ class ActionExecutor:
                         event_type="ACTION_FAILED",
                         data={"event": "command_failed", "command": cmd_str, "returncode": result.returncode, "stderr": result.stderr}
                     )
-            output = result.stdout if result.returncode == 0 else result.stderr
-            context["action_result"] = {"status": "success", "message": f"コマンド実行結果:\n{output}"}
+                context["action_result"] = {
+                    "status": "error",
+                    "message": f"コマンドの実行に失敗しました (終了コード: {result.returncode})。\n{result.stderr}",
+                    "returncode": result.returncode,
+                }
+                return context
+
+            context["action_result"] = {
+                "status": "success",
+                "message": f"コマンド実行結果:\n{result.stdout}",
+                "returncode": result.returncode,
+            }
         except FileNotFoundError as e:
             context["action_result"] = {"status": "error", "message": f"コマンド '{cmd_parts[0]}' が見つかりません。", "type": "FileNotFoundError"}
         except subprocess.TimeoutExpired as e:
@@ -566,6 +575,26 @@ class ActionExecutor:
             filename = self._get_entity_value(parameters.get("filename"))
             if filename:
                 targets.append(filename)
+            elif action_method_name == "_apply_code_fix":
+                requested_id = self._get_entity_value(parameters.get("fix_id"))
+                for past_context in reversed(context.get("history", [])):
+                    suggestions = (
+                        past_context.get("action_result", {})
+                        .get("analysis_result", {})
+                        .get("fix_suggestions", [])
+                    )
+                    if not suggestions:
+                        continue
+                    selected = suggestions
+                    if requested_id:
+                        selected = [suggestion for suggestion in suggestions if suggestion.get("id") == requested_id]
+                    targets.extend(
+                        suggestion["target_file"]
+                        for suggestion in selected
+                        if suggestion.get("target_file")
+                    )
+                    if targets:
+                        break
         if not targets:
             context["action_result"] = {"status": "error", "message": "バックアップ対象が特定できません。"}
             return False
@@ -816,13 +845,54 @@ class ActionExecutor:
             return []
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
-                return json.load(f).get("error_patterns", [])
+                loaded_patterns = json.load(f).get("error_patterns", [])
+                return [
+                    self._normalise_error_pattern(pattern_obj)
+                    for pattern_obj in loaded_patterns
+                    if isinstance(pattern_obj, dict)
+                ]
         except Exception as e:
             return []
 
+    def _normalise_error_pattern(self, pattern_obj: dict) -> dict:
+        """Convert legacy pattern configuration to deterministic match fields."""
+        normalized = dict(pattern_obj)
+        if "message_contains" not in normalized and "regex" in normalized:
+            normalized["message_contains"] = normalized.get("regex")
+        return normalized
+
+    def _matches_error_pattern(self, pattern_obj: dict, exc: Exception, error_message: str) -> bool:
+        """Match exception type and literal message constraints without regex evaluation."""
+        if pattern_obj.get("type") != exc.__class__.__name__:
+            return False
+
+        expected_message = pattern_obj.get("message_exact")
+        if isinstance(expected_message, str) and expected_message:
+            return error_message == expected_message
+
+        required_fragment = pattern_obj.get("message_contains")
+        if isinstance(required_fragment, str) and required_fragment:
+            return required_fragment in error_message
+
+        required_fragments = pattern_obj.get("message_contains_all")
+        if isinstance(required_fragments, list) and required_fragments:
+            return all(
+                isinstance(fragment, str) and fragment and fragment in error_message
+                for fragment in required_fragments
+            )
+
+        accepted_fragments = pattern_obj.get("message_contains_any")
+        if isinstance(accepted_fragments, list) and accepted_fragments:
+            return any(
+                isinstance(fragment, str) and fragment and fragment in error_message
+                for fragment in accepted_fragments
+            )
+
+        return False
+
     def _handle_exception_with_patterns(self, exc: Exception, default_message: str) -> dict:
         """
-        Matches an exception against loaded patterns and returns a structured error message.
+        Matches an exception against loaded structured patterns and returns a message.
         """
         error_message = str(exc)
         
@@ -834,17 +904,13 @@ class ActionExecutor:
             )
 
         for pattern_obj in self.error_patterns:
-            try:
-                if (pattern_obj["type"] == exc.__class__.__name__) and \
-                   re.search(pattern_obj["regex"], error_message): # Match by regex and exception type
-                    return {
-                        "status": "error",
-                        "message": pattern_obj["user_message"],
-                        "suggested_action": pattern_obj["suggested_action"],
-                        "original_error": error_message
-                    }
-            except re.error:
-                continue # Skip invalid regex patterns
+            if self._matches_error_pattern(pattern_obj, exc, error_message):
+                return {
+                    "status": "error",
+                    "message": pattern_obj["user_message"],
+                    "suggested_action": pattern_obj["suggested_action"],
+                    "original_error": error_message
+                }
         
         # Fallback to default generic message
         return {
@@ -915,4 +981,3 @@ class ActionExecutor:
     
     def _check_quality_gates(self, context: dict, parameters: dict) -> dict:
         return self.cicd_ops.check_quality_gates(context, parameters)
-        # TODO: Implement Logic: **実行と例外ハンドリング**:

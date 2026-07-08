@@ -21,6 +21,10 @@ C# と Python を対象に、テンプレートと解析結果を使ってテス
 3. `design` モードは `.design.md` の Test Cases を読み取り、設計書由来のシナリオでテストを生成する。
 4. `service` モードは `service_test_builder` / `service_test_generator` を用い、CRUD 形式のサービス向けテストを生成する。
 5. 出力先は `tests/generated` を既定とし、生成ファイル一覧を返す。
+6. designモードで `{` または `[` から始まる入力・期待値は明示JSONとして扱う。JSON解析に失敗した場合は `generation_diagnostics` にシナリオ、操作、例外型を記録し、`status == "warning"` を返す。
+7. JSONではないレガシー入力のフォールバックは許容するが、破損した明示JSONを正常生成として扱わない。
+8. コンストラクタAST解析に失敗した場合は想定例外型を診断へ記録し、裸の例外捕捉で黙殺しない。
+9. 生成Pythonの既定コンストラクタ遅延は `TypeError` のみ捕捉し、生成時に破損値をコードへ直接埋め込まない。
 
 ### Test Cases
 - **Happy Path**:
@@ -29,6 +33,8 @@ C# と Python を対象に、テンプレートと解析結果を使ってテス
 - **Edge Cases**:
   - **Scenario**: ソースファイルが存在しない。
   - **Expected Output / Behavior**: `status == "error"` を返す。
+  - **Scenario**: Test Caseの明示JSONが破損している。
+  - **Expected Output / Behavior**: `status == "warning"`、`generation_diagnostics` に `JSONDecodeError` を記録し、生成Pythonは構文上有効。
 
 ## 3. Dependencies
 - **Internal**: `ast_analyzer`, `dummy_factory`, `design_doc_parser`
@@ -36,3 +42,4 @@ C# と Python を対象に、テンプレートと解析結果を使ってテス
 
 ## 4. Review Notes
 - 2026-04-14: service_test_* 連携と生成モード分岐を現行実装に合わせて再確認。
+- 2026-06-30: design test caseのJSON/AST診断、warning契約、生成Pythonの限定例外処理を反映。

@@ -41,9 +41,12 @@
    - `src.utils.action_intents` の共通定数を使い、`FILE_MOVE/FILE_COPY/BACKUP_AND_DELETE` ではソース/デスティネーションを分離抽出する。
    - `FILE_CREATE/FILE_APPEND` では引用符内テキストを内容候補として抽出する。
    - `awaiting_entity` がある場合は積極的に抽出して信頼度を 1.0 にする。
+   - 待機中の実体が `project_path` / source / destination の場合、汎用ファイル抽出結果を待機中の実体へ構造的に割り当て直す。
    - 指示語（それ/そのファイル）を履歴から解決する。
    - 意図別の特殊抽出（`CS_QUERY_ANALYSIS`、`MANAGE_KNOWLEDGE`、`DOC_REFINE`、`EXECUTE_GOAL_DRIVEN_TDD` / `PROVIDE_CRITERIA` など）を実行する。
 6. `task_state` が `AWAITING_<ENTITY>` の場合、該当実体の信頼度を 1.0 にする。
+7. カスタム知識と辞書DBの障害は `data_source_diagnostics` に `source / operation / error_type` を記録し、`analyze()` の `errors` へ伝播する。検索語、データ内容、例外本文は含めない。
+8. SQLite接続は処理成功・失敗にかかわらず必ずcloseする。該当データなしは診断を追加せず、SQLite障害と区別する。
 
 ### Test Cases
 - **Happy Path**:
@@ -55,7 +58,15 @@
   - **Expected Output / Behavior**: `errors` にメッセージを追加して終了。
   - **Scenario**: 指示語入力（「それを削除」）で履歴参照。
   - **Expected Output / Behavior**: 直近の `filename` を補完。
+  - **Scenario**: 辞書DBが破損している。
+  - **Expected Output / Behavior**: `meaning` は `null` のまま解析を継続し、`errors` に `source=dictionary_db` とSQLite例外型を追加する。
+  - **Scenario**: カスタム知識JSONが破損している。
+  - **Expected Output / Behavior**: 空知識で解析を継続し、`errors` に `JSONDecodeError` を追加する。
 
 ## 3. Dependencies
 - **Internal**: `text_parser`, `context_utils`
 - **External**: `json`, `os`, `re`, `sqlite3`
+
+## 4. Review Notes
+- 2026-06-29: 辞書DB・知識JSONの診断契約とSQLite接続解放を反映。
+- 2026-06-30: clarification 応答で抽出済みパスを待機中の実体名へ割り当てる契約を反映。

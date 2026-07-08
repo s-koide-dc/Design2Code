@@ -34,6 +34,8 @@ The `CodeBuilderClient` [Phase 23.3] serves as the inter-process communication b
 #### 2.3.4 Fallback Rendering (`_render_fallback_code`)
 1.  **Purpose**: When the external `CodeBuilder` project is unavailable, render a minimal but structurally faithful C# fallback for tests.
 2.  **Statement Support**: Handle nested `call`, `assign`, `comment`, `foreach`, `if`, `retry`, `timeout`, and `transaction` statements.
+    - `call` に `out_var` がある場合は `var_type out_var = call(...)`、`is_assignment_only` の場合は `out_var = call(...)` として戻り値を保持する。
+    - `is_async` のcallは代入式の右辺に `await` を付与する。
 3.  **Retry Semantics**: Render `retry` as deterministic `for + try/catch + break/rethrow`, matching the C# `CodeBuilder` statement contract instead of flattening wrapper bodies or injecting ad hoc raw code.
 4.  **Delay/Backoff Policy**: When explicit retry metadata includes `base_delay_ms`, `max_delay_ms`, or `backoff_multiplier`, preserve it in fallback rendering rather than inferring it from text.
 5.  **Timeout Semantics**: Render explicit `timeout` wrappers as sync `Task.Run(...).Wait(TimeSpan)` or async `CancellationTokenSource + WaitAsync`, preserving nested body structure and explicit `timeout_ms`.
@@ -57,3 +59,6 @@ The `CodeBuilderClient` [Phase 23.3] serves as the inter-process communication b
 3.  **Blueprint Save Fail**:
     -   Disk write fails.
     -   Result: Log error but proceed with execution (memory-only).
+
+## 3. Review Notes
+- 2026-06-29: fallback call rendererの戻り値代入とasync代入契約を反映。

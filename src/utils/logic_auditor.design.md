@@ -17,22 +17,26 @@
   {
     "status": "inconsistent",
     "findings": [
-      { "type": "missing_parameter", "detail": "Inputで定義されている 'userId' がメソッド引数にありません。" },
-      { "type": "logic_gap", "detail": "Core Logicのステップ2 'DB接続' に相当する処理がコード内に見当たりません。" }
+      { "type": "missing_step", "step_id": "step_2" }
     ],
-    "consistency_score": 0.75
+    "consistency_score": null,
+    "coverage": {
+      "required_step_count": 2,
+      "implemented_required_step_count": 1,
+      "missing_step_count": 1,
+      "unexpected_step_count": 0
+    }
   }
   ```
 
 ### Core Logic
 1.  **インターフェース検証**:
     - 設計書の `Input` / `Output` で指定された型や変数が、実装（メソッド引数、戻り値型）に含まれているかチェック。
-2.  **ロジック網羅性検証 (Semantic Audit)**:
-    - **キーワード抽出**: `Core Logic` の各ステップからキーワード（英語・日本語）を抽出。日本語の場合は `MorphAnalyzer` を使用して形態素解析を行う。
-    - **キーワードマッチング**: ソースコード内のシンボルやリテラルと直接比較。
-    - **セマンティック・フォールバック**:
-        - **Terminology Bridging 2.0 (Dictionary-based)**: `domain_dictionary.json` を使用し、プロジェクト固有の用語（例：「閾値」→ `threshold`）を静的に紐付け。
-        - **Vector Fallback**: 辞書にない場合、`VectorEngine` を用いて文章ベクトル間の類似度を計算（閾値 0.7）。
+2.  **ロジック網羅性検証 (Structural Audit)**:
+    - 設計側の `steps[].id` と、解析済み実装側の `implemented_steps[].id` を完全一致で照合する。
+    - 欠落IDを `missing_step`、設計にないIDを `unexpected_step` として報告する。
+    - どちらかの構造化ステップがない場合やIDが不正・重複している場合は、推測せず `status: "indeterminate"` を返す。
+    - キーワード一致やベクトル類似度は整合判定に使用しない。
 3.  **論理・数値監査 (Logic & Numeric Audit)**:
     - **数値不一致検知**: `Core Logic` 内の数値（例: 「閾値 0.90」）とコード内のリテラルを比較し、欠落があれば `high` レベルの指摘を生成。
     - **不等号監査 (Inequality Audit)**: 
@@ -46,15 +50,15 @@
     - 設計ステップから数値制約や文字列包含条件を自動抽出し、`ExecutionVerifier` 用の検証プランを生成。
 5.  **テスト網羅性検証**:
     - 設計書の `Test Cases` に記載された全シナリオが、既存のテストファイル内に存在するかチェック。
-6.  **スコアリング**: 
-    - 一致度に基づいて 0.0 〜 1.0 のスコアを算出。数値不一致やパラメータ欠落は大幅な減点対象とする。
+6.  **件数レポート**:
+    - 必須・実装済み・欠落・予期しないステップの件数を `coverage` に格納する。恣意的な総合スコアは算出しない。
 
 ### Test Cases
 - **Happy Path**:
     - **Scenario**: 設計書と完全に一致する実装を渡した場合、`status: "consistent"` となること。
-- **Semantic Match**:
-    - **Scenario**: 設計に「閾値」とあり、コードに `threshold` とある。
-    - **Expected**: `vector_engine` により関連性が認められ、`consistent` と判定されること。
+- **Insufficient Data**:
+    - **Scenario**: 設計または実装の構造化ステップIDがない。
+    - **Expected**: `indeterminate` となり、不整合とは断定しないこと。
 - **Numeric Mismatch**:
     - **Scenario**: 設計に「0.90」とあり、コードに「0.60」とある。
     - **Expected**: `inconsistent` と判定され、`logic_value_mismatch` Findings が生成されること。

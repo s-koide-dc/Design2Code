@@ -3,6 +3,29 @@ import unittest
 import os
 import shutil
 from src.pipeline_core.pipeline_core import Pipeline
+from src.context_manager.context_manager import ContextManager
+
+
+class TestContextManagerUnit(unittest.TestCase):
+    def test_history_is_trimmed_on_add_and_clear_pending_plan(self):
+        manager = ContextManager(max_history=2)
+        for index in range(3):
+            manager.add_context({
+                "session_id": "s1",
+                "original_text": f"turn {index}",
+                "analysis": {"intent": f"INTENT_{index}"},
+            })
+
+        self.assertEqual(
+            ["turn 1", "turn 2"],
+            [entry["original_text"] for entry in manager.get_history("s1")],
+        )
+
+        manager.set_pending_confirmation_plan({"id": "plan"}, "s1")
+        manager.clear_pending_confirmation_plan("s1")
+
+        self.assertFalse(manager.has_pending_confirmation_plan("s1"))
+        self.assertEqual(2, len(manager.get_history("s1")))
 
 class TestContextAndAnaphora(unittest.TestCase):
     def setUp(self):
@@ -17,10 +40,21 @@ class TestContextAndAnaphora(unittest.TestCase):
             shutil.rmtree(self.test_workspace)
 
     def test_anaphora_resolution_flow(self):
-        # 1. Create a file with content
-        self.pipeline.run("memo.txt というファイルを作成して。内容は「これはメモです」で。")
-        
-        # 2. Read "it" (anaphora resolution)
+        # Arrange the prior completed turn directly so this test isolates
+        # contextual entity resolution from intent-model availability.
+        with open(os.path.join(self.test_workspace, "memo.txt"), "w", encoding="utf-8") as file:
+            file.write("これはメモです")
+        self.pipeline.context_manager.add_context({
+            "session_id": "default_session",
+            "original_text": "memo.txt を作成",
+            "analysis": {
+                "intent": "FILE_CREATE",
+                "entities": {"filename": {"value": "memo.txt", "confidence": 0.9}},
+            },
+            "action_result": {"status": "success"},
+        })
+
+        # Read "it" (anaphora resolution)
         result = self.pipeline.run("それを読み込んで")
         
         intent = result["analysis"]["intent"]

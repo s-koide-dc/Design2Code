@@ -35,7 +35,7 @@
 ### Core Logic
 1. 初期化で `corpus_path` を決定する（`config_manager.intent_corpus_path` → 明示引数 → `resources/intent_corpus.json`）。
 2. コーパス JSON から `intents` を読み込む。読み込み失敗時は空配列として続行する。
-3. `prepare_corpus_vectors` で例文を形態素解析し、文ベクトルを作成して `cache/intent_vectors.pkl` に保存する。キャッシュは `intent_corpus.json` の更新時刻で無効化する。
+3. `prepare_corpus_vectors` で例文を形態素解析し、文ベクトルを作成して `cache/intent_vectors_<signature>.pkl` に保存する。signature はコーパス内容のSHA-256、VectorEngine実装、モデルファイル識別情報、ベクトル行列shapeから生成し、一時コーパスや異なるモデル間でキャッシュを共有しない。
 4. `_extract_content_words` は助詞/助動詞/記号/接続詞を除外し、拡張子トークン（`txt`, `md`, `json` など）をノイズとして除外する。拡張子が含まれる場合は ASCII トークンの大半を除外してファイル名誤検出を抑制する。
 5. `detect` は `original_text` が空の場合、`INTENT_GENERAL` と `intent_confidence=0.5` を返す。
 6. 承認待ちの判定は `clarification_needed` と `clarification_type == "APPROVAL"` に基づく。`active_tasks` に同条件があれば `awaiting_conf` を真とする。
@@ -72,7 +72,7 @@
 
 ## 3. Dependencies
 - **Internal**: `vector_engine`, `morph_analyzer`, `task_manager`, `config_manager`
-- **External**: `json`, `os`, `pickle`
+- **External**: `json`, `os`, `pickle`, `hashlib`
 
 ## 4. Operational Notes
 - コーパス読込・保存失敗は stdout ではなく logger に記録する。
