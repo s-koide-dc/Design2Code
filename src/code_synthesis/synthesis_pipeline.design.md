@@ -44,6 +44,7 @@
 3. `dependencies` を抽出し、`nuget_client` があれば NuGet 依存を解決する。
 4. `verifier` があればコード検証を実行し、結果を保持する。
 5. `spec_auditor` があれば仕様監査を実行し、`spec_issues` を収集する。
+   - 監査処理自体が例外を送出した場合は空リストへ変換せず、`SPEC_AUDIT_ERROR|<ExceptionType>` を記録してfail-closedに扱う。
 6. `allow_retry` が無効、または `replanner` が無い場合は現在の結果に検証情報を添えて返す。
 7. 再試行が有効な場合、`TODO` 残存・検証失敗・ロジック不一致・仕様不整合を判定する。
 8. `replanner.replan` で IR を補正し、`_synthesize_from_ir_tree` で再合成する。
@@ -59,6 +60,11 @@
   - **Expected Output / Behavior**: `FAILED` 結果をそのまま返す。
   - **Scenario**: `allow_retry=true` かつ `replanner` が再計画失敗。
   - **Expected Output / Behavior**: 再試行を打ち切り直近の結果を返す。
+  - **Scenario**: `spec_auditor.audit` が例外を送出。
+  - **Expected Output / Behavior**: `spec_issues` に `SPEC_AUDIT_ERROR` が残り、問題なしとして扱われない。
 
 ## 3. Dependencies
 - **Internal**: `design_parser`
+
+## 4. Review Notes
+- 2026-06-29: 仕様監査のfail-closed契約を反映。

@@ -259,7 +259,8 @@ namespace TestProject.Tests
                                 "cyclomaticComplexity": 8,
                                 "lineCount": 27,
                                 "bodyHash": "complex_hash_123"
-                            }
+                            },
+                            "refactoringFacts": ["long_method"]
                         }
                     }
                 }

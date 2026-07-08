@@ -14,6 +14,8 @@ class TestVectorCacheRequired(unittest.TestCase):
 
         missing = [p for p in [vocab_cache, matrix_cache] if not os.path.exists(p)]
         if missing:
+            if os.environ.get("SKIP_VECTOR_MODEL") == "1":
+                self.skipTest(f"chiVe cache unavailable in asset-free CI: {', '.join(missing)}")
             self.fail(f"chiVe cache missing: {', '.join(missing)}")
 
 

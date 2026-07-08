@@ -1,7 +1,6 @@
 from typing import List, Dict, Any
 
 from src.code_synthesis.action_handlers.action_utils import to_csharp_string_literal
-from src.utils.text_parser import extract_first_quoted_literal
 from src.utils.semantic_intents import INTENT_DISPLAY, INTENT_TRANSFORM
 
 
@@ -82,6 +81,13 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
     semantic_roles = action_synthesizer._get_semantic_roles(node)
     display_scope = semantic_roles.get("display_scope")
     display_after_loop = str(display_scope).lower() in ["after_loop", "afterloop", "post_loop", "postloop"]
+    output_channel = str(semantic_roles.get("output_channel") or "").strip().lower()
+    if output_channel and output_channel not in {"stdout", "stderr"}:
+        return action_synthesizer._unresolved_path(
+            path,
+            node,
+            "display_output_channel_invalid",
+        )
     ops = semantic_roles.get("ops", []) or []
     if intent == INTENT_TRANSFORM and ops:
         res = process_transform_ops(action_synthesizer, node, path, ops)
@@ -101,10 +107,17 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
             new_p["completed_nodes"] += 1
             return [new_p]
     explicit_message = semantic_roles.get("content") or semantic_roles.get("message") or semantic_roles.get("notification")
+    if intent == INTENT_DISPLAY and output_channel == "stderr" and not explicit_message:
+        return action_synthesizer._unresolved_path(
+            path,
+            node,
+            "display_message_not_explicit",
+        )
     if intent == INTENT_DISPLAY and explicit_message:
         msg_literal = to_csharp_string_literal(explicit_message)
         new_p = action_synthesizer.synthesizer._copy_path(path)
-        stmt = {"type": "raw", "code": f"Console.WriteLine({msg_literal});", "node_id": node.get("id"), "intent": intent, "semantic_role": "notification"}
+        writer = "Console.Error.WriteLine" if output_channel == "stderr" else "Console.WriteLine"
+        stmt = {"type": "raw", "code": f"{writer}({msg_literal});", "node_id": node.get("id"), "intent": intent, "semantic_role": "notification"}
         if display_after_loop and new_p.get("in_loop"):
             stmt = dict(stmt)
             stmt["deferred_from"] = node.get("id")
@@ -114,21 +127,6 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
         new_p.setdefault("consumed_ids", set()).add(node.get("id"))
         new_p["completed_nodes"] += 1
         return [new_p]
-    if intent == INTENT_DISPLAY and not explicit_message:
-        literal = extract_first_quoted_literal(text)
-        if literal:
-            msg_literal = to_csharp_string_literal(literal)
-            new_p = action_synthesizer.synthesizer._copy_path(path)
-            stmt = {"type": "raw", "code": f"Console.WriteLine({msg_literal});", "node_id": node.get("id"), "intent": intent, "semantic_role": "notification"}
-            if display_after_loop and new_p.get("in_loop"):
-                stmt = dict(stmt)
-                stmt["deferred_from"] = node.get("id")
-                new_p.setdefault("deferred_statements", []).append(stmt)
-            else:
-                new_p["statements"].append(stmt)
-            new_p.setdefault("consumed_ids", set()).add(node.get("id"))
-            new_p["completed_nodes"] += 1
-            return [new_p]
     if intent == INTENT_DISPLAY and "display_names" in ops:
         new_p = action_synthesizer.synthesizer._copy_path(path)
         active_item = path.get("active_scope_item")
@@ -174,23 +172,29 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
         new_p.setdefault("consumed_ids", set()).add(node.get("id"))
         new_p["completed_nodes"] += 1
         return [new_p]
-    is_notification = action_synthesizer._has_tag(text, "notification")
-    var_to_display = path.get("active_scope_item")
     explicit_display_var = semantic_roles.get("display_var") or semantic_roles.get("display_target")
-    display_prop = semantic_roles.get("property") or semantic_roles.get("field") or semantic_roles.get("display_property")
-    if not var_to_display or var_to_display == "result":
-        vars_of_type = path.get("type_to_vars", {}).get(entity, [])
-        if vars_of_type:
-            var_to_display = vars_of_type[-1]["var_name"]
-        else:
-            res = action_synthesizer.semantic_binder._resolve_source_var(node, path, entity)
-            if res:
-                v_name, bridge = res
-                var_to_display = bridge.replace("{var}", v_name) if bridge else v_name
-            else:
-                var_to_display = "item"
+    var_to_display = None
+    known_vars = {
+        entry.get("var_name")
+        for entries in path.get("type_to_vars", {}).values()
+        for entry in entries or []
+        if isinstance(entry, dict) and entry.get("var_name")
+    }
     if explicit_display_var:
+        if explicit_display_var not in known_vars:
+            return action_synthesizer._unresolved_path(
+                path,
+                node,
+                "display_source_not_explicit",
+            )
         var_to_display = explicit_display_var
+    else:
+        input_link = str(node.get("input_link") or "").strip()
+        if input_link:
+            var_to_display = action_synthesizer._resolve_var_by_node_id(path, input_link)
+        if not var_to_display and path.get("in_loop"):
+            var_to_display = path.get("active_scope_item")
+    display_prop = semantic_roles.get("property") or semantic_roles.get("field") or semantic_roles.get("display_property")
     resolved_display_prop = None
     if display_prop:
         props = path.get("poco_defs", {}).get(entity, {})
@@ -208,33 +212,6 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
         if any(v.get("var_name") == var_to_display for v in vars_list):
             var_type = vt
             break
-    if intent == INTENT_DISPLAY and is_notification and not explicit_message and output_type != "string":
-        primitive_types = ["int", "long", "decimal", "double", "float", "bool", "string"]
-        prefer_value = entity in primitive_types or output_type in primitive_types
-        if prefer_value and var_to_display and var_to_display != "result":
-            new_p = action_synthesizer.synthesizer._copy_path(path)
-            stmt = {"type": "raw", "code": f"Console.WriteLine({var_to_display});", "node_id": node.get("id"), "intent": intent, "semantic_role": "notification"}
-            if display_after_loop and new_p.get("in_loop"):
-                stmt = dict(stmt)
-                stmt["deferred_from"] = node.get("id")
-                new_p.setdefault("deferred_statements", []).append(stmt)
-            else:
-                new_p["statements"].append(stmt)
-            new_p.setdefault("consumed_ids", set()).add(node.get("id"))
-            new_p["completed_nodes"] += 1
-            return [new_p]
-        msg = "全ての処理が完了しました。" if "完了" in text else "処理結果を報告します。"
-        new_p = action_synthesizer.synthesizer._copy_path(path)
-        stmt = {"type": "raw", "code": f"Console.WriteLine(\"{msg}\");", "node_id": node.get("id"), "intent": intent, "semantic_role": "notification"}
-        if display_after_loop and new_p.get("in_loop"):
-            stmt = dict(stmt)
-            stmt["deferred_from"] = node.get("id")
-            new_p.setdefault("deferred_statements", []).append(stmt)
-        else:
-            new_p["statements"].append(stmt)
-        new_p.setdefault("consumed_ids", set()).add(node.get("id"))
-        new_p["completed_nodes"] += 1
-        return [new_p]
     is_collection = node.get("cardinality") == "COLLECTION"
     if not is_collection and var_to_display:
         for vt, vars_list in path.get("type_to_vars", {}).items():
@@ -330,26 +307,6 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
             new_p.setdefault("consumed_ids", set()).add(node.get("id"))
             new_p["completed_nodes"] += 1
             return [new_p]
-        literal = extract_first_quoted_literal(text)
-        string_vars = path.get("type_to_vars", {}).get("string", [])
-        if literal and string_vars:
-            parts = str(literal).split("...")
-            placeholders = max(len(parts) - 1, 0)
-            if placeholders > 0 and len(string_vars) >= placeholders:
-                vars_in_order = [v["var_name"] for v in string_vars[-placeholders:]]
-                expr_parts = []
-                for idx, part in enumerate(parts):
-                    expr_parts.append(part.replace("\"", "\"\""))
-                    if idx < placeholders:
-                        expr_parts.append(f"{{{vars_in_order[idx]}}}")
-                expr = "$\"" + "".join(expr_parts) + "\""
-                out_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "string", "result", new_p, role="content")
-                new_p["statements"].append({"type": "raw", "code": f"var {out_var} = {expr};", "node_id": node.get("id"), "intent": intent})
-                new_p.setdefault("type_to_vars", {}).setdefault("string", []).append({"var_name": out_var, "node_id": node.get("id"), "role": "content", "target_entity": "string"})
-                new_p["active_scope_item"] = out_var
-                new_p.setdefault("consumed_ids", set()).add(node.get("id"))
-                new_p["completed_nodes"] += 1
-                return [new_p]
         if var_to_display and var_type == "string":
             out_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "string", "result", new_p, role="content")
             new_p["statements"].append({"type": "raw", "code": f"var {out_var} = {var_to_display};", "node_id": node.get("id"), "intent": intent})
@@ -358,4 +315,10 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
             new_p.setdefault("consumed_ids", set()).add(node.get("id"))
             new_p["completed_nodes"] += 1
             return [new_p]
+    if intent == INTENT_DISPLAY:
+        return action_synthesizer._unresolved_path(
+            path,
+            node,
+            "display_source_not_explicit",
+        )
     return None

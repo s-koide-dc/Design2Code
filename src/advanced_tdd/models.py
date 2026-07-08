@@ -26,6 +26,9 @@ class CodeFixSuggestion:
     impact_analysis: Dict[str, Any] = None
     auto_applicable: bool = True
     line_number: Optional[int] = None
+    end_line: Optional[int] = None
+    symbol_id: Optional[str] = None
+    validation_command: Optional[List[str]] = None
 
     def __post_init__(self):
         if self.impact_analysis is None:
@@ -39,4 +42,3 @@ class TDDGoal:
     acceptance_criteria: List[str]
     priority: str
     estimated_effort: str
-    # TODO: Implement Logic: 本モジュールはロジックを持たず、型定義のみを提供する。

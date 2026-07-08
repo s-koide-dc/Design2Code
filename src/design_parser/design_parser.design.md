@@ -46,6 +46,7 @@
 12. **指紋の算出**: 正規化した設計書本文とアセットのハッシュを結合し、固定ルール版数を含めて SHA-256 を計算する。
 13. **補完の現在境界**: 決定的補完で強く扱う literal/source 系は主に `path` / `url` / `sql` と `stdin` / `env` の source 文脈であり、`env` は quoted literal を追加せず `data_source + plain fetch` だけで復元する。
 14. **モジュール公開境界**: `design_parser` モジュールは parser/validator だけでなく `infer_then_freeze_if_needed` も公開し、`generate_from_design` や review snapshot CLI から同じ推論入口を利用する。
+15. **遅延公開**: package-level export は `__getattr__` で必要時に読み込み、`design_inference -> code_generation -> synthesis_pipeline -> validator` の循環インポートを発生させない。
 
 ### Responsibility Boundary
 - `StructuredDesignParser` / `validator` は **明示メタデータの解析と検証** を担当する。
@@ -76,3 +77,4 @@
 - 2026-04-14: Infer-then-freeze の責務境界と固定化フローの記述を現行実装に合わせて再確認。
 - 2026-06-04: `validator` 側の `ACTION/CONDITION/LOOP/ELSE/END` と `FETCH/DATABASE_QUERY` 検証を `src.utils.semantic_intents` の共通定数へ寄せた。
 - 2026-06-18: `.inferred.design.md` 固定化、`infer_then_freeze_if_needed` の module-level 公開境界、`env` plain fetch 補完、および literal/source 補完の現行境界を反映。
+- 2026-06-29: package-level exportの遅延ロードと循環依存回避を反映。

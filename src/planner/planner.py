@@ -154,8 +154,7 @@ class Planner:
                     if any(c.isupper() for c in basename):
                         warnings.append(f"Filename '{basename}' violates Python naming convention (snake_case required).")
                         # Proposal: Convert to snake_case (simplified)
-                        import re
-                        new_name = re.sub(r'(?<!^)(?=[A-Z])', '_', basename).lower()
+                        new_name = self._pascal_or_camel_to_snake(basename)
                         if new_name != basename:
                             adjustments["suggested_filename"] = os.path.join(os.path.dirname(filename), new_name)
 
@@ -167,6 +166,31 @@ class Planner:
                         adjustments["suggested_filename"] = os.path.join(os.path.dirname(filename), new_name)
 
         return {"warnings": warnings, "adjustments": adjustments}
+
+    @staticmethod
+    def _pascal_or_camel_to_snake(name: str) -> str:
+        """Convert PascalCase/camelCase filenames to snake_case without regex."""
+        converted = []
+        previous = ""
+        for index, char in enumerate(name):
+            if char.isupper() and index > 0 and previous not in {"", "_", ".", "-"}:
+                converted.append("_")
+            converted.append(char.lower())
+            previous = char
+        return "".join(converted)
+
+    @staticmethod
+    def _extract_single_quoted_value(message: str) -> str | None:
+        """Extract the first value enclosed by single quotes without regex."""
+        if not isinstance(message, str):
+            return None
+        start = message.find("'")
+        if start < 0:
+            return None
+        end = message.find("'", start + 1)
+        if end <= start + 1:
+            return None
+        return message[start + 1:end]
 
     def create_plan(self, context: dict) -> dict:
         """
@@ -465,16 +489,9 @@ class Planner:
         # Scenario 1: File Not Found
         if error_type == "FileNotFoundError" or "No such file" in error_msg or "見つかりません" in error_msg:
             # Extract filename from error message or context
-            import re
-            file_match = re.search(r"'(.*?)'", error_msg)
-            # Support Japanese quotes or context fallback
-            filename = None
-            if file_match:
-                filename = file_match.group(1)
-            else:
-                # Try finding file pattern in Japanese error msg
-                file_match_jp = re.search(r"ファイル '(.*?)'", error_msg)
-                filename = file_match_jp.group(1) if file_match_jp else context.get("analysis", {}).get("entities", {}).get("filename", {}).get("value")
+            filename = self._extract_single_quoted_value(error_msg)
+            if filename is None:
+                filename = context.get("analysis", {}).get("entities", {}).get("filename", {}).get("value")
             
             if filename:
                 # Ensure it's just the value string if it was a dict

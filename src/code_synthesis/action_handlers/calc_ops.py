@@ -1,7 +1,6 @@
 from typing import List, Dict, Any
 
-from src.code_synthesis.action_handlers.action_utils import is_known_state_property, to_csharp_string_literal
-from src.utils.text_parser import extract_percentage_value
+from src.code_synthesis.action_handlers.action_utils import to_csharp_string_literal
 
 
 def process_csv_aggregate(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -78,19 +77,33 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
     entity_resolution = str(semantic_roles.get("entity_resolution") or "").strip().lower()
     target_resolution = str(semantic_roles.get("calculate_target_resolution") or "").strip().lower()
     is_ambiguous_entity = entity_resolution == "ambiguous"
-    allow_cross_entity_fallback = entity_resolution in ["", "unique_owner", "explicit_entity"]
     weak_target_provenance = target_resolution in ["explicit_target", "default_target"]
-    allow_generic_target_property_fallback = not weak_target_provenance
     ops = semantic_roles.get("ops", []) or []
     if "aggregate_by_product" in ops:
         return process_csv_aggregate(action_synthesizer, node, path)
     new_path = action_synthesizer.synthesizer._copy_path(path)
     target_entity = node.get("target_entity", "Item")
-    text = node.get("original_text", "")
-    is_update_intent = action_synthesizer._has_tag(text, "update_intent")
-    is_aggregation = action_synthesizer._has_tag(text, "aggregation_intent") or (semantic_roles.get("aggregation") is True)
+    is_update_intent = semantic_roles.get("update") is True
+    is_aggregation = semantic_roles.get("aggregation") is True
     primitive_types = ["int", "long", "decimal", "double", "float", "bool", "string", "object"]
     effective_entity = target_entity
+    preferred_source_var = action_synthesizer._resolve_calculate_source_var(node, path)
+    source_entity = None
+    if preferred_source_var:
+        for variable_type, variables in path.get("type_to_vars", {}).items():
+            if not any(
+                isinstance(entry, dict) and entry.get("var_name") == preferred_source_var
+                for entry in variables or []
+            ):
+                continue
+            source_entity = action_synthesizer.type_system.extract_generic_inner(variable_type)
+            if not source_entity and str(variable_type).endswith("[]"):
+                source_entity = str(variable_type)[:-2]
+            if not source_entity:
+                source_entity = variable_type
+            break
+    if source_entity in new_path.get("poco_defs", {}):
+        effective_entity = source_entity
     if not is_ambiguous_entity and (target_entity in primitive_types or target_entity not in new_path.get("poco_defs", {})):
         scope_item = path.get("active_scope_item")
         if scope_item:
@@ -106,12 +119,6 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
         if effective_entity in new_path.get("poco_defs", {}):
             active_ent = effective_entity
             props = new_path.get("poco_defs", {}).get(effective_entity, {})
-        elif allow_cross_entity_fallback:
-            for ent, p_props in new_path.get("poco_defs", {}).items():
-                if p_props and ent != "Item":
-                    active_ent = ent
-                    props = p_props
-                    break
     if not props and not is_ambiguous_entity:
         schema = getattr(action_synthesizer.synthesizer, "entity_schema", {}) or {}
         for ent in schema.get("entities", []):
@@ -133,8 +140,8 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
 
     target_hint = semantic_roles.get("target_hint") or semantic_roles.get("variable_hint")
     explicit_prop = semantic_roles.get("property") or semantic_roles.get("field") or semantic_roles.get("assignment_target")
-    if explicit_prop and props:
-        assignment_target = action_synthesizer.semantic_binder._resolve_prop(explicit_prop, "numeric", props, node)
+    if explicit_prop and props and explicit_prop in props:
+        assignment_target = explicit_prop
     target_hint = target_hint or explicit_prop
     target_hint = target_hint if target_hint else None
     if calc_goals:
@@ -142,7 +149,7 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
             if not target_hint:
                 target_hint = goal.get("target_hint") or goal.get("variable_hint")
             if target_hint and not assignment_target:
-                assignment_target = action_synthesizer.semantic_binder._resolve_prop(target_hint, "numeric", props, node)
+                assignment_target = target_hint if target_hint in props else None
             if assignment_target:
                 break
 
@@ -152,17 +159,16 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
         specialized_assignment = "DateTime.Now"
     elif datetime_hint in ["utc_now", "utc", "datetime_utc_now"]:
         specialized_assignment = "DateTime.UtcNow"
-    if not specialized_assignment:
-        if action_synthesizer._has_tag(text, "datetime_now"):
-            specialized_assignment = "DateTime.Now"
-        elif action_synthesizer._has_tag(text, "datetime_utc_now"):
-            specialized_assignment = "DateTime.UtcNow"
-
     if not assignment_target and specialized_assignment:
-        if action_synthesizer._has_tag(text, "last_hint"):
-            assignment_target = action_synthesizer.semantic_binder._resolve_prop("LastLoginAt", "datetime", props, node) or "LastLoginAt"
+        datetime_target = semantic_roles.get("assignment_target")
+        if datetime_target in props:
+            assignment_target = datetime_target
         else:
-            assignment_target = action_synthesizer.semantic_binder._resolve_prop("UpdatedAt", "datetime", props, node) or "UpdatedAt"
+            return action_synthesizer._unresolved_path(
+                path,
+                node,
+                "datetime_assignment_target_not_explicit",
+            )
 
     def _format_decimal_literal(value: Any) -> str:
         if isinstance(value, str):
@@ -177,11 +183,7 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
     def _resolve_prop_name(prop_hint: str) -> str:
         if not prop_hint:
             return ""
-        if props:
-            resolved = action_synthesizer.semantic_binder._resolve_prop(prop_hint, "numeric", props, node)
-            if resolved:
-                return resolved
-        return prop_hint
+        return prop_hint if prop_hint in props else ""
 
     rate_rules = semantic_roles.get("rate_rules")
     if not rate_rules and isinstance(semantic_roles, dict):
@@ -191,7 +193,6 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
     if rate_rules and isinstance(rate_rules, list):
         is_aggregation = False
 
-    preferred_source_var = action_synthesizer._resolve_calculate_source_var(node, path)
     var_name = preferred_source_var or path.get("active_scope_item")
     collection_var = None
     collection_type = None
@@ -206,13 +207,6 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
                     break
             if collection_var:
                 break
-    if not collection_var and not path.get("in_loop"):
-        for vt, vs in reversed(list(path.get("type_to_vars", {}).items())):
-            if any(k in vt for k in ["IEnumerable", "List", "[]"]) and vt != "string":
-                if vs:
-                    collection_var = vs[-1].get("var_name")
-                    collection_type = vt
-                    break
     if var_name:
         if not path.get("in_loop"):
             if not (collection_var and var_name == collection_var and (rate_rules or is_aggregation)):
@@ -222,17 +216,11 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
                             var_name = f"{var_name}.First()"
                             break
     if not var_name:
-        for vt, vars_list in reversed(list(path.get("type_to_vars", {}).items())):
-            if vt not in ["int", "string", "bool", "decimal", "object", "DateTime"] and not vt.startswith("I"):
-                var_name = vars_list[-1]["var_name"]
-                break
-        if not var_name:
-            for vt, vars_list in reversed(list(path.get("type_to_vars", {}).items())):
-                if "IEnumerable<" in vt or "List<" in vt:
-                    var_name = vars_list[-1]["var_name"] + ".First()"
-                    break
-        if not var_name:
-            var_name = "item"
+        return action_synthesizer._unresolved_path(
+            path,
+            node,
+            "calculation_source_not_explicit",
+        )
 
     calc_target = var_name
     loop_item_name = None
@@ -249,7 +237,7 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
         value_prop = _resolve_prop_name(value_prop_hint)
         assignment_hint = semantic_roles.get("assignment_target") or semantic_roles.get("property")
         if assignment_hint:
-            assignment_target = action_synthesizer.semantic_binder._resolve_prop(assignment_hint, "numeric", props, node) if props else assignment_hint
+            assignment_target = assignment_hint if assignment_hint in props else None
         if value_prop and assignment_target and var_name:
             def _build_condition(cond: Dict[str, Any]) -> str:
                 if not isinstance(cond, dict):
@@ -318,84 +306,16 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
 
     qty_hint = semantic_roles.get("quantity_prop")
     price_hint = semantic_roles.get("price_prop")
-    qty_flag = semantic_roles.get("quantity") is True
-    price_flag = semantic_roles.get("price") is True
-    qty_prop = None
-    price_prop = None
-    if props and (qty_hint or qty_flag):
-        if qty_hint and not isinstance(qty_hint, bool):
-            qty_prop = action_synthesizer.semantic_binder._resolve_prop(str(qty_hint), "numeric", props, node)
-        if not qty_prop and qty_flag and "Quantity" in props:
-            qty_prop = "Quantity"
-        if not qty_prop and qty_flag:
-            qty_prop = action_synthesizer.semantic_binder._resolve_prop("quantity", "numeric", props, node)
-            if not qty_prop:
-                qty_prop = next((p for p in props.keys() if p.lower() in ["quantity", "qty", "count"]), None)
-    if props and (price_hint or price_flag):
-        if price_hint and not isinstance(price_hint, bool):
-            price_prop = action_synthesizer.semantic_binder._resolve_prop(str(price_hint), "numeric", props, node)
-            if not price_prop:
-                hint_lower = str(price_hint).lower()
-                price_prop = next((p for p in props.keys() if p.lower() == hint_lower), None)
-        if not price_prop and price_flag and "Price" in props:
-            price_prop = "Price"
-        if not price_prop and price_flag:
-            price_prop = action_synthesizer.semantic_binder._resolve_prop("price", "numeric", props, node)
-            if not price_prop:
-                price_prop = next((p for p in props.keys() if "price" in p.lower() and "discount" not in p.lower()), None)
+    qty_prop = qty_hint if isinstance(qty_hint, str) and qty_hint in props else None
+    price_prop = (
+        price_hint
+        if isinstance(price_hint, str) and price_hint in props
+        else None
+    )
     if price_prop and qty_prop:
         expr = f"{var_name}.{price_prop} * {var_name}.{qty_prop}"
-    if not expr and (qty_flag or price_flag) and props:
-        numeric_props = []
-        for pn, pt in props.items():
-            if pt in ["int", "long", "decimal", "double", "float"]:
-                numeric_props.append(pn)
-        if numeric_props:
-            if not price_prop:
-                price_prop = next((p for p in numeric_props if "price" in p.lower() and "discount" not in p.lower()), None)
-            if not qty_prop:
-                qty_prop = next((p for p in numeric_props if p.lower() in ["quantity", "qty", "count"]), None)
-            if price_prop and qty_prop:
-                expr = f"{var_name}.{price_prop} * {var_name}.{qty_prop}"
-    if not expr and action_synthesizer._has_tag(text, "quantity"):
-        qty_prop = None
-        price_prop = None
-        for pn, pt in props.items():
-            if pt in ["int", "long", "decimal", "double", "float"]:
-                if pn.lower() in ["quantity", "qty", "count"]:
-                    qty_prop = pn
-                if pn.lower() == "price":
-                    price_prop = pn
-                elif "price" in pn.lower() and "discount" not in pn.lower() and not price_prop:
-                    price_prop = pn
-                elif "price" in pn.lower() and not price_prop:
-                    price_prop = pn
-        if price_prop and qty_prop:
-            expr = f"{var_name}.{price_prop} * {var_name}.{qty_prop}"
-    if not expr and allow_generic_target_property_fallback:
-        numeric_props = []
-        for pn, pt in props.items():
-            if pt in ["int", "long", "decimal", "double", "float"]:
-                numeric_props.append(pn)
-        if numeric_props and action_synthesizer._has_tag(text, "quantity"):
-            price_prop = next((p for p in numeric_props if "price" in p.lower()), None)
-            qty_prop = next((p for p in numeric_props if p.lower() in ["quantity", "qty", "count"]), None)
-            if price_prop and qty_prop:
-                expr = f"{var_name}.{price_prop} * {var_name}.{qty_prop}"
-        preferred = None
-        for key in ["total", "amount", "price", "sum", "points", "discount", "score", "count"]:
-            for pn in numeric_props:
-                if key in pn.lower():
-                    preferred = pn
-                    break
-            if preferred:
-                break
-        if not preferred and numeric_props:
-            preferred = numeric_props[0]
-        if preferred:
-            expr = f"{var_name}.{preferred}" if var_name else preferred
 
-    percent_value = extract_percentage_value(text)
+    percent_value = semantic_roles.get("percentage")
     if percent_value is not None and not rate_rules:
         hint_source = target_hint or explicit_prop
         if not hint_source:
@@ -406,20 +326,7 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
                     break
         base_prop = None
         if props and hint_source:
-            base_prop = action_synthesizer.semantic_binder._resolve_prop(str(hint_source), "numeric", props, node)
-        if not base_prop and props and allow_generic_target_property_fallback:
-            numeric_props = [pn for pn, pt in props.items() if pt in ["int", "long", "decimal", "double", "float"]]
-            preferred = None
-            for key in ["total", "amount", "price", "sum", "discount", "points", "score", "count"]:
-                for pn in numeric_props:
-                    if key in pn.lower():
-                        preferred = pn
-                        break
-                if preferred:
-                    break
-            if not preferred and numeric_props:
-                preferred = numeric_props[0]
-            base_prop = preferred
+            base_prop = str(hint_source) if str(hint_source) in props else None
         if base_prop:
             base_expr = f"{var_name}.{base_prop}" if var_name and path.get("in_loop") else base_prop
             expr = f"{base_expr} * ({percent_value}m / 100m)"
@@ -434,6 +341,12 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
                 expr = f"{calc_target}.{value_prop}"
             elif var_name:
                 expr = f"{var_name}.{value_prop}"
+        if not expr:
+            return action_synthesizer._unresolved_path(
+                path,
+                node,
+                "aggregation_value_property_not_explicit",
+            )
         clean_agg_hint = target_hint or "total"
         if clean_agg_hint and str(clean_agg_hint).strip().isdigit():
             clean_agg_hint = "total"
@@ -462,7 +375,7 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
         else:
             new_path["statements"].append({"type": "raw", "code": code, "node_id": node.get("id")})
         new_path["active_scope_item"] = agg_var
-    elif assignment_target and (explicit_assignment or is_update_intent or is_known_state_property(assignment_target) or specialized_assignment):
+    elif assignment_target and (explicit_assignment or is_update_intent or specialized_assignment):
         actual_expr = specialized_assignment if specialized_assignment else expr
         if use_collection_loop and loop_item_name:
             assign_code = f"{loop_item_name}.{assignment_target} = {actual_expr};"
@@ -481,22 +394,42 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
             code = f"{var_name}.{assignment_target} = {actual_expr};"
             new_path["statements"].append({"type": "raw", "code": code, "node_id": node.get("id")})
             new_path["active_scope_item"] = var_name
+            if effective_entity and effective_entity not in primitive_types:
+                entries = new_path.setdefault("type_to_vars", {}).setdefault(
+                    effective_entity,
+                    [],
+                )
+                if not any(
+                    entry.get("var_name") == var_name
+                    and entry.get("node_id") == node.get("id")
+                    for entry in entries
+                ):
+                    entries.append({
+                        "var_name": var_name,
+                        "node_id": node.get("id"),
+                        "semantic_role": "data",
+                        "target_entity": effective_entity,
+                    })
     else:
         actual_expr = specialized_assignment if specialized_assignment else expr
         if is_ambiguous_entity and not actual_expr:
-            hint_label = target_hint or explicit_prop or "value"
-            new_path["statements"].append({
-                "type": "raw",
-                "code": f'throw new NotImplementedException("TODO: Resolve ambiguous CALCULATE target for {hint_label}");',
-                "node_id": node.get("id")
-            })
+            return action_synthesizer._unresolved_path(
+                path,
+                node,
+                "calculation_target_is_ambiguous",
+            )
         elif weak_target_provenance and not actual_expr:
-            hint_label = target_hint or explicit_prop or "value"
-            new_path["statements"].append({
-                "type": "raw",
-                "code": f'throw new NotImplementedException("TODO: Resolve weak CALCULATE target for {hint_label}");',
-                "node_id": node.get("id")
-            })
+            return action_synthesizer._unresolved_path(
+                path,
+                node,
+                "calculation_target_not_explicit",
+            )
+        elif not actual_expr:
+            return action_synthesizer._unresolved_path(
+                path,
+                node,
+                "calculation_expression_not_explicit",
+            )
         else:
             local_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "decimal", target_hint or "result", new_path, role="data")
             new_path["statements"].append({"type": "raw", "code": f"var {local_var} = {actual_expr};", "node_id": node.get("id")})

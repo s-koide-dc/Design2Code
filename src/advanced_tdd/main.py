@@ -152,34 +152,85 @@ class AdvancedTDDSupport:
             )
             
             # 失敗分析 (Roslynデータを渡す)
-            analysis = self.failure_analyzer.analyze_test_failure(test_failure, roslyn_data)
+            analysis = self.failure_analyzer.analyze_test_failure(
+                test_failure,
+                roslyn_data,
+                expected_intent=test_failure_data.get('expected_intent'),
+                analysis_context=test_failure_data.get('analysis_context'),
+            )
             
             if analysis['status'] != 'success':
                 return analysis
             
             # 修正提案生成
             target_code = test_failure_data.get('target_code', {})
+            if roslyn_data:
+                locations = (
+                    analysis.get('analysis_details', {})
+                    .get('stack_trace_analysis', {})
+                    .get('file_locations', [])
+                )
+                test_file = os.path.abspath(test_failure.test_file) if test_failure.test_file else ""
+                sut_location = next(
+                    (
+                        location
+                        for location in locations
+                        if location.get('file')
+                        and os.path.abspath(location['file']) != test_file
+                    ),
+                    None,
+                )
+                if sut_location:
+                    sut_file = os.path.abspath(sut_location['file'])
+                    sut_line = sut_location.get('line')
+                    for manifest_object in roslyn_data.get('manifest', {}).get('objects', []):
+                        if os.path.abspath(manifest_object.get('filePath', '')) != sut_file:
+                            continue
+                        detail = roslyn_data.get('details_by_id', {}).get(
+                            manifest_object.get('id'),
+                            {},
+                        )
+                        method_detail = next(
+                            (
+                                method
+                                for method in detail.get('methods', [])
+                                if isinstance(sut_line, int)
+                                and method.get('startLine', 0)
+                                <= sut_line
+                                <= method.get('endLine', -1)
+                            ),
+                            None,
+                        )
+                        if method_detail:
+                            target_code = {
+                                'file': sut_file,
+                                'method': method_detail.get('name'),
+                                'current_implementation': method_detail.get('bodyCode', ''),
+                                'analysis_results': roslyn_data,
+                                'target_method_analysis': method_detail,
+                            }
+                            break
             
             # Handle fix_test_arrange by loading test code instead of production code
             if analysis.get('fix_direction') == 'fix_test_arrange':
                 try:
-                    # Find test file path from stack trace analysis
+                    # 実行器が返したテストファイルを第一候補にする。
                     file_locations = analysis.get('analysis_details', {}).get('stack_trace_analysis', {}).get('file_locations', [])
-                    test_file_path = None
-                    for loc in file_locations:
-                        fpath = loc.get('file', '')
-                        if fpath.endswith('Tests.cs') or fpath.endswith('Test.cs') or 'test' in fpath.lower():
-                            test_file_path = fpath
-                            break
-                    
+                    test_file_path = test_failure_data.get('test_file')
                     if not test_file_path:
-                         test_file_path = test_failure_data.get('test_file') # Fallback
+                        for loc in file_locations:
+                            fpath = loc.get('file', '')
+                            stem = os.path.splitext(os.path.basename(fpath))[0]
+                            if stem.endswith('Tests') or stem.endswith('Test'):
+                                test_file_path = fpath
+                                break
 
                     if test_file_path and os.path.exists(test_file_path):
                         with open(test_file_path, 'r', encoding='utf-8') as f:
                             test_content = f.read()
                         
                         target_code = {
+                            **target_code,
                             'file': test_file_path,
                             'method': test_failure_data.get('test_method', ''),
                             'current_implementation': test_content
@@ -280,6 +331,9 @@ class AdvancedTDDSupport:
             'impact_analysis': suggestion.impact_analysis,
             'auto_applicable': suggestion.auto_applicable,
             'line_number': suggestion.line_number,
+            'end_line': suggestion.end_line,
+            'symbol_id': suggestion.symbol_id,
+            'validation_command': suggestion.validation_command,
             'target_file': getattr(suggestion, 'target_file', None),
             'conversation_hint': suggestion.impact_analysis.get('conversation_hint') if suggestion.impact_analysis else None,
             'reason': suggestion.impact_analysis.get('reason') if suggestion.impact_analysis else None,

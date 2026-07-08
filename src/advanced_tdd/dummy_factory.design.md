@@ -26,14 +26,16 @@
     - `List<T>` / `IEnumerable<T>` -> `new List<T>()`
 3. **モック化判定 (Auto-Mocking)**:
     - インターフェース（`I`で始まる）または `Service`, `Provider`, `Client` 等のサフィックスを持つ型の場合、`Substitute.For<T>()` を生成。
-4. **セマンティックな値推測**:
-    - プロパティ名に基づき、テストに適した値を割り当てる。
-    - `Email` -> `"test@example.com"`, `Name` -> `"Test User"`, `Age` -> `25`, `Amount/Price` -> `10/1000` 等。
-5. **Dynamic Learning (Type Learning Loop)**:
-    - **Failure Analysis**: `TestFailure` を受け取り、`NullReferenceException` のスタックトレースやメッセージから、不足しているプロパティ名（例: "User.Profile" の "Profile" が null）を抽出。
-    - **Rule Update**: 学習したプロパティ名をその型に対応付け、以降の `generate_instantiation` で `new User { Profile = ... }` のようにオブジェクト初期化子に含める。
+4. **型駆動のプロパティ値生成**:
+    - `register_property(type_name, property_name, property_type)` でRoslyn等が解決した構造化型情報だけを受け付ける。
+    - string、数値、bool、DateTime、配列、コレクション、具象参照型を型に基づく決定論的な式へ変換する。
+    - プロパティ名のキーワードから値を推測しない。
+5. **非構造化失敗の扱い**:
+    - `learn_from_failure` はエラーメッセージから型・プロパティを推測せず `False` を返す。
+    - 必要な型情報が無い場合はルールを追加せず、後段の実テスト検証により不完全な修正を拒否する。
 6. **ナレッジグラフ連携**:
     - Roslyn解析データがある場合、コンストラクタのシグネチャを確認し、再帰的に引数を生成してインスタンス化を試みる。
+    - `register_accessed_properties` はSUTメソッドの `accesses` symbol IDと戻り値型のプロパティIDを照合し、一致したプロパティだけを初期化対象へ登録する。
 7. **デフォルトフォールバック**:
     - 未知のクラスの場合、デフォルトコンストラクタ `new ClassName()` を生成。
 
@@ -43,8 +45,8 @@
 - **Input**: `List<string>`
 - **Output**: `new List<string>()`
 
-### 3.2 Learning Path
-- **Scenario**: `User` クラスで `Profile` プロパティが null で落ちたログを学習。
-- **Action**: `learn_from_failure` を呼び出し。
+### 3.2 Structured Property Path
+- **Scenario**: Roslyn解析が `User.Profile: Example.Profile` を解決。
+- **Action**: `register_property("User", "Profile", "Example.Profile")` を呼び出す。
 - **Input**: `User`
-- **Output**: `new User { Profile = new Profile() }` (Profileプロパティが自動的に含まれる)
+- **Output**: `new User { Profile = new Profile() }`

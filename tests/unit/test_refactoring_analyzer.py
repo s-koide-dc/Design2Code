@@ -371,6 +371,7 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
                     "startLine": 5,
                     "endLine": 150, # 意図的に長いクラス
                     "metrics": {"lineCount": 146, "maxCyclomaticComplexity": 15}, # Added metrics for class
+                    "refactoringFacts": ["god_class"],
                     "methods": [
                         {
                             "id": "add_method_id",
@@ -394,7 +395,12 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
                             "returnType": "void",
                             "startLine": 110,
                             "endLine": 120, # ComplexConditionDetectorが反応するはず
-                            "metrics": {"cyclomaticComplexity": 15, "lineCount": 11, "bodyHash": "hash_complex"}
+                            "metrics": {"cyclomaticComplexity": 15, "lineCount": 11, "bodyHash": "hash_complex"},
+                            "conditionStructures": [{
+                                "line": 112,
+                                "facts": ["mixed_boolean_operators"],
+                                "source": "a && b || c"
+                            }]
                         },
                         {"id": "method_4_id", "name": "Method4", "returnType": "void", "startLine": 121, "endLine": 125, "metrics": {"cyclomaticComplexity": 1, "lineCount": 5, "bodyHash": "hash_4"}},
                         {"id": "method_5_id", "name": "Method5", "returnType": "void", "startLine": 126, "endLine": 130, "metrics": {"cyclomaticComplexity": 1, "lineCount": 5, "bodyHash": "hash_5"}},
@@ -446,7 +452,8 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
                     "name": "LongMethod",
                     "startLine": 50,
                     "endLine": 100,
-                    "metrics": {"cyclomaticComplexity": 5, "lineCount": 51, "bodyHash": "hash_long"}
+                    "metrics": {"cyclomaticComplexity": 5, "lineCount": 51, "bodyHash": "hash_long"},
+                    "refactoringFacts": ["long_method"]
                 },
                 "complex_method_id": {
                     "id": "complex_method_id",
@@ -456,7 +463,12 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
                     "name": "ComplexMethod",
                     "startLine": 110,
                     "endLine": 120,
-                    "metrics": {"cyclomaticComplexity": 15, "lineCount": 11, "bodyHash": "hash_complex"}
+                    "metrics": {"cyclomaticComplexity": 15, "lineCount": 11, "bodyHash": "hash_complex"},
+                    "conditionStructures": [{
+                        "line": 112,
+                        "facts": ["mixed_boolean_operators"],
+                        "source": "a && b || c"
+                    }]
                 },
                 "dosomething_method_id": {
                     "id": "dosomething_method_id",
@@ -492,8 +504,10 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
         self.assertEqual(long_method_smells[0]["method"], "LongMethod")
         self.assertEqual(long_method_smells[0]["line_start"], 50)
         self.assertEqual(long_method_smells[0]["line_end"], 100)
-        self.assertGreater(long_method_smells[0]["metrics"]["line_count"], 
-                           self.analyzer.config["smell_thresholds"]["long_method_lines"])
+        self.assertEqual(
+            ["long_method"],
+            long_method_smells[0]["metrics"]["structural_facts"],
+        )
 
         # GodClassDetectorの検証
         god_class_smells = [s for s in result["code_smells"] if s["type"] == "god_class"]
@@ -501,15 +515,19 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
         self.assertEqual(god_class_smells[0]["class"], "MySampleApp.MyCalculator")
         self.assertEqual(god_class_smells[0]["line_start"], 5)
         self.assertEqual(god_class_smells[0]["line_end"], 150)
-        self.assertIn("メソッドが多すぎます", god_class_smells[0]["description"])
-        self.assertIn(f"推奨は15個以下です", god_class_smells[0]["description"])
+        self.assertEqual(
+            ["god_class"],
+            god_class_smells[0]["metrics"]["structural_facts"],
+        )
 
         # ComplexConditionDetectorの検証 (プレースホルダーが機能することを確認)
         complex_smells = [s for s in result["code_smells"] if s["type"] == "complex_condition"]
         self.assertEqual(len(complex_smells), 1)
         self.assertEqual(complex_smells[0]["method"], "ComplexMethod")
-        self.assertGreater(complex_smells[0]["metrics"]["complexity"],
-                           self.analyzer.config["smell_thresholds"]["cyclomatic_complexity"])
+        self.assertEqual(
+            ["mixed_boolean_operators"],
+            complex_smells[0]["metrics"]["structural_facts"]
+        )
 
         # DuplicateCodeDetectorは現状 Roslynでは検出しないので0であることを確認
         duplicate_smells = [s for s in result["code_smells"] if s["type"] == "duplicate_code"]
@@ -586,9 +604,8 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
         self.assertEqual(len(duplicate_smells), 0)
 
     def test_detect_duplicate_smells_with_roslyn_data(self):
-        """Roslynデータを使用して重複コードが検出されることのテスト"""
-        # 同じbodyHashを持つ2つのメソッドをモックデータに含める
-        duplicate_body_hash = "some_unique_hash_for_duplicate_code"
+        """Roslynデータの明示duplicateGroupIdで重複コードが検出されることのテスト"""
+        duplicate_group_id = "calculator.shared-total"
         
         roslyn_analysis_data = {
             "manifest": {
@@ -634,8 +651,8 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
                     "type": "Class",
                     "filePath": os.path.join(self.project_path, "Program.cs"),
                     "methods": [ # CSharpRefactoringAnalyzer が詳細を見るため
-                        {"id": "method_a_id", "name": "MethodA", "startLine": 10, "endLine": 15, "metrics": {"cyclomaticComplexity": 1, "lineCount": 6, "bodyHash": duplicate_body_hash}},
-                        {"id": "method_b_id", "name": "MethodB", "startLine": 20, "endLine": 25, "metrics": {"cyclomaticComplexity": 1, "lineCount": 6, "bodyHash": duplicate_body_hash}},
+                        {"id": "method_a_id", "name": "MethodA", "startLine": 10, "endLine": 15, "duplicateGroupId": duplicate_group_id},
+                        {"id": "method_b_id", "name": "MethodB", "startLine": 20, "endLine": 25, "duplicateGroupId": duplicate_group_id},
                         {"id": "method_c_id", "name": "MethodC", "startLine": 30, "endLine": 35, "metrics": {"cyclomaticComplexity": 1, "lineCount": 6, "bodyHash": "another_unique_hash"}}
                     ]
                 },
@@ -646,7 +663,7 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
                     "filePath": os.path.join(self.project_path, "Program.cs"),
                     "name": "MethodA",
                     "startLine": 10, "endLine": 15,
-                    "metrics": {"cyclomaticComplexity": 1, "lineCount": 6, "bodyHash": duplicate_body_hash}
+                    "duplicateGroupId": duplicate_group_id
                 },
                 "method_b_id": { # Details for MethodB (for DuplicateCodeDetector)
                     "id": "method_b_id",
@@ -655,7 +672,7 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
                     "filePath": os.path.join(self.project_path, "Program.cs"),
                     "name": "MethodB",
                     "startLine": 20, "endLine": 25,
-                    "metrics": {"cyclomaticComplexity": 1, "lineCount": 6, "bodyHash": duplicate_body_hash}
+                    "duplicateGroupId": duplicate_group_id
                 },
                 "method_c_id": { # Details for MethodC
                     "id": "method_c_id",
@@ -680,11 +697,11 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
         
         self.assertEqual(result["status"], "success")
         duplicate_smells = [s for s in result["code_smells"] if s["type"] == "duplicate_code"]
-        self.assertEqual(len(duplicate_smells), 1) # 同じbodyHashを持つメソッドは1つのスメルとして報告されるはず
+        self.assertEqual(len(duplicate_smells), 1) # 同じduplicateGroupIdを持つメソッドは1つのスメルとして報告されるはず
         
         # スメルが正しい情報を持っていることを確認
         self.assertEqual(duplicate_smells[0]["method"], "MethodA")
-        self.assertEqual(duplicate_smells[0]["body_hash"], duplicate_body_hash)
+        self.assertEqual(duplicate_smells[0]["duplicate_group_id"], duplicate_group_id)
         self.assertEqual(duplicate_smells[0]["metrics"]["occurrences_count"], 2) # 2箇所で重複している
 
 
@@ -700,50 +717,63 @@ class TestLongMethodDetector(unittest.TestCase):
     def test_detect_long_method(self):
         """長いメソッド検出テスト"""
         code = """
-public class Calculator
-{
-    public int LongMethod(int a, int b)
-    {
-        // Line 1
-        // Line 2
-        // Line 3
-        // Line 4
-        // Line 5
-        // Line 6
-        // Line 7
-        // Line 8
-        // Line 9
-        // Line 10
-        // Line 11
-        // Line 12
-        return a + b;
-    }
-}
+@refactoring_fact("long_method")
+def long_method(a, b):
+    return a + b
 """
         
-        smells = self.detector.detect("test.cs", code, ".")
+        smells = self.detector.detect("test.py", code, ".")
         
         # 結果検証
         self.assertEqual(len(smells), 1)
         self.assertEqual(smells[0]["type"], "long_method")
-        self.assertEqual(smells[0]["method"], "LongMethod")
-        self.assertGreater(smells[0]["metrics"]["line_count"], 10)
+        self.assertEqual(smells[0]["method"], "long_method")
+        self.assertEqual(
+            ["long_method"],
+            smells[0]["metrics"]["structural_facts"],
+        )
     
     def test_detect_no_long_method(self):
         """短いメソッドのテスト（検出されないことを確認）"""
-        code = """
-public class Calculator
-{
-    public int ShortMethod(int a, int b)
-    {
-        return a + b;
-    }
-}
-"""
+        code = "def short_method(a, b):\n    return a + b\n"
         
-        smells = self.detector.detect("test.cs", code, ".")
+        smells = self.detector.detect("test.py", code, ".")
         
         # 結果検証
+        self.assertEqual(len(smells), 0)
+
+
+class TestGodClassDetector(unittest.TestCase):
+    """神クラス検出器のテストクラス"""
+
+    def setUp(self):
+        """テスト前の準備"""
+        self.detector = GodClassDetector({})
+
+    def test_detect_god_class(self):
+        """明示されたgod_class factの検出テスト"""
+        code = """
+@refactoring_fact("god_class")
+class LargeCoordinator:
+    pass
+"""
+
+        smells = self.detector.detect("test.py", code, ".")
+
+        self.assertEqual(len(smells), 1)
+        self.assertEqual(smells[0]["type"], "god_class")
+        self.assertEqual(smells[0]["class"], "LargeCoordinator")
+        self.assertEqual(
+            ["god_class"],
+            smells[0]["metrics"]["structural_facts"],
+        )
+
+    def test_detect_no_god_class_without_fact(self):
+        """factのないクラスは検出しない"""
+        code = "class PlainClass:\n    pass\n"
+
+        smells = self.detector.detect("test.py", code, ".")
+
         self.assertEqual(len(smells), 0)
 
 
@@ -755,36 +785,40 @@ class TestDuplicateCodeDetector(unittest.TestCase):
         self.detector = DuplicateCodeDetector({})
     
     def test_detect_duplicate_code(self):
-        """重複コード検出テスト"""
+        """明示されたduplicate_groupの検出テスト"""
         code = """
-public class Calculator
-{
-    public void Method1()
-    {
-        Console.WriteLine("This is a duplicate line");
-        var result = a + b + c + d;
-    }
-    
-    public void Method2()
-    {
-        Console.WriteLine("This is a duplicate line");
-        var result = a + b + c + d;
-    }
-    
-    public void Method3()
-    {
-        Console.WriteLine("This is a duplicate line");
-        var result = a + b + c + d;
-    }
-}
+@duplicate_group("shared-calculation")
+def method_one():
+    return 1
+
+@duplicate_group("shared-calculation")
+def method_two():
+    return 1
 """
         
-        smells = self.detector.detect("test.cs", code, ".")
+        smells = self.detector.detect("test.py", code, ".")
         
         # 結果検証
-        self.assertGreater(len(smells), 0)
+        self.assertEqual(len(smells), 1)
         duplicate_smells = [s for s in smells if s["type"] == "duplicate_code"]
-        self.assertGreater(len(duplicate_smells), 0)
+        self.assertEqual(len(duplicate_smells), 1)
+        self.assertEqual(
+            duplicate_smells[0]["duplicate_group_id"],
+            "shared-calculation",
+        )
+        self.assertEqual(duplicate_smells[0]["metrics"]["occurrences_count"], 2)
+
+    def test_detect_no_duplicate_code_for_single_group_member(self):
+        """単独のduplicate_groupは重複として報告しない"""
+        code = """
+@duplicate_group("single")
+def method_one():
+    return 1
+"""
+
+        smells = self.detector.detect("test.py", code, ".")
+
+        self.assertEqual(len(smells), 0)
 
 
 class TestComplexConditionDetector(unittest.TestCase):
@@ -797,26 +831,55 @@ class TestComplexConditionDetector(unittest.TestCase):
     def test_detect_complex_condition(self):
         """複雑な条件分岐検出テスト"""
         code = """
-public class Calculator
-{
-    public bool ComplexCondition(int a, int b, int c, int d)
-    {
-        if (a > 0 && b < 10 || c == 5 && d != 0 || a == b && c > d)
-        {
-            return true;
-        }
-        return false;
-    }
-}
+def complex_condition(a, b, c):
+    if (a and b) or c:
+        return True
+    return False
 """
         
-        smells = self.detector.detect("test.cs", code, ".")
+        smells = self.detector.detect("test.py", code, ".")
         
         # 結果検証
         self.assertGreater(len(smells), 0)
         complex_smells = [s for s in smells if s["type"] == "complex_condition"]
         self.assertGreater(len(complex_smells), 0)
-        self.assertGreater(complex_smells[0]["metrics"]["complexity"], 3)
+        self.assertEqual(
+            ["mixed_boolean_operators"],
+            complex_smells[0]["metrics"]["structural_facts"],
+        )
+
+    def test_non_python_source_requires_structural_analysis(self):
+        smells = self.detector.detect(
+            "test.cs",
+            "if (a && b || c) { }",
+            ".",
+        )
+
+        self.assertEqual([], smells)
+        self.assertEqual(
+            "STRUCTURAL_ANALYSIS_REQUIRED",
+            self.detector.diagnostics[0]["type"],
+        )
+
+    def test_roslyn_condition_structure_is_used_without_score(self):
+        smells = self.detector.detect_roslyn(
+            {
+                "type": "Method",
+                "name": "Evaluate",
+                "conditionStructures": [{
+                    "line": 12,
+                    "facts": ["mixed_boolean_operators"],
+                    "source": "a && b || c",
+                }],
+            },
+            {"filePath": "src/Evaluator.cs"},
+            {},
+            ".",
+        )
+
+        self.assertEqual(1, len(smells))
+        self.assertEqual("Evaluate", smells[0]["method"])
+        self.assertNotIn("complexity", smells[0]["metrics"])
 
 
 class TestRefactoringSuggestionEngine(unittest.TestCase):
@@ -1055,6 +1118,55 @@ class TestRefactoringAnalyzerErrorHandling(unittest.TestCase):
         
         # 例外が発生してもクラッシュしないことを確認
         self.assertEqual(result["status"], "success")
+
+    def test_detector_failure_is_reported_as_partial_diagnostic(self):
+        source_file = os.path.join(self.temp_dir, "sample.py")
+        with open(source_file, "w", encoding="utf-8") as source:
+            source.write("def sample():\n    return 1\n")
+        analyzer = PythonRefactoringAnalyzer({})
+        analyzer.smell_detectors = {"broken_detector": MagicMock()}
+        analyzer.smell_detectors["broken_detector"].detect.side_effect = RuntimeError("broken")
+
+        result = analyzer.detect_smells(self.temp_dir, {})
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["code_smells"], [])
+        self.assertEqual(
+            result["analysis_diagnostics"],
+            [{
+                "file": source_file,
+                "operation": "detect_smells",
+                "error_type": "RuntimeError",
+                "detector": "broken_detector",
+            }],
+        )
+
+    def test_project_result_propagates_partial_diagnostics(self):
+        project_path = os.path.join(self.temp_dir, "project")
+        os.makedirs(project_path)
+        diagnostic = {
+            "file": "sample.py",
+            "operation": "detect_smells",
+            "error_type": "RuntimeError",
+            "detector": "broken_detector",
+        }
+        with patch.object(
+            self.analyzer,
+            "_detect_code_smells",
+            return_value={
+                "status": "success",
+                "code_smells": [],
+                "analysis_diagnostics": [diagnostic],
+            },
+        ), patch.object(self.analyzer, "_generate_refactoring_suggestions", return_value=[]), \
+             patch.object(self.analyzer, "_calculate_quality_metrics", return_value={}), \
+             patch.object(self.analyzer, "_analyze_impact_scope", return_value={}), \
+             patch.object(self.analyzer, "_generate_recommendations", return_value=[]), \
+             patch.object(self.analyzer, "_generate_reports", return_value={}):
+            result = self.analyzer.analyze_project(project_path, "python")
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["analysis_diagnostics"], [diagnostic])
     
     def test_memory_limit_simulation(self):
         """メモリ制限のシミュレーションテスト"""

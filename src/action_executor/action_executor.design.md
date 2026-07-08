@@ -27,6 +27,8 @@
 9. `python/py` は `scripts/` 配下かつ allowlist (`python_allowed_scripts`) に限定する。
 10. `FILE_DELETE` / `APPLY_CODE_FIX` / `APPLY_REFACTORING` は実行前にバックアップが必須。
 11. `get_required_entities_for_intent` の主要 action intent 判定は `src.utils.action_intents` の共通定数を使い、実行条件分岐の文字列直書きを避ける。
+12. 許可済みコマンドは引数配列と `shell=False` で実行し、終了コードが非0の場合は `action_result.status="error"` と `returncode` を返す。学習イベントの記録有無にかかわらず失敗を成功扱いしない。
+13. コード修正の事前バックアップ対象は、明示された `filename` が無い場合、履歴中の構造化修正提案の `target_file` から解決する。
 
 ### Test Cases
 - **Happy Path**:
@@ -46,3 +48,7 @@
 ## 3. Dependencies
 - **Internal**: `file_operations`, `csharp_operations`, `test_operations`, `refactoring_operations`, `cicd_operations`, `tdd_operations`, `semantic_analyzer`
 - **External**: `os`, `subprocess`, `shlex`, `json`, `re`
+
+## 4. Review Notes
+- 2026-06-29: コマンド非0終了のエラー契約と、構造化引数による非シェル実行を反映。
+- 2026-06-30: 履歴中の修正提案を使ったコード修正の事前バックアップ対象解決を反映。

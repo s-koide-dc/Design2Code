@@ -1,4 +1,5 @@
 import unittest
+import os
 import sys
 import tempfile
 import textwrap
@@ -182,7 +183,7 @@ class TestResponseGenerator(unittest.TestCase):
             "action_result": {
                 "status": "success",
                 "generated_files": [
-                    "C:\\workspace\\NLP\\tests\\generated\\test_sample.py"
+                    os.path.join(os.getcwd(), "tests", "generated", "test_sample.py")
                 ]
             }
         }

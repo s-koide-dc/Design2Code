@@ -29,6 +29,7 @@ class TestMethodStoreBoost(unittest.TestCase):
             "name": "ProcessTask",
             "class": "ExternalUtil",
             "tags": ["process"],
+            "role": "FETCH",
             "code": "public void ProcessTask() {}"
         }
         
@@ -37,6 +38,7 @@ class TestMethodStoreBoost(unittest.TestCase):
             "name": "HandleInternalTask",
             "class": "ProjectHandler",
             "tags": ["project_internal", "reuse"],
+            "role": "PERSIST",
             "code": "public void HandleInternalTask() {}"
         }
 
@@ -47,19 +49,17 @@ class TestMethodStoreBoost(unittest.TestCase):
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
 
-    def test_boost_project_internal(self):
-        """プロジェクト内部/再利用タグを持つメソッドが優先されるか"""
-        # ProcessTask (external) vs HandleInternalTask (internal + reuse)
-        # 両方 "task" を含んでいるが、HandleInternalTask はタグによるブーストを得るはず。
-        results = self.store.search("task")
+    def test_structural_role_filter_precedes_vector_order(self):
+        """明示された構造ロールに適合するメソッドだけが返るか"""
+        results = self.store.search("task", role="PERSIST")
         
         result_ids = [r['id'] for r in results]
         print(f"\nSearch results for 'task': {result_ids}")
         
-        if results:
-            # ブースト実装前はどちらが上かわからない（または ProcessTask が上かもしれない）
-            # ブースト実装後は必ず HandleInternalTask が上に来るべき。
-            self.assertEqual(results[0]["id"], "project.internal.handler")
+        self.assertEqual(
+            [result["id"] for result in results],
+            ["project.internal.handler"],
+        )
 
 if __name__ == '__main__':
     unittest.main()

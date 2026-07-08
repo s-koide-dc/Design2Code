@@ -21,6 +21,7 @@ class PythonRefactoringAnalyzer(BaseRefactoringAnalyzer):
     def detect_smells(self, project_path: str, options: Dict[str, Any]) -> Dict[str, Any]:
         """Pythonプロジェクトのコードスメルを検出"""
         try:
+            self.analysis_diagnostics = []
             code_smells = []
             py_files = self._find_py_files(project_path)
             
@@ -31,7 +32,8 @@ class PythonRefactoringAnalyzer(BaseRefactoringAnalyzer):
             return {
                 "status": "success",
                 "code_smells": code_smells,
-                "files_analyzed": len(py_files)
+                "files_analyzed": len(py_files),
+                "analysis_diagnostics": list(self.analysis_diagnostics),
             }
             
         except Exception as e:

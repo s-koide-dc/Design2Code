@@ -106,4 +106,3 @@ class ConditionEvaluator:
             return False
 
         return False
-        # TODO: Implement Logic: **条件タイプの処理**:

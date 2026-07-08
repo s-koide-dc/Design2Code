@@ -63,18 +63,21 @@ class DesignInferenceEngine:
             "intents": {INTENT_TRANSFORM},
             "requires_all": ["行", "分割"],
             "meta": {"target_entity": "string", "output_type": "List<string>"},
+            "allow_implicit_fallback": True,
         },
         "csv_serialize": {
             "intents": {INTENT_TRANSFORM},
             "requires_all": ["csv"],
             "requires_any": ["文字列", "形式", "変換"],
             "meta": {"target_entity": "string", "output_type": "string"},
+            "allow_implicit_fallback": True,
         },
         "aggregate_by_product": {
             "intents": {INTENT_CALC},
             "requires_all": ["商品別"],
             "requires_any": ["合計", "集計"],
             "meta": {"target_entity": "decimal", "output_type": "Dictionary<string, decimal>"},
+            "allow_implicit_fallback": True,
         },
         "display_names": {
             "intents": {INTENT_DISPLAY},
@@ -345,11 +348,21 @@ class DesignInferenceEngine:
         last_persist_path: Optional[str] = None,
     ) -> Tuple[bool, Optional[InferenceIssue], str, List[str]]:
         step_token, score = self.resolver.infer_step_with_score(line, module_name)
-        command_literal = self._extract_command_literal(line, self.resolver.get_entities(line))
+        initial_entities = self.resolver.get_entities(line)
+        command_literal = self._extract_command_literal(line, initial_entities)
         env_sources, stdin_sources, http_sources, file_sources = self._collect_source_kinds()
         db_sources = [s for s in getattr(self, "_current_data_sources", []) if s.get("kind") == "db"]
         fallback_line = self._strip_non_step_metadata_prefixes(line)
         existing_semantic_roles = self._extract_semantic_roles(line)
+        explicit_ops = self._extract_ops_tag(line)
+        if explicit_ops and "ops" not in existing_semantic_roles:
+            existing_semantic_roles["ops"] = explicit_ops
+        if self._extract_sql_literal(fallback_line) and not db_sources:
+            return False, InferenceIssue(
+                step_idx,
+                "NO_CANDIDATE",
+                "SQL literal requires an explicit db data source.",
+            ), line, []
 
         def _merged_semantic_roles(extra_roles: Dict[str, Any]) -> Dict[str, Any]:
             merged = dict(existing_semantic_roles)
@@ -392,17 +405,30 @@ class DesignInferenceEngine:
                 semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(file_fetch_roles))
                 new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            deserialize_meta = self._infer_plain_json_deserialize_meta(fallback_line)
+            deserialize_meta = self._infer_plain_json_deserialize_meta(
+                fallback_line,
+                last_output_type=last_output_type,
+                semantic_roles=_merged_semantic_roles({}),
+                allow_text_entity_inference=False,
+            )
             if deserialize_meta:
                 tag = self._build_step_meta_tag(deserialize_meta)
                 refs = self._build_refs_tag(step_idx)
                 semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles({}))
                 new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            linq_meta = self._infer_plain_linq_meta(fallback_line)
+            linq_meta = self._infer_plain_linq_meta(
+                fallback_line,
+                last_output_type=last_output_type,
+                semantic_roles=_merged_semantic_roles({}),
+                allow_text_entity_inference=False,
+            )
             if linq_meta:
                 linq_roles: Dict[str, Any] = {}
-                filter_prop = self._infer_filter_property(fallback_line)
+                filter_prop = self._infer_filter_property(
+                    fallback_line,
+                    entity=linq_meta.get("target_entity"),
+                )
                 if filter_prop:
                     linq_roles["property"] = filter_prop
                 tag = self._build_step_meta_tag(linq_meta)
@@ -431,7 +457,16 @@ class DesignInferenceEngine:
                 semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(db_persist_roles))
                 new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
                 return True, None, new_line, []
-            ops_meta, ops_roles = self._infer_ops_only_fallback(fallback_line, last_output_type)
+            explicit_fallback_ops = self._normalize_explicit_ops(
+                _merged_semantic_roles({}).get("ops")
+            )
+            if explicit_fallback_ops:
+                ops_meta, ops_roles = self._infer_meta_from_explicit_ops(
+                    explicit_fallback_ops,
+                    last_output_type,
+                )
+            else:
+                ops_meta, ops_roles = self._infer_ops_only_fallback(fallback_line, last_output_type)
             if ops_meta:
                 tag = self._build_step_meta_tag(ops_meta)
                 refs = self._build_refs_tag(step_idx)
@@ -537,6 +572,22 @@ class DesignInferenceEngine:
         meta = self._map_step_token_to_meta(step_token)
         if not meta:
             return False, InferenceIssue(step_idx, "UNMAPPED_TOKEN", step_token), line, []
+        quoted_literal = extract_first_quoted_literal(line)
+        filename_entity = (
+            initial_entities.get("filename", {}).get("value")
+            if isinstance(initial_entities.get("filename"), dict)
+            else None
+        )
+        has_file_literal = bool(
+            (quoted_literal and self._is_likely_filename(quoted_literal))
+            or (filename_entity and self._is_likely_filename(str(filename_entity)))
+        )
+        if meta.get("intent") == INTENT_JSON_DESERIALIZE and not last_output_type and not has_file_literal:
+            return False, InferenceIssue(
+                step_idx,
+                "NO_CANDIDATE",
+                "JSON_DESERIALIZE requires an upstream textual payload.",
+            ), line, []
 
         semantic_roles: Dict[str, Any] = dict(existing_semantic_roles)
         sql_literal = ""
@@ -563,7 +614,12 @@ class DesignInferenceEngine:
                 meta = file_fetch_meta
                 semantic_roles.update(file_fetch_roles)
         elif meta.get("intent") == INTENT_JSON_DESERIALIZE:
-            inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
+            inferred_entity = self._entity_from_structural_context(
+                last_output_type=last_output_type,
+                semantic_roles=semantic_roles,
+            )
+            if not inferred_entity:
+                inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
             if inferred_entity and inferred_entity != "Item":
                 meta = dict(meta)
                 meta["target_entity"] = inferred_entity
@@ -585,11 +641,19 @@ class DesignInferenceEngine:
                 meta = file_fetch_meta
                 semantic_roles.update(file_fetch_roles)
         elif self._looks_like_plain_json_deserialize(line):
-            deserialize_meta = self._infer_plain_json_deserialize_meta(line)
+            deserialize_meta = self._infer_plain_json_deserialize_meta(
+                line,
+                last_output_type=last_output_type,
+                semantic_roles=semantic_roles,
+            )
             if deserialize_meta:
                 meta = deserialize_meta
         elif self._looks_like_plain_linq(line):
-            linq_meta = self._infer_plain_linq_meta(line)
+            linq_meta = self._infer_plain_linq_meta(
+                line,
+                last_output_type=last_output_type,
+                semantic_roles=semantic_roles,
+            )
             if linq_meta:
                 meta = linq_meta
         if meta.get("intent") == INTENT_DISPLAY:
@@ -602,17 +666,30 @@ class DesignInferenceEngine:
                 meta = dict(meta)
                 meta["target_entity"] = display_entity
         if meta.get("intent") == INTENT_DISPLAY and "property" not in semantic_roles:
-            display_prop = self._infer_display_property(line)
+            display_prop = self._infer_display_property(
+                line,
+                entity=str(meta.get("target_entity") or ""),
+            )
             if display_prop:
                 semantic_roles["property"] = display_prop
         if meta.get("intent") == INTENT_LINQ and "property" not in semantic_roles:
-            filter_prop = self._infer_filter_property(line)
+            filter_prop = self._infer_filter_property(
+                line,
+                entity=str(meta.get("target_entity") or ""),
+            )
             if filter_prop:
                 semantic_roles["property"] = filter_prop
         if meta.get("intent") == INTENT_HTTP_REQUEST and "url" not in semantic_roles:
             url_literal = self._extract_url_literal(line, entities)
             if url_literal:
                 semantic_roles["url"] = url_literal
+        if meta.get("intent") == INTENT_HTTP_REQUEST and str(meta.get("target_entity") or "") in ["", "Item", "string"]:
+            inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
+            if not inferred_entity or inferred_entity == "Item":
+                inferred_entity = self._entity_from_source_ref(str(meta.get("source_ref") or ""))
+            if inferred_entity and inferred_entity != "Item":
+                meta = dict(meta)
+                meta["target_entity"] = inferred_entity
         if meta.get("intent") == INTENT_CMD_RUN:
             if not command_literal:
                 return False, InferenceIssue(step_idx, "MISSING_COMMAND", "Command literal required for CMD_RUN."), line, []
@@ -643,8 +720,18 @@ class DesignInferenceEngine:
                 meta["side_effect"] = "IO" if meta["intent"] in [INTENT_FETCH, INTENT_FILE_IO] else meta.get("side_effect", "NONE")
                 if meta.get("intent") == INTENT_FETCH:
                     meta["output_type"] = meta.get("output_type") or "string"
+                if meta.get("intent") == INTENT_HTTP_REQUEST and str(meta.get("target_entity") or "") in ["", "Item", "string"]:
+                    inferred_entity = self._entity_from_source_ref(str(meta.get("source_ref") or ""))
+                    if inferred_entity and inferred_entity != "Item":
+                        meta["target_entity"] = inferred_entity
                 source_override_applied = True
         if meta.get("intent") in [INTENT_DATABASE_QUERY, INTENT_PERSIST]:
+            if not db_sources:
+                return False, InferenceIssue(
+                    step_idx,
+                    "NO_CANDIDATE",
+                    "Database operations require an explicit db data source.",
+                ), line, []
             sql_literal = self._extract_sql_literal(line)
             if not sql_literal:
                 alt_token, alt_score = self.resolver.infer_step_with_score_excluding_intents(
@@ -720,7 +807,13 @@ class DesignInferenceEngine:
             meta = db_persist_meta
             semantic_roles.update(db_persist_roles)
 
-        if "ops" not in semantic_roles:
+        explicit_role_ops = self._normalize_explicit_ops(semantic_roles.get("ops"))
+        if explicit_role_ops:
+            op_meta, op_roles = self._infer_meta_from_explicit_ops(explicit_role_ops, last_output_type)
+            if op_meta:
+                meta = op_meta
+                semantic_roles.update(op_roles)
+        elif "ops" not in semantic_roles:
             inferred_ops = self._infer_explicit_ops(line, str(meta.get("intent") or ""))
             if inferred_ops:
                 semantic_roles["ops"] = inferred_ops
@@ -754,7 +847,7 @@ class DesignInferenceEngine:
         semantic_roles_tag = self._build_semantic_roles_tag(semantic_roles)
         tag = self._build_step_meta_tag(meta)
         refs = self._build_refs_tag(step_idx)
-        new_line = self._prefix_inferred_tags(line, tag, refs, semantic_roles_tag)
+        new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
         data_sources = []
         if meta.get("source_ref") == "db_main":
             data_sources.append("[data_source|db_main|db]")
@@ -932,10 +1025,36 @@ class DesignInferenceEngine:
         normalized = str(line).strip()
         return "変換" in normalized and any(token in normalized for token in ["リスト", "一覧", "配列"])
 
-    def _infer_plain_json_deserialize_meta(self, line: str) -> Optional[Dict[str, str]]:
+    def _entity_from_structural_context(
+        self,
+        *,
+        last_output_type: Optional[str],
+        semantic_roles: Optional[Dict[str, Any]],
+    ) -> Optional[str]:
+        roles = semantic_roles or {}
+        role_entity = roles.get("target_entity") or roles.get("entity")
+        if isinstance(role_entity, str) and role_entity.strip():
+            return role_entity.strip()
+        return self._infer_entity_from_output_type(last_output_type)
+
+    def _infer_plain_json_deserialize_meta(
+        self,
+        line: str,
+        *,
+        last_output_type: Optional[str] = None,
+        semantic_roles: Optional[Dict[str, Any]] = None,
+        allow_text_entity_inference: bool = True,
+    ) -> Optional[Dict[str, str]]:
         if not self._looks_like_plain_json_deserialize(line):
             return None
-        inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer) or "Item"
+        inferred_entity = self._entity_from_structural_context(
+            last_output_type=last_output_type,
+            semantic_roles=semantic_roles,
+        )
+        if not inferred_entity and allow_text_entity_inference:
+            inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
+        if not inferred_entity:
+            return None
         output_type = f"List<{inferred_entity}>"
         return {
             "kind": NODE_ACTION,
@@ -949,10 +1068,24 @@ class DesignInferenceEngine:
         normalized = str(line).strip()
         return "抽出" in normalized
 
-    def _infer_plain_linq_meta(self, line: str) -> Optional[Dict[str, str]]:
+    def _infer_plain_linq_meta(
+        self,
+        line: str,
+        *,
+        last_output_type: Optional[str] = None,
+        semantic_roles: Optional[Dict[str, Any]] = None,
+        allow_text_entity_inference: bool = True,
+    ) -> Optional[Dict[str, str]]:
         if not self._looks_like_plain_linq(line):
             return None
-        inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer) or "Item"
+        inferred_entity = self._entity_from_structural_context(
+            last_output_type=last_output_type,
+            semantic_roles=semantic_roles,
+        )
+        if not inferred_entity and allow_text_entity_inference:
+            inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
+        if not inferred_entity:
+            return None
         return {
             "kind": NODE_ACTION,
             "intent": INTENT_LINQ,
@@ -973,7 +1106,11 @@ class DesignInferenceEngine:
             if len(intents) != 1:
                 continue
             candidate_intent = intents[0]
-            op_matches = self._infer_explicit_ops(line, candidate_intent)
+            op_matches = self._infer_explicit_ops(
+                line,
+                candidate_intent,
+                allow_natural=bool(hint.get("allow_implicit_fallback")),
+            )
             if op_name not in op_matches:
                 continue
             if inferred_intent and inferred_intent != candidate_intent:
@@ -1001,6 +1138,42 @@ class DesignInferenceEngine:
         meta = self._apply_ops_meta_overrides(meta, matched_ops)
         return meta, {"ops": matched_ops}
 
+    def _infer_meta_from_explicit_ops(
+        self,
+        ops: List[str],
+        last_output_type: Optional[str],
+    ) -> Tuple[Optional[Dict[str, str]], Dict[str, Any]]:
+        if not ops:
+            return None, {}
+        intents = []
+        for op_name in ops:
+            hint = self._EXPLICIT_OP_HINTS.get(op_name) or {}
+            allowed = [str(v).upper() for v in (hint.get("intents") or []) if v]
+            if len(allowed) != 1:
+                return None, {}
+            if allowed[0] not in intents:
+                intents.append(allowed[0])
+        if len(intents) != 1:
+            return None, {}
+        inferred_intent = intents[0]
+        meta = {
+            "kind": NODE_ACTION,
+            "intent": inferred_intent,
+            "target_entity": last_output_type or "string",
+            "output_type": "void",
+            "side_effect": "NONE",
+        }
+        if inferred_intent == INTENT_TRANSFORM:
+            meta["output_type"] = last_output_type or "string"
+        elif inferred_intent == INTENT_DISPLAY:
+            meta["target_entity"] = last_output_type or "Item"
+            meta["output_type"] = "void"
+        elif inferred_intent == INTENT_CALC:
+            meta["target_entity"] = "decimal"
+            meta["output_type"] = "decimal"
+        meta = self._apply_ops_meta_overrides(meta, ops)
+        return meta, {"ops": ops}
+
     def _infer_plain_loop_meta(
         self,
         line: str,
@@ -1009,10 +1182,12 @@ class DesignInferenceEngine:
         normalized = str(line).strip()
         if "順に処理" not in normalized and "各行" not in normalized:
             return None
+        if not last_output_type:
+            return None
         return {
             "kind": NODE_LOOP,
             "intent": INTENT_GENERAL,
-            "target_entity": last_output_type or "Item",
+            "target_entity": last_output_type,
             "output_type": "void",
             "side_effect": "NONE",
         }
@@ -1024,6 +1199,8 @@ class DesignInferenceEngine:
     ) -> Optional[Dict[str, str]]:
         normalized = str(line).strip()
         if "表示" not in normalized:
+            return None
+        if not last_output_type:
             return None
         display_entity = self._infer_entity_from_output_type(last_output_type) or last_output_type or "Item"
         return {
@@ -1112,7 +1289,14 @@ class DesignInferenceEngine:
                 break
         if not source_ref:
             return None, {}
-        inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer) or "Item"
+        inferred_entity = (
+            self._entity_from_sql_select(sql_literal)
+            or self._entity_from_structural_context(
+                last_output_type=None,
+                semantic_roles=semantic_roles,
+            )
+            or "Item"
+        )
         return (
             {
                 "kind": NODE_ACTION,
@@ -1480,6 +1664,30 @@ class DesignInferenceEngine:
         except Exception:
             return {}
 
+    def _extract_ops_tag(self, line: str) -> List[str]:
+        text = str(line)
+        marker = "[ops:"
+        idx = text.find(marker)
+        if idx == -1:
+            return []
+        start = idx + len(marker)
+        end = self._find_bracket_end(text[idx:])
+        if end == -1:
+            return []
+        raw = text[start: idx + end].strip()
+        return self._normalize_explicit_ops(raw.split(","))
+
+    def _normalize_explicit_ops(self, values: Any) -> List[str]:
+        if not isinstance(values, list):
+            return []
+        known_ops = set(self._EXPLICIT_OP_HINTS.keys())
+        normalized: List[str] = []
+        for value in values:
+            op_name = str(value).strip()
+            if op_name in known_ops and op_name not in normalized:
+                normalized.append(op_name)
+        return normalized
+
     def _append_semantic_roles(self, line: str, semantic_roles_tag: str) -> str:
         if not semantic_roles_tag:
             return line
@@ -1493,20 +1701,37 @@ class DesignInferenceEngine:
             return ""
         return f"[semantic_roles:{json.dumps(semantic_roles, ensure_ascii=False, separators=(',', ':'))}]"
 
-    def _infer_explicit_ops(self, line: str, intent: str) -> List[str]:
-        normalized = str(line).strip().lower()
-        if not normalized or not intent:
+    def _infer_explicit_ops(self, line: str, intent: str, *, allow_natural: bool = True) -> List[str]:
+        if not intent:
             return []
+        normalized_line = str(line or "").lower()
+        semantic_roles = self._extract_semantic_roles(line)
+        candidates = []
+        role_ops = semantic_roles.get("ops") if isinstance(semantic_roles, dict) else None
+        if isinstance(role_ops, list):
+            candidates.extend(role_ops)
+        candidates.extend(self._extract_ops_tag(line))
+        explicit_ops = self._normalize_explicit_ops(candidates)
         inferred: List[str] = []
+        for op_name in explicit_ops:
+            hint = self._EXPLICIT_OP_HINTS.get(op_name) or {}
+            allowed_intents = hint.get("intents") or set()
+            if allowed_intents and intent not in allowed_intents:
+                continue
+            inferred.append(op_name)
+        if inferred:
+            return inferred
+        if not allow_natural:
+            return []
         for op_name, hint in self._EXPLICIT_OP_HINTS.items():
             allowed_intents = hint.get("intents") or set()
             if allowed_intents and intent not in allowed_intents:
                 continue
-            requires_all = [str(v).lower() for v in (hint.get("requires_all") or []) if v]
-            if requires_all and not all(token in normalized for token in requires_all):
+            required_all = [str(value).lower() for value in (hint.get("requires_all") or []) if value]
+            required_any = [str(value).lower() for value in (hint.get("requires_any") or []) if value]
+            if required_all and not all(value in normalized_line for value in required_all):
                 continue
-            requires_any = [str(v).lower() for v in (hint.get("requires_any") or []) if v]
-            if requires_any and not any(token in normalized for token in requires_any):
+            if required_any and not any(value in normalized_line for value in required_any):
                 continue
             inferred.append(op_name)
         return inferred
@@ -1520,15 +1745,17 @@ class DesignInferenceEngine:
                     updated[key] = value
         return updated
 
-    def _infer_display_property(self, line: str) -> Optional[str]:
-        entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
+    def _get_entity_properties(self, entity: str) -> Dict[str, Any]:
         if not entity or not isinstance(self.entity_schema, dict):
-            return None
-        props = {}
+            return {}
         for ent in self.entity_schema.get("entities", []):
             if ent.get("name") == entity and isinstance(ent.get("properties"), dict):
-                props = ent.get("properties") or {}
-                break
+                return ent.get("properties") or {}
+        return {}
+
+    def _infer_display_property(self, line: str, entity: Optional[str] = None) -> Optional[str]:
+        resolved_entity = entity or infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
+        props = self._get_entity_properties(resolved_entity)
         if not props:
             return None
         tokens = []
@@ -1554,15 +1781,9 @@ class DesignInferenceEngine:
                 return prop
         return None
 
-    def _infer_filter_property(self, line: str) -> Optional[str]:
-        entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
-        if not entity or not isinstance(self.entity_schema, dict):
-            return None
-        props = {}
-        for ent in self.entity_schema.get("entities", []):
-            if ent.get("name") == entity and isinstance(ent.get("properties"), dict):
-                props = ent.get("properties") or {}
-                break
+    def _infer_filter_property(self, line: str, entity: Optional[str] = None) -> Optional[str]:
+        resolved_entity = entity or infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
+        props = self._get_entity_properties(resolved_entity)
         if not props:
             return None
         normalized = str(line).lower()
@@ -1582,6 +1803,33 @@ class DesignInferenceEngine:
             if token.lower() in normalized and prop_name in props:
                 return prop_name
         return None
+
+    def _entity_from_sql_select(self, sql_literal: str) -> str:
+        words = []
+        current = []
+        for ch in str(sql_literal):
+            if ch.isalnum() or ch == "_":
+                current.append(ch)
+            else:
+                if current:
+                    words.append("".join(current))
+                    current = []
+        if current:
+            words.append("".join(current))
+        lowered = [word.lower() for word in words]
+        table_name = ""
+        for index, word in enumerate(lowered[:-1]):
+            if word in {"from", "join"}:
+                table_name = words[index + 1]
+                break
+        if not table_name or not isinstance(self.entity_schema, dict):
+            return ""
+        singular_table = table_name[:-1] if table_name.endswith("s") else table_name
+        for ent in self.entity_schema.get("entities", []):
+            entity_name = str(ent.get("name") or "")
+            if entity_name in {table_name, singular_table}:
+                return entity_name
+        return ""
 
     def _normalize_output_type(self, output_format: str) -> str:
         if not output_format:
@@ -1607,6 +1855,23 @@ class DesignInferenceEngine:
             inner = text[:-2].strip()
             return inner if inner else ""
         return ""
+
+    def _entity_from_source_ref(self, source_ref: str) -> Optional[str]:
+        cleaned = str(source_ref or "").strip()
+        if not cleaned:
+            return None
+        parts = [part for part in cleaned.replace("-", "_").split("_") if part]
+        while parts and parts[-1].lower() in {"api", "http", "source", "endpoint"}:
+            parts.pop()
+        if not parts:
+            return None
+        candidate = "".join(part[:1].upper() + part[1:] for part in parts)
+        if not isinstance(self.entity_schema, dict):
+            return None
+        for entity in self.entity_schema.get("entities", []):
+            if entity.get("name") == candidate:
+                return candidate
+        return None
 
     def _is_likely_filename(self, value: str) -> bool:
         if not value:

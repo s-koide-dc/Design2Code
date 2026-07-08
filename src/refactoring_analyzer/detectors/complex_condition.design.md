@@ -1,22 +1,25 @@
 # ComplexConditionDetector Design Document
 
 ## 1. Purpose
-`ComplexConditionDetector` は、理解が困難でバグの原因となりやすい、複雑すぎる条件分岐（if文の論理演算子の多用等）を検出します。
+`ComplexConditionDetector` は、構文木に明示された複合条件構造を検出します。
+演算子の文字列出現数や循環的複雑度スコアでは判定しません。
 
 ## 2. Structured Specification
 
 ### Input
-- **content**: ソースコード。
-- **thresholds**: `cyclomatic_complexity`（デフォルト: 6）。
+- **content**: Pythonソースコード。
+- **Roslyn metadata**: C#メソッドの `conditionStructures`。
 
 ### Core Logic
 1.  **汎用解析 (`detect`)**: 
-    - `if` 文を含む行を抽出。
-    - `&&`, `||`, `==` などの論理・比較演算子の数をカウントし、複雑度（complexity）を算出。
+    - Python ASTから `If`、`While`、`IfExp`、`Assert` の条件ノードを取得。
+    - 異なるBoolean演算子の入れ子、Booleanグループの否定、連鎖比較を構造factとして記録。
+    - Python以外のソース文字列は推測せず、`STRUCTURAL_ANALYSIS_REQUIRED`を診断。
 2.  **Roslyn解析 (`detect_roslyn`)**: 
-    - Roslyn メトリクスの `cyclomaticComplexity` を直接使用して判定。
-    - メソッドの開始行（`startLine`）を特定し、構造化データからの直接抽出により、正規表現よりも正確な位置情報を提供。
-3.  **閾値判定**: 複雑度が閾値（デフォルト 6）を超えた場合、スメルとして登録。警告レベル（severity）は閾値の 1.5倍を境に medium/high を切り替える。
+    - `conditionStructures[].facts` の許可済み構造factだけを使用。
+    - `cyclomaticComplexity`から条件式の複雑さを推測しない。
 
 ### Test Cases
-- **Happy Path**: 7つの演算子を含む if 文が、閾値6の設定で正しく検出されること。
+- **Python**: `and`の子を持つ`or`条件が`mixed_boolean_operators`として検出されること。
+- **C#**: Roslynの明示factが検出され、スコア項目を出力しないこと。
+- **Unsupported**: C#文字列を直接渡した場合は検出せず、構造解析要求を診断すること。

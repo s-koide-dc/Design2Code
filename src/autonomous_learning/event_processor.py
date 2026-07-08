@@ -2,7 +2,6 @@
 # src/autonomous_learning/event_processor.py
 
 import json
-import re
 import logging
 from datetime import datetime
 from typing import Dict, Any
@@ -48,6 +47,7 @@ class EventProcessor:
 
     def _save_event(self, event_id: str, event_type: str, data: Dict[str, Any], timestamp: str):
         """イベントをJSONファイルとして保存"""
+        self.learning_queue_dir.mkdir(parents=True, exist_ok=True)
         file_path = self.learning_queue_dir / f"{event_id}.json"
         event_record = {
             'event_id': event_id,
@@ -86,24 +86,29 @@ class EventProcessor:
         """ユーザーフィードバックの学習"""
         finding_id = data.get('finding_id')
         feedback = data.get('feedback', '')
+        terminology_mapping = data.get("terminology_mapping")
+        if isinstance(terminology_mapping, dict):
+            source_term = terminology_mapping.get("source")
+            target_term = terminology_mapping.get("target")
+            if (
+                isinstance(source_term, str)
+                and source_term.strip()
+                and isinstance(target_term, str)
+                and target_term.strip()
+            ):
+                self._record_learned_mapping(
+                    source_term.strip(),
+                    target_term.strip(),
+                )
+                return
         if finding_id and feedback:
             self.logger.info(f"User feedback received for {finding_id}: {feedback}")
-            
-            # 1. 用語マッピングの抽出試行
-            mapping_match = re.search(r'「(.+?)」\s*は\s*(.+?)\s*の[こと|意味]', feedback)
-            if mapping_match:
-                jp_term = mapping_match.group(1)
-                en_term = mapping_match.group(2)
-                self.logger.info(f"Learned mapping: {jp_term} -> {en_term}")
-                self._record_learned_mapping(jp_term, en_term)
-                return
-
-            # 2. 振る舞い/一般フィードバックとして保存
             self._record_behavioral_feedback(finding_id, feedback)
 
     def _record_learned_mapping(self, jp: str, en: str):
         """学習したマッピングを保存"""
         path = self.workspace_root / 'logs' / 'learned_mappings.jsonl'
+        path.parent.mkdir(parents=True, exist_ok=True)
         record = {"type": "terminology", "jp": jp, "en": en, "timestamp": datetime.now().isoformat()}
         with open(path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -111,6 +116,7 @@ class EventProcessor:
     def _record_behavioral_feedback(self, session_id: str, feedback: str):
         """振る舞いに関するフィードバックを保存"""
         path = self.workspace_root / 'logs' / 'behavioral_feedback.jsonl'
+        path.parent.mkdir(parents=True, exist_ok=True)
         record = {
             "type": "behavior",
             "session_id": session_id,

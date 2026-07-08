@@ -50,6 +50,7 @@ class AutonomousLearning:
         self.vector_engine = vector_engine
         self.morph_analyzer = morph_analyzer
         self.logger = logging.getLogger(__name__)
+        self.learning_diagnostics: List[Dict[str, Any]] = []
         
         # 設定の読み込み
         self.config = self._load_config()
@@ -79,6 +80,8 @@ class AutonomousLearning:
         self.pattern_learner = PatternLearner(self.config.get('learning', {}))
         self.safety_evaluator = SafetyEvaluator(self.config.get('safety', {}))
         self.event_processor = EventProcessor(self.workspace_root, repair_kb=self.repair_kb)
+        self._event_threads = []
+        self._event_threads_lock = threading.Lock()
         
         # ConfigManager と Planner が参照する config/retry_rules.json に統一
         self.retry_rules_path = self.workspace_root / 'config' / 'retry_rules.json'
@@ -120,9 +123,27 @@ class AutonomousLearning:
             except Exception as e:
                 self.logger.warning(f"Failed to migrate structural memory from {legacy_dir}: {e}")
 
-    def find_relevant_code(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
-        """意味的に関連するコード片やモジュールを検索する"""
-        return self.structural_memory.search_component(query, top_k=top_k)
+    def find_relevant_code(
+        self,
+        query: str,
+        top_k: int = 3,
+        *,
+        component_type: Optional[str] = None,
+        role: Optional[str] = None,
+        capabilities: Optional[List[str]] = None,
+        symbol_id: Optional[str] = None,
+        return_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """明示された構造条件を満たすコード要素を検索する。"""
+        return self.structural_memory.search_component(
+            query,
+            top_k=top_k,
+            component_type=component_type,
+            role=role,
+            capabilities=capabilities,
+            symbol_id=symbol_id,
+            return_type=return_type,
+        )
 
     def get_repair_suggestion(self, error_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """エラー情報に基づき、修復またはリトライの提案を取得する"""
@@ -184,14 +205,11 @@ class AutonomousLearning:
         config_path = self.workspace_root / 'config' / 'autonomous_learning.json'
         default_config = {
             'learning': {
-                'min_pattern_frequency': 3,
-                'confidence_threshold': 0.7,
                 'days_back': 7
             },
             'safety': {
-                'dangerous_keywords': ['delete', 'remove', 'destroy', 'format'],
-                'max_risk_level': 'medium',
-                'require_approval': True
+                'allowed_risk_levels': ['low', 'medium'],
+                'require_safety_review': True
             }
         }
         if config_path.exists():
@@ -205,15 +223,51 @@ class AutonomousLearning:
 
     def trigger_learning(self, event_type: str, data: Dict[str, Any], async_mode: bool = True) -> Dict[str, Any]:
         if async_mode:
+            def process_and_unregister():
+                try:
+                    self.event_processor.process_event(event_type, data)
+                except Exception as exc:
+                    with self._event_threads_lock:
+                        self.learning_diagnostics.append({
+                            "type": "ASYNC_LEARNING_ERROR",
+                            "event_type": event_type,
+                            "error_type": type(exc).__name__,
+                        })
+                finally:
+                    current = threading.current_thread()
+                    with self._event_threads_lock:
+                        if current in self._event_threads:
+                            self._event_threads.remove(current)
+
             thread = threading.Thread(
-                target=self.event_processor.process_event,
-                args=(event_type, data)
+                target=process_and_unregister,
+                name=f"learning-event-{event_type}",
             )
-            thread.daemon = True
-            thread.start()
+            thread.daemon = False
+            with self._event_threads_lock:
+                self._event_threads.append(thread)
+            try:
+                thread.start()
+            except Exception:
+                with self._event_threads_lock:
+                    self._event_threads.remove(thread)
+                raise
             return {'status': 'accepted', 'mode': 'async'}
         else:
             return self.event_processor.process_event(event_type, data)
+
+    def wait_for_pending_events(self, timeout: float | None = None) -> bool:
+        """開始済みイベントが完了するまで待機する。"""
+        with self._event_threads_lock:
+            pending = list(self._event_threads)
+        for thread in pending:
+            thread.join(timeout=timeout)
+            if thread.is_alive():
+                return False
+        return True
+
+    def close(self, timeout: float | None = None) -> bool:
+        return self.wait_for_pending_events(timeout=timeout)
 
     def record_user_feedback(self, finding_id: str, feedback: str):
         return self.trigger_learning('USER_FEEDBACK', {
@@ -222,19 +276,59 @@ class AutonomousLearning:
             'timestamp': datetime.now().isoformat()
         }, async_mode=False)
 
+    def record_terminology_mapping(
+        self,
+        finding_id: str,
+        source: str,
+        target: str,
+    ):
+        return self.trigger_learning('USER_FEEDBACK', {
+            'finding_id': finding_id,
+            'terminology_mapping': {
+                'source': source,
+                'target': target,
+            },
+            'timestamp': datetime.now().isoformat(),
+        }, async_mode=False)
+
     def _merge_learned_mappings_to_dictionary(self):
         mappings_path = self.workspace_root / 'logs' / 'learned_mappings.jsonl'
         if not mappings_path.exists(): return
 
         learned = []
-        with open(mappings_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                try: learned.append(json.loads(line))
-                except: continue
+        try:
+            with open(mappings_path, 'r', encoding='utf-8') as mapping_file:
+                for line_number, line in enumerate(mapping_file, start=1):
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError as exc:
+                        self.learning_diagnostics.append({
+                            "type": "INVALID_LEARNED_MAPPING",
+                            "file": str(mappings_path),
+                            "line": line_number,
+                            "error_type": type(exc).__name__,
+                        })
+                        continue
+                    if not isinstance(entry, dict):
+                        self.learning_diagnostics.append({
+                            "type": "INVALID_LEARNED_MAPPING",
+                            "file": str(mappings_path),
+                            "line": line_number,
+                            "error_type": "mapping_must_be_object",
+                        })
+                        continue
+                    learned.append(entry)
+        except OSError as exc:
+            self.learning_diagnostics.append({
+                "type": "LEARNED_MAPPING_READ_ERROR",
+                "file": str(mappings_path),
+                "error_type": type(exc).__name__,
+            })
+            return
         
         if not learned: return
 
-        dict_path = Path(__file__).parent.parent.parent / 'resources' / 'domain_dictionary.json'
+        dict_path = self.workspace_root / 'resources' / 'domain_dictionary.json'
         if not dict_path.exists():
              self.logger.warning(f"Dictionary not found at {dict_path}")
              return
@@ -242,7 +336,15 @@ class AutonomousLearning:
         try:
             with open(dict_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
+        except (OSError, json.JSONDecodeError) as exc:
+            self.learning_diagnostics.append({
+                "type": "DOMAIN_DICTIONARY_READ_ERROR",
+                "file": str(dict_path),
+                "error_type": type(exc).__name__,
+            })
+            return
+
+        try:
             mappings = data.get("mappings", {})
             updated = False
             for entry in learned:
@@ -264,8 +366,12 @@ class AutonomousLearning:
                 processed_path = mappings_path.with_name('learned_mappings.jsonl.processed')
                 if processed_path.exists(): processed_path.unlink()
                 mappings_path.rename(processed_path)
-        except Exception as e:
-            self.logger.error(f"Error merging mappings: {e}")
+        except OSError as exc:
+            self.learning_diagnostics.append({
+                "type": "LEARNED_MAPPING_WRITE_ERROR",
+                "file": str(dict_path),
+                "error_type": type(exc).__name__,
+            })
     
     def generate_knowledge_summary(self) -> Dict[str, Any]:
         summary = {
@@ -289,8 +395,33 @@ class AutonomousLearning:
             try:
                 with open(feedback_path, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
-                    summary["recent_feedback"] = [json.loads(line) for line in lines[-5:]]
-            except: pass
+                first_line_number = max(1, len(lines) - 4)
+                for offset, line in enumerate(lines[-5:]):
+                    try:
+                        feedback = json.loads(line)
+                    except json.JSONDecodeError as exc:
+                        self.learning_diagnostics.append({
+                            "type": "INVALID_BEHAVIORAL_FEEDBACK",
+                            "file": str(feedback_path),
+                            "line": first_line_number + offset,
+                            "error_type": type(exc).__name__,
+                        })
+                        continue
+                    if isinstance(feedback, dict):
+                        summary["recent_feedback"].append(feedback)
+                    else:
+                        self.learning_diagnostics.append({
+                            "type": "INVALID_BEHAVIORAL_FEEDBACK",
+                            "file": str(feedback_path),
+                            "line": first_line_number + offset,
+                            "error_type": "feedback_must_be_object",
+                        })
+            except OSError as exc:
+                self.learning_diagnostics.append({
+                    "type": "BEHAVIORAL_FEEDBACK_READ_ERROR",
+                    "file": str(feedback_path),
+                    "error_type": type(exc).__name__,
+                })
         return summary
 
     def run_learning_cycle(self) -> Dict[str, Any]:

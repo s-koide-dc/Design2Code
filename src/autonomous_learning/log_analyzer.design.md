@@ -8,21 +8,24 @@
 ### 2.1. ログ収集と集約 (`collect_logs`)
 - **Input**: `days_back` (int) - 遡って分析する日数
 - **Logic**:
-  1. `logs/` 配下の JSON ログファイルを走査し、指定期間内に更新されたイベントを読み込みます。
-  2. `session_id` に基づいて、一連のイベント（パイプライン開始からアクション実行、エラー発生まで）を一つの「トランザクション」として集約します。
-  3. 各トランザクションには、ユーザー入力テキスト、意図解析結果、アクションの成否、発生したエラーリストが含まれます。
+  1. `days_back` が非負整数であることを検証します。
+  2. `logs/` 配下の JSON Linesログをファイル単位・行単位で読み込みます。
+  3. 不正JSON、非objectイベント、I/O失敗を `collection_diagnostics` に記録し、他の正常なファイルと行の処理は継続します。
+  4. `session_id` に基づいて、一連のイベント（パイプライン開始からアクション実行、エラー発生まで）を一つの「トランザクション」として集約します。
+  5. 各トランザクションには、ユーザー入力テキスト、意図解析結果、アクションの成否、発生したエラーリストが含まれます。
 
 ### 2.2. パターン抽出 (`extract_patterns`)
-集約されたトランザクションから以下のパターンを特定します。
+集約されたトランザクションの `learning_evidence` のうち、
+`approved: true` が明示された構造化根拠だけを学習候補へ変換します。
+根拠がない場合は、入力文や信頼度からパターンを推測しません。
 - **成功パターン (`_extract_success_patterns`)**: 
-  - 信頼度 0.7 以上で意図検出に成功し、アクションも正常終了した対話。
-  - 共通するテキストパターン（n-gram または単語集合）を抽出し、意図検出ルール候補とします。
+  - `type: intent_example` の `intent` と `pattern` を採用します。
 - **エラーパターン (`_extract_error_patterns`)**:
-  - 頻発する実行時エラーやアクション失敗をタイプ別に分類します。
+  - `type: error` の明示的な `error_code` を採用します。
 - **改善機会 (`_identify_improvement_opportunities`)**:
-  - 意図検出の信頼度が低いケースや、頻繁に「明確化」が発生している入力。
+  - `type: improvement` の `issue` と `pattern` を採用します。
 - **明確化復帰パターン (`_extract_clarification_fix_patterns`)**:
-  - AIの聞き返し（明確化）に対して、ユーザーが同意したり訂正したりして最終的に成功したケースから、誤認されやすいパターンの補正情報を抽出します。
+  - `type: intent_correction` の `source_text` と `corrected_intent` を採用します。
 
 ## 3. Dependencies
-- `dataclasses`, `collections`, `json`, `re`, `pathlib`: 基本機能
+- `dataclasses`, `collections`, `json`, `pathlib`: 基本機能

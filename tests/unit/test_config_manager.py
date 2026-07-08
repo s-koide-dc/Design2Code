@@ -5,7 +5,7 @@ import json
 import tempfile
 import shutil
 from pathlib import Path
-from src.config.config_manager import ConfigManager
+from src.config.config_manager import ConfigLoadError, ConfigManager
 
 class TestConfigManager(unittest.TestCase):
     def setUp(self):
@@ -56,6 +56,27 @@ class TestConfigManager(unittest.TestCase):
         # _load_json を直接テスト
         res = cm._load_json(self.config_dir / "bad.json")
         self.assertEqual(res, {})
+        self.assertEqual(cm.load_errors[-1]["error_type"], "JSONDecodeError")
+        self.assertTrue(cm.load_errors[-1]["path"].endswith("bad.json"))
+
+    def test_strict_mode_rejects_invalid_existing_config(self):
+        with open(self.config_dir / "config.json", 'w', encoding='utf-8') as f:
+            f.write("{ invalid json")
+
+        with self.assertRaises(ConfigLoadError):
+            ConfigManager(workspace_root=self.test_dir, strict=True)
+
+    def test_non_object_config_is_reported(self):
+        with open(self.config_dir / "scoring_rules.json", 'w', encoding='utf-8') as f:
+            json.dump([], f)
+
+        cm = ConfigManager(workspace_root=self.test_dir)
+
+        self.assertEqual(cm.scoring_rules, {})
+        self.assertIn(
+            "InvalidTopLevelType",
+            [error["error_type"] for error in cm.load_errors],
+        )
 
     def test_path_resolution(self):
         """各リソースパスが正しく解決されているか検証"""

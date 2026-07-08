@@ -41,5 +41,3 @@ class RecommendationEngine:
             })
         
         return recommendations
-        # TODO: Implement Logic: **即座のアクション**: 高優先度の提案がある場合、品質スコア向上への期待効果を含めて修正を推奨。
-        # TODO: Implement Logic: **自動化の活用**: 自動修正可能な項目がある場合、工数削減効果を提示して自動修正の実行を推奨。

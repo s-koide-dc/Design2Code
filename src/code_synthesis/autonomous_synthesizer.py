@@ -328,13 +328,6 @@ class AutonomousSynthesizer:
                 intent = req["intent"]
                 entities = req["entities"]
 
-                # --- 既存コードの再利用チェック (Semantic De-duplication) ---
-                duplicates = self.structural_memory.find_duplicates(desc, threshold=0.1)
-                if duplicates:
-                    dup = duplicates[0]
-                    self.logger.info(f"Detected potential duplicate in project: {dup['name']} (Sim: {dup['similarity']:.2f})")
-                    self._inject_duplicate_to_store(dup)
-                
                 # 意図に基づくステップの強化
                 steps = [desc]
                 

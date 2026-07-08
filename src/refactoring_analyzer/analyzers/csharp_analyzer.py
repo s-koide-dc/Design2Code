@@ -85,4 +85,3 @@ class CSharpRefactoringAnalyzer(BaseRefactoringAnalyzer):
                 "status": "error",
                 "message": f"C#スメル検出エラー: {str(e)}"
             }
-            # TODO: Implement Logic: **結果の統合**: 検出されたすべてのスメルを一つのリストに集約して返す。

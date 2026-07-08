@@ -30,7 +30,10 @@
 6. resolver 候補が confidence threshold を下回る場合は、plain source / HTTP / file / JSON deserialize / LINQ / DB persist / ops / display / return などの構造的 fallback を先に試す。
    - fallback が成立する場合は、低信頼な resolver 候補ではなく fallback の metadata を採用する。
    - `refs` / `ops` / `semantic_roles` だけが残った authoring reduction 行は、これらの prefix を解析用本文から外し、既存 `semantic_roles` を新規 metadata に統合してから出力する。
-   - `semantic_roles.sql` または SQL literal が `SELECT` / `WITH` を示す場合は、既存 db data source と entity schema に基づいて `DATABASE_QUERY` として復元する。
+   - `semantic_roles.sql` または SQL literal が `SELECT` / `WITH` を示す場合は、既存 db data source と構造的に解決できる entity に基づいて `DATABASE_QUERY` として復元する。
+   - JSON deserialize / LINQ の低信頼 fallback では、本文中の entity keyword だけで `target_entity` を決めない。直前 `output_type` または明示 `semantic_roles.target_entity` / `semantic_roles.entity` から entity を取れる場合に限り成立させる。
+   - ops fallback は `[ops:...]` または `semantic_roles.ops` の明示指定がある場合に限る。本文中の操作 cue だけでは `trim_upper` / `split_lines` / `aggregate_by_product` などを確定しない。
+   - loop / display fallback は、直前ステップの `output_type` がある場合に限り成立する。本文中の「各行」「表示」だけで `Item` を仮定しない。
    - `input_path` / `output_path` の file data source があり、本文が入力ファイルパスの読み込みまたは出力ファイルパスへの書き出しを示す場合は、`source_ref` と `semantic_roles.path` を同じ source id で補完する。
    - fallback も成立しない場合は、assist 対象判定と boundary probe の契約に合わせて `NO_CANDIDATE` issue で `blocked` を返す。
 7. accepted 済みの literal suggestion は explicit tag を上書きせず、missing な `semantic_roles.path/url/sql` にだけ反映する。
@@ -64,11 +67,15 @@
 - 現在の実装で自動補完している `semantic_roles` は主に `sql`、`path`、`property`、`return_value`、`url`、安全ポリシー上許可された `command`、および明示操作語彙に限定した `ops` である。`env` 補完では literal 役割は増やさず、既存 data source と plain-text fetch 表現だけで復元する。
 - stripped design からの復元では、生成コードだけでなく `.inferred.design.md` 自体が回帰対象であり、表示対象 entity・HTTP URL・DB SQL・`return true` などの補完結果も固定契約として扱う。
 - 現在の boundary probe では、`ComplexLinqSearch` / `SyncExternalData` ともに `strip_tags` までは clean generation が通る一方、quoted literal を落とすと `NO_CANDIDATE` で blocked になる。つまり URL / SQL / path の literal は現時点の deterministic 補完における必要入力である。
-- `ops` は現時点では `trim_upper`、`split_lines`、`csv_serialize`、`aggregate_by_product`、`display_names` のみを明示表現から補完し、必要に応じて `output_type` / `target_entity` も対応する既定値へ補正する。
+- `ops` は現時点では `trim_upper`、`split_lines`、`csv_serialize`、`aggregate_by_product`、`display_names` のみを許可する。補完は `[ops:...]` または `semantic_roles.ops` の明示指定に限定し、必要に応じて `output_type` / `target_entity` も対応する既定値へ補正する。
 - resolver が別 intent に寄った後で `TRANSFORM` / `CALC` / `DISPLAY` に補正された場合でも、最終 intent に対して `ops` 推論を再評価する。
 - resolver が低信頼候補を返した場合でも、構造的 fallback が成立するなら fallback を優先する。これにより method store の pruning や vector DB 再構築で候補集合が変わっても、明示 literal / data source / refs を保持する authoring reduction variant は決定的に復元される。
 - vector model が無い CI 環境でも、`semantic_roles` と data source が残る authoring reduction variant は構造的 fallback だけで復元できる必要がある。
+- 低信頼 resolver の fallback は、自然文 keyword から欠落 entity を補うための経路ではない。entity が構造的に不足する場合は `NO_CANDIDATE` として停止する。
 
 ## 5. Review Notes
 - 2026-06-25: 低信頼 resolver 候補より構造的 fallback を優先し、採用可能な候補がない場合は `LOW_CONFIDENCE` ではなく `NO_CANDIDATE` として boundary/assist 判定へ渡す契約を反映。
 - 2026-06-26: DB query fallback は SQL literal だけでは成立させず、既存 db data source がある場合に限定する。source 不足の SQL literal は literal tag assist coverage の境界として `NO_CANDIDATE` に残す。
+- 2026-07-07: JSON deserialize / LINQ fallback で本文 keyword だけから entity を確定する経路を廃止。構造型または明示 semantic role が無い場合は `NO_CANDIDATE` にする。
+- 2026-07-07: ops fallback で本文 cue だけから操作を確定する経路を廃止。`[ops:...]` または `semantic_roles.ops` を必要条件にする。
+- 2026-07-07: loop / display fallback が直前 `output_type` なしに `Item` を仮定する経路を廃止。

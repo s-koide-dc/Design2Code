@@ -71,7 +71,17 @@ class StatementBuilder:
                 
         return "\n".join(code_lines)
 
-    def render_try_catch(self, body: List[Dict[str, Any]], intent: str, method_name: str, path: Dict[str, Any]) -> str:
+    def render_try_catch(
+        self,
+        body: List[Dict[str, Any]],
+        intent: str,
+        method_name: str,
+        path: Dict[str, Any],
+        error_policy: str = "return_default",
+        has_hoisted_result: bool = False,
+        hoisted_result_var: str | None = None,
+        hoisted_result_type: str | None = None,
+    ) -> str:
         cur_indent = path.get("indent_level", 2)
         indent = "    " * cur_indent
         inner_path = path.copy()
@@ -84,24 +94,62 @@ class StatementBuilder:
         ret_val = ""
         method_ret = path.get("method_return_type", "void")
         is_async = path.get("is_async_needed", False) # 27.401 Check if we are in async context
+        effective_ret = method_ret
+        if isinstance(method_ret, str) and method_ret.startswith("Task<") and method_ret.endswith(">"):
+            effective_ret = method_ret[len("Task<"):-1].strip()
 
-        if is_async or "Task" in method_ret:
-            if method_ret == "void" or method_ret == "Task": ret_val = " return;"
-            else: ret_val = " return default;"
+        def _default_return_for_return_type(return_type: str) -> str:
+            if not return_type or return_type in ["void", "Task"]:
+                return " return;"
+            if isinstance(return_type, str) and return_type.startswith("Task<"):
+                return " return default;"
+            if return_type in ["int", "long", "decimal", "double", "float"]:
+                return " return 0;"
+            if return_type == "bool":
+                return " return false;"
+            return " return null;"
+
+        def _can_return_hoisted_result() -> bool:
+            if not has_hoisted_result or not hoisted_result_var:
+                return False
+            if not isinstance(effective_ret, str) or not isinstance(hoisted_result_type, str):
+                return False
+            if effective_ret == "void" and hoisted_result_type not in ["void", "Task"]:
+                return True
+            return effective_ret == hoisted_result_type
+
+        if error_policy == "continue":
+            ret_val = ""
+        elif error_policy == "rethrow":
+            ret_val = " throw;"
+        elif _can_return_hoisted_result():
+            ret_val = f" return {hoisted_result_var};"
+        elif is_async or "Task" in method_ret:
+            ret_val = _default_return_for_return_type(method_ret)
         elif method_ret != "void":
-            if method_ret in ["int", "long", "decimal", "double", "float"]: ret_val = " return 0;"
-            elif method_ret == "bool": ret_val = " return false;"
-            else: ret_val = " return null;"
-        else: ret_val = " return;"
+            ret_val = _default_return_for_return_type(method_ret)
+        else:
+            ret_val = " return;"
 
         if path.get("use_logger"):
             log_line = f"_logger.LogError(ex, \"Error during {intent} in {method_name}\");"
         else:
             log_line = f"Console.Error.WriteLine(\"Error during {intent} in {method_name}: \" + ex.Message);"
-        code += f"{indent}catch (Exception ex)\n{indent}{{\n{indent}    {log_line}\n{indent}   {ret_val}\n{indent}}}"
+        code += (
+            f"{indent}catch (OperationCanceledException)\n"
+            f"{indent}{{\n"
+            f"{indent}    throw;\n"
+            f"{indent}}}\n"
+            f"{indent}catch (Exception ex)\n"
+            f"{indent}{{\n"
+            f"{indent}    {log_line}\n"
+            f"{indent}   {ret_val}\n"
+            f"{indent}}}"
+        )
+        path.setdefault("all_usings", set()).add("System")
         return code
 
-    def wrap_with_try_catch(self, stmt: Dict[str, Any], intent: str, method_name: str, path: Dict[str, Any]) -> Any:
+    def wrap_with_try_catch(self, stmt: Dict[str, Any], intent: str, method_name: str, path: Dict[str, Any], error_policy: str = "return_default") -> Any:
         # 27.275: Phase 5 D-2 Wrapped with pre-rendering to handle indentation in raw blocks
         resilient_intents = [INTENT_DATABASE_QUERY, INTENT_HTTP_REQUEST, INTENT_FILE_IO, INTENT_FETCH, INTENT_PERSIST, INTENT_JSON_DESERIALIZE]
         if intent not in resilient_intents:
@@ -123,6 +171,10 @@ class StatementBuilder:
                 concrete = var_type.replace('IEnumerable', 'List')
                 if not concrete.startswith("List<"): concrete = f"List<{concrete}>"
                 default_val = f"new {concrete}()"
+            elif isinstance(var_type, str) and var_type.endswith("[]"):
+                element_type = var_type[:-2].strip()
+                default_val = f"Array.Empty<{element_type}>()"
+                path.setdefault("all_usings", set()).add("System")
             elif default_val == "null" and isinstance(var_type, str) and var_type and not var_type.endswith("?") and var_type not in value_types:
                 decl_type = f"{var_type}?"
             
@@ -137,7 +189,16 @@ class StatementBuilder:
         else:
             stmt_body = [stmt]
 
-        code = self.render_try_catch(stmt_body, intent, method_name, path)
+        code = self.render_try_catch(
+            stmt_body,
+            intent,
+            method_name,
+            path,
+            error_policy=error_policy,
+            has_hoisted_result=hoisted_decl is not None,
+            hoisted_result_var=out_var,
+            hoisted_result_type=var_type,
+        )
         return {
             "type": "raw",
             "code": code,

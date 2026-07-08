@@ -48,17 +48,16 @@
   - **役割**: 言語別未カバー領域特定、複雑度スコア計算、優先度評価
   - **高度な機能**:
     - **C#**: 
-      - 外部の `MyRoslynAnalyzer` から提供される `TotalComplexity` メトリクスを利用
+      - 外部の `MyRoslynAnalyzer` がメソッドごとに提供する `cyclomaticComplexity` を合計
       - ファイルパスとRoslynマニフェストのマッチング
       - メソッド単位での未カバー行・メソッド特定
       - 正確な複雑度に基づいたリスク評価
     - **Python**: 
       - 標準 `ast` モジュールを使用したソースコード解析
       - 分岐構造（If, For, While, Try, BoolOp等）から正確な複雑度を計算
-      - SyntaxError時のフォールバック処理
-    - **JavaScript/その他**: 
-      - 正規表現によるキーワードカウント（ヒューリスティック）
-      - コメント除去処理による精度向上
+      - SyntaxError時は複雑度不明として扱う
+    - **JavaScript/その他**:
+      - 構造解析器が未接続のため複雑度は `null`
   - **優先度評価ロジック**:
     - high: 未カバー行数 > 20 または 複雑度 > 20
     - medium: 未カバー行数 > 5 または 複雑度 > 10
@@ -113,11 +112,11 @@
 #### 3. 分析フェーズ（`_analyze_gaps`）
 - カバレッジデータの解析
 - **複雑度計算**（`_calculate_complexity`）: 
-  - 言語に応じた最適（Roslyn/AST/ヒューリスティック）な方法でファイルごとの複雑度を算出
-  - C#: Roslynデータからの`TotalComplexity`抽出
+  - 構造解析結果がある場合だけファイルごとの複雑度を算出
+  - C#: Roslynのメソッド別`cyclomaticComplexity`を合計
   - Python: AST解析による分岐ノードカウント
-  - JavaScript: 正規表現によるキーワードカウント
-- 未カバー領域の優先度付け（未カバー行数 × 複雑度スコア）
+  - JavaScript: 構造解析未対応のため`null`
+- 未カバー領域の優先度付け。複雑度不明時は未カバー行数のみを使用
 - 不足テストシナリオの特定（`_identify_missing_scenarios`）
   - 完全未カバーメソッド → 基本動作確認テスト提案
   - 部分的未カバーメソッド → エッジケーステスト提案
@@ -287,15 +286,15 @@
   ```python
   file_path_abs = "/path/to/Calculator.cs"
   roslyn_data = {
-    "manifest": [{"id": "file1", "filePath": "/path/to/Calculator.cs"}],
-    "objects": [{"id": "file1", "metrics": {"TotalComplexity": 15}}]
+    "manifest": {"objects": [{"id": "file1", "filePath": "/path/to/Calculator.cs"}]},
+    "details_by_id": {"file1": {"methods": [{"metrics": {"cyclomaticComplexity": 15}}]}}
   }
   ```
 
 #### Output
-- **Description**: ファイルの複雑度スコア（整数）
-- **Type/Format**: int
-- **Example**: `15` (C# with Roslyn), `8` (Python AST), `5` (JavaScript heuristic)
+- **Description**: 構造解析で取得できたファイルの複雑度。解析不能時は不明
+- **Type/Format**: `Optional[int]`
+- **Example**: `15` (C# with Roslyn), `8` (Python AST), `null` (解析不能)
 
 #### Core Logic
 1. **C#かつRoslynデータあり**:
@@ -303,7 +302,7 @@
    - Roslynデータから複雑度を抽出して返却
 
 2. **ファイル存在確認**:
-   - ファイルが存在しない場合: `1`を返却
+   - ファイルが存在しない場合: `None`を返却
 
 3. **ファイル読み込み**:
    - UTF-8エンコーディングでファイルを開く
@@ -316,13 +315,13 @@
      - `If`, `While`, `For`, `AsyncFor`, `With`, `AsyncWith`, `Try`, `ExceptHandler`: 複雑度+1
      - `BoolOp`: 複雑度 + (values数 - 1)
    - 計算した複雑度を返却
-   - `SyntaxError`の場合: `_heuristic_complexity`にフォールバック
+   - `SyntaxError`の場合: `None`を返却
 
 5. **その他の言語**:
-   - `_heuristic_complexity(content)`を呼び出し
+   - 構造解析結果がないため`None`を返却
 
 6. **例外処理**:
-   - すべての例外をキャッチして`1`を返却
+   - ファイルI/Oまたは文字コードエラー時は`None`を返却
 
 ### 3.3 GapAnalyzer._get_complexity_from_roslyn
 
@@ -335,64 +334,28 @@
 
 #### Output
 - **Description**: Roslynから取得した複雑度スコア
-- **Type/Format**: int
-- **Example**: `15`
+- **Type/Format**: `Optional[int]`
+- **Example**: `15` または `null`
 
 #### Core Logic
 1. **初期化**:
    - `total_complexity = 0`
-   - `file_found = False`
-   - `target_ids = []`
+   - `metric_found = False`
 
 2. **マニフェスト検索**:
-   - `roslyn_data["manifest"]`を走査
-   - 各エントリの`filePath`を正規化（`os.path.normpath`）
+   - `roslyn_data["manifest"]["objects"]`を走査
+   - 各エントリの`filePath`を絶対化・大文字小文字正規化
    - `file_path_abs`と一致する場合:
-     - エントリの`id`を`target_ids`に追加
-     - `file_found = True`
+     - `details_by_id[id].methods`を取得
 
-3. **ファイル未発見の場合**:
-   - `1`を返却
+3. **メトリクス未発見の場合**:
+   - `None`を返却
 
-4. **オブジェクト検索**:
-   - `roslyn_data["objects"]`を走査
-   - オブジェクトの`id`が`target_ids`に含まれる場合:
-     - `metrics["TotalComplexity"]`を取得（デフォルト: 0）
-     - `total_complexity`に加算
+4. **メソッドメトリクス集計**:
+   - 各メソッドの`metrics.cyclomaticComplexity`が整数の場合だけ合計
 
 5. **結果返却**:
-   - `max(1, total_complexity)`を返却（最小値1保証）
-
-### 3.4 GapAnalyzer._heuristic_complexity
-
-#### Input
-- **Description**: ファイルの内容（文字列）
-- **Type/Format**: str
-- **Example**: `"if (x > 0) { return x; } else { return -x; }"`
-
-#### Output
-- **Description**: ヒューリスティックな複雑度スコア
-- **Type/Format**: int
-- **Example**: `3` (if, else, return等のキーワードカウント)
-
-#### Core Logic
-1. **初期化**:
-   - `complexity = 1`
-   - キーワードパターンリスト定義:
-     - `\bif\b`, `\bwhile\b`, `\bfor\b`, `\bforeach\b`
-     - `\bcase\b`, `\bdefault\b`, `\bcatch\b`
-     - `&&`, `||`, `??`
-
-2. **コメント除去**:
-   - 各行を`//`で分割し、前半部分のみ取得
-   - 改行で結合して`clean_content`を作成
-
-3. **キーワードカウント**:
-   - 各パターンに対して`re.findall`を実行
-   - マッチ数を`complexity`に加算
-
-4. **結果返却**:
-   - 計算した複雑度を返却
+   - メトリクスがあれば合計値を返却
 
 ### 3.5 RecommendationEngine.generate
 
@@ -516,10 +479,10 @@
 - **Input**:
   - `project_path`: "tests/fixtures/csharp_project"
   - `language`: "csharp"
-  - `options`: {"roslyn_data": {"manifest": [...], "objects": [...]}}
+  - `options`: {"roslyn_data": {"manifest": {"objects": [...]}, "details_by_id": {...}}}
 - **Expected Output**:
   - `status`: "success"
-  - `gap_analysis["uncovered_files"][0]["complexity_score"]`: Roslynの`TotalComplexity`値と一致
+  - `gap_analysis["uncovered_files"][0]["complexity_score"]`: Roslynのメソッド複雑度合計と一致
   - `recommendations`: 未カバーメソッドのテスト追加提案を含む
 
 #### TC2: Python AST複雑度計算テスト
@@ -537,21 +500,10 @@
 - **Expected Output**:
   - 複雑度: `4` (if x2, for x1, 基本複雑度 x1)
 
-#### TC3: JavaScript ヒューリスティック複雑度テスト
-- **Scenario**: JavaScriptファイルのキーワードベース複雑度計算
-- **Input**:
-  - JavaScriptファイル内容:
-    ```javascript
-    function test(x) {
-        if (x > 0 && x < 10) {
-            for (let i = 0; i < x; i++) {
-                console.log(i);
-            }
-        }
-    }
-    ```
+#### TC3: JavaScript複雑度不明テスト
+- **Scenario**: JavaScript用構造解析器が接続されていない
 - **Expected Output**:
-  - 複雑度: `4` (if x1, && x1, for x1, 基本複雑度 x1)
+  - 複雑度: `null`
 
 #### TC4: エラーハンドリングテスト
 - **Scenario**: サポートされていない言語の指定
@@ -603,7 +555,6 @@
   - `subprocess`: 外部カバレッジツールの実行
   - `json`: カバレッジデータの読み書き
   - `os`: ファイルシステム操作、パス正規化
-  - `re`: 正規表現によるキーワードマッチング
   - `datetime`: タイムスタンプ生成
   - `pathlib`: ファイルパス操作
   - `ast`: Python構文木解析（複雑度計算）
@@ -724,8 +675,7 @@
 - **Scenario**: Python構文エラーによるAST解析失敗
 - **Detection**: `ast.parse`の`SyntaxError`キャッチ
 - **Response**: 
-  - ヒューリスティック複雑度計算にフォールバック
-  - 警告ログ記録（オプション）
+  - 複雑度を`null`として返却し、未カバー行数だけで優先度を決定
 
 ### 8.5 Unsupported Language Errors
 - **Scenario**: サポートされていない言語の指定
@@ -786,3 +736,12 @@
   - LLMを使用した高度なテスト生成
   - コンテキスト理解に基づくテストケース提案
   - 自動テスト実装・検証
+
+## 11. Execution Safety and Result Contract
+- C# / Python / JavaScript のカバレッジコマンドは引数配列と `shell=False` で実行する。
+- `project_path` は絶対パスへ正規化し、出力先も絶対パスで指定する。
+- テスト実行またはレポート生成の終了コードが非0の場合は即時に `status="error"` を返し、既存レポートを成功結果として再利用しない。
+- Python は現在のインタープリタから `-m coverage` を実行する。
+
+## 12. Review Notes
+- 2026-06-29: 外部実行の安全境界、終了コード検査、出力パス契約を反映。

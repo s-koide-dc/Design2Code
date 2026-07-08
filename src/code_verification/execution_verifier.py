@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
 import subprocess
-import re
+import json
 import tempfile
 import shutil
+import xml.etree.ElementTree as ET
 from typing import Dict, List, Any, Optional
 from .compilation_verifier import CompilationVerifier
 from src.utils.stdout_guard import debug_print
@@ -50,11 +51,25 @@ class ExecutionVerifier(CompilationVerifier):
             ns_name = _extract_namespace(source_code)
             qualified_name = f"{ns_name}.{class_name}" if ns_name else class_name
 
-            # GeneratedProcessor のコンストラクタ引数を解析 (簡易版)
-            ctor_match = re.search(r"public GeneratedProcessor\((.*?)\)", source_code)
+            def _find_signature(code: str, member_name: str):
+                marker = f"{member_name}("
+                for line in code.splitlines():
+                    text = line.strip()
+                    if not text.startswith("public ") or marker not in text:
+                        continue
+                    marker_index = text.index(marker)
+                    params_start = marker_index + len(marker)
+                    params_end = text.find(")", params_start)
+                    if params_end < 0:
+                        return None
+                    return text[:marker_index].strip(), text[params_start:params_end]
+                return None
+
+            # GeneratedProcessor のコンストラクタ引数を構造化された宣言行から取得
+            ctor_signature = _find_signature(source_code, class_name)
             ctor_args_code = ""
-            if ctor_match:
-                params_str = ctor_match.group(1).strip()
+            if ctor_signature:
+                params_str = ctor_signature[1].strip()
                 if params_str:
                     params = params_str.split(",")
                     arg_list = []
@@ -68,7 +83,7 @@ class ExecutionVerifier(CompilationVerifier):
 
             # Method Arg Parsing (省略 - 既存ロジック維持)
             method_args_code = []
-            m_match = re.search(fr"public .*? {method_name}\((.*?)\)", source_code)
+            method_signature = _find_signature(source_code, method_name)
             
             # 戻り値の型を特定（async 修飾を考慮）
             return_type = "void"
@@ -91,20 +106,10 @@ class ExecutionVerifier(CompilationVerifier):
                     return_type = sig_tokens[-1]
                 break
 
-            if m_match:
+            if method_signature:
                 from src.advanced_tdd.dummy_factory import DummyDataFactory
                 factory = DummyDataFactory()
-                
-                class_chunks = re.split(r"public class (\w+)", source_code)
-                if len(class_chunks) > 1:
-                    for i in range(1, len(class_chunks), 2):
-                        cls_name = class_chunks[i]
-                        body = class_chunks[i+1]
-                        props = re.findall(r"public ([\w<>\[\]]+) (\w+) \{ get; set; \}", body)
-                        for p_type, p_name in props:
-                            factory._add_learned_prop(cls_name, p_name)
-
-                m_params = m_match.group(1).split(",")
+                m_params = method_signature[1].split(",")
                 for p in m_params:
                     p = p.strip()
                     if not p: continue
@@ -139,42 +144,42 @@ class ExecutionVerifier(CompilationVerifier):
                             prop_access = f".{var_hint}" if var_hint else ""
                             assertion_code += f"""
                 if (!result.All(item => item{prop_access} {cs_op} {expected})) {{
-                    Console.WriteLine($"[ASSERTION_FAILURE] Expected all items to have {var_hint or 'value'} {cs_op} {expected}");
-                    Environment.Exit(2);
+                    throw new InvalidOperationException($"Expected all items to have {var_hint or 'value'} {cs_op} {expected}");
                 }}"""
                         else:
                             assertion_code += f"""
                 if (!(result {cs_op} {expected})) {{
-                    Console.WriteLine($"[ASSERTION_FAILURE] Expected result {cs_op} {expected}, but got {{result}}");
-                    Environment.Exit(2);
+                    throw new InvalidOperationException($"Expected result {cs_op} {expected}, but got {{result}}");
                 }}"""
                     elif goal['type'] == 'string' and goal['operator'] == 'Contains':
                         expected = goal['expected_value']
                         if is_collection:
                             assertion_code += f"""
                 if (!result.Any(item => item.ToString().Contains("{expected}"))) {{
-                    Console.WriteLine($"[ASSERTION_FAILURE] Expected at least one item to contain '{expected}'");
-                    Environment.Exit(2);
+                    throw new InvalidOperationException($"Expected at least one item to contain '{expected}'");
                 }}"""
                         else:
                             assertion_code += f"""
                 if (!result.ToString().Contains("{expected}")) {{
-                    Console.WriteLine($"[ASSERTION_FAILURE] Expected result to contain '{expected}', but got {{result}}");
-                    Environment.Exit(2);
+                    throw new InvalidOperationException($"Expected result to contain '{expected}', but got {{result}}");
                 }}"""
 
-            # ファイルモックの作成 (簡易版)
+            # fixture fileはテスト契約で明示されたものだけを作成する
             for goal in assertion_goals:
-                step = goal.get('original_step', "").lower()
-                m = re.search(r'([\w\.]+\.json)', step)
-                if m:
-                    filename = m.group(1)
-                    filepath = os.path.join(temp_dir, filename)
-                    if not os.path.exists(filepath):
-                        # ダミーJSON生成
-                        with open(filepath, "w", encoding="utf-8") as f:
-                            f.write('[{"Name": "Item1", "Price": 2000, "Stock": 2}, {"Name": "Item2", "Price": 500, "Stock": 10}]')
-                        debug_print(f"[ExecutionVerifier] Created mock file: {filename}")
+                for fixture in goal.get("fixture_files", []) or []:
+                    if not isinstance(fixture, dict):
+                        continue
+                    filename = fixture.get("path")
+                    content = fixture.get("content")
+                    if not isinstance(filename, str) or not isinstance(content, str):
+                        continue
+                    filepath = os.path.abspath(os.path.join(temp_dir, filename))
+                    if os.path.commonpath([temp_dir, filepath]) != os.path.abspath(temp_dir):
+                        raise ValueError("Fixture file must remain inside the execution sandbox.")
+                    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                    with open(filepath, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    debug_print(f"[ExecutionVerifier] Created fixture file: {filename}")
 
             wrapper = f"""
 using System;
@@ -202,8 +207,12 @@ public class Program
             Exception actualEx = ex;
             if (ex is AggregateException aggEx) actualEx = aggEx.InnerException;
             
-            Console.WriteLine($"[RUNTIME_ERROR] {{actualEx.GetType().FullName}}: {{actualEx.Message}}");
-            Console.WriteLine(actualEx.StackTrace);
+            Console.WriteLine("__RUNTIME_JSON__" + JsonSerializer.Serialize(new
+            {{
+                type = actualEx.GetType().FullName,
+                message = actualEx.Message,
+                stackTrace = actualEx.StackTrace
+            }}));
             Environment.Exit(1);
         }}
     }}
@@ -287,41 +296,35 @@ public class Program
                 shutil.rmtree(temp_dir)
 
     def _parse_runtime_exception(self, output: str) -> Dict[str, Any]:
-        """スタックトレースから例外型とメッセージを抽出"""
-        # アサーション失敗の優先検知
-        assert_match = re.search(r"\[ASSERTION_FAILURE\] (.*)", output)
-        if assert_match:
+        """生成ラッパーのJSON診断を取得する。"""
+        marker = "__RUNTIME_JSON__"
+        for line in output.splitlines():
+            if not line.startswith(marker):
+                continue
+            try:
+                payload = json.loads(line[len(marker):])
+            except json.JSONDecodeError:
+                break
             return {
-                "type": "AssertionFailure",
-                "message": assert_match.group(1).strip(),
-                "raw": output
-            }
-
-        tag_match = re.search(r"\[RUNTIME_ERROR\] ([\w\.]+): (.*)", output)
-        if tag_match:
-            return {
-                "type": tag_match.group(1),
-                "message": tag_match.group(2).split('\n')[0],
-                "raw": output
-            }
-        match = re.search(r"Unhandled exception\. ([\w\.]+): (.*)", output)
-        if match:
-            return {
-                "type": match.group(1),
-                "message": match.group(2).split('\n')[0],
-                "raw": output
-            }
-        ex_match = re.search(r"([\w\.]+Exception): (.*)", output)
-        if ex_match:
-            return {
-                "type": ex_match.group(1),
-                "message": ex_match.group(2).split('\n')[0],
-                "raw": output
+                "type": payload.get("type") or "UnknownException",
+                "message": payload.get("message") or "",
+                "stack_trace": payload.get("stackTrace") or "",
+                "raw": output,
             }
         return {"type": "UnknownException", "message": "詳細はstderrを確認してください"}
 
     def verify_runtime(self, source_code: str, test_code: str, dependencies: List[Dict[str, str]] = None, has_side_effects: bool = False) -> Dict[str, Any]:
         """旧来の dotnet test 方式 (xUnitテストを実行)"""
+        if has_side_effects:
+            return {
+                "success": False,
+                "error_type": "SIDE_EFFECT_EXECUTION_BLOCKED",
+                "message": (
+                    "Runtime verification requires an explicit external sandbox "
+                    "for side-effecting code."
+                ),
+                "summary": {"total": 0, "passed": 0, "failed": 0},
+            }
         temp_dir = tempfile.mkdtemp(prefix="cs_test_")
         os.makedirs(temp_dir, exist_ok=True)
         
@@ -365,13 +368,7 @@ public class Program
 </Project>""")
 
             # 3. ソースコードとテストコードの書き出し
-            # 副作用フラグがあれば、危険なAPIを無効化する
             processed_source = source_code
-            if has_side_effects:
-                # 簡易的な無効化ロジック (File.WriteAllText 等をコメントアウト)
-                processed_source = re.sub(r'(File\.(?:Write|Append|Delete|Move|Copy|Create).*?;)', r'// [MOCKED] \1', source_code)
-                processed_source = re.sub(r'(Directory\.(?:Create|Delete|Move).*?;)', r'// [MOCKED] \1', processed_source)
-
             with open(os.path.join(temp_dir, "Source.cs"), "w", encoding="utf-8") as f:
                 f.write(processed_source)
             ns_name = _extract_namespace(processed_source)
@@ -381,31 +378,64 @@ public class Program
                 f.write(test_code)
 
             # 4. テスト実行
+            results_directory = os.path.join(temp_dir, "TestResults")
             result = subprocess.run(
-                [self.dotnet_path, 'test', '--nologo', '--verbosity', 'normal'],
+                [
+                    self.dotnet_path,
+                    'test',
+                    '--nologo',
+                    '--verbosity',
+                    'normal',
+                    '--logger',
+                    'trx;LogFileName=results.trx',
+                    '--results-directory',
+                    results_directory,
+                ],
                 cwd=temp_dir,
                 capture_output=True,
                 text=True,
                 timeout=60
             )
 
-            # 5. 結果のパース
-            from src.csharp_operations.csharp_operations import CSharpOperations
-            # 簡易的なパース (本来は CSharpOperations を使うべきだが、ここではモックなしで動くように簡易化)
-            summary_match = re.search(r'Total:\s*(\d+).*?Passed:\s*(\d+).*?Failed:\s*(\d+)', result.stdout + result.stderr, re.DOTALL)
-            if not summary_match:
-                # 日本語ロケール対応
-                summary_match = re.search(r'合計:\s*(\d+).*?成功:\s*(\d+).*?失敗:\s*(\d+)', result.stdout + result.stderr, re.DOTALL)
-            
-            passed = int(summary_match.group(2)) if summary_match else (1 if result.returncode == 0 else 0)
-            failed = int(summary_match.group(3)) if summary_match else (0 if result.returncode == 0 else 1)
-            total = int(summary_match.group(1)) if summary_match else passed + failed
+            # 5. TRX XMLから結果を構造的に取得
+            trx_path = os.path.join(results_directory, "results.trx")
+            total = 0
+            passed = 0
+            failed = 0
+            failures = []
+            if os.path.exists(trx_path):
+                root = ET.parse(trx_path).getroot()
+                counters = root.find(".//{*}Counters")
+                if counters is not None:
+                    total = int(counters.get("total", "0"))
+                    passed = int(counters.get("passed", "0"))
+                    failed = int(counters.get("failed", "0"))
+                for test_result in root.findall(".//{*}UnitTestResult"):
+                    if test_result.get("outcome") != "Failed":
+                        continue
+                    error_info = test_result.find(".//{*}ErrorInfo")
+                    message = ""
+                    stack_trace = ""
+                    if error_info is not None:
+                        message_node = error_info.find("{*}Message")
+                        stack_node = error_info.find("{*}StackTrace")
+                        message = message_node.text if message_node is not None else ""
+                        stack_trace = stack_node.text if stack_node is not None else ""
+                    failures.append({
+                        "test_name": test_result.get("testName"),
+                        "message": message,
+                        "stack_trace": stack_trace,
+                    })
+            elif result.returncode != 0:
+                failed = 1
+                total = 1
 
             return {
                 "success": result.returncode == 0,
                 "stdout": result.stdout,
                 "stderr": result.stderr,
-                "summary": {"total": total, "passed": passed, "failed": failed}
+                "summary": {"total": total, "passed": passed, "failed": failed},
+                "failures": failures,
             }
 
         except Exception as e:

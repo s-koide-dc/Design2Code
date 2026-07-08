@@ -20,11 +20,14 @@
 2. `ConfigManager.storage_dir`（`resources/vectors/vector_db`）を `RepairKnowledgeBase` / `StructuralMemory` の統一保存先として使用する。
 3. 旧配置（ワークスペース直下 / `resources` / `cache`）にある `repair_knowledge_meta.json` / `repair_knowledge_vectors.npy` と `structural_memory_meta.json` / `structural_memory_vectors.npy` は、起動時に統一保存先へ移行する。
 4. `trigger_learning` はイベントを同期/非同期で処理する。
+   非同期処理の失敗は `learning_diagnostics` にイベント種別と例外型を記録する。
 5. `run_learning_cycle` はログを収集し、パターン抽出 → 提案生成 → 安全評価 → 適用を行う。
 6. 学習サイクル内で修復知識学習、辞書マッピング統合、構造メモリ索引、コンプライアンス監査を実行する。
 7. `apply_suggestions` は意図ルールとリトライルールを更新する。
 8. `generate_knowledge_summary` は修復知識とコンプライアンスの概要を返す。
-9. `LogAnalyzer` は承認確認から学習する際、`src.utils.confirmation_response` の承認定数を使って次ターンの同意応答を検出する。
+   behavioral feedbackの不正行は行番号付きで診断し、正常行は保持する。
+9. 学習済み辞書マッピングはワークスペース配下の
+   `resources/domain_dictionary.json` に統合する。不正JSON Linesは診断して除外する。
 
 ## 4. Review Notes
 - 2026-04-21: `StructuralMemory` 旧配置の移行対象に `resources` 直下も追加し、重複保存の自動整理を強化。

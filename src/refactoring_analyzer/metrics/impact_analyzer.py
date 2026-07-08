@@ -142,8 +142,3 @@ class ImpactScopeAnalyzer:
             "estimated_test_impact": estimated_test_impact,
             "risk_level": risk_level
         }
-        # TODO: Implement Logic: 幅優先探索（BFS）を用いて、依存関係グラフを再帰的に辿り、波及範囲を特定。
-        # TODO: Implement Logic: **直接的影響の特定**: 提案のターゲットとなっているファイル、クラス、メソッドを収集。
-        # TODO: Implement Logic: **間接的影響のトラバース (C#)**:
-            # TODO: Implement Logic: **リスク評価**:
-                # TODO: Implement Logic: 影響を受けるファイル数（>5）や依存関係数（>10）に基づき、リスクレベルを判定。

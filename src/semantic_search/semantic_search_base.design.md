@@ -27,10 +27,13 @@
   - **Expected Output**: DB にアイテムが登録される。
 - **Edge Cases**:
   - **Scenario**: `vector_engine` が無い。
-  - **Expected Output / Behavior**: 空の結果を返す。
+  - **Expected Output / Behavior**: 空の結果を返し、期待されたフォールバックとしてDEBUGへ記録する。
   - **Scenario**: `morph_analyzer` のトークンが dict 形式。
   - **Expected Output / Behavior**: `surface` を抽出してベクトル化する。
 
 ## 3. Dependencies
 - **Internal**: `light_vector_db`
 - **External**: `numpy`, `json`, `os`, `logging`
+
+## 4. Review Notes
+- 2026-06-30: ベクトル未設定時のログレベルをDEBUGへ同期。

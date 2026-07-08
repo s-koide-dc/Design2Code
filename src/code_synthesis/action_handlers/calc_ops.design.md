@@ -24,7 +24,7 @@
 3. `calculate_target_resolution` を読み、target/property が schema-backed か weak retention かを説明可能に保つ。
 4. target property / target hint / logic goals から assignment target を決める。
 5. `datetime` hint, `%`, quantity/price, rate rules, aggregation/update intent を考慮して式を組み立てる。
-6. 曖昧解決や weak target provenance で安全に target を決められない場合は property assignment や generic numeric-property fallback を作らず、明示 TODO 停止へ寄せる。
+6. 曖昧解決や weak target provenance で安全に target を決められない場合はproperty assignmentやgeneric numeric-property fallbackを作らず、対象nodeを構造化された解決エラーとして返す。
 7. 集計では accumulator 変数を生成し、path に登録する。
 
 ### Test Cases
@@ -33,7 +33,7 @@
   - **Expected Output**: owner entity の property assignment が生成される。
 - **Edge Cases**:
   - **Scenario**: ambiguous owner の `Total` 計算。
-  - **Expected Output / Behavior**: cross-entity fallback を行わず TODO 停止する。
+  - **Expected Output / Behavior**: cross-entity fallbackを行わず `calculation_target_is_ambiguous` を返す。
 
 ## 3. Dependencies
 - **Internal**:

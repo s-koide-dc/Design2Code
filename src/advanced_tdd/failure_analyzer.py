@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
-import re
 import json
+import sys
 import subprocess
 import logging
 from typing import Dict, List, Any, Optional
@@ -22,25 +22,6 @@ class TestFailureAnalyzer:
             'csharp': {'command': 'dotnet test', 'result_parser': self._parse_dotnet_test_result},
             'python': {'command': 'pytest --tb=short', 'result_parser': self._parse_pytest_result},
             'javascript': {'command': 'npm test', 'result_parser': self._parse_jest_result}
-        }
-        
-        self.error_patterns = {
-            'assertion_failure': [
-                r'Assert\.(?:True|False|Equal|NotNull|Null|Throws|IsType)\(\)\ Failure',
-                r'Expected:?\s*(.+),?\s*(?:but\s+)?Actual:?\s*(.+)',
-                r'Assert\.Equal.*Expected.*Actual',
-                r'AssertionError:.*expected.*got',
-                r'\[ASSERTION_FAILURE\]'
-            ],
-            'compile_error': [r'CS\d+:', r'SyntaxError:', r'TypeError:.*not defined'],
-            'runtime_error': [
-                r'NullReferenceException',
-                r'ArgumentException',
-                r'IndexOutOfRangeException',
-                r'KeyError:',
-                r'AttributeError:',
-                r'NotImplementedException'
-            ]
         }
     
     def execute_test_and_analyze(self, test_file: str, language: str, project_path: str = ".") -> Dict[str, Any]:
@@ -102,18 +83,42 @@ class TestFailureAnalyzer:
         start_time = datetime.now()
         try:
             if language == 'csharp':
-                command = f'{framework["command"]} \"{test_file}\" --logger trx --results-directory temp_results --verbosity normal'
+                command = [
+                    'dotnet', 'test', test_file,
+                    '--logger', 'trx',
+                    '--results-directory', 'temp_results',
+                    '--verbosity', 'normal',
+                ]
             elif language == 'python':
-                command = f'{framework["command"]} \"{test_file}\" --json-report --json-report-file=temp_test_results.json -v'
+                command = [
+                    sys.executable, '-m', 'pytest', '--tb=short', test_file,
+                    '--json-report',
+                    '--json-report-file=temp_test_results.json',
+                    '-v',
+                ]
             else:
-                command = f'{framework["command"]} --testPathPattern=\"{{test_file}}\" --json --outputFile=temp_test_results.json --verbose'
+                command = [
+                    'npm', 'test', '--',
+                    f'--testPathPattern={test_file}',
+                    '--json',
+                    '--outputFile=temp_test_results.json',
+                    '--verbose',
+                ]
             
             self.logger.info(f"テスト実行コマンド: {command}")
             env = os.environ.copy()
             env['DOTNET_CLI_UI_LANGUAGE'] = 'en-US'
             env['VSLANG'] = '1033'
 
-            result = subprocess.run(command, shell=True, cwd=project_path, capture_output=True, text=True, timeout=300, env=env)
+            result = subprocess.run(
+                command,
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                env=env,
+                check=False,
+            )
             parsed_result = framework['result_parser'](result, project_path)
             parsed_result['execution_time'] = (datetime.now() - start_time).total_seconds()
             parsed_result['raw_output'] = result.stdout + "\n" + result.stderr
@@ -126,18 +131,7 @@ class TestFailureAnalyzer:
         if result.returncode == 0:
             return {'status': 'success', 'total_tests': self._extract_test_count(output), 'failed_tests': []}
 
-        failed_test_names = []
-        # Robust patterns for various dotnet test output formats
-        patterns = [
-            r'\[xUnit\.net.*?\]\s+([\w\.]+\.[\w\.]+)\s+\[FAIL\]',
-            r'失敗\s+([\w\.]+\.[\w\.]+)\s+\[',
-            r'Failed\s+([\w\.]+\.[\w\.]+)\s+\[',
-            r'([\w\.]+\.[\w\.]+)\s+\(.*\):\s+(?:Error Message|エラー メッセージ):'
-        ]
-        for p in patterns:
-            failed_test_names.extend(re.findall(p, output))
-        
-        failed_test_names = list(set(failed_test_names))
+        failed_test_names = self._extract_failed_test_names(output)
         failed_tests = []
         
         for test_name in failed_test_names:
@@ -148,35 +142,41 @@ class TestFailureAnalyzer:
                 'error_message': '',
                 'stack_trace': ''
             }
-            test_name_re = re.escape(test_name)
-            error_block_match = re.search(f'{test_name_re}.*?(?:Error Message:|エラー メッセージ:)(.*?)(?:Stack Trace:|スタック トレース:)(.*?)(?=\\s+失敗|\\s+成功|\\s+Passed|\\s+Failed|$)', output, re.DOTALL)
-            if error_block_match:
-                current_test['error_message'] = error_block_match.group(1).strip()
-                current_test['stack_trace'] = error_block_match.group(2).strip()
-            else:
-                # Fallback extraction
-                msg_match = re.search(r'(' + test_name_re + r'.*?:?\s*(.*?)(?:\s+at\s+|$))', output, re.DOTALL)
-                if msg_match:
-                    current_test['error_message'] = msg_match.group(2).strip()
+            error_block = self._extract_dotnet_error_block(output, test_name)
+            current_test['error_message'] = error_block.get('error_message', '')
+            current_test['stack_trace'] = error_block.get('stack_trace', '')
             failed_tests.append(current_test)
 
         return {'status': 'failure', 'total_tests': self._extract_test_count(output), 'failed_tests': failed_tests}
 
     def _extract_test_count(self, output: str) -> int:
-        match = re.search(r'Total Tests: (\d+)', output, re.IGNORECASE)
-        if not match: match = re.search(r'Tests:\s+(\d+) total', output, re.IGNORECASE)
-        return int(match.group(1)) if match else 0
+        for line in output.splitlines():
+            count = self._extract_count_after_marker(line, 'Total Tests:')
+            if count is not None:
+                return count
+            if line.strip().startswith('Tests:'):
+                parts = line.replace(',', ' ').split()
+                for index, part in enumerate(parts):
+                    if part.isdigit() and index + 1 < len(parts) and parts[index + 1] == 'total':
+                        return int(part)
+        return 0
 
     def _parse_pytest_stdout(self, output: str) -> List[Dict[str, Any]]:
         """pytestの標準出力から失敗したテストを抽出"""
         failed_tests = []
-        # FAILED tests/test_file.py::test_method - AssertionError: ...
-        pattern = r'FAILED\s+(.*?)::(.*?)\s+-\s+(.*)'
-        for match in re.finditer(pattern, output):
+        for line in output.splitlines():
+            stripped = line.strip()
+            if not stripped.startswith('FAILED '):
+                continue
+            payload = stripped[len('FAILED '):]
+            location, separator, message = payload.partition(' - ')
+            if not separator or '::' not in location:
+                continue
+            file_name, method = location.split('::', 1)
             failed_tests.append({
-                'file': match.group(1),
-                'method': match.group(2),
-                'error_message': match.group(3).strip(),
+                'file': file_name,
+                'method': method,
+                'error_message': message.strip(),
                 'error_type': 'assertion_failure'
             })
         return failed_tests
@@ -184,24 +184,44 @@ class TestFailureAnalyzer:
     def _parse_pytest_result(self, result, path): return {'status': 'success'} # Stub
     def _parse_jest_result(self, result, path): return {'status': 'success'} # Stub
 
-    def analyze_test_failure(self, test_failure: TestFailure, roslyn_data: Optional[Dict[str, Any]] = None, expected_intent: Optional[str] = None) -> Dict[str, Any]:
+    def analyze_test_failure(
+        self,
+        test_failure: TestFailure,
+        roslyn_data: Optional[Dict[str, Any]] = None,
+        expected_intent: Optional[str] = None,
+        analysis_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """テスト失敗を分析"""
         try:
-            error_type = self._classify_error_type(test_failure.error_message)
+            error_type = self._classify_error_type(test_failure)
             root_cause = self._identify_root_cause(test_failure, error_type)
+            if analysis_context:
+                explicit_root_cause = analysis_context.get('root_cause')
+                if isinstance(explicit_root_cause, str) and explicit_root_cause:
+                    root_cause = explicit_root_cause
             
-            # --- NEW: Semantic Mismatch Detection ---
             semantic_mismatch = None
-            if expected_intent and roslyn_data:
-                semantic_mismatch = self._detect_semantic_mismatch(test_failure, expected_intent, roslyn_data)
+            if expected_intent and analysis_context:
+                semantic_mismatch = self._detect_semantic_mismatch(
+                    expected_intent,
+                    analysis_context,
+                )
                 if semantic_mismatch:
                     root_cause = 'semantic_mismatch'
-            # ----------------------------------------
 
             # Roslynデータがある場合、より詳細なロジック分析を試みる
             logic_analysis = None
-            if error_type == 'assertion_failure' and roslyn_data and not semantic_mismatch:
-                logic_analysis = self._analyze_logic_mismatch(test_failure, roslyn_data)
+            if (
+                error_type == 'assertion_failure'
+                and roslyn_data
+                and analysis_context
+                and not semantic_mismatch
+            ):
+                logic_analysis = self._analyze_logic_mismatch(
+                    test_failure,
+                    roslyn_data,
+                    analysis_context,
+                )
                 if logic_analysis and logic_analysis.get('refined_root_cause'):
                     root_cause = logic_analysis['refined_root_cause']
 
@@ -265,7 +285,12 @@ class TestFailureAnalyzer:
             summary['semantic_mismatch_message'] = semantic_mismatch.get('message')
         return summary
 
-    def _analyze_logic_mismatch(self, test_failure: TestFailure, roslyn_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _analyze_logic_mismatch(
+        self,
+        test_failure: TestFailure,
+        roslyn_data: Dict[str, Any],
+        analysis_context: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
         """Roslynデータを用いてロジックの不一致を詳細分析 (Deep Stack Analysis対応)"""
         # 1. スタックトレースから全フレームを取得
         stack_info = self._analyze_stack_trace(test_failure.stack_trace)
@@ -273,43 +298,13 @@ class TestFailureAnalyzer:
         
         if not frames: return None
 
-        # テストの入力値を抽出試行 (全フレームで共通と仮定)
-        input_val = self._extract_input_value(test_failure)
-        if input_val is None: return None
-        
-        details = roslyn_data.get('details_by_id', {})
+        input_values = analysis_context.get('input_values')
+        if not isinstance(input_values, dict) or not input_values:
+            return None
 
         # 各スタックフレームを走査 (上から下へ)
         for frame in frames:
-            file_path = frame['file']
-            # line_number = frame['line'] # 必要に応じて行番号も使用可能
-
-            # 2. Roslynデータから該当メソッドを検索
-            target_method = None
-            
-            # スタックトレース行からメソッド名を推測
-            # 例: "   at MyApp.Calculator.Add(Int32 a, Int32 b) in ..." -> "Add"
-            # 簡易的に、stack_trace 全体からこのファイルを含む行を探す (非効率だが確実)
-            frame_line_text = ""
-            for line in test_failure.stack_trace.split('\n'):
-                if file_path in line:
-                    frame_line_text = line
-                    break
-            
-            method_name_in_stack = None
-            m = re.search(r'\.([^.(]+)\(', frame_line_text)
-            if m: method_name_in_stack = m.group(1)
-
-            for detail in details.values():
-                for method in detail.get('methods', []):
-                    # 名前一致、かつファイルパスが一致するものを探すのが理想
-                    # ここでは簡易的に名前一致と、roslynデータ上のファイルパス一致を確認
-                    if method.get('name') == method_name_in_stack:
-                        # 本来はファイルパスチェックもすべきだが、roslyn_dataの構造に依存するため
-                        # 名前が一致し、かつbranchesを持っているものを優先
-                        target_method = method
-                        break
-                if target_method: break
+            target_method = self._find_method_for_frame(frame, roslyn_data)
             
             if not target_method or not target_method.get('branches'):
                 continue
@@ -320,13 +315,17 @@ class TestFailureAnalyzer:
                 condition = branch.get('condition', '')
                 
                 # 複合条件 (&&, ||) を優先順位 (&& > ||) を考慮して評価
-                evaluation_result = self._evaluate_complex_condition(condition, input_val, roslyn_data, test_failure)
+                evaluation_result = self._evaluate_complex_condition(
+                    condition,
+                    input_values,
+                    roslyn_data,
+                )
                 
                 if not evaluation_result['evaluated']: continue
 
                 res = {
                     'branch_condition': condition,
-                    'input_value': input_val,
+                    'input_values': input_values,
                     'is_satisfied': evaluation_result['is_satisfied'],
                     'failed_parts': evaluation_result['failed_parts'],
                     'refined_root_cause': 'logic_mismatch_with_branch',
@@ -341,17 +340,48 @@ class TestFailureAnalyzer:
         
         return best_match
 
+    def _find_method_for_frame(
+        self,
+        frame: Dict[str, Any],
+        roslyn_data: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """ファイルと行範囲を使ってスタックフレームに対応するメソッドを解決する。"""
+        frame_file = frame.get('file')
+        frame_line = frame.get('line')
+        if not frame_file or not isinstance(frame_line, int):
+            return None
+
+        normalized_frame = os.path.normcase(os.path.abspath(frame_file))
+        details = roslyn_data.get('details_by_id', {})
+        for manifest_object in roslyn_data.get('manifest', {}).get('objects', []):
+            object_file = manifest_object.get('filePath')
+            if not object_file:
+                continue
+            if os.path.normcase(os.path.abspath(object_file)) != normalized_frame:
+                continue
+            detail = details.get(manifest_object.get('id'), {})
+            for method in detail.get('methods', []):
+                start_line = method.get('startLine')
+                end_line = method.get('endLine')
+                if (
+                    isinstance(start_line, int)
+                    and isinstance(end_line, int)
+                    and start_line <= frame_line <= end_line
+                ):
+                    return method
+        return None
+
     def _evaluate_complex_condition(self, condition: str, input_val: Any, roslyn_data: Optional[Dict[str, Any]] = None, test_failure: Optional[TestFailure] = None) -> Dict[str, Any]:
         """複合条件式 (A && B || C) を評価する"""
         # 1. OR (||) で分割
-        or_groups = re.split(r'\s*\|\|\s*', condition)
+        or_groups = condition.split('||')
         
         or_results = []
         all_failed_parts = []
         
         for group in or_groups:
             # 2. AND (&&) で分割
-            and_parts = re.split(r'\s*&&\s*', group)
+            and_parts = group.split('&&')
             
             group_satisfied = True
             group_failed_parts = []
@@ -361,19 +391,15 @@ class TestFailureAnalyzer:
                 # カッコ除去 (簡易対応)
                 clean_part = part.strip('()')
                 
-                # 単一条件の評価 (プロパティアクセス対応: [\w\.]+)
-                match = re.search(r'([\w\.]+)\s*(>=|<=|>|<|==|!=)\s*(.+)', clean_part)
-                if match:
-                    var_name, op, threshold_str = match.groups()
-                    threshold_str = threshold_str.strip()
+                parsed_condition = self._parse_condition_part(clean_part)
+                if parsed_condition:
+                    var_name, op, threshold_str = parsed_condition
                     
-                    # プロパティベースの推論
-                    current_input = input_val
-                    if '.' in var_name and test_failure:
-                        prop_name = var_name.split('.')[-1]
-                        prop_val = self._extract_property_value(test_failure, prop_name)
-                        if prop_val is not None:
-                            current_input = prop_val
+                    current_input = self._resolve_explicit_input(input_val, var_name)
+                    if current_input is None:
+                        group_satisfied = False
+                        group_failed_parts.append(clean_part)
+                        continue
 
                     is_satisfied = self._evaluate_condition(current_input, op, threshold_str, roslyn_data)
                     
@@ -382,19 +408,15 @@ class TestFailureAnalyzer:
                         group_failed_parts.append(clean_part)
                 else:
                     # 比較演算子がない場合 (例: user.IsActive, !isValid)
-                    # 簡易対応: 単独のプロパティ/変数は "== true" として扱う
-                    bool_match = re.search(r'^(!?)([\w\.]+)$', clean_part)
-                    if bool_match:
-                        is_negated = bool_match.group(1) == '!'
-                        var_name = bool_match.group(2)
+                    bool_condition = self._parse_boolean_condition(clean_part)
+                    if bool_condition:
+                        is_negated, var_name = bool_condition
                         
-                        # 値の取得
-                        current_input = input_val
-                        if '.' in var_name and test_failure:
-                            prop_name = var_name.split('.')[-1]
-                            prop_val = self._extract_property_value(test_failure, prop_name)
-                            if prop_val is not None:
-                                current_input = prop_val
+                        current_input = self._resolve_explicit_input(input_val, var_name)
+                        if current_input is None:
+                            group_satisfied = False
+                            group_failed_parts.append(clean_part)
+                            continue
                         
                         # ブール値としての評価
                         # inputが 'true'/'false' 文字列や Python bool の場合を考慮
@@ -420,6 +442,37 @@ class TestFailureAnalyzer:
             'failed_parts': all_failed_parts if not is_satisfied_overall else []
         }
 
+    @staticmethod
+    def _parse_condition_part(condition_part: str) -> Optional[tuple]:
+        for op in ('>=', '<=', '==', '!=', '>', '<'):
+            op_index = condition_part.find(op)
+            if op_index <= 0:
+                continue
+            left = condition_part[:op_index].strip()
+            right = condition_part[op_index + len(op):].strip()
+            if left and right:
+                return left, op, right
+        return None
+
+    @staticmethod
+    def _parse_boolean_condition(condition_part: str) -> Optional[tuple]:
+        stripped = condition_part.strip()
+        if not stripped:
+            return None
+        if stripped.startswith('!'):
+            name = stripped[1:].strip()
+            return (True, name) if name else None
+        return False, stripped
+
+    @staticmethod
+    def _resolve_explicit_input(input_values: Any, variable_name: str) -> Optional[Any]:
+        if not isinstance(input_values, dict):
+            return input_values
+        if variable_name in input_values:
+            return input_values[variable_name]
+        member_name = variable_name.rsplit('.', 1)[-1]
+        return input_values.get(member_name)
+
     def _evaluate_condition(self, input_val: Any, op: str, threshold_str: str, roslyn_data: Optional[Dict[str, Any]] = None) -> bool:
         """単一の条件式を評価"""
         # 値の解決 (Enumや定数の場合)
@@ -440,18 +493,9 @@ class TestFailureAnalyzer:
                 if op == '<': return input_num < threshold
                 if op == '==': return input_num == threshold
                 if op == '!=': return input_num != threshold
-            except: pass
+            except (TypeError, ValueError):
+                return False
         return False
-
-    def _extract_property_value(self, test_failure: TestFailure, property_name: str) -> Optional[Any]:
-        """テストメソッド名から特定のプロパティ値を抽出する (例: WhenAgeIs20 -> Age: 20)"""
-        # 一般的なパターン: Property(Is|Eq)?Value
-        # 例: Age20, AgeIs20, AgeEq20
-        pattern = re.compile(rf'{property_name}(?:Is|Eq|Val)?(\d+)', re.IGNORECASE)
-        match = pattern.search(test_failure.test_method)
-        if match:
-            return int(match.group(1))
-        return None
 
     def _resolve_identifier_value(self, identifier: str, roslyn_data: Optional[Dict[str, Any]]) -> Any:
         """識別子 (Enum.Value や Constants.Max) を実際の値に解決する"""
@@ -459,7 +503,7 @@ class TestFailureAnalyzer:
             return identifier
             
         # 既に数値や文字列リテラルの場合はそのまま返す
-        if re.match(r'^-?\d+$', identifier) or identifier.startswith('"') or identifier.startswith("'"):
+        if self._is_integer_literal(identifier) or identifier.startswith('"') or identifier.startswith("'"):
             return identifier
 
         # Roslynデータから検索
@@ -492,38 +536,11 @@ class TestFailureAnalyzer:
 
         return identifier
 
-    def _extract_input_value(self, test_failure: TestFailure) -> Optional[Any]:
-        """テスト名やメッセージから入力値を推測抽出"""
-        # 1. 明示的な数値
-        m_neg = re.search(r'(?:Minus|Negative)(\d+)', test_failure.test_method, re.IGNORECASE)
-        if m_neg: return -int(m_neg.group(1))
-        
-        match_num = re.search(r'(\d+)', test_failure.test_method)
-        if match_num: return int(match_num.group(1))
-        
-        # 2. 文字列リテラル
-        # TestName_ShouldReturnX_WhenYIsZ 形式から Z を抽出
-        # まず '_' で分割して後半を見る
-        parts = test_failure.test_method.split('_')
-        last_part = parts[-1] if len(parts) > 1 else test_failure.test_method
-        
-        # "Is" または "When" の直後の CamelCase 単語を探す
-        # ただし、最後の単語を優先する (例: WhenRoleIsUser -> User)
-        m_str_list = re.findall(r'([A-Z][a-z0-9]+)', last_part)
-        if m_str_list:
-            # 除外リスト
-            exclude = ['When', 'Should', 'Return', 'Is', 'With', 'Role', 'Type', 'Mode', 'Value', 'Fact', 'Theory']
-            # 後ろから見て最初に見つかった非除外ワードを値とする
-            for word in reversed(m_str_list):
-                if word not in exclude:
-                    return word
-        
-        return None
-
-    def _classify_error_type(self, error_message: str) -> str:
-        for error_type, patterns in self.error_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, error_message, re.IGNORECASE): return error_type
+    def _classify_error_type(self, test_failure: TestFailure) -> str:
+        explicit_type = test_failure.error_type
+        known_types = {'assertion_failure', 'compile_error', 'runtime_error'}
+        if explicit_type in known_types:
+            return explicit_type
         return 'unknown_error'
     
     def analyze_compilation_failure(self, code: str, errors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -539,13 +556,9 @@ class TestFailureAnalyzer:
                 # 日本語と英語の両方のパターンに対応
                 # 日本語例: 型 'int' を 'string' に変換できません。
                 # 英語例: Cannot implicitly convert type 'int' to 'string'.
-                match = re.search(r"'(.*?)'.*?'(.*?)'", msg)
-                if not match:
-                    # シングルクォートがないパターン (日本語メッセージなど)
-                    match = re.search(r"型\s+(.*?)\s+を\s+(.*?)\s+に", msg)
-                
-                if match:
-                    src_t, tgt_t = match.group(1).strip(), match.group(2).strip()
+                type_pair = self._extract_type_pair_from_compiler_message(msg)
+                if type_pair:
+                    src_t, tgt_t = type_pair
                     recommendation = None
                     if src_t == "int" and tgt_t == "string":
                         recommendation = "ToString"
@@ -562,9 +575,8 @@ class TestFailureAnalyzer:
             
             # CS0246: The type or namespace name '...' could not be found
             elif code_num == "CS0246":
-                match = re.search(r"'(.*?)'", msg)
-                if match:
-                    symbol = match.group(1)
+                symbol = self._extract_first_quoted_segment(msg)
+                if symbol:
                     results.append({
                         "type": "unresolved_symbol",
                         "symbol": symbol,
@@ -599,17 +611,14 @@ class TestFailureAnalyzer:
         return results
 
     def _identify_root_cause(self, test_failure: TestFailure, error_type: str) -> str:
-        msg = test_failure.error_message
-        if 'NullReferenceException' in msg:
-            if any(x in test_failure.test_method.lower() for x in ['exists', 'valid', 'success', 'returns', 'should']):
-                return 'missing_test_data'
-            return 'null_reference'
-        if 'NotImplementedException' in msg: return 'not_implemented'
-        
         if error_type == 'assertion_failure':
-            if re.search(r'Expected:\s*0', msg) or re.search(r'Actual:\s*0', msg): return 'method_returns_default_value'
+            assertion_values = self._parse_assertion_values(test_failure.error_message)
+            if assertion_values.get('expected') == '0' or assertion_values.get('actual') == '0':
+                return 'method_returns_default_value'
             return 'logic_error'
         elif error_type == 'compile_error': return 'syntax_error'
+        elif test_failure.error_type == 'null_reference': return 'null_reference'
+        elif test_failure.error_type == 'not_implemented': return 'not_implemented'
         return 'unknown_cause'
     
     def _determine_fix_direction(self, root_cause: str, test_failure: TestFailure) -> str:
@@ -639,59 +648,192 @@ class TestFailureAnalyzer:
         for line in lines:
             line = line.strip()
             # Handle formats like: "at ... in C:\path\file.cs:line 12" or "... in /path/file.cs:line 12"
-            if ' in ' in line:
-                m = re.search(r' in (.*?):(?:line|行|line:)\s*(\d+)', line)
-                if m:
-                    file_path = m.group(1).strip()
-                    line_num = int(m.group(2))
-                    matches.append({'file': file_path, 'line': line_num})
+            location = self._parse_stack_trace_location(line)
+            if location:
+                matches.append(location)
         return {'stack_depth': len(lines), 'file_locations': matches, 'primary_location': matches[0] if matches else None}
 
-    def _detect_semantic_mismatch(self, test_failure: TestFailure, expected_intent: str, roslyn_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """意図(intent)と実際に使用されたコードの役割が乖離していないかチェックする"""
-        # スタックトレースから実行されたメソッドを特定
-        stack_info = self._analyze_stack_trace(test_failure.stack_trace)
-        frames = stack_info.get('file_locations', [])
-        if not frames: return None
+    def _extract_failed_test_names(self, output: str) -> List[str]:
+        names: List[str] = []
+        for line in output.splitlines():
+            stripped = line.strip()
+            name = None
+            if '[FAIL]' in stripped:
+                before_marker = stripped.split('[FAIL]', 1)[0].strip()
+                if ']' in before_marker:
+                    before_marker = before_marker.rsplit(']', 1)[-1].strip()
+                name = before_marker.split()[-1] if before_marker.split() else None
+            elif stripped.startswith('Failed '):
+                payload = stripped[len('Failed '):].strip()
+                name = payload.split()[0] if payload.split() else None
+            elif stripped.startswith('失敗 '):
+                payload = stripped[len('失敗 '):].strip()
+                name = payload.split()[0] if payload.split() else None
 
-        # 役割のミスマッチ判定ルール (Intent vs Class/Method Keywords)
-        mismatch_rules = {
-            "PARSE": ["serialize", "write", "generate", "create"],
-            "SERIALIZE": ["parse", "read", "load", "detect"],
-            "VALIDATE": ["execute", "run", "calculate"],
-            "ANALYZE": ["format", "convert"]
+            if name and '.' in name and name not in names:
+                names.append(name)
+        return names
+
+    def _extract_dotnet_error_block(self, output: str, test_name: str) -> Dict[str, str]:
+        lines = output.splitlines()
+        start_index = None
+        for index, line in enumerate(lines):
+            if test_name in line:
+                start_index = index
+                break
+        if start_index is None:
+            return {'error_message': '', 'stack_trace': ''}
+
+        error_lines: List[str] = []
+        stack_lines: List[str] = []
+        destination = error_lines
+        for line in lines[start_index + 1:]:
+            stripped = line.strip()
+            if self._is_next_test_result_line(stripped):
+                break
+            if stripped in {'Error Message:', 'エラー メッセージ:'}:
+                destination = error_lines
+                continue
+            if stripped in {'Stack Trace:', 'スタック トレース:'}:
+                destination = stack_lines
+                continue
+            destination.append(line)
+
+        return {
+            'error_message': '\n'.join(error_lines).strip(),
+            'stack_trace': '\n'.join(stack_lines).strip(),
         }
 
-        # 期待される役割に関連しないキーワード
-        incompatible_keywords = []
-        for key, keywords in mismatch_rules.items():
-            if key in expected_intent.upper():
-                incompatible_keywords = keywords
-                break
-        
-        if not incompatible_keywords: return None
+    @staticmethod
+    def _is_next_test_result_line(line: str) -> bool:
+        return (
+            '[FAIL]' in line
+            or '[PASS]' in line
+            or line.startswith('Failed ')
+            or line.startswith('Passed ')
+            or line.startswith('失敗 ')
+            or line.startswith('成功 ')
+        )
 
-        # フレームを走査してメソッド名・クラス名に不適切な単語が含まれていないか確認
-        for frame in frames:
-            # メソッド名の取得 (スタックトレースから)
-            method_name = ""
-            for line in test_failure.stack_trace.split('\n'):
-                if frame['file'] in line:
-                    m = re.search(r'\.([^.(]+)\(', line)
-                    if m: method_name = m.group(1).lower()
-                    break
-            
-            # クラス名の取得 (ファイル名から推測)
-            class_name = os.path.basename(frame['file']).lower()
+    @staticmethod
+    def _extract_count_after_marker(line: str, marker: str) -> Optional[int]:
+        marker_index = line.find(marker)
+        if marker_index < 0:
+            return None
+        payload = line[marker_index + len(marker):].strip()
+        first_token = payload.replace(',', ' ').split()[0] if payload.split() else ''
+        return int(first_token) if first_token.isdigit() else None
 
-            for kw in incompatible_keywords:
-                if kw in method_name or kw in class_name:
-                    return {
-                        "expected_intent": expected_intent,
-                        "actual_code": f"{class_name}.{method_name}",
-                        "incompatible_keyword": kw,
-                        "message": f"意図 '{expected_intent}' に対して、不適切な役割のコード '{kw}' が使用されている可能性があります。"
-                    }
+    @staticmethod
+    def _is_integer_literal(value: str) -> bool:
+        stripped = value.strip()
+        if not stripped:
+            return False
+        if stripped.startswith('-'):
+            return stripped[1:].isdigit()
+        return stripped.isdigit()
+
+    def _extract_type_pair_from_compiler_message(self, message: str) -> Optional[tuple]:
+        quoted = self._extract_quoted_segments(message)
+        if len(quoted) >= 2:
+            return quoted[0].strip(), quoted[1].strip()
+
+        marker_start = message.find('型')
+        marker_middle = message.find('を', marker_start + 1)
+        marker_end = message.find('に', marker_middle + 1)
+        if marker_start >= 0 and marker_middle > marker_start and marker_end > marker_middle:
+            source = message[marker_start + len('型'):marker_middle].strip()
+            target = message[marker_middle + len('を'):marker_end].strip()
+            if source and target:
+                return source, target
         return None
+
+    def _extract_first_quoted_segment(self, message: str) -> Optional[str]:
+        segments = self._extract_quoted_segments(message)
+        return segments[0] if segments else None
+
+    @staticmethod
+    def _extract_quoted_segments(message: str) -> List[str]:
+        segments: List[str] = []
+        current: List[str] = []
+        in_quote = False
+        for char in message:
+            if char == "'":
+                if in_quote:
+                    segments.append(''.join(current))
+                    current = []
+                    in_quote = False
+                else:
+                    current = []
+                    in_quote = True
+                continue
+            if in_quote:
+                current.append(char)
+        return segments
+
+    @staticmethod
+    def _parse_assertion_values(message: str) -> Dict[str, str]:
+        values: Dict[str, str] = {}
+        for key, marker in (('expected', 'Expected:'), ('actual', 'Actual:')):
+            marker_index = message.find(marker)
+            if marker_index < 0:
+                continue
+            payload = message[marker_index + len(marker):].strip()
+            for delimiter in (',', '\n', '\r'):
+                delimiter_index = payload.find(delimiter)
+                if delimiter_index >= 0:
+                    payload = payload[:delimiter_index].strip()
+            values[key] = payload.strip('"').strip("'").strip()
+        return values
+
+    @staticmethod
+    def _parse_stack_trace_location(line: str) -> Optional[Dict[str, Any]]:
+        separator = ' in '
+        separator_index = line.find(separator)
+        if separator_index < 0:
+            return None
+        payload = line[separator_index + len(separator):]
+
+        line_markers = (':line ', ':line:', ':行 ')
+        marker_index = -1
+        marker = ''
+        for candidate in line_markers:
+            marker_index = payload.find(candidate)
+            if marker_index >= 0:
+                marker = candidate
+                break
+        if marker_index < 0:
+            return None
+
+        file_path = payload[:marker_index].strip()
+        line_payload = payload[marker_index + len(marker):].strip()
+        digits = []
+        for char in line_payload:
+            if not char.isdigit():
+                break
+            digits.append(char)
+        if not file_path or not digits:
+            return None
+        return {'file': file_path, 'line': int(''.join(digits))}
+
+    def _detect_semantic_mismatch(
+        self,
+        expected_intent: str,
+        analysis_context: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """明示された正規化済みの役割同士を比較する。"""
+        executed_role = analysis_context.get('executed_role')
+        if not isinstance(executed_role, str) or not executed_role:
+            return None
+        if executed_role == expected_intent:
+            return None
+        return {
+            "expected_intent": expected_intent,
+            "executed_role": executed_role,
+            "message": (
+                f"期待された役割 '{expected_intent}' と、"
+                f"実行された役割 '{executed_role}' が一致しません。"
+            ),
+        }
 
     

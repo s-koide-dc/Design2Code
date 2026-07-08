@@ -486,9 +486,7 @@ class TestConversationScenarios(unittest.TestCase):
             cls.pipeline.planner.retry_rules = cls.pipeline.planner._load_retry_rules(cls.retry_rules_path)
 
         finally:
-            # sys.stdout.close()
-            # sys.stdout = original_stdout
-            sys.stdout = sys.__stdout__ # Restore standard output
+            pass
 
         cls.test_ws = os.path.abspath("conversation_test_workspace")
         if os.path.exists(cls.test_ws):

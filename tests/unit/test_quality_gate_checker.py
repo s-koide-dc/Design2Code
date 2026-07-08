@@ -122,5 +122,27 @@ class TestQualityGateChecker(unittest.TestCase):
             self.assertEqual(metrics['coverage'], 80.0)
             self.assertEqual(metrics['quality_score'], 8.5)
 
+    def test_invalid_trx_is_reported_in_metrics(self):
+        with patch.object(self.checker, '_find_files', side_effect=lambda pattern: ['broken.trx'] if '.trx' in pattern else []), \
+             patch('xml.etree.ElementTree.parse', side_effect=ET.ParseError('invalid XML')):
+            result = self.checker._check_test_results()
+
+        self.assertFalse(result['all_tests_pass'])
+        self.assertEqual(
+            result['test_result_errors'],
+            [{'file': 'broken.trx', 'error_type': 'ParseError'}],
+        )
+
+    def test_invalid_coverage_json_is_reported_in_metrics(self):
+        with patch.object(self.checker, '_find_files', side_effect=lambda pattern: ['coverage.json'] if 'coverage.json' in pattern else []), \
+             patch('builtins.open', mock_open(read_data='{invalid')):
+            result = self.checker._check_coverage_results()
+
+        self.assertEqual(result['coverage'], 0.0)
+        self.assertEqual(
+            result['coverage_result_errors'],
+            [{'file': 'coverage.json', 'error_type': 'JSONDecodeError'}],
+        )
+
 if __name__ == '__main__':
     unittest.main()

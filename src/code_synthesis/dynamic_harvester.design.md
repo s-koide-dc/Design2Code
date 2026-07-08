@@ -140,4 +140,5 @@
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
 - 2026-06-25: `query_map` による自然言語キーワード推測を廃止し、完全修飾型名の明示指定と `MethodStorePolicy` による正規化・pruning に更新。
 - 2026-06-25: pruning ルールを `resources/method_store_policy.json` 管理にし、`last_policy_audit` で除外理由を追跡する構成へ更新。
+- 2026-06-30: 完全修飾型名でない問い合わせは通常の候補不成立としてDEBUGに記録し、収穫プロセス失敗のwarningと区別する。
 

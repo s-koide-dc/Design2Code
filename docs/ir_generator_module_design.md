@@ -231,12 +231,14 @@
 - `spec_role=DESERIALIZE` を `JSON_DESERIALIZE` に橋渡し
 - `spec_role=FILTER` を `LINQ` に橋渡し
 - `spec_role=CALCULATE` を `CALC` 処理へ橋渡し
-- `spec_role=DISPLAY` では `property` / `display_property_resolution` がある場合、loop item continuity と合わせて `item.<Property>` を優先表示する
+- `spec_role=DISPLAY` は明示 `message`、明示 `display_var`、exact `input_link`、または loop item scope だけを表示元として使用する
+- 通知文や出力対象をステップ文言から推測せず、解決不能時は `display_source_not_explicit` を返す
 - `spec_role=TRANSFORM` では weak runtime intent を `TRANSFORM` へ補正し、`transform_source_resolution` がある場合は exact source var を優先する
 - `spec_role=ITERATE` では `LOOP` node を主に消費しつつ、`iteration_source_resolution` がある場合は latest collection ではなく exact upstream collection を優先し、`iteration_item_entity` がある場合は weak collection inner type よりそれを優先する
 - `iteration_item_var` がある場合は generic `item` ではなくその alias を loop item 名として使う
 - nested child の `target_entity` 推論は `context history.item_entity` を読めるため、loop 内 condition/display/filter でも weak `Item` のまま property binding しない
 - `spec_role=RETURN` で literal metadata か `input_link_var` metadata がある場合は latest var fallback より前にそれを返す
+- I/O系ACTIONの例外動作は `error_policy` (`return_default` / `rethrow` / `continue`) で明示し、不正値は `invalid_error_policy` とする
 
 ### 7.1.5 `IREmitter`
 - `spec_role=WRAP` を generic action として処理せず、child body を wrapper-kind ごとの statement に再構成する
@@ -250,10 +252,10 @@
 - exact scope がある history provenance だけ限定的に許可
 
 ### 7.3 `calc_ops`
-- `entity_resolution` に応じて concretization を変える
-- `unique_owner` / `explicit_entity`: 通常合成
-- `history_fallback`: exact target 限定
-- `ambiguous`: cross-entity fallback 禁止、必要なら TODO 停止
+- 計算対象は `calculate_source_resolution` と明示的な source metadata で解決する
+- 数量・単価・集計値・代入先は `quantity_prop`、`price_prop`、`value_prop`、
+  `assignment_target` などの `semantic_roles` で指定する
+- 欠落・曖昧時は構造化された `resolution_errors` とし、名前一致や cross-entity fallback は行わない
 
 ## 8. schema alias policy との接続
 この設計は alias admission policy と一体で動く。

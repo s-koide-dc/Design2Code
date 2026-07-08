@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 # src/autonomous_learning/safety_evaluator.py
 
-import json
 import logging
 from typing import Dict, List, Any
 from .pattern_learner import RuleSuggestion
@@ -12,52 +11,59 @@ class SafetyEvaluator:
     def __init__(self, safety_config: Dict[str, Any]):
         self.safety_config = safety_config
         self.logger = logging.getLogger(__name__)
+        self.evaluation_diagnostics: List[Dict[str, Any]] = []
     
     def evaluate_suggestions(self, suggestions: List[RuleSuggestion]) -> List[RuleSuggestion]:
         """ルール提案の安全性を評価"""
+        self.evaluation_diagnostics = []
         evaluated_suggestions = []
         for suggestion in suggestions:
-            safety_score = self._calculate_safety_score(suggestion)
-            suggestion.risk_level = self._determine_risk_level(safety_score)
-            
-            if self._passes_safety_constraints(suggestion):
+            rejection_reason = self._rejection_reason(suggestion)
+            if rejection_reason is None:
                 evaluated_suggestions.append(suggestion)
             else:
-                self.logger.warning(f"安全性制約により提案を却下: {suggestion.explanation}")
+                self.evaluation_diagnostics.append({
+                    "type": "SAFETY_EVIDENCE_REJECTED",
+                    "reason": rejection_reason,
+                    "rule_type": suggestion.rule_type,
+                })
+                self.logger.info("安全性制約により提案を却下: %s", suggestion.explanation)
         return evaluated_suggestions
-    
-    def _calculate_safety_score(self, suggestion: RuleSuggestion) -> float:
-        """安全性スコアを計算"""
-        score = 1.0
-        if suggestion.rule_type == 'intent_rule':
-            score *= 0.95
-        elif suggestion.rule_type == 'retry_rule':
-            score *= 0.7
-        elif suggestion.rule_type == 'clarification_rule':
-            score *= 0.98
-        
-        score *= suggestion.confidence
-        
-        if suggestion.impact_scope == 'system_wide':
-            score *= 0.5
-        elif suggestion.impact_scope == 'user_experience':
-            score *= 0.9
-        elif suggestion.impact_scope == 'intent_detection':
-            score *= 0.95
-        return max(0.0, min(1.0, score))
-    
-    def _determine_risk_level(self, safety_score: float) -> str:
-        """安全性スコアからリスクレベルを決定"""
-        if safety_score >= 0.8: return 'low'
-        elif safety_score >= 0.6: return 'medium'
-        else: return 'high'
-    
-    def _passes_safety_constraints(self, suggestion: RuleSuggestion) -> bool:
-        """安全性制約をパスするかチェック"""
-        if suggestion.risk_level == 'high': return False
-        
-        dangerous_keywords = self.safety_config.get('dangerous_keywords', [])
-        rule_text = json.dumps(suggestion.rule_definition).lower()
-        for keyword in dangerous_keywords:
-            if keyword.lower() in rule_text: return False
-        return True
+
+    def _rejection_reason(
+        self,
+        suggestion: RuleSuggestion,
+    ) -> str | None:
+        allowed_risk_levels = self.safety_config.get(
+            "allowed_risk_levels",
+            ["low", "medium"],
+        )
+        if (
+            not isinstance(allowed_risk_levels, list)
+            or any(
+                risk not in {"low", "medium", "high"}
+                for risk in allowed_risk_levels
+            )
+        ):
+            return "safety_configuration_invalid"
+        if suggestion.risk_level not in allowed_risk_levels:
+            return "risk_level_not_allowed"
+
+        evidence = suggestion.safety_evidence
+        if not isinstance(evidence, dict) or not evidence:
+            return "safety_evidence_missing"
+        if evidence.get("reviewed") is not True:
+            return "safety_review_not_completed"
+        if evidence.get("decision") != "approve":
+            return "safety_review_not_approved"
+        controls = evidence.get("controls")
+        if not isinstance(controls, list) or not controls:
+            return "safety_controls_missing"
+        for control in controls:
+            if not isinstance(control, dict):
+                return "safety_control_invalid"
+            if not isinstance(control.get("control_id"), str):
+                return "safety_control_invalid"
+            if control.get("passed") is not True:
+                return "safety_control_failed"
+        return None

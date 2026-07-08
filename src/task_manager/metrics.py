@@ -37,7 +37,7 @@ class TaskMetrics:
     @property
     def is_completed(self) -> bool:
         """タスクが完了しているか"""
-        return self.final_state in ["COMPLETED", "FAILED", "CANCELLED"]
+        return self.final_state in ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"]
 
 class TaskManagerMetrics:
     """TaskManagerのメトリクス収集・分析クラス"""
@@ -149,7 +149,3 @@ class TaskManagerMetrics:
             self.complete_task(session_id, "TIMEOUT")
         
         return len(stale_sessions)
-        # TODO: Implement Logic: **イベント記録**:
-            # TODO: Implement Logic: **完了処理**:
-                # TODO: Implement Logic: **クリーンアップ**:
-                    # TODO: Implement Logic: 指定時間（例: 24時間）を経過したアクティブタスクを自動的にタイムアウトとして処理。

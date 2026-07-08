@@ -17,7 +17,7 @@
 ### Core Logic
 1. history がある場合は `context_entity` を直前 `target_entity` から初期化し、loop item continuity がある場合は `item_entity` も読む。
 2. morph analyzer がある場合は token の base/surface を取得する。
-3. entity schema の各 entity について `keywords` を走査し、token または lower text と一致した最初の entity を返す。
+3. entity schema の各 entity について `keywords` を走査し、morph analyzer が返した token の base/surface と完全一致した最初の entity を返す。全文 substring では照合しない。
 4. 一致が無い場合、`allow_history_fallback=True` なら `item_entity` を `target_entity` より優先して返す。
 5. それでも無ければ強い context entity を返す。
 6. schema 上の entity が 1 つだけなら、その entity を返す。
@@ -25,14 +25,17 @@
 
 ### Test Cases
 - **Happy Path**:
-  - **Scenario**: schema keyword と文面が一致する。
+  - **Scenario**: schema keyword と token base/surface が完全一致する。
   - **Expected Output**: 対応 entity を返す。
 - **Edge Cases**:
+  - **Scenario**: keyword が本文の一部 substring としてだけ現れる。
+  - **Expected Output / Behavior**: 対応 entity とはみなさない。
   - **Scenario**: keyword 一致なし、history fallback 無効。
   - **Expected Output / Behavior**: `Item` を返す。
 
 ## 5. Notes
 - loop node が `iteration_item_entity` / `iteration_item_var` を `context history` に残している場合、nested child の entity inference は item entity continuity を通常の `target_entity` history より優先し、downstream は同じ loop item alias を維持しやすくなる。
+- 2026-07-07: schema keyword の全文 substring 照合を廃止。token 完全一致、history、単一 schema の順に限定する。
 
 ## 3. Dependencies
 - **Internal**: なし

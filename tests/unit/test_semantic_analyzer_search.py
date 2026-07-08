@@ -15,10 +15,13 @@ class TestSemanticAnalyzerSearch(unittest.TestCase):
             custom_knowledge_path = os.path.join(workspace_root, "resources", "custom_knowledge.json")
             dictionary_db_path = os.path.join(workspace_root, "resources", "dictionary.db")
             
+        self.dictionary_db_path = MockConfig.dictionary_db_path
         self.analyzer = SemanticAnalyzer(MockTaskManager(), config_manager=MockConfig())
 
     def test_search_by_meaning(self):
         """意味による検索が機能するか"""
+        if not os.path.exists(self.dictionary_db_path):
+            self.skipTest("dictionary.db is not available in this checkout")
         results = self.analyzer.search_by_meaning("circle")
         print(f"\nSearch results for 'circle': {results}")
         self.assertTrue(len(results) > 0)
@@ -27,6 +30,8 @@ class TestSemanticAnalyzerSearch(unittest.TestCase):
 
     def test_search_by_meaning_japanese(self):
         """日本語の意味による検索が機能するか"""
+        if not os.path.exists(self.dictionary_db_path):
+            self.skipTest("dictionary.db is not available in this checkout")
         results = self.analyzer.search_by_meaning("alphabet")
         print(f"\nSearch results for 'alphabet': {results}")
         self.assertTrue(len(results) > 0)

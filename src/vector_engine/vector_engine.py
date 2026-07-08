@@ -12,14 +12,19 @@ class VectorEngine:
     Embedding Generator for the pipeline.
     Uses PretrainedVectorStore for optimized mmap access to word vectors.
     """
-    def __init__(self, model_path: str = None, max_vocab: int = 0):
+    def __init__(
+        self,
+        model_path: str = None,
+        max_vocab: int = 0,
+        skip_load: bool = False,
+    ):
         self.logger = logging.getLogger(__name__)
         self.is_ready = False
         self.model_path = model_path
         self.store: Optional[PretrainedVectorStore] = None
         self._oov_cache: Dict[str, np.ndarray] = {}
         
-        if os.environ.get("SKIP_VECTOR_MODEL") == "1":
+        if skip_load or os.environ.get("SKIP_VECTOR_MODEL") == "1":
             self.logger.info("VectorEngine: Fast mode enabled (skipping model load).")
             self.is_ready = True
             return

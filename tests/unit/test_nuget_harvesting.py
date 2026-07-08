@@ -20,6 +20,18 @@ class TestNuGetHarvesting(unittest.TestCase):
         dlls = self.nuget_client.get_package_dlls(pkg_name, version)
         if not dlls:
             self.skipTest(f"CsvHelper {version} DLLs not found in local cache")
+        cli_path = os.path.join(
+            os.getcwd(),
+            "tools",
+            "csharp",
+            "MethodHarvesterCLI",
+            "bin",
+            "Debug",
+            "net10.0",
+            "MethodHarvesterCLI.exe",
+        )
+        if not os.path.exists(cli_path):
+            self.skipTest(f"MethodHarvesterCLI is not built: {cli_path}")
             
         print(f"Found DLLs: {dlls}")
         methods = self.harvester.harvest_from_package(pkg_name, version)

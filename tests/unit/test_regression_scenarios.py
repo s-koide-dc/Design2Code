@@ -36,6 +36,77 @@ class TestRegressionScenarios(unittest.TestCase):
     def test_daily_inventory_sync(self):
         self._assert_no_spec_issues("scenarios/DailyInventorySync.design.md")
 
+    def test_http_api_key_request_requires_explicit_timeout(self):
+        spec = self.parser.parse_design_file(
+            "scenarios/DailyInventorySync.design.md"
+        )
+        del spec["steps"][0]["semantic_roles"]["timeout_ms"]
+
+        result = self.synthesizer.synthesize_from_structured_spec(
+            spec["module_name"],
+            spec,
+            return_trace=True,
+        )
+
+        self.assertEqual("error", result.get("status"))
+        unresolved = result.get("error", {}).get("unresolved_nodes", [])
+        self.assertEqual("http_timeout_not_explicit", unresolved[0].get("reason"))
+
+    def test_http_post_requires_explicit_payload_metadata(self):
+        spec = self.parser.parse_design_file(
+            "scenarios/DailyInventorySync.design.md"
+        )
+        roles = spec["steps"][0]["semantic_roles"]
+        roles["http_method"] = "POST"
+        roles["ops"].append("structured_http_request")
+
+        result = self.synthesizer.synthesize_from_structured_spec(
+            spec["module_name"],
+            spec,
+            return_trace=True,
+        )
+
+        self.assertEqual("error", result.get("status"))
+        unresolved = result.get("error", {}).get("unresolved_nodes", [])
+        self.assertEqual(
+            "http_payload_metadata_not_explicit",
+            unresolved[0].get("reason"),
+        )
+
+    def test_http_write_methods_use_explicit_payload_metadata(self):
+        method_expressions = {
+            "POST": "HttpMethod.Post",
+            "PUT": "HttpMethod.Put",
+            "PATCH": "HttpMethod.Patch",
+        }
+        for http_method, method_expression in method_expressions.items():
+            with self.subTest(http_method=http_method):
+                spec = self.parser.parse_design_file(
+                    "scenarios/DailyInventorySync.design.md"
+                )
+                spec["inputs"].append({
+                    "name": "payload",
+                    "type_format": "string",
+                    "description": "request payload",
+                })
+                roles = spec["steps"][0]["semantic_roles"]
+                roles["http_method"] = http_method
+                roles["payload_input"] = "payload"
+                roles["content_type"] = "application/json"
+                roles["ops"].append("structured_http_request")
+
+                result = self.synthesizer.synthesize_from_structured_spec(
+                    spec["module_name"],
+                    spec,
+                )
+
+                self.assertEqual("success", result.get("status"), result)
+                self.assertIn(method_expression, result.get("code", ""))
+                self.assertIn(
+                    'new StringContent(payload, Encoding.UTF8, "application/json")',
+                    result.get("code", ""),
+                )
+
     def test_sync_external_data(self):
         self._assert_no_spec_issues("scenarios/SyncExternalData.design.md")
 

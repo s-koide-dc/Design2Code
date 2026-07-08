@@ -4,8 +4,9 @@
 import os
 import json
 import subprocess
-import re
-import time
+import hashlib
+import shutil
+import tempfile
 from typing import Dict, Any, Tuple
 
 class CSharpOperations:
@@ -13,6 +14,49 @@ class CSharpOperations:
     
     def __init__(self, action_executor):
         self.ae = action_executor
+
+    def _analysis_fingerprint(self, target_path: str, analyzer_project: str) -> str:
+        digest = hashlib.sha256()
+        excluded_directories = {".git", ".vs", "bin", "obj", "logs"}
+        accepted_suffixes = {".cs", ".csproj", ".sln", ".slnx", ".props", ".targets"}
+        roots = [
+            os.path.dirname(target_path) if os.path.isfile(target_path) else target_path,
+            os.path.dirname(analyzer_project),
+        ]
+        files = []
+        for root_index, root in enumerate(roots):
+            for current_root, directories, filenames in os.walk(root):
+                directories[:] = sorted(
+                    directory
+                    for directory in directories
+                    if directory not in excluded_directories
+                )
+                for filename in sorted(filenames):
+                    if os.path.splitext(filename)[1].lower() in accepted_suffixes:
+                        files.append((root_index, os.path.join(current_root, filename)))
+        for root_index, file_path in sorted(set(files)):
+            relative_path = os.path.relpath(file_path, roots[root_index])
+            digest.update(f"{root_index}:{relative_path}".encode("utf-8"))
+            with open(file_path, "rb") as source:
+                for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        return digest.hexdigest()
+
+    def _is_complete_analysis(self, output_path: str) -> bool:
+        return (
+            os.path.isfile(os.path.join(output_path, "manifest.json"))
+            and os.path.isdir(os.path.join(output_path, "details"))
+        )
+
+    def _remove_analysis_workdir(self, work_path: str, output_base: str) -> None:
+        resolved_work = os.path.abspath(work_path)
+        resolved_base = os.path.abspath(output_base)
+        if (
+            os.path.commonpath([resolved_work, resolved_base]) == resolved_base
+            and os.path.basename(resolved_work).startswith(".analysis-work-")
+            and os.path.isdir(resolved_work)
+        ):
+            shutil.rmtree(resolved_work)
 
     def analyze_csharp(self, context: Dict[str, Any], parameters: Dict[str, Any]) -> Dict[str, Any]:
         filename = self.ae._get_entity_value(parameters.get("filename"))
@@ -37,18 +81,38 @@ class CSharpOperations:
             output_base = os.path.join(self.ae.workspace_root, "logs", "analysis_output")
             
         os.makedirs(output_base, exist_ok=True)
-        session_id = context.get("session_id", "default")
-        out_dir_name = f"analysis_{session_id}_{int(time.time())}"
-        temp_out = os.path.join(output_base, out_dir_name)
-        os.makedirs(temp_out, exist_ok=True)
+        fingerprint = self._analysis_fingerprint(path, analyzer_project)
+        out_dir_name = f"analysis_{fingerprint[:24]}"
+        cache_out = os.path.join(output_base, out_dir_name)
+        cache_hit = self._is_complete_analysis(cache_out)
+        temp_out = (
+            cache_out
+            if cache_hit
+            else tempfile.mkdtemp(prefix=".analysis-work-", dir=output_base)
+        )
 
         try:
-            cmd = ["dotnet", "run", "--project", analyzer_project, "--", path, temp_out]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
+            manifest_path = os.path.join(temp_out, "manifest.json")
+            if cache_hit:
+                result = subprocess.CompletedProcess([], 0, "", "")
+            else:
+                cmd = ["dotnet", "run", "--project", analyzer_project, "--", path, temp_out]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
             
             if result.returncode == 0:
+                if not cache_hit and self._is_complete_analysis(temp_out):
+                    try:
+                        os.replace(temp_out, cache_out)
+                        temp_out = cache_out
+                    except OSError:
+                        if self._is_complete_analysis(cache_out):
+                            self._remove_analysis_workdir(temp_out, output_base)
+                            temp_out = cache_out
+                            cache_hit = True
+                        else:
+                            raise
+                    manifest_path = os.path.join(temp_out, "manifest.json")
                 # Parse output directory
-                manifest_path = os.path.join(temp_out, "manifest.json")
                 if os.path.exists(manifest_path):
                     with open(manifest_path, 'r', encoding='utf-8') as f:
                         manifest = json.load(f)
@@ -111,13 +175,17 @@ class CSharpOperations:
                         "status": "success",
                         "message": message,
                         "analysis": analysis_data,
-                        "output_path": temp_out # Store for subsequent queries
+                        "output_path": temp_out,
+                        "cache_hit": cache_hit,
                     }
                 else:
+                    self._remove_analysis_workdir(temp_out, output_base)
                     context["action_result"] = {"status": "error", "message": f"解析結果 (manifest.json) が生成されませんでした。\n{result.stdout}"}
             else:
+                self._remove_analysis_workdir(temp_out, output_base)
                 context["action_result"] = {"status": "error", "message": f"解析ツールの実行に失敗しました (code {result.returncode}):\n{result.stderr}"}
         except Exception as e:
+            self._remove_analysis_workdir(temp_out, output_base)
             context["action_result"] = self.ae._handle_exception_with_patterns(e, f"C# 解析中にエラーが発生しました: {e}")
             
         return context
@@ -145,13 +213,19 @@ class CSharpOperations:
             subprocess.run(clean_cmd, capture_output=True, text=True, timeout=10, check=False)
             build_result = subprocess.run(build_cmd, capture_output=True, text=True, timeout=30, check=False, errors="replace")
             if build_result.returncode != 0:
-                error_lines = build_result.stdout.splitlines() + build_result.stderr.splitlines()
-                summary_err = "\n".join([line for line in error_lines if "error" in line][:3])
+                build_output = (build_result.stdout or "") + (build_result.stderr or "")
+                build_errors = self._extract_build_error_details(build_output)
+                summary_err = "\n".join(
+                    error["raw_line"] for error in build_errors[:3]
+                )
+                if not summary_err:
+                    summary_err = build_output[-2000:]
                 context["action_result"] = {
                     "status": "error",
                     "message": f"ビルドエラーが発生したためテストを実行できません。\n{summary_err}",
                     "build_failed": True,
-                    "raw_output": build_result.stdout
+                    "raw_output": build_output,
+                    "build_errors": build_errors,
                 }
                 return context
         except Exception as e:
@@ -162,11 +236,19 @@ class CSharpOperations:
         log_file = os.path.join(self.ae.workspace_root, "logs", "last_dotnet_test.log")
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
         
-        cmd = f'dotnet test "{abs_project_path}" --no-build > "{log_file}" 2>&1'
+        cmd = ["dotnet", "test", abs_project_path, "--no-build"]
         try:
-            result = subprocess.run(cmd, shell=True, timeout=60, check=False)
-            with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
-                output = f.read()
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+                errors="replace",
+            )
+            output = result.stdout + result.stderr
+            with open(log_file, 'w', encoding='utf-8', errors='replace') as f:
+                f.write(output)
             summary = self.parse_dotnet_test_result(output)
             status = "success" if result.returncode == 0 and summary.get("failed_count", 0) == 0 and summary.get("total_count", 0) > 0 else "error"
             
@@ -182,45 +264,203 @@ class CSharpOperations:
             context["action_result"] = self.ae._handle_exception_with_patterns(e, f"dotnet test 実行中にエラーが発生しました: {e}")
         return context
 
+    def _extract_build_error_details(self, output: str):
+        errors = []
+        for line in output.splitlines():
+            parsed = self._parse_build_error_line(line)
+            if parsed:
+                errors.append(parsed)
+        return errors
+
+    @staticmethod
+    def _parse_build_error_line(line: str):
+        stripped = line.strip()
+        marker = "): error "
+        marker_index = stripped.find(marker)
+        if marker_index < 0:
+            return None
+        location = stripped[:marker_index]
+        open_paren = location.rfind("(")
+        if open_paren < 0:
+            return None
+        file_path = location[:open_paren].strip()
+        line_col = location[open_paren + 1:].split(",", 1)
+        if not file_path or not line_col or not line_col[0].isdigit():
+            return None
+        rest = stripped[marker_index + len(marker):]
+        code, separator, message = rest.partition(":")
+        code = code.strip()
+        if not separator or not code.startswith("CS") or not code[2:].isdigit():
+            return None
+        return {
+            "file": file_path,
+            "line": int(line_col[0]),
+            "code": code,
+            "message": message.strip(),
+            "raw_line": stripped,
+        }
+
     def parse_dotnet_test_result(self, output: str) -> Dict[str, Any]:
         summary = {
             "failed_tests": [], "failed_count": 0, "passed_count": 0, "total_count": 0,
             "error_details": [], "summary_line": "テスト結果を解析できませんでした。"
         }
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\-_]|[[0-?]*[ -/]*[@-~])')
-        output_clean = ansi_escape.sub('', output)
-        chunks = re.split(r'\s+(?:Failed|失敗)\s+([\w\.]+\.[\w\.]+)\s+\[', output_clean)
-        
-        if len(chunks) > 1:
-            for i in range(1, len(chunks), 2):
-                method_name = chunks[i]
-                chunk_body = chunks[i+1] if i+1 < len(chunks) else ""
-                if method_name in summary["failed_tests"]: continue
-                error_info = {"method": method_name}
-                msg_match = re.search(r'(?:エラー メッセージ|Error Message)\s*[:：]\s*(.*?)(?:スタック トレース|Stack Trace|at |in )', chunk_body, re.DOTALL)
-                if msg_match: error_info["message"] = msg_match.group(1).strip()
-                
-                trace_match = re.search(r'(?:スタック トレース|Stack Trace)\s*[:：]\s*(.*)', chunk_body, re.DOTALL)
-                if trace_match: error_info["stack_trace"] = trace_match.group(1).strip()
-                elif 'at ' in chunk_body or 'in ' in chunk_body:
-                    # Fallback: extract from 'at ' onwards
-                    fallback_trace_match = re.search(r'((?:at |in ).*)', chunk_body, re.DOTALL)
-                    if fallback_trace_match: error_info["stack_trace"] = fallback_trace_match.group(1).strip()
-                summary["error_details"].append(error_info)
-                summary["failed_tests"].append(method_name)
+        output_clean = self._strip_ansi_sequences(output)
+        lines = output_clean.splitlines()
+
+        for index, line in enumerate(lines):
+            method_name = self._extract_failed_method_name(line)
+            if not method_name or method_name in summary["failed_tests"]:
+                continue
+            chunk_lines = self._collect_failure_chunk(lines, index + 1)
+            error_info = self._parse_failure_chunk(method_name, chunk_lines)
+            summary["error_details"].append(error_info)
+            summary["failed_tests"].append(method_name)
 
         summary["failed_count"] = len(summary["failed_tests"])
-        for line in output_clean.splitlines():
-            l_total = re.search(r'(?:合計|Total)\s*[:：]\s*(\d+)', line)
-            l_passed = re.search(r'(?:成功数|成功|合格|Passed)\s*[:：]\s*(\d+)', line)
-            l_failed = re.search(r'(?:失敗数|失敗|Failed)\s*[:：]\s*(\d+)', line)
-            if l_total:
-                summary["total_count"] = int(l_total.group(1))
-                if l_passed: summary["passed_count"] = int(l_passed.group(1))
-                if l_failed: summary["failed_count"] = int(l_failed.group(1))
+        for line in lines:
+            counts = self._parse_test_count_line(line)
+            if counts:
+                summary.update(counts)
                 break
         summary["summary_line"] = f"Total: {summary['total_count']}, Passed: {summary['passed_count']}, Failed: {summary['failed_count']}"
         return summary
+
+    @staticmethod
+    def _strip_ansi_sequences(text: str) -> str:
+        result = []
+        index = 0
+        while index < len(text):
+            char = text[index]
+            if char != "\x1b":
+                result.append(char)
+                index += 1
+                continue
+            index += 1
+            if index < len(text) and text[index] == "[":
+                index += 1
+                while index < len(text) and not ("@" <= text[index] <= "~"):
+                    index += 1
+                if index < len(text):
+                    index += 1
+            elif index < len(text):
+                index += 1
+        return "".join(result)
+
+    @staticmethod
+    def _extract_failed_method_name(line: str) -> str:
+        stripped = line.strip()
+        marker = "[FAIL]"
+        if marker in stripped:
+            before_marker = stripped.split(marker, 1)[0].strip()
+            if "]" in before_marker:
+                before_marker = before_marker.rsplit("]", 1)[-1].strip()
+            tokens = before_marker.split()
+            return tokens[-1] if tokens and "." in tokens[-1] else ""
+
+        for prefix in ("Failed ", "失敗 "):
+            if stripped.startswith(prefix):
+                payload = stripped[len(prefix):].strip()
+                first_token = payload.split()[0] if payload.split() else ""
+                return first_token if "." in first_token else ""
+        return ""
+
+    def _collect_failure_chunk(self, lines, start_index: int):
+        chunk = []
+        for line in lines[start_index:]:
+            if self._extract_failed_method_name(line):
+                break
+            chunk.append(line)
+        return chunk
+
+    def _parse_failure_chunk(self, method_name: str, chunk_lines):
+        error_info = {"method": method_name}
+        message_lines = []
+        stack_lines = []
+        destination = message_lines
+        saw_label = False
+
+        for line in chunk_lines:
+            stripped = line.strip()
+            if stripped in {"Error Message:", "エラー メッセージ:", "Error Message：", "エラー メッセージ："}:
+                destination = message_lines
+                saw_label = True
+                continue
+            if stripped in {"Stack Trace:", "スタック トレース:", "Stack Trace：", "スタック トレース："}:
+                destination = stack_lines
+                saw_label = True
+                continue
+            if not saw_label and (stripped.startswith("at ") or " in " in stripped):
+                destination = stack_lines
+            destination.append(line)
+
+        message = "\n".join(message_lines).strip()
+        stack_trace = "\n".join(stack_lines).strip()
+        if message:
+            error_info["message"] = message
+            self._add_structured_exception_context(error_info)
+        if stack_trace:
+            error_info["stack_trace"] = stack_trace
+        return error_info
+
+    @staticmethod
+    def _parse_test_count_line(line: str) -> Dict[str, int]:
+        counts = {}
+        label_map = {
+            "Total": "total_count",
+            "合計": "total_count",
+            "Passed": "passed_count",
+            "成功数": "passed_count",
+            "成功": "passed_count",
+            "合格": "passed_count",
+            "Failed": "failed_count",
+            "失敗数": "failed_count",
+            "失敗": "failed_count",
+        }
+        for label, key in label_map.items():
+            value = CSharpOperations._extract_count_after_label(line, label)
+            if value is not None:
+                counts[key] = value
+        return counts if "total_count" in counts else {}
+
+    @staticmethod
+    def _extract_count_after_label(line: str, label: str):
+        label_index = line.find(label)
+        if label_index < 0:
+            return None
+        colon_indices = [
+            idx for idx in (line.find(":", label_index), line.find("：", label_index))
+            if idx >= 0
+        ]
+        if not colon_indices:
+            return None
+        colon_index = min(colon_indices)
+        payload = line[colon_index + 1:].lstrip()
+        digits = []
+        for char in payload:
+            if not char.isdigit():
+                if digits:
+                    break
+                continue
+            digits.append(char)
+        return int("".join(digits)) if digits else None
+
+    def _add_structured_exception_context(self, error_info: Dict[str, Any]) -> None:
+        message = error_info.get("message", "")
+        if not isinstance(message, str) or not message:
+            return
+        first_line = message.splitlines()[0].strip()
+        exception_type = first_line.partition(':')[0].strip()
+        if not exception_type:
+            return
+        error_info["exception_type"] = exception_type
+        root_cause_by_exception = {
+            "System.NullReferenceException": "missing_test_data",
+            "NullReferenceException": "missing_test_data",
+        }
+        root_cause = root_cause_by_exception.get(exception_type)
+        if root_cause:
+            error_info["root_cause"] = root_cause
 
     def load_csharp_analysis_results(self, output_path: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         full_output_path = self.ae._safe_join(output_path)

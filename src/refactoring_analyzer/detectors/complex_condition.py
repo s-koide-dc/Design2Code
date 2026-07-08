@@ -1,81 +1,162 @@
 # -*- coding: utf-8 -*-
-# src/refactoring_analyzer/detectors/complex_condition.py
 
+import ast
 import os
-import re
 from typing import Dict, List, Any
+
 from .base_detector import BaseSmellDetector
 
+
 class ComplexConditionDetector(BaseSmellDetector):
-    """複雑な条件分岐検出器"""
-    
-    def detect(self, file_path: str, content: str, project_root: str) -> List[Dict[str, Any]]:
-        """複雑な条件分岐を検出"""
-        smells = []
-        lines = content.split('\n')
-        
-        for i, line in enumerate(lines):
-            # if文の複雑度を簡単にチェック
-            if re.search(r'\bif\s*\(', line):
-                complexity = self._calculate_condition_complexity(line)
-                threshold = self.thresholds.get("cyclomatic_complexity", 6)
-                
-                if complexity > threshold:
-                    rel_path = os.path.relpath(file_path, project_root)
-                    smells.append({
-                        "type": "complex_condition",
-                        "severity": "medium" if complexity <= threshold * 1.5 else "high",
-                        "file": rel_path,
-                        "line": i + 1,
-                        "content": line.strip(),
-                        "metrics": {
-                            "complexity": complexity,
-                            "threshold": threshold
-                        },
-                        "description": f"条件分岐が複雑すぎます（複雑度: {complexity}）。",
-                        "impact": "理解が困難で、バグが発生しやすくなります。"
-                    })
-        
-        return smells
-    
-    def _calculate_condition_complexity(self, line: str) -> int:
-        """条件分岐の複雑度を計算"""
-        operators = ['&&', '||', '&', '|', '==', '!=', '<', '>', '<=', '>=']
-        complexity = 1
-        
-        for op in operators:
-            complexity += line.count(op)
-        
-        return complexity
+    """構文木で明示された複雑な条件構造を検出する。"""
 
-    def detect_roslyn(self, object_details: Dict[str, Any], manifest_entry: Dict[str, Any], 
-                      roslyn_analysis_results: Dict[str, Any], project_root: str) -> List[Dict[str, Any]]:
-        """Roslyn解析結果から複雑な条件分岐を検出"""
-        smells = []
+    ALLOWED_FACTS = {
+        "mixed_boolean_operators",
+        "negated_boolean_group",
+        "chained_comparison",
+    }
 
-        if object_details.get("type") == "Method":
-            method_name = object_details.get("name")
-            method_start_line = object_details.get("startLine")
-            
-            cyclomatic_complexity = object_details.get("metrics", {}).get("cyclomaticComplexity", 0)
-            threshold = self.thresholds.get("cyclomatic_complexity", 6)
-            
-            if cyclomatic_complexity > threshold:
-                rel_file_path = os.path.relpath(manifest_entry["filePath"], project_root)
-                smells.append({
-                    "type": "complex_condition",
-                    "severity": "medium" if cyclomatic_complexity <= threshold * 1.5 else "high",
-                    "file": rel_file_path,
-                    "method": method_name,
-                    "line_start": method_start_line,
-                    "metrics": {
-                        "complexity": cyclomatic_complexity,
-                        "threshold": threshold
-                    },
-                    "description": f"メソッド '{method_name}' の条件分岐が複雑である可能性があります（複雑度: {cyclomatic_complexity}）。",
-                    "impact": "理解が困難で、バグが発生しやすくなります。"
-                })
-        
+    def __init__(self, thresholds: Dict[str, Any]):
+        super().__init__(thresholds)
+        self.diagnostics: List[Dict[str, Any]] = []
+
+    def detect(
+        self,
+        file_path: str,
+        content: str,
+        project_root: str,
+    ) -> List[Dict[str, Any]]:
+        self.diagnostics = []
+        if not file_path.lower().endswith(".py"):
+            self.diagnostics.append({
+                "type": "STRUCTURAL_ANALYSIS_REQUIRED",
+                "file": file_path,
+                "language": os.path.splitext(file_path)[1].lower(),
+            })
+            return []
+        try:
+            tree = ast.parse(content, filename=file_path)
+        except SyntaxError as exc:
+            self.diagnostics.append({
+                "type": "SOURCE_PARSE_ERROR",
+                "file": file_path,
+                "line": exc.lineno,
+            })
+            return []
+
+        smells = []
+        for node in ast.walk(tree):
+            condition = self._condition_for_node(node)
+            if condition is None:
+                continue
+            facts = sorted(self._condition_facts(condition))
+            if not facts:
+                continue
+            smells.append(self._build_smell(
+                file_path=os.path.relpath(file_path, project_root),
+                line=getattr(node, "lineno", None),
+                facts=facts,
+                content=ast.get_source_segment(content, condition),
+            ))
         return smells
-        # TODO: Implement Logic: `if` 文を含む行を抽出。
-        # TODO: Implement Logic: **閾値判定**: 複雑度が閾値（デフォルト 6）を超えた場合、スメルとして登録。
+
+    @staticmethod
+    def _condition_for_node(node: ast.AST) -> ast.AST | None:
+        if isinstance(node, (ast.If, ast.While, ast.IfExp)):
+            return node.test
+        if isinstance(node, ast.Assert):
+            return node.test
+        return None
+
+    def _condition_facts(self, condition: ast.AST) -> set[str]:
+        facts = set()
+        for node in ast.walk(condition):
+            if isinstance(node, ast.BoolOp):
+                child_operators = {
+                    type(child.op)
+                    for child in node.values
+                    if isinstance(child, ast.BoolOp)
+                }
+                if child_operators and any(
+                    operator is not type(node.op)
+                    for operator in child_operators
+                ):
+                    facts.add("mixed_boolean_operators")
+            elif (
+                isinstance(node, ast.UnaryOp)
+                and isinstance(node.op, ast.Not)
+                and isinstance(node.operand, ast.BoolOp)
+            ):
+                facts.add("negated_boolean_group")
+            elif isinstance(node, ast.Compare) and len(node.ops) > 1:
+                facts.add("chained_comparison")
+        return facts
+
+    def detect_roslyn(
+        self,
+        object_details: Dict[str, Any],
+        manifest_entry: Dict[str, Any],
+        roslyn_analysis_results: Dict[str, Any],
+        project_root: str,
+    ) -> List[Dict[str, Any]]:
+        self.diagnostics = []
+        if object_details.get("type") != "Method":
+            return []
+
+        smells = []
+        structures = object_details.get("conditionStructures", [])
+        if not isinstance(structures, list):
+            self.diagnostics.append({
+                "type": "INVALID_CONDITION_STRUCTURES",
+                "method": object_details.get("name"),
+            })
+            return []
+        for structure in structures:
+            if not isinstance(structure, dict):
+                continue
+            raw_facts = structure.get("facts", [])
+            if not isinstance(raw_facts, list):
+                continue
+            facts = sorted({
+                fact for fact in raw_facts
+                if fact in self.ALLOWED_FACTS
+            })
+            if not facts:
+                continue
+            smells.append(self._build_smell(
+                file_path=os.path.relpath(
+                    manifest_entry["filePath"],
+                    project_root,
+                ),
+                line=structure.get("line"),
+                facts=facts,
+                content=structure.get("source"),
+                method=object_details.get("name"),
+            ))
+        return smells
+
+    @staticmethod
+    def _build_smell(
+        *,
+        file_path: str,
+        line: int | None,
+        facts: List[str],
+        content: str | None,
+        method: str | None = None,
+    ) -> Dict[str, Any]:
+        smell = {
+            "type": "complex_condition",
+            "severity": "medium",
+            "file": file_path,
+            "line": line,
+            "metrics": {
+                "structural_facts": facts,
+            },
+            "description": "条件式に複合的な構文構造があります。",
+            "impact": "条件を名前付きの判定へ分割できる可能性があります。",
+        }
+        if content:
+            smell["content"] = content
+        if method:
+            smell["method"] = method
+        return smell

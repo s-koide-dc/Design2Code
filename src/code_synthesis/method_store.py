@@ -242,65 +242,69 @@ class MethodStore(SemanticSearchBase):
     def get_method_by_id(self, m_id: str) -> Optional[Dict[str, Any]]:
         return self.metadata_by_id.get(str(m_id))
 
-    def search(self, query: str, limit: int = 5, intent: str = None, role: str = None, cardinality: str = None, input_type: str = None, target_entity: str = None) -> List[Dict[str, Any]]:
+    def search(
+        self,
+        query: str,
+        limit: int = 5,
+        intent: str = None,
+        role: str = None,
+        cardinality: str = None,
+        input_type: str = None,
+        target_entity: str = None,
+        required_capabilities: Optional[List[str]] = None,
+        return_type: str = None,
+    ) -> List[Dict[str, Any]]:
         """
         メソッド部品を検索する。
         基本検索のみを行い、詳細なランク付けは UnifiedKnowledgeBase に委ねる。
         """
         if not query: return []
-        # Vector engine unavailable: fall back to deterministic, metadata-only selection.
+        if not self.items:
+            self.load()
+        candidates = [
+            item
+            for item in self.items
+            if self._matches_search_constraints(
+                item,
+                intent=intent,
+                role=role,
+                cardinality=cardinality,
+                input_type=input_type,
+                target_entity=target_entity,
+                required_capabilities=required_capabilities,
+                return_type=return_type,
+            )
+        ]
+
         if not self.vector_engine:
-            if not self.items:
-                self.load()
-            candidates = list(self.items)
-            filtered = []
-            for item in candidates:
-                item_copy = item.copy()
-                # If intent is provided but metadata lacks intent/role/capabilities, tag with intent to allow ranking.
-                if intent and not item_copy.get("intent") and not item_copy.get("role") and not item_copy.get("capabilities"):
-                    item_copy["intent"] = intent
-                    item_copy["capabilities"] = [intent]
-
-                # Optional intent-based filtering when explicit metadata exists.
-                if intent:
-                    item_intent = item_copy.get("intent")
-                    item_caps = item_copy.get("capabilities", [])
-                    if item_intent or item_caps:
-                        if item_intent != intent and intent not in item_caps:
-                            continue
-
-                # Anti-pattern exclusion
-                name_low = item_copy.get("name", "").lower()
-                if name_low in ["gettype", "gethashcode", "tostring", "equals"]:
-                    continue
-
-                item_copy["score"] = 0.0
-                filtered.append(item_copy)
-
-            def _priority(item: Dict[str, Any]) -> int:
-                tags = item.get("tags") or []
-                if not isinstance(tags, list):
-                    return 0
-                return 1 if any(t in ["project_internal", "reuse"] for t in tags) else 0
-
-            filtered.sort(key=lambda x: (-_priority(x), str(x.get("name", "")), str(x.get("id", ""))))
-            return filtered[:limit]
-        # 1. 候補の絞り込み (意図による事前フィルタリング)
-        # 実行速度向上のため、明らかに不適合なものを除外するヒントとして活用
-        candidates_to_rank = []
+            return [
+                {**item, "score": None}
+                for item in sorted(
+                    candidates,
+                    key=lambda candidate: (
+                        str(candidate.get("class", "")),
+                        str(candidate.get("name", "")),
+                        str(candidate.get("id", "")),
+                    ),
+                )[:limit]
+            ]
         
         # 2. 基本検索
-        raw_results = self.hybrid_search(query, top_k=limit * 20, semantic_weight=1.0)
+        raw_results = self.hybrid_search(
+            query,
+            top_k=max(len(self.items), limit),
+        )
+        allowed_ids = {
+            str(item.get("id", item.get("name")))
+            for item in candidates
+        }
         
         ranked_results = []
         for item, score in raw_results:
             item_id = item.get("id")
-            meta = self.metadata_by_id.get(item_id, item)
-            
-            # アンチパターン排除
-            name_low = item.get("name", "").lower()
-            if name_low in ["gettype", "gethashcode", "tostring", "equals"]:
+            if str(item_id or item.get("name")) not in allowed_ids:
                 continue
+            meta = self.metadata_by_id.get(item_id, item)
 
             # 基本的な類似度と情報を保持して UnifiedKnowledgeBase へ渡す
             item_copy = item.copy()
@@ -308,15 +312,57 @@ class MethodStore(SemanticSearchBase):
                 if field in meta:
                     item_copy[field] = meta[field]
             
-            name_sim = 0.0
-            try:
-                name_sim = float(self.matcher.calculate_semantic_similarity(query, item.get("name", "")))
-            except Exception:
-                name_sim = 0.0
             item_copy["score"] = score
-            item_copy["name_similarity"] = name_sim
             ranked_results.append(item_copy)
+            if len(ranked_results) == limit:
+                break
 
-        ranked_results.sort(key=lambda x: (x.get("name_similarity", 0.0), x.get("score", 0.0)), reverse=True)
         return ranked_results[:limit]
+
+    @staticmethod
+    def _matches_search_constraints(
+        item: Dict[str, Any],
+        *,
+        intent: Optional[str],
+        role: Optional[str],
+        cardinality: Optional[str],
+        input_type: Optional[str],
+        target_entity: Optional[str],
+        required_capabilities: Optional[List[str]],
+        return_type: Optional[str],
+    ) -> bool:
+        item_capabilities = set(item.get("capabilities") or [])
+        if intent is not None and (
+            item.get("intent") != intent
+            and item.get("role") != intent
+            and intent not in item_capabilities
+        ):
+            return False
+        if role is not None and item.get("role") != role:
+            return False
+        required = set(required_capabilities or [])
+        if not required.issubset(item_capabilities):
+            return False
+        if return_type is not None and item.get("return_type") != return_type:
+            return False
+        if input_type is not None:
+            parameter_types = {
+                parameter.get("type")
+                for parameter in item.get("params", [])
+                if isinstance(parameter, dict)
+            }
+            if input_type not in parameter_types:
+                return False
+        if target_entity is not None:
+            declared_entity = item.get("target_entity")
+            if declared_entity is not None and declared_entity != target_entity:
+                return False
+        if cardinality is not None:
+            declared_cardinality = item.get("cardinality")
+            if (
+                declared_cardinality is not None
+                and declared_cardinality != cardinality
+            ):
+                return False
+        return True
 

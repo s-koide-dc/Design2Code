@@ -162,6 +162,7 @@ class RefactoringAnalyzer:
                 "project_path": project_path,
                 "language": language,
                 "analysis_summary": self._create_analysis_summary(smell_result["code_smells"], suggestions),
+                "analysis_diagnostics": smell_result.get("analysis_diagnostics", []),
                 "code_smells": smell_result["code_smells"],
                 "refactoring_suggestions": suggestions,
                 "quality_metrics": quality_metrics,

@@ -25,7 +25,7 @@ class DynamicHarvester:
         """標準ライブラリの完全修飾型名を指定してメソッドを収穫する。"""
         type_name = str(query or "").strip()
         if not self._is_supported_type_name(type_name):
-            self.logger.warning("search_standard_library requires a fully qualified type name: %s", query)
+            self.logger.debug("search_standard_library requires a fully qualified type name: %s", query)
             return []
         methods = self.harvest_from_type(type_name)
         if methods:
@@ -34,6 +34,14 @@ class DynamicHarvester:
 
     def _is_supported_type_name(self, type_name: str) -> bool:
         if not type_name or "." not in type_name:
+            return False
+        allowed_punctuation = {".", "_", "+", "`"}
+        if any(
+            not (character.isalnum() or character in allowed_punctuation)
+            for character in type_name
+        ):
+            return False
+        if any(not segment for segment in type_name.split(".")):
             return False
         allowed_prefixes = (
             "System.",
@@ -44,18 +52,17 @@ class DynamicHarvester:
 
     def harvest_from_type(self, type_name: str) -> List[Dict[str, Any]]:
         """指定された型の public static メソッドを収穫する"""
+        if not self._is_supported_type_name(type_name):
+            self.logger.warning(
+                "Rejected unsupported reflection type name: %s",
+                type_name,
+            )
+            return []
         inspector_code = self._generate_inspector_code(type_name)
-        
-        try:
-            with tempfile.TemporaryDirectory_() as temp_dir: # Using custom context manager wrapper later if needed, but standard is fine
-                pass # Using plain tempfile logic below
-        except: pass
 
-        # 手動で一時ディレクトリ作成 (Python < 3.8 backport logic safe)
-        temp_dir = tempfile.mkdtemp(prefix="harvester_")
         try:
-            # プロジェクト作成
-            csproj = """<Project Sdk="Microsoft.NET.Sdk">
+            with tempfile.TemporaryDirectory(prefix="harvester_") as temp_dir:
+                csproj = """<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -63,50 +70,59 @@ class DynamicHarvester:
     <Nullable>enable</Nullable>
   </PropertyGroup>
 </Project>"""
-            
-            with open(os.path.join(temp_dir, "Inspector.csproj"), "w", encoding="utf-8") as f:
-                f.write(csproj)
-                
-            with open(os.path.join(temp_dir, "Program.cs"), "w", encoding="utf-8") as f:
-                f.write(inspector_code)
+                with open(
+                    os.path.join(temp_dir, "Inspector.csproj"),
+                    "w",
+                    encoding="utf-8",
+                ) as project_file:
+                    project_file.write(csproj)
+                with open(
+                    os.path.join(temp_dir, "Program.cs"),
+                    "w",
+                    encoding="utf-8",
+                ) as source_file:
+                    source_file.write(inspector_code)
 
-            # 実行
-            cmd = ["dotnet", "run"]
-            result = subprocess.run(
-                cmd, 
-                cwd=temp_dir, 
-                capture_output=True, 
-                text=True, 
-                timeout=30
-            )
-            
-            if result.returncode != 0:
-                self.logger.warning(f"Harvesting failed for {type_name}: {result.stderr}")
-                return []
-                
-            # 出力 (JSON) をパース
-            # Dotnet run might output some build info, so pick the last line assuming it's JSON
-            output_lines = result.stdout.strip().split('\n')
-            json_str = ""
-            for line in reversed(output_lines):
-                if line.strip().startswith("[") or line.strip().startswith("{"):
-                    json_str = line
-                    break
-            
-            if not json_str: 
-                return []
+                result = subprocess.run(
+                    ["dotnet", "run", "--verbosity", "quiet"],
+                    cwd=temp_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if result.returncode != 0:
+                    self.logger.warning(
+                        "Harvesting failed for %s with exit code %s: %s",
+                        type_name,
+                        result.returncode,
+                        result.stderr,
+                    )
+                    return []
 
-            methods_data = json.loads(json_str)
-            return self._convert_to_store_format(methods_data, type_name)
-
-        except Exception as e:
-            self.logger.error(f"Error harvesting {type_name}: {e}")
+                methods_data = None
+                for output_line in result.stdout.splitlines():
+                    try:
+                        decoded = json.loads(output_line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(decoded, list):
+                        methods_data = decoded
+                if methods_data is None:
+                    self.logger.warning(
+                        "Harvester produced no JSON method array for %s",
+                        type_name,
+                    )
+                    return []
+                return self._convert_to_store_format(methods_data, type_name)
+        except FileNotFoundError:
+            self.logger.error("dotnet executable was not found")
             return []
-        finally:
-            try:
-                import shutil
-                shutil.rmtree(temp_dir)
-            except: pass
+        except subprocess.TimeoutExpired:
+            self.logger.error("Harvesting timed out for %s", type_name)
+            return []
+        except OSError as exc:
+            self.logger.error("Harvester I/O failed for %s: %s", type_name, exc)
+            return []
 
     def harvest_from_package(self, package_name: str, version: str) -> List[Dict[str, Any]]:
         """NuGet パッケージの DLL からメソッドを収穫する"""

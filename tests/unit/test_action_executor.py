@@ -22,13 +22,13 @@ class TestActionExecutor(unittest.TestCase):
             "error_patterns": [
                 {
                     "type": "FileNotFoundError",
-                    "regex": "が見つかりません",
+                    "message_contains": "が見つかりません",
                     "user_message": "指定されたファイルまたはディレクトリが見つかりませんでした。",
                     "suggested_action": "ファイル名またはパスを確認してください。"
                 },
                 {
                     "type": "PermissionError",
-                    "regex": "アクセスが拒否",
+                    "message_contains": "アクセスが拒否",
                     "user_message": "操作に必要なアクセス権限がありません。",
                     "suggested_action": "管理者権限で再試行するか、別の場所を選択してください。"
                 }
@@ -344,6 +344,9 @@ class TestActionExecutor(unittest.TestCase):
             args, kwargs = mock_learning.trigger_learning.call_args
             self.assertEqual(kwargs['event_type'], "ACTION_FAILED")
             self.assertEqual(kwargs['data']['event'], "command_failed")
+            self.assertEqual(context["action_result"]["status"], "error")
+            self.assertEqual(context["action_result"]["returncode"], 1)
+            self.assertIn("Error from shell", context["action_result"]["message"])
 
     def test_execute_augments_action_result_dialogue_metadata(self):
         def fake_action(context, parameters):

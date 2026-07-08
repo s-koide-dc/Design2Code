@@ -14,5 +14,9 @@
   "optional_reference_docs": [
     "docs/README実装ギャップ段階改善計画.md",
     "docs/design_authoring_minimal_template.md"
+  ],
+  "generated_reference_paths": [
+    "resources/vectors/vector_db/method_store_meta.json",
+    "resources/vectors/vector_db/method_store_vectors.npy"
   ]
 }

@@ -50,6 +50,13 @@ class CodeBuilderClient:
 
     def build_code(self, blueprint: dict) -> dict:
         """Blueprint JSON を CodeBuilder に渡し、生成されたコードを受け取る"""
+        validation_errors = self._validate_blueprint(blueprint)
+        if validation_errors:
+            return {
+                "status": "error",
+                "message": "Blueprint contains unresolved statements.",
+                "errors": validation_errors,
+            }
         if not os.path.exists(self.project_path):
             return {"status": "fallback", "code": self._render_fallback_code(blueprint)}
         import time
@@ -105,6 +112,52 @@ class CodeBuilderClient:
         except Exception as e:
             logging.exception("Failed to communicate with CodeBuilder")
             return {"status": "error", "message": str(e)}
+
+    @staticmethod
+    def _validate_blueprint(blueprint: dict) -> list[dict]:
+        supported_types = {
+            "raw", "call", "assign", "comment", "foreach", "if",
+            "retry", "timeout", "transaction",
+        }
+        body_required_types = {"foreach", "if", "retry", "timeout", "transaction"}
+        errors = []
+
+        def validate_statements(statements, location):
+            for index, statement in enumerate(statements or []):
+                statement_location = f"{location}[{index}]"
+                if not isinstance(statement, dict):
+                    errors.append({
+                        "location": statement_location,
+                        "reason": "statement_not_object",
+                    })
+                    continue
+                statement_type = statement.get("type")
+                if statement_type not in supported_types:
+                    errors.append({
+                        "location": statement_location,
+                        "reason": "unsupported_statement_type",
+                        "statement_type": statement_type,
+                    })
+                    continue
+                body = statement.get("body")
+                if statement_type in body_required_types and not body:
+                    errors.append({
+                        "location": statement_location,
+                        "reason": "required_body_empty",
+                        "statement_type": statement_type,
+                    })
+                if isinstance(body, list):
+                    validate_statements(body, f"{statement_location}.body")
+                else_body = statement.get("else_body")
+                if isinstance(else_body, list):
+                    validate_statements(else_body, f"{statement_location}.else_body")
+
+        for method_index, method in enumerate(blueprint.get("methods", []) or []):
+            validate_statements(
+                method.get("body", []) if isinstance(method, dict) else [],
+                f"methods[{method_index}].body",
+            )
+        return errors
 
     def _render_fallback_code(self, blueprint: dict) -> str:
         """Minimal in-process renderer for tests when CodeBuilder is unavailable."""
@@ -177,13 +230,23 @@ class CodeBuilderClient:
         if s_type == "call":
             call_expr = stmt.get("call_expr")
             if call_expr:
-                return f"{call_expr};"
+                await_prefix = "await " if stmt.get("is_async") else ""
+                out_var = stmt.get("out_var")
+                if out_var:
+                    assignment = f"{out_var} = " if stmt.get("is_assignment_only") else f"{stmt.get('var_type', 'var')} {out_var} = "
+                    return f"{assignment}{await_prefix}{call_expr};"
+                return f"{await_prefix}{call_expr};"
             method = stmt.get("method")
             if isinstance(method, tuple):
                 method = method[0]
             args = stmt.get("args")
             if method and args is not None:
-                return f"{method}({', '.join(args)});"
+                call = f"{method}({', '.join(args)})"
+                out_var = stmt.get("out_var")
+                if out_var:
+                    assignment = f"{out_var} = " if stmt.get("is_assignment_only") else f"{stmt.get('var_type', 'var')} {out_var} = "
+                    return f"{assignment}{call};"
+                return f"{call};"
             if method and "(" not in method:
                 return f"{method}();"
             return f"{method};" if method else ""
@@ -201,7 +264,7 @@ class CodeBuilderClient:
                 rendered = self._render_stmt(b, is_async=is_async)
                 for line in rendered.splitlines():
                     body_lines.append(f"    {line}")
-            body_block = "\n".join(body_lines) if body_lines else "    // TODO: foreach body"
+            body_block = "\n".join(body_lines)
             return f"foreach ({var_decl} {item_name} in {source})\n{{\n{body_block}\n}}"
         if s_type == "if":
             cond = stmt.get("condition", "true")
@@ -210,17 +273,16 @@ class CodeBuilderClient:
                 rendered = self._render_stmt(b, is_async=is_async)
                 for line in rendered.splitlines():
                     body_lines.append(f"    {line}")
-            body_block = "\n".join(body_lines) if body_lines else "    // TODO: if body"
+            body_block = "\n".join(body_lines)
             code = f"if ({cond})\n{{\n{body_block}\n}}"
             else_body = stmt.get("else_body", []) or []
             if else_body:
                 else_lines = []
-                else_lines.append("    // TODO: else")
                 for b in else_body:
                     rendered = self._render_stmt(b, is_async=is_async)
                     for line in rendered.splitlines():
                         else_lines.append(f"    {line}")
-                else_block = "\n".join(else_lines) if else_lines else "    // TODO: else body"
+                else_block = "\n".join(else_lines)
                 code += f"\nelse\n{{\n{else_block}\n}}"
             return code
         if s_type == "retry":
@@ -252,7 +314,7 @@ class CodeBuilderClient:
                 rendered = self._render_stmt(b, is_async=is_async)
                 for line in rendered.splitlines():
                     body_lines.append(f"        {line}")
-            body_block = "\n".join(body_lines) if body_lines else "        // TODO: retry body"
+            body_block = "\n".join(body_lines)
             last_index = max_attempts - 1
             declaration = f"for (var retryAttempt = 0; retryAttempt < {max_attempts}; retryAttempt++)"
             catch_lines = [f"        if (retryAttempt == {last_index}) throw;"]
@@ -303,7 +365,7 @@ class CodeBuilderClient:
                 rendered = self._render_stmt(b, is_async=is_async)
                 for line in rendered.splitlines():
                     body_lines.append(f"        {line}")
-            body_block = "\n".join(body_lines) if body_lines else "        // TODO: timeout body"
+            body_block = "\n".join(body_lines)
             if is_async:
                 return (
                     "{\n"
@@ -340,7 +402,7 @@ class CodeBuilderClient:
                 rendered = self._render_stmt(b, is_async=is_async)
                 for line in rendered.splitlines():
                     body_lines.append(f"        {line}")
-            body_block = "\n".join(body_lines) if body_lines else "        // TODO: transaction body"
+            body_block = "\n".join(body_lines)
             if is_async:
                 return (
                     "{\n"
@@ -356,4 +418,4 @@ class CodeBuilderClient:
                 "    transactionScope.Complete();\n"
                 "}"
             )
-        return f"// TODO: {stmt.get('text', stmt.get('type', ''))}"
+        raise ValueError(f"Unsupported statement type: {stmt.get('type')!r}")

@@ -91,6 +91,43 @@ class CodeSynthesizer:
         Accepts either a list of step strings or a structured_spec dict.
         """
         if isinstance(design_steps, list) and not os.path.exists(self.builder_client.project_path):
+            name_to_id = {}
+            for method_id, metadata in (self.method_store.metadata_by_id or {}).items():
+                method_name_value = str(metadata.get("name") or "").strip()
+                if method_name_value:
+                    name_to_id.setdefault(method_name_value.lower(), str(method_id))
+                name_to_id.setdefault(str(method_id).lower(), str(method_id))
+            structured_steps = []
+            for index, step_value in enumerate(design_steps, start=1):
+                supplied_step = dict(step_value) if isinstance(step_value, dict) else {}
+                step_text = str(
+                    supplied_step.get("text")
+                    or supplied_step.get("original_text")
+                    or step_value
+                ).strip()
+                explicit_id = (
+                    supplied_step.get("explicit_method_id")
+                    or name_to_id.get(step_text.lower())
+                )
+                normalized_step = {
+                    "id": f"step_{index}",
+                    "kind": NODE_ACTION,
+                    "intent": INTENT_GENERAL,
+                    "target_entity": "Item",
+                    "input_refs": [f"step_{index-1}"] if index > 1 else [],
+                    "output_type": "void",
+                    "side_effect": "NONE",
+                    "text": step_text,
+                    "explicit_method_id": explicit_id,
+                    "explicit_method_name": (
+                        self.method_store.metadata_by_id.get(explicit_id, {}).get("name")
+                        if explicit_id
+                        else None
+                    ),
+                }
+                normalized_step.update(supplied_step)
+                normalized_step["text"] = step_text
+                structured_steps.append(normalized_step)
             structured_spec = {
                 "module_name": method_name,
                 "purpose": f"{method_name} synthesis",
@@ -98,20 +135,8 @@ class CodeSynthesizer:
                 "outputs": [],
                 "constraints": [],
                 "test_cases": [],
-                "steps": [
-                    {
-                        "id": f"step_{i}",
-                        "kind": NODE_ACTION,
-                        "intent": INTENT_GENERAL,
-                        "target_entity": "Item",
-                        "input_refs": [f"step_{i-1}"] if i > 1 else [],
-                        "output_type": "void",
-                        "side_effect": "NONE",
-                        "text": str(s)
-                    }
-                    for i, s in enumerate(design_steps, start=1)
-                ],
-                "data_sources": []
+                "steps": structured_steps,
+                "data_sources": [],
             }
             return self.synthesize_from_structured_spec(
                 method_name,
@@ -120,7 +145,7 @@ class CodeSynthesizer:
                 return_type=return_type,
                 input_type_hint=input_type_hint,
                 pre_resolved_dependencies=pre_resolved_dependencies,
-                **kwargs
+                **kwargs,
             )
         if isinstance(design_steps, dict) and "steps" in design_steps:
             structured_spec = design_steps
@@ -170,25 +195,6 @@ class CodeSynthesizer:
             pre_resolved_dependencies=pre_resolved_dependencies,
             **kwargs
         )
-
-    def _synthesize_heuristic_code(self, method_name: str, design_steps: List[str]) -> str:
-        steps = [str(s) for s in design_steps]
-        code_lines = [
-            "using System;",
-            "",
-            "namespace Generated",
-            "{",
-            "    public partial class GeneratedProcessor",
-            "    {",
-            f"        public void {method_name}()",
-            "        {"
-        ]
-        for step in steps:
-            code_lines.append(f"            // TODO: {step}")
-        code_lines.append("        }")
-        code_lines.append("    }")
-        code_lines.append("}")
-        return "\n".join(code_lines)
 
     def synthesize_from_structured_spec(self, method_name: str, structured_spec: Dict[str, Any], intent: str = None, return_type: str = None, input_type_hint: str = None, **kwargs) -> Dict[Any, Any]:
         from src.design_parser import validate_structured_spec_or_raise
@@ -273,15 +279,22 @@ class CodeSynthesizer:
             "input_defs": input_defs,
             "dependencies": set()
         }
-        initial_path["rank_tuple"] = (0, 0, 0, 0.0)
-        
         # 27.502: Re-propagate to path for direct access by statement builder
         if ir_tree.get("return_type_hint"):
             initial_path["method_return_type"] = ir_tree["return_type_hint"]
 
         final_paths = self.ir_emitter.emit(ir_tree, [initial_path], beam_width=10)
         if not final_paths:
-            return {"code": "// Synthesis failed: No valid paths found", "dependencies": [], "trace": {"ir_tree": ir_tree}}
+            return {
+                "status": "error",
+                "code": "",
+                "dependencies": [],
+                "error": {
+                    "type": "synthesis_resolution_failed",
+                    "reason": "no_valid_paths",
+                },
+                "trace": {"ir_tree": ir_tree},
+            }
             
         best_path = sorted(
             final_paths,
@@ -300,7 +313,18 @@ class CodeSynthesizer:
                     continue
                 try:
                     query_text = node.get("original_text", "")
-                    candidates = self.ukb.search(query_text, limit=5, intent=node.get("intent"), target_entity=node.get("target_entity"))
+                    requested_return_type = node.get("output_type")
+                    if requested_return_type in (None, "", "void"):
+                        requested_return_type = None
+                    candidates = self.ukb.search(
+                        query_text,
+                        limit=5,
+                        intent=node.get("intent"),
+                        target_entity=node.get("target_entity"),
+                        return_type=requested_return_type,
+                        requested_role=self.action_synthesizer._get_effective_runtime_role(node),
+                        source_kind=node.get("source_kind"),
+                    )
                 except Exception:
                     candidates = []
                 for m in candidates:
@@ -308,56 +332,53 @@ class CodeSynthesizer:
                     if res:
                         best_path = res
                         break
-                    # Minimal fallback for paramless methods
-                    if not m.get("params"):
-                        try:
-                            call_expr = self.stmt_builder.render_method_call(m, [], node.get("target_entity", "Item"), node.get("cardinality", "SINGLE"), best_path)
-                        except Exception:
-                            continue
-                        stmt = {"type": "call", "method": call_expr, "args": [], "call_expr": call_expr, "node_id": node.get("id")}
-                        ret_type = m.get("return_type", "void")
-                        ret_type = self.type_system.concretize_generic(ret_type, node.get("original_text", ""), mandatory_hint=node.get("target_entity"), cardinality=node.get("cardinality"))
-                        if ret_type and ret_type not in ["void", "Task"]:
-                            var_name = self.stmt_builder.get_semantic_var_name(node, ret_type, m.get("name"), best_path, role="data")
-                            stmt["out_var"] = var_name
-                            stmt["var_type"] = ret_type
-                            best_path.setdefault("type_to_vars", {}).setdefault(ret_type, []).append({"var_name": var_name, "node_id": node.get("id"), "role": "data", "target_entity": node.get("target_entity", "Item")})
-                            best_path["active_scope_item"] = var_name
-                        best_path.setdefault("statements", []).append(stmt)
-                        best_path.setdefault("consumed_ids", set()).add(node.get("id"))
-                        best_path["completed_nodes"] = best_path.get("completed_nodes", 0) + 1
-                        break
-                    # Minimal fallback for SQL-like methods
-                    params = []
-                    for p in m.get("params", []):
-                        pname = p.get("name") if isinstance(p, dict) else None
-                        prole = p.get("role") if isinstance(p, dict) else None
-                        if pname == "sql" or prole == "sql":
-                            sql_text = node.get("semantic_map", {}).get("semantic_roles", {}).get("sql")
-                            params.append(f"\"{sql_text}\"" if sql_text else "\"\"")
-                        else:
-                            params.append("null")
-                    if params:
-                        try:
-                            call_expr = self.stmt_builder.render_method_call(m, params, node.get("target_entity", "Item"), node.get("cardinality", "SINGLE"), best_path)
-                        except Exception:
-                            continue
-                        stmt = {"type": "call", "method": call_expr, "args": list(params), "call_expr": call_expr, "node_id": node.get("id")}
-                        ret_type = m.get("return_type", "void")
-                        ret_type = self.type_system.concretize_generic(ret_type, node.get("original_text", ""), mandatory_hint=node.get("target_entity"), cardinality=node.get("cardinality"))
-                        if ret_type and ret_type not in ["void", "Task"]:
-                            var_name = self.stmt_builder.get_semantic_var_name(node, ret_type, m.get("name"), best_path, role="data")
-                            stmt["out_var"] = var_name
-                            stmt["var_type"] = ret_type
-                            best_path.setdefault("type_to_vars", {}).setdefault(ret_type, []).append({"var_name": var_name, "node_id": node.get("id"), "role": "data", "target_entity": node.get("target_entity", "Item")})
-                            best_path["active_scope_item"] = var_name
-                        # Register entity for POCO generation when applicable
-                        if node.get("target_entity") and node.get("target_entity") != "Item":
-                            self.stmt_builder.register_entity(node.get("target_entity"), best_path)
-                        best_path.setdefault("statements", []).append(stmt)
-                        best_path.setdefault("consumed_ids", set()).add(node.get("id"))
-                        best_path["completed_nodes"] = best_path.get("completed_nodes", 0) + 1
-                        break
+
+        unresolved_errors = []
+        seen_resolution_errors = set()
+        for error in best_path.get("resolution_errors", []):
+            identity = (
+                error.get("node_id"),
+                error.get("reason"),
+            )
+            if identity in seen_resolution_errors:
+                continue
+            seen_resolution_errors.add(identity)
+            unresolved_errors.append(error)
+        consumed_ids = best_path.get("consumed_ids", set())
+        for node in ir_tree.get("logic_tree", []):
+            node_id = node.get("id")
+            if node_id in consumed_ids:
+                continue
+            identity = (node_id, "node_not_synthesized")
+            if identity in seen_resolution_errors:
+                continue
+            seen_resolution_errors.add(identity)
+            unresolved_errors.append({
+                "node_id": node_id,
+                "reason": "node_not_synthesized",
+                "details": {
+                    "intent": node.get("intent"),
+                    "target_entity": node.get("target_entity"),
+                    "output_type": node.get("output_type"),
+                },
+            })
+        if unresolved_errors:
+            return {
+                "status": "error",
+                "code": "",
+                "dependencies": [],
+                "error": {
+                    "type": "synthesis_resolution_failed",
+                    "reason": "unresolved_ir_nodes",
+                    "unresolved_nodes": unresolved_errors,
+                    "completed_nodes": best_path.get("completed_nodes", 0),
+                    "expected_steps": expected_steps,
+                },
+                "trace": {
+                    "ir_tree": ir_tree,
+                    "best_path": best_path,
+                },
+            }
 
         # 27.410: Interface alignment with BlueprintAssembler
         blueprint = self.blueprint_assembler.create_blueprint(
@@ -399,7 +420,27 @@ class CodeSynthesizer:
 
         # 27.505: Use CodeBuilderClient officially
         res = self.builder_client.build_code(blueprint)
-        code = res.get("code") or "// Code generation failed"
+        if res.get("status") == "error":
+            return {
+                "status": "error",
+                "code": "",
+                "dependencies": [],
+                "error": {
+                    "type": "code_generation_failed",
+                    "reason": "invalid_or_unrenderable_blueprint",
+                    "details": (
+                        res.get("errors")
+                        or res.get("diagnostics")
+                        or res.get("message")
+                    ),
+                },
+                "trace": {
+                    "ir_tree": ir_tree,
+                    "best_path": best_path,
+                    "blueprint": blueprint,
+                },
+            }
+        code = res.get("code") or ""
         
         pre_resolved = kwargs.get("pre_resolved_dependencies") or []
         dep_set = []
@@ -417,6 +458,7 @@ class CodeSynthesizer:
                 resolved.append(d)
 
         return {
+            "status": "success",
             "code": code,
             "dependencies": resolved,
             "trace": {
@@ -435,13 +477,16 @@ class CodeSynthesizer:
             "used_names": path["used_names"].copy(),
             "all_usings": path["all_usings"].copy(),
             "poco_defs": copy.deepcopy(path["poco_defs"]),
-            "rank_tuple": path["rank_tuple"],
             "method_return_type": path.get("method_return_type", "void"),
             "is_async_needed": path.get("is_async_needed", False),
             "name_to_role": path.get("name_to_role", {}).copy(),
             "last_literal_map": path.get("last_literal_map", {}).copy(), # Phase 7 F-1
             "input_defs": path.get("input_defs", [])
         }
+        if "resolution_errors" in path:
+            new_path["resolution_errors"] = copy.deepcopy(
+                path["resolution_errors"]
+            )
         if "active_scope_item" in path: new_path["active_scope_item"] = path["active_scope_item"]
         if "hoisted_statements" in path: new_path["hoisted_statements"] = list(path["hoisted_statements"])
         if "in_loop" in path: new_path["in_loop"] = path["in_loop"]

@@ -141,6 +141,3 @@ class RefactoringSuggestionEngine:
         """優先度スコアを取得"""
         priority_scores = {"high": 3, "medium": 2, "low": 1}
         return priority_scores.get(priority, 1)
-        # TODO: Implement Logic: **スメル別の戦略立案**:
-            # TODO: Implement Logic: **ランキング**: 重要度と優先度に基づいてソートし、上位件数に絞り込み。
-            # TODO: Implement Logic: **影響分析の付与**: 各提案に対し、テストへの影響範囲や安全レベルを付記。

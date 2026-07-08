@@ -70,7 +70,11 @@ class BlueprintAssembler:
             p_name = p.get("name")
             p_type = p.get("type", "object")
             # Only check for reference types or nullable types (simplistic check for demo)
-            is_val_type = p_type in ["int", "long", "double", "float", "decimal", "bool", "char", "Guid", "DateTime"]
+            is_val_type = p_type in [
+                "int", "long", "double", "float", "decimal", "bool", "char",
+                "byte", "short", "uint", "ulong", "ushort", "Guid", "DateTime",
+                "DateTimeOffset", "TimeSpan", "CancellationToken",
+            ]
             if p_name and not is_val_type:
                 final_body.append({"type": "raw", "code": f"if ({p_name} == null) throw new ArgumentNullException(nameof({p_name}));", "node_id": "validation"})
 

@@ -20,6 +20,7 @@ class JavaScriptRefactoringAnalyzer(BaseRefactoringAnalyzer):
     def detect_smells(self, project_path: str, options: Dict[str, Any]) -> Dict[str, Any]:
         """JavaScriptプロジェクトのコードスメルを検出"""
         try:
+            self.analysis_diagnostics = []
             code_smells = []
             js_files = self._find_js_files(project_path)
             
@@ -30,7 +31,8 @@ class JavaScriptRefactoringAnalyzer(BaseRefactoringAnalyzer):
             return {
                 "status": "success",
                 "code_smells": code_smells,
-                "files_analyzed": len(js_files)
+                "files_analyzed": len(js_files),
+                "analysis_diagnostics": list(self.analysis_diagnostics),
             }
             
         except Exception as e:

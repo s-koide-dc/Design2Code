@@ -308,7 +308,6 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "last_literal_map": {},
             "input_defs": [],
             "dependencies": set(),
-            "rank_tuple": (0, 0, 0, 0.0),
         }
 
     def test_input_link_prefers_upstream_vars(self):
@@ -435,6 +434,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
                     "kind": "ACTION",
                     "intent": "TRANSFORM",
                     "explicit_intent": True,
+                    "explicit_method_id": "validate_email_test",
                     "target_entity": "Email",
                     "input_refs": [],
                     "output_type": "bool",
@@ -446,6 +446,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
                     "kind": "ACTION",
                     "intent": "PERSIST",
                     "explicit_intent": True,
+                    "explicit_method_id": "save_data_test",
                     "target_entity": "Data",
                     "input_refs": ["step_1"],
                     "output_type": "void",
@@ -474,7 +475,12 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         
         spec = self._build_spec("SpaceMission", design_steps)
         result = self.synthesizer.synthesize_from_structured_spec("SpaceMission", spec)
-        self.assertTrue(isinstance(result.get("code"), str) and len(result.get("code")) > 0)
+        self.assertEqual("error", result.get("status"))
+        self.assertEqual("", result.get("code"))
+        self.assertEqual(
+            "unresolved_ir_nodes",
+            result.get("error", {}).get("reason"),
+        )
 
     def test_synthesize_data_chaining(self):
         """
@@ -492,6 +498,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
                     "kind": "ACTION",
                     "intent": "FETCH",
                     "explicit_intent": True,
+                    "explicit_method_id": "get_user_test",
                     "target_entity": "User",
                     "input_refs": [],
                     "output_type": "User",
@@ -505,6 +512,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
                     "kind": "ACTION",
                     "intent": "PERSIST",
                     "explicit_intent": True,
+                    "explicit_method_id": "save_data_test",
                     "target_entity": "Data",
                     "input_refs": ["step_1"],
                     "output_type": "void",
@@ -585,6 +593,133 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertTrue(isinstance(code, str) and len(code) > 0)
         self.assertIn("DoBusiness", code)
 
+    def test_direct_ukb_fallback_passes_structural_constraints(self):
+        ir_tree = {
+            "return_type_hint": "string",
+            "logic_tree": [{
+                "id": "step_1",
+                "kind": "ACTION",
+                "intent": "FETCH",
+                "role": "FETCH",
+                "original_text": "設定を読み込む",
+                "target_entity": "Config",
+                "output_type": "string",
+                "source_kind": "file",
+                "semantic_map": {"semantic_roles": {}},
+            }],
+        }
+        self.synthesizer.ir_emitter.emit = MagicMock(return_value=[{
+            "consumed_ids": set(),
+            "completed_nodes": 0,
+            "statements": [],
+            "type_to_vars": {},
+            "used_names": set(),
+            "all_usings": set(),
+            "poco_defs": {},
+            "method_return_type": "string",
+            "last_literal_map": {},
+            "input_defs": [],
+            "dependencies": set(),
+        }])
+        self.synthesizer.ukb.search = MagicMock(return_value=[{
+            "id": "config_read",
+            "name": "ReadConfig",
+            "return_type": "string",
+            "params": [],
+            "role": "FETCH",
+            "intent": "FETCH",
+        }])
+        self.synthesizer.action_synthesizer._synthesize_single_method = MagicMock(
+            return_value={
+                "consumed_ids": {"step_1"},
+                "completed_nodes": 1,
+                "statements": [{"type": "call", "method": "ReadConfig()", "node_id": "step_1"}],
+                "type_to_vars": {},
+                "used_names": set(),
+                "all_usings": set(),
+                "poco_defs": {},
+                "method_return_type": "string",
+                "last_literal_map": {},
+                "input_defs": [],
+                "dependencies": set(),
+            }
+        )
+
+        result = self.synthesizer._synthesize_from_ir_tree(
+            "ReadConfig",
+            ir_tree,
+            expected_steps=1,
+            allow_fallback=True,
+        )
+
+        self.assertEqual("success", result.get("status"), result)
+        self.synthesizer.ukb.search.assert_called_once_with(
+            "設定を読み込む",
+            limit=5,
+            intent="FETCH",
+            target_entity="Config",
+            return_type="string",
+            requested_role="FETCH",
+            source_kind="file",
+        )
+
+    def test_direct_ukb_fallback_does_not_fill_missing_arguments_with_null(self):
+        ir_tree = {
+            "return_type_hint": "void",
+            "logic_tree": [{
+                "id": "step_1",
+                "kind": "ACTION",
+                "intent": "PERSIST",
+                "role": "PERSIST",
+                "original_text": "保存する",
+                "target_entity": "Item",
+                "output_type": "void",
+                "semantic_map": {"semantic_roles": {}},
+            }],
+        }
+        base_path = {
+            "consumed_ids": set(),
+            "completed_nodes": 0,
+            "statements": [],
+            "type_to_vars": {},
+            "used_names": set(),
+            "all_usings": set(),
+            "poco_defs": {},
+            "method_return_type": "void",
+            "last_literal_map": {},
+            "input_defs": [],
+            "dependencies": set(),
+        }
+        self.synthesizer.ir_emitter.emit = MagicMock(return_value=[base_path])
+        self.synthesizer.ukb.search = MagicMock(return_value=[{
+            "id": "save_item",
+            "name": "Save",
+            "return_type": "void",
+            "params": [{"name": "item", "type": "Item"}],
+            "role": "PERSIST",
+            "intent": "PERSIST",
+        }])
+        self.synthesizer.action_synthesizer._synthesize_single_method = MagicMock(
+            return_value=None
+        )
+
+        result = self.synthesizer._synthesize_from_ir_tree(
+            "SaveItem",
+            ir_tree,
+            expected_steps=1,
+            allow_fallback=True,
+        )
+
+        self.assertEqual("error", result.get("status"), result)
+        self.assertEqual(
+            "unresolved_ir_nodes",
+            result.get("error", {}).get("reason"),
+        )
+        unresolved = result.get("error", {}).get("unresolved_nodes", [])
+        self.assertEqual("node_not_synthesized", unresolved[0].get("reason"))
+        raw_statements = result.get("trace", {}).get("best_path", {}).get("statements", [])
+        self.assertEqual([], raw_statements)
+
     def test_ops_trim_upper_from_stdin(self):
         spec = {
             "module_name": "StdinTransform",
@@ -654,13 +789,14 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
                     "kind": "ACTION",
                     "intent": "FETCH",
                     "explicit_intent": True,
+                    "explicit_method_id": "env_get_test",
                     "target_entity": "string",
                     "input_refs": [],
                     "output_type": "string",
                     "side_effect": "IO",
                     "source_ref": "APP_MODE",
                     "source_kind": "env",
-                    "semantic_roles": {}
+                    "semantic_roles": {"name": "APP_MODE"}
                 },
                 {
                     "id": "step_2",
@@ -668,13 +804,14 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
                     "kind": "ACTION",
                     "intent": "FETCH",
                     "explicit_intent": True,
+                    "explicit_method_id": "env_get_test",
                     "target_entity": "string",
                     "input_refs": ["step_1"],
                     "output_type": "string",
                     "side_effect": "IO",
                     "source_ref": "APP_REGION",
                     "source_kind": "env",
-                    "semantic_roles": {}
+                    "semantic_roles": {"name": "APP_REGION"}
                 },
                 {
                     "id": "step_3",
@@ -939,7 +1076,11 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         results = self.synthesizer.action_synthesizer.process_node(node, path)
         self.assertTrue(results)
         raw_codes = self._collect_all_raw_codes(results[0])
-        self.assertTrue(any("Resolve weak FILTER provenance" in c for c in raw_codes))
+        self.assertEqual(
+            results[0]["resolution_errors"][0]["reason"],
+            "filter_provenance_not_explicit",
+        )
+        self.assertFalse(any("NotImplementedException" in c for c in raw_codes))
         self.assertFalse(any(".Where(" in c and "Points" in c for c in raw_codes))
 
     def test_spec_role_transform_bridges_weak_intent_to_transform_handler(self):
@@ -1535,6 +1676,90 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("System.Threading.Thread.Sleep(retryDelayMs);", code)
         self.assertIn("retryDelayMs = Math.Min(1000, (int)Math.Ceiling(retryDelayMs * 2.0));", code)
 
+    def test_code_builder_rejects_empty_structural_body(self):
+        real_cm = MagicMock()
+        real_cm.workspace_root = os.getcwd()
+        client = CodeBuilderClient(real_cm)
+        blueprint = {
+            "methods": [{
+                "name": "Incomplete",
+                "body": [{
+                    "type": "foreach",
+                    "source": "items",
+                    "item_name": "item",
+                    "body": [],
+                }],
+            }],
+        }
+
+        result = client.build_code(blueprint)
+
+        self.assertEqual("error", result.get("status"))
+        self.assertEqual(
+            "required_body_empty",
+            result.get("errors", [{}])[0].get("reason"),
+        )
+        self.assertNotIn("TODO", result.get("code", ""))
+
+    def test_code_builder_rejects_unsupported_statement(self):
+        real_cm = MagicMock()
+        real_cm.workspace_root = os.getcwd()
+        client = CodeBuilderClient(real_cm)
+        blueprint = {
+            "methods": [{
+                "name": "Unsupported",
+                "body": [{"type": "unresolved_operation"}],
+            }],
+        }
+
+        result = client.build_code(blueprint)
+
+        self.assertEqual("error", result.get("status"))
+        self.assertEqual(
+            "unsupported_statement_type",
+            result.get("errors", [{}])[0].get("reason"),
+        )
+
+    def test_code_builder_rejects_invalid_call_argument_expression(self):
+        real_cm = MagicMock()
+        real_cm.workspace_root = os.getcwd()
+        client = CodeBuilderClient(real_cm)
+        blueprint = {
+            "methods": [{
+                "name": "InvalidArgument",
+                "return_type": "void",
+                "body": [{
+                    "type": "call",
+                    "method": "Console.WriteLine",
+                    "args": ["("],
+                }],
+            }],
+        }
+
+        result = client.build_code(blueprint)
+
+        self.assertEqual("error", result.get("status"))
+        self.assertIn("Invalid argument", result.get("message", ""))
+        self.assertNotIn("code", result)
+
+    def test_code_builder_rejects_generated_syntax_diagnostics(self):
+        real_cm = MagicMock()
+        real_cm.workspace_root = os.getcwd()
+        client = CodeBuilderClient(real_cm)
+        blueprint = {
+            "methods": [{
+                "name": "InvalidRaw",
+                "return_type": "void",
+                "body": [{"type": "raw", "code": "var value = ;"}],
+            }],
+        }
+
+        result = client.build_code(blueprint)
+
+        self.assertEqual("error", result.get("status"))
+        self.assertTrue(result.get("diagnostics"))
+        self.assertNotIn("code", result)
+
     def test_async_retry_blueprint_uses_task_delay_for_backoff(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()
@@ -1835,8 +2060,110 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
 
         self.assertTrue(results)
         raw_codes = self._collect_all_raw_codes(results[0])
-        self.assertTrue(any("Resolve ambiguous CALCULATE target for Total" in c for c in raw_codes))
+        self.assertEqual(
+            results[0]["resolution_errors"][0]["reason"],
+            "calculation_target_is_ambiguous",
+        )
+        self.assertFalse(any("NotImplementedException" in c for c in raw_codes))
         self.assertFalse(any(".Total" in c for c in raw_codes))
+
+    def test_calculate_does_not_infer_expression_from_property_names(self):
+        node = {
+            "id": "step_calc_no_contract",
+            "type": "ACTION",
+            "intent": "CALC",
+            "role": "CALC",
+            "target_entity": "Product",
+            "cardinality": "SINGLE",
+            "output_type": "decimal",
+            "original_text": "calculate",
+            "semantic_map": {
+                "spec_role": "CALCULATE",
+                "semantic_roles": {},
+                "logic": [],
+            },
+        }
+        path = self._base_path()
+        path["active_scope_item"] = "product"
+        path["type_to_vars"] = {
+            "Product": [{
+                "var_name": "product",
+                "role": "data",
+                "node_id": "step_product",
+                "target_entity": "Product",
+            }],
+        }
+        path["poco_defs"] = {
+            "Product": {
+                "Price": "decimal",
+                "Quantity": "int",
+                "Total": "decimal",
+            },
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertEqual(
+            results[0]["resolution_errors"][0]["reason"],
+            "calculation_expression_not_explicit",
+        )
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertFalse(any("Price" in code for code in raw_codes))
+        self.assertFalse(any("Quantity" in code for code in raw_codes))
+
+    def test_calculate_uses_explicit_price_and_quantity_properties(self):
+        node = {
+            "id": "step_calc_explicit_contract",
+            "type": "ACTION",
+            "intent": "CALC",
+            "role": "CALC",
+            "target_entity": "Product",
+            "cardinality": "SINGLE",
+            "output_type": "decimal",
+            "semantic_map": {
+                "spec_role": "CALCULATE",
+                "semantic_roles": {
+                    "price_prop": "UnitCost",
+                    "quantity_prop": "Units",
+                    "calculate_source_node_id": "step_product",
+                    "calculate_source_resolution": "input_link_var",
+                },
+                "logic": [],
+            },
+        }
+        path = self._base_path()
+        path["active_scope_item"] = "otherProduct"
+        path["type_to_vars"] = {
+            "Product": [
+                {
+                    "var_name": "product",
+                    "role": "data",
+                    "node_id": "step_product",
+                    "target_entity": "Product",
+                },
+                {
+                    "var_name": "otherProduct",
+                    "role": "data",
+                    "node_id": "step_other",
+                    "target_entity": "Product",
+                },
+            ],
+        }
+        path["poco_defs"] = {
+            "Product": {
+                "UnitCost": "decimal",
+                "Units": "int",
+            },
+        }
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any(
+            "product.UnitCost * product.Units" in code
+            for code in raw_codes
+        ))
+        self.assertNotIn("resolution_errors", results[0])
 
     def test_history_fallback_calculate_uses_exact_target_without_cross_entity_fallback(self):
         node = {
@@ -1994,7 +2321,11 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
 
         self.assertTrue(results)
         raw_codes = self._collect_all_raw_codes(results[0])
-        self.assertTrue(any("Resolve weak CALCULATE target for 結果" in c for c in raw_codes))
+        self.assertEqual(
+            results[0]["resolution_errors"][0]["reason"],
+            "calculation_target_not_explicit",
+        )
+        self.assertFalse(any("NotImplementedException" in c for c in raw_codes))
         self.assertFalse(any(".結果" in c for c in raw_codes))
         self.assertFalse(any(".Total =" in c for c in raw_codes))
 

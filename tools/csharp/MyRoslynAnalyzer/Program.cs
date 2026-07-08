@@ -12,8 +12,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Diagnostics; // Added for Process
-using System.Text.RegularExpressions; // Added for wildcard matching
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
@@ -59,6 +57,12 @@ namespace MyRoslynAnalyzer
         [property: JsonPropertyName("line")] int Line
     );
 
+    public record ConditionStructure(
+        [property: JsonPropertyName("line")] int Line,
+        [property: JsonPropertyName("facts")] List<string> Facts,
+        [property: JsonPropertyName("source")] string Source
+    );
+
     public record ConstructorInfo(
         [property: JsonPropertyName("accessibility")] string Accessibility,
         [property: JsonPropertyName("parameters")] List<ParameterInfo> Parameters
@@ -89,12 +93,15 @@ namespace MyRoslynAnalyzer
         [JsonPropertyName("documentation")] public Documentation Documentation { get; init; }
         [JsonPropertyName("parameters")] public List<ParameterInfo> Parameters { get; init; }
         [JsonPropertyName("branches")] public List<BranchInfo> Branches { get; init; } // New
+        [JsonPropertyName("conditionStructures")] public List<ConditionStructure> ConditionStructures { get; init; }
+        [JsonPropertyName("refactoringFacts")] public List<string> RefactoringFacts { get; init; }
+        [JsonPropertyName("duplicateGroupId")] public string DuplicateGroupId { get; init; }
         [JsonPropertyName("metrics")] public Metrics Metrics { get; set; }
         [JsonPropertyName("calls")] public List<DependencyInfo> Calls { get; init; }
         [JsonPropertyName("calledBy")] public List<DependencyInfo> CalledBy { get; init; }
         [JsonPropertyName("accesses")] public List<DependencyInfo> Accesses { get; init; }
 
-        public CodeMethod(string id, string name, string returnType, string accessibility, List<string> modifiers, int startLine, int endLine, string bodyCode, Documentation documentation, List<ParameterInfo> parameters, List<BranchInfo> branches, Metrics metrics, List<DependencyInfo> calls, List<DependencyInfo> calledBy, List<DependencyInfo> accesses)
+        public CodeMethod(string id, string name, string returnType, string accessibility, List<string> modifiers, int startLine, int endLine, string bodyCode, Documentation documentation, List<ParameterInfo> parameters, List<BranchInfo> branches, List<ConditionStructure> conditionStructures, List<string> refactoringFacts, string duplicateGroupId, Metrics metrics, List<DependencyInfo> calls, List<DependencyInfo> calledBy, List<DependencyInfo> accesses)
         {
             Id = id;
             Name = name;
@@ -107,6 +114,9 @@ namespace MyRoslynAnalyzer
             Documentation = documentation;
             Parameters = parameters;
             Branches = branches;
+            ConditionStructures = conditionStructures;
+            RefactoringFacts = refactoringFacts;
+            DuplicateGroupId = duplicateGroupId;
             Metrics = metrics;
             Calls = calls;
             CalledBy = calledBy;
@@ -127,13 +137,14 @@ namespace MyRoslynAnalyzer
         [JsonPropertyName("filePath")] public string FilePath { get; init; }
         [JsonPropertyName("usings")] public List<string> Usings { get; init; } // New
         [JsonPropertyName("documentation")] public Documentation Documentation { get; init; }
+        [JsonPropertyName("refactoringFacts")] public List<string> RefactoringFacts { get; init; }
         [JsonPropertyName("metrics")] public Metrics Metrics { get; set; }
         [JsonPropertyName("properties")] public List<CodeProperty> Properties { get; init; }
         [JsonPropertyName("methods")] public List<CodeMethod> Methods { get; init; }
         [JsonPropertyName("constructors")] public List<ConstructorInfo> Constructors { get; init; } // New
         [JsonPropertyName("dependencies")] public List<DependencyInfo> Dependencies { get; init; }
 
-        public CodeObject(string id, string fullName, string type, string baseType, string accessibility, List<string> modifiers, int startLine, int endLine, string filePath, List<string> usings, Documentation documentation, Metrics metrics, List<CodeProperty> properties, List<CodeMethod> methods, List<ConstructorInfo> constructors, List<DependencyInfo> dependencies)
+        public CodeObject(string id, string fullName, string type, string baseType, string accessibility, List<string> modifiers, int startLine, int endLine, string filePath, List<string> usings, Documentation documentation, List<string> refactoringFacts, Metrics metrics, List<CodeProperty> properties, List<CodeMethod> methods, List<ConstructorInfo> constructors, List<DependencyInfo> dependencies)
         {
             Id = id;
             FullName = fullName;
@@ -146,6 +157,7 @@ namespace MyRoslynAnalyzer
             FilePath = filePath;
             Usings = usings;
             Documentation = documentation;
+            RefactoringFacts = refactoringFacts;
             Metrics = metrics;
             Properties = properties;
             Methods = methods;
@@ -207,6 +219,28 @@ namespace MyRoslynAnalyzer
             return modifiers;
         }
 
+        private static List<string> ExtractRefactoringFacts(ISymbol symbol)
+        {
+            return symbol.GetAttributes()
+                .Where(attribute =>
+                    attribute.AttributeClass?.Name == "RefactoringFactAttribute")
+                .SelectMany(attribute => attribute.ConstructorArguments)
+                .Where(argument => argument.Value is string)
+                .Select(argument => (string)argument.Value!)
+                .Distinct()
+                .ToList();
+        }
+
+        private static string ExtractStringAttributeValue(ISymbol symbol, string attributeName)
+        {
+            return symbol.GetAttributes()
+                .Where(attribute => attribute.AttributeClass?.Name == attributeName)
+                .SelectMany(attribute => attribute.ConstructorArguments)
+                .Where(argument => argument.Value is string)
+                .Select(argument => (string)argument.Value!)
+                .FirstOrDefault() ?? string.Empty;
+        }
+
         private void AddTypeDeclaration(BaseTypeDeclarationSyntax node, string typeKind)
         {
             var symbol = _semanticModel.GetDeclaredSymbol(node);
@@ -238,6 +272,7 @@ namespace MyRoslynAnalyzer
                         filePath: node.SyntaxTree.FilePath,
                         usings: usings,
                         documentation: doc,
+                        refactoringFacts: ExtractRefactoringFacts(symbol),
                         metrics: new Metrics(0, 0, string.Empty),
                         properties: new List<CodeProperty>(),
                         methods: new List<CodeMethod>(),
@@ -289,6 +324,9 @@ namespace MyRoslynAnalyzer
                     var lineCount = node.GetLocation().GetLineSpan().EndLinePosition.Line - node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
                     var bodyHash = CalculateBodyHash(node);
                     var branches = ExtractBranches(node);
+                    var conditionStructures = ExtractConditionStructures(node);
+                    var refactoringFacts = ExtractRefactoringFacts(methodSymbol);
+                    var duplicateGroupId = ExtractStringAttributeValue(methodSymbol, "DuplicateGroupAttribute");
 
                     var metrics = new Metrics(cyclomaticComplexity, lineCount, bodyHash);
                     var bodyCode = node.ToFullString();
@@ -305,6 +343,9 @@ namespace MyRoslynAnalyzer
                         documentation: doc,
                         parameters: methodSymbol.Parameters.Select(p => new ParameterInfo(p.Name, p.Type.ToDisplayString(FullyQualifiedFormat))).ToList(),
                         branches: branches,
+                        conditionStructures: conditionStructures,
+                        refactoringFacts: refactoringFacts,
+                        duplicateGroupId: duplicateGroupId,
                         metrics: metrics,
                         calls: new List<DependencyInfo>(),
                         calledBy: new List<DependencyInfo>(),
@@ -319,9 +360,6 @@ namespace MyRoslynAnalyzer
 
         public override void VisitPropertyDeclaration(PropertyDeclarationSyntax node)
         {
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
             var propertySymbol = _semanticModel.GetDeclaredSymbol(node);
             var classSymbol = propertySymbol?.ContainingType;
             if (propertySymbol != null && classSymbol != null)
@@ -349,14 +387,8 @@ namespace MyRoslynAnalyzer
 
         public override void VisitFieldDeclaration(FieldDeclarationSyntax node)
         {
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
             foreach (var variable in node.Declaration.Variables)
             {
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
                 var fieldSymbol = _semanticModel.GetDeclaredSymbol(variable) as IFieldSymbol;
                 var classSymbol = fieldSymbol?.ContainingType;
                 if (fieldSymbol != null && classSymbol != null)
@@ -398,6 +430,58 @@ namespace MyRoslynAnalyzer
             var remarks = string.Join("\n", xdoc.Element("remarks")?.Value.Split('\n').Select(line => line.Trim()) ?? new string[] { "" });
             var parms = xdoc.Elements("param").ToDictionary(p => p.Attribute("name")?.Value ?? "", p => p.Value.Trim());
             return new Documentation(summary, remarks, parms);
+        }
+
+        private static List<ConditionStructure> ExtractConditionStructures(
+            MethodDeclarationSyntax method)
+        {
+            var conditions = method.DescendantNodes()
+                .Select(node => node switch
+                {
+                    IfStatementSyntax statement => statement.Condition,
+                    WhileStatementSyntax statement => statement.Condition,
+                    DoStatementSyntax statement => statement.Condition,
+                    ConditionalExpressionSyntax expression => expression.Condition,
+                    _ => null
+                })
+                .Where(condition => condition is not null)
+                .Cast<ExpressionSyntax>();
+
+            var structures = new List<ConditionStructure>();
+            foreach (var condition in conditions)
+            {
+                var facts = new List<string>();
+                var booleanOperators = condition.DescendantNodesAndSelf()
+                    .OfType<BinaryExpressionSyntax>()
+                    .Where(binary =>
+                        binary.IsKind(SyntaxKind.LogicalAndExpression) ||
+                        binary.IsKind(SyntaxKind.LogicalOrExpression))
+                    .Select(binary => binary.Kind())
+                    .Distinct()
+                    .ToList();
+                if (booleanOperators.Count > 1)
+                    facts.Add("mixed_boolean_operators");
+
+                var hasNegatedBooleanGroup = condition.DescendantNodesAndSelf()
+                    .OfType<PrefixUnaryExpressionSyntax>()
+                    .Where(prefix => prefix.IsKind(SyntaxKind.LogicalNotExpression))
+                    .Any(prefix => prefix.Operand.DescendantNodesAndSelf()
+                        .OfType<BinaryExpressionSyntax>()
+                        .Any(binary =>
+                            binary.IsKind(SyntaxKind.LogicalAndExpression) ||
+                            binary.IsKind(SyntaxKind.LogicalOrExpression)));
+                if (hasNegatedBooleanGroup)
+                    facts.Add("negated_boolean_group");
+
+                if (facts.Count == 0)
+                    continue;
+                structures.Add(new ConditionStructure(
+                    condition.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
+                    facts,
+                    condition.ToString()
+                ));
+            }
+            return structures;
         }
 
         private static List<BranchInfo> ExtractBranches(MethodDeclarationSyntax method)
@@ -512,15 +596,9 @@ namespace MyRoslynAnalyzer
 
         public override void VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
         {
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
             var symbolInfo = _semanticModel.GetSymbolInfo(node.Name);
             if (symbolInfo.Symbol is IPropertySymbol propertySymbol)
             {
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
                 AddDependency(propertySymbol, node, _currentMethod.Accesses);
             }
             else if (symbolInfo.Symbol is IFieldSymbol fieldSymbol)
@@ -535,9 +613,6 @@ namespace MyRoslynAnalyzer
             var symbolInfo = _semanticModel.GetSymbolInfo(node.Left);
             if (symbolInfo.Symbol is IPropertySymbol propertySymbol)
             {
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
-                if (node == null) throw new ArgumentNullException(nameof(node));
                 AddDependency(propertySymbol, node, _currentMethod.Accesses);
             }
             else if (symbolInfo.Symbol is IFieldSymbol fieldSymbol)
@@ -558,9 +633,10 @@ namespace MyRoslynAnalyzer
                 return false; // No pattern, so nothing is excluded.
             }
 
-            // Convert DOS-like wildcards (*, ?) to regex
-            string regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".") + "$";
-            return System.Text.RegularExpressions.Regex.IsMatch(input, regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(
+                pattern,
+                input,
+                ignoreCase: true);
         }
     }
 
@@ -581,7 +657,7 @@ namespace MyRoslynAnalyzer
 
             string inputPath = args[0];
             string outputPath = args[1];
-            string excludePattern = null;
+            string? excludePattern = null;
 
             for (int i = 2; i < args.Length; i++)
             {
@@ -602,7 +678,7 @@ namespace MyRoslynAnalyzer
 
             // Load config.json if it exists (assuming it's in the current directory or same dir as executable)
             Config config = new Config(new List<string>(), new List<string>());
-            string exePath = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+            string exePath = AppContext.BaseDirectory;
             string configPath = Path.Combine(exePath, "config.json");
             
             // Also check current directory
@@ -642,8 +718,8 @@ namespace MyRoslynAnalyzer
 
             Console.WriteLine($"Starting analysis of '{inputPath}'...");
             using var workspace = MSBuildWorkspace.Create();
-            Solution solution = null;
-            Project projectToAnalyze = null;
+            Solution? solution = null;
+            Project? projectToAnalyze = null;
 
             if (File.Exists(inputPath))
             {
@@ -690,7 +766,8 @@ namespace MyRoslynAnalyzer
                 return 1;
             }
 
-            if (solution == null && projectToAnalyze == null)
+            Solution? loadedSolution = projectToAnalyze?.Solution ?? solution;
+            if (loadedSolution == null)
             {
                 Console.Error.WriteLine("Error: Failed to load solution or project.");
                 return 1;
@@ -702,7 +779,9 @@ namespace MyRoslynAnalyzer
 
             // Pass 1: Definitions
             Console.WriteLine("Pass 1: Extracting definitions...");
-            IEnumerable<Project> projectsToProcess = projectToAnalyze != null ? new[] { projectToAnalyze } : solution.Projects;
+            IEnumerable<Project> projectsToProcess = projectToAnalyze != null
+                ? new[] { projectToAnalyze }
+                : loadedSolution.Projects;
 
             foreach (var project in projectsToProcess)
             {
@@ -937,7 +1016,8 @@ namespace MyRoslynAnalyzer
                 Summary: obj.Documentation.Summary
             )).ToList();
             var manifest = new Manifest(
-                ProjectName: projectToAnalyze?.Name ?? Path.GetFileNameWithoutExtension(solution.FilePath ?? "Solution"),
+                ProjectName: projectToAnalyze?.Name
+                    ?? Path.GetFileNameWithoutExtension(loadedSolution.FilePath ?? "Solution"),
                 Assemblies: assemblyNames,
                 Objects: manifestObjects,
                 ProjectMetrics: projectMetrics // Pass the calculated project metrics

@@ -84,6 +84,8 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
         catch (Exception ex) { _logger.LogError(...); return 0; }
         ```
     -   Reference-type result variables that are hoisted before the `try` block use nullable declarations when initialized from `null` (for example `HttpResponseMessage? response = null;`) so nullable-enabled compilation does not emit avoidable warnings.
+    -   戻り値変数をhoistした呼び出しはcatch後も継続し、後から確定するメソッド戻り値に依存した不正な `return;` を生成しない。
+    -   配列のhoisted既定値は `Array.Empty<T>()` とし、後続のLINQ処理でnullを参照しない。
 3.  **Complex Generic**:
     -   Input: `method="Query<T>"`, `target="User"`
     -   Result: `conn.Query<User>(...)`
@@ -92,4 +94,5 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
 - 2026-06-04: resilient intent の判定語彙を `src.utils.semantic_intents` の共通定数へ寄せた。
 - 2026-06-24: resilient wrap の hoisted reference-type locals は nullable declaration (`Type? x = null;`) を使い、nullable-enabled verifier で `CS8600` を出さない現在の方針へ同期。
+- 2026-06-29: 戻り値変数を持つresilient callの継続契約と、配列の空配列初期化を反映。
 

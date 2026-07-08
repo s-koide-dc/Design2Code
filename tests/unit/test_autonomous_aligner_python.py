@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 import os
 import sys
+from unittest.mock import MagicMock
 
 # Add project root to sys.path
 project_root = Path(__file__).parent.parent.parent
@@ -43,18 +44,37 @@ def process_data(data):
         with open(design_path, "w", encoding="utf-8") as f: f.write(design_content)
         with open(source_path, "w", encoding="utf-8") as f: f.write(source_content)
 
+        self.aligner.auditor.audit = MagicMock(return_value={
+            "status": "inconsistent",
+            "consistency_score": 0.5,
+            "findings": [{"type": "logic_gap"}],
+        })
+        suggestion = MagicMock(
+            description="Implement score calculation",
+            current_code="",
+            suggested_code="# TODO: Implement Logic: Calculate score",
+            line_number=5,
+        )
+        self.aligner.fix_engine.generate_fix_suggestions = MagicMock(
+            return_value=[suggestion]
+        )
+
         # 2. Act
         result = self.aligner.align_module(design_path)
 
         # 3. Assert
         self.assertIsNotNone(result)
-        self.assertIn("Calculate score", str(result.get("fixes_applied")))
+        self.assertEqual(result["status"], "inconsistent")
+        self.assertEqual(result["fixes_applied"], [])
+        self.assertIn(
+            "Implement score calculation",
+            str(result.get("pending_suggestions")),
+        )
         
         with open(source_path, "r", encoding="utf-8") as f:
             updated_code = f.read()
         
-        # print(updated_code) # Debug
-        self.assertIn("# TODO: Implement Logic: Calculate score", updated_code)
+        self.assertEqual(updated_code, source_content)
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-import re
 import numpy as np
 import logging
 from pathlib import Path
@@ -145,7 +144,8 @@ class StructuralMemory(SemanticSearchBase):
                             vec = self.vectorize_text(summary)
                             if vec is None: vec = np.zeros(300)
 
-                            batch_ids.append(cls_name)
+                            class_symbol_id = f"{rel_path}::{cls_name}"
+                            batch_ids.append(class_symbol_id)
                             batch_vectors.append(vec)
                             prop_map = {}
                             for p in properties:
@@ -156,6 +156,8 @@ class StructuralMemory(SemanticSearchBase):
                                     continue
                                 prop_map[p_name] = p.get("type")
                             batch_items.append({
+                                'id': class_symbol_id,
+                                'symbol_id': class_symbol_id,
                                 'type': 'class',
                                 'name': cls_name,
                                 'file': str(rel_path),
@@ -173,16 +175,43 @@ class StructuralMemory(SemanticSearchBase):
                                 
                                 m_vec = self.vectorize_text(m_summary)
                                 if m_vec is None: m_vec = np.zeros(300)
-                                
-                                batch_ids.append(full_m_name)
+
+                                method_symbol_id = f"{rel_path}::{full_m_name}"
+                                batch_ids.append(method_symbol_id)
                                 batch_vectors.append(m_vec)
                                 batch_items.append({
+                                    'id': method_symbol_id,
+                                    'symbol_id': method_symbol_id,
                                     'type': 'method',
                                     'name': full_m_name,
                                     'short_name': m_name,
                                     'class': cls_name,
                                     'file': str(rel_path),
-                                    'summary': m_summary
+                                    'summary': m_summary,
+                                    'role': m.get('role'),
+                                    'capabilities': list(m.get('capabilities') or []),
+                                    'return_type': (
+                                        m.get('return_type')
+                                        or m.get('returnType')
+                                        or m.get('returns')
+                                    ),
+                                    'parameters': (
+                                        m.get('parameters')
+                                        or m.get('args')
+                                        or []
+                                    ),
+                                    'start_line': (
+                                        m.get('start_line')
+                                        or m.get('startLine')
+                                        or m.get('line')
+                                    ),
+                                    'end_line': (
+                                        m.get('end_line')
+                                        or m.get('endLine')
+                                    ),
+                                    'structural_fingerprint': m.get(
+                                        'structural_fingerprint'
+                                    ),
                                 })
                         
                         for func in structure.get('functions', []):
@@ -195,13 +224,40 @@ class StructuralMemory(SemanticSearchBase):
                             vec = self.vectorize_text(summary)
                             if vec is None: vec = np.zeros(300)
                             
-                            batch_ids.append(func_name)
+                            function_symbol_id = f"{rel_path}::{func_name}"
+                            batch_ids.append(function_symbol_id)
                             batch_vectors.append(vec)
                             batch_items.append({
+                                'id': function_symbol_id,
+                                'symbol_id': function_symbol_id,
                                 'type': 'function',
                                 'name': func_name,
                                 'file': str(rel_path),
-                                'summary': summary
+                                'summary': summary,
+                                'role': func.get('role'),
+                                'capabilities': list(func.get('capabilities') or []),
+                                'return_type': (
+                                    func.get('return_type')
+                                    or func.get('returnType')
+                                    or func.get('returns')
+                                ),
+                                'parameters': (
+                                    func.get('parameters')
+                                    or func.get('args')
+                                    or []
+                                ),
+                                'start_line': (
+                                    func.get('start_line')
+                                    or func.get('startLine')
+                                    or func.get('line')
+                                ),
+                                'end_line': (
+                                    func.get('end_line')
+                                    or func.get('endLine')
+                                ),
+                                'structural_fingerprint': func.get(
+                                    'structural_fingerprint'
+                                ),
                             })
                                 
                     except Exception as e:
@@ -214,71 +270,114 @@ class StructuralMemory(SemanticSearchBase):
         
         self.logger.info(f"Indexed {len(self.items)} components.")
 
-    def search_component(self, query: str, top_k: int = 3, semantic_weight: float = 0.8) -> List[Dict[str, Any]]:
-        """意味的に関連するコンポーネントを検索 (Hybrid Search対応)"""
-        
-        # クラス名、関数名、およびサマリとのマッチングをキーワードスコアとする
-        def kw_fn(item, query_keywords):
-            score = 0.0
-            name_lower = item.get('name', '').lower()
-            summary_lower = item.get('summary', '').lower()
-            
-            for kw in query_keywords:
-                kw_l = kw.lower()
-                if kw_l in name_lower:
-                    score += 0.5
-                if kw_l in summary_lower:
-                    score += 0.3 # サマリ一致は名前一致より低め
-                    
-            return min(1.0, score)
+    def search_component(
+        self,
+        query: str,
+        top_k: int = 3,
+        semantic_weight: float = 0.8,
+        *,
+        component_type: Optional[str] = None,
+        role: Optional[str] = None,
+        capabilities: Optional[List[str]] = None,
+        symbol_id: Optional[str] = None,
+        return_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """明示された構造条件で候補を絞り、利用可能なら意味距離で並べる。"""
+        del semantic_weight  # 後方互換引数。固定重み合成は行わない。
+        constraints = {
+            'component_type': component_type,
+            'role': role,
+            'capabilities': capabilities,
+            'symbol_id': symbol_id,
+            'return_type': return_type,
+        }
+        has_constraints = any(value is not None for value in constraints.values())
+        matching_items = [
+            item for item in self.items
+            if self._matches_constraints(item, **constraints)
+        ]
 
-        results_with_scores = self.hybrid_search(query, top_k=max(top_k, 300), keyword_fn=kw_fn, semantic_weight=semantic_weight)
-        
+        if symbol_id is not None or not self.vector_engine:
+            if not has_constraints:
+                return []
+            return [
+                {**item, 'similarity': None}
+                for item in sorted(
+                    matching_items,
+                    key=lambda candidate: candidate.get('symbol_id', ''),
+                )[:top_k]
+            ]
+
+        results_with_scores = self.hybrid_search(
+            query,
+            top_k=max(len(self.items), top_k),
+        )
+        allowed_ids = {item.get('symbol_id') for item in matching_items}
         final_results = []
         for item, score in results_with_scores:
+            if item.get('symbol_id') not in allowed_ids:
+                continue
             comp = item.copy()
             comp['similarity'] = score
             final_results.append(comp)
-            
+            if len(final_results) == top_k:
+                break
         return final_results[:top_k]
 
-    def find_duplicates(self, summary_or_code: str, threshold: float = 0.85, top_k: int = 5) -> List[Dict[str, Any]]:
-        """
-        指定されたサマリやコード片と意味的に重複する可能性が高いコンポーネントを検索する。
-        """
-        # ベクトルエンジンが準備完了ならセマンティック検索を優先
-        has_engine = self.vector_engine is not None and getattr(self.vector_engine, 'is_ready', False)
-        weight = 0.8 if has_engine else 0.0
-        
-        debug_print(f"[DEBUG] find_duplicates called. Engine Ready: {has_engine}, Weight: {weight}, Items: {len(self.items)}")
-        
-        # ターゲットの個別スコア調査 (デバッグ)
-        target_item = next((it for it in self.items if "InventoryUtils.CalculateAveragePrice" in it['name']), None)
-        if target_item:
-            q_keywords = []
-            if self.morph_analyzer:
-                res = self.morph_analyzer.analyze({"original_text": summary_or_code})
-                q_keywords = [t["base"].lower() for t in res.get("analysis", {}).get("tokens", [])]
-            
-            # 手動でキーワードスコア計算
-            name_lower = target_item.get('name', '').lower()
-            summary_lower = target_item.get('summary', '').lower()
-            k_score = 0.0
-            for kw in q_keywords:
-                if kw.lower() in name_lower: k_score += 0.5
-                if kw.lower() in summary_lower: k_score += 0.3
-            k_score = min(1.0, k_score)
-            debug_print(f"[DEBUG] Targeted Item 'InventoryUtils.CalculateAveragePrice' Keyword Score: {k_score}, Keywords: {q_keywords}")
+    @staticmethod
+    def _role_matches(actual_role: Optional[str], requested_role: Optional[str]) -> bool:
+        if requested_role is None:
+            return True
+        if actual_role == requested_role:
+            return True
+        compatible_roles = {
+            'FETCH': {'READ'},
+            'READ': {'FETCH'},
+            'PERSIST': {'WRITE'},
+            'WRITE': {'PERSIST'},
+        }
+        return actual_role in compatible_roles.get(requested_role, set())
 
-        candidates = self.search_component(summary_or_code, top_k=top_k, semantic_weight=weight)
-        
-        # DEBUGログ: 全候補のスコアを出力
-        for c in candidates:
-            debug_print(f"[DEBUG] Duplicate candidate: {c['name']}, Similarity: {c.get('similarity', 0.0):.4f}")
+    @staticmethod
+    def _matches_constraints(
+        item: Dict[str, Any],
+        *,
+        component_type: Optional[str],
+        role: Optional[str],
+        capabilities: Optional[List[str]],
+        symbol_id: Optional[str],
+        return_type: Optional[str],
+    ) -> bool:
+        if component_type is not None and item.get('type') != component_type:
+            return False
+        if not StructuralMemory._role_matches(item.get('role'), role):
+            return False
+        if symbol_id is not None and item.get('symbol_id') != symbol_id:
+            return False
+        if return_type is not None and item.get('return_type') != return_type:
+            return False
+        required_capabilities = set(capabilities or [])
+        actual_capabilities = set(item.get('capabilities') or [])
+        return required_capabilities.issubset(actual_capabilities)
 
-        duplicates = [c for c in candidates if c.get('similarity', 0.0) >= threshold]
-        if duplicates:
-            debug_print(f"[DEBUG] Found {len(duplicates)} duplicates above threshold {threshold}")
+    def find_duplicates(
+        self,
+        structural_fingerprint: str,
+        threshold: float = 0.85,
+        top_k: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """解析器が生成した同一fingerprintを持つコンポーネントだけを返す。"""
+        del threshold  # 後方互換引数。類似度閾値は使用しない。
+        if not structural_fingerprint:
+            return []
+        duplicates = [
+            item.copy()
+            for item in self.items
+            if item.get('structural_fingerprint') == structural_fingerprint
+        ][:top_k]
+        debug_print(
+            f"[DEBUG] Found {len(duplicates)} components with exact structural fingerprint."
+        )
         return duplicates
 
     def get_class_properties(self, class_name: str) -> Optional[Dict[str, str]]:
@@ -287,12 +386,6 @@ class StructuralMemory(SemanticSearchBase):
         for item in self.items:
             if item.get("type") == "class" and item.get("name") == class_name:
                 return item.get("properties")
-        
-        # Semantic match second (if class_name is slightly different)
-        candidates = self.search_component(f"Class {class_name}", top_k=1, semantic_weight=0.5)
-        if candidates and candidates[0].get("similarity", 0) > 0.8:
-            if candidates[0].get("type") == "class":
-                return candidates[0].get("properties")
         
         return None
 
@@ -308,26 +401,16 @@ class StructuralMemory(SemanticSearchBase):
             with open(abs_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
-            # メソッド名 (ClassName.MethodName か単体名)
-            full_name = item.get("name", "")
-            method_name = item.get("short_name") or full_name.split('.')[-1]
-            class_name = item.get("class") or (full_name.split('.')[0] if '.' in full_name else None)
-
-            # ASTAnalyzer を使って抽出
-            ext = os.path.splitext(abs_path)[1].lower()
-            lang = 'python' if ext == '.py' else 'csharp'
-            
-            # 簡易的な正規表現抽出 (ASTより確実な場合がある)
-            # public ... MethodName(...) { ... }
-            if lang == 'csharp':
-                # 非常に簡易的な実装。本来は AST で取るべき。
-                pattern = fr"(public\s+[\s\w<>,\[\]]+\s+{re.escape(method_name)}\s*\(.*?\)\s*\{{(?:[^{{}}]*|\{{[^{{}}]*\}})*\}})"
-                match = re.search(pattern, content, re.DOTALL)
-                if match: return match.group(1)
-            
-            # フォールバック: ASTAnalyzer (実装されている場合)
-            res = self.ast_analyzer.analyze_code_structure(content, language=lang)
-            # ... (中略: ASTからコード片を特定して返す) ...
+            start_line = item.get('start_line')
+            end_line = item.get('end_line')
+            if not isinstance(start_line, int) or not isinstance(end_line, int):
+                return None
+            if start_line < 1 or end_line < start_line:
+                return None
+            lines = content.splitlines()
+            if end_line > len(lines):
+                return None
+            return "\n".join(lines[start_line - 1:end_line])
             
         except Exception as e:
             self.logger.error(f"Failed to get code for {item.get('name')}: {e}")

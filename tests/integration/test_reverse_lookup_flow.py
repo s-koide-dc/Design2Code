@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
 import os
-import sys
-
-# Ensure project root is in path
-sys.path.append(os.getcwd())
 
 from src.pipeline_core.pipeline_core import Pipeline
 

@@ -31,6 +31,7 @@
    - 複合タスクは全体承認が必要であれば `clarification_needed` を立てる。
 12. 複合タスク実行時はサブタスクの状態遷移と承認を処理し、クリティカルサブタスクでは二段階承認（全体承認とサブタスク承認）を要求できる。
 13. 不足エンティティがある場合は `clarification_message` を生成し、`awaiting_entity` を記録する。タスク由来の補足質問中は `src.utils.dialogue_state.TASK_CLARIFICATION` を維持する。
+14. 補足応答の汎用 `filename` は、active task が待機している `project_path` / source / destination へ割り当ててからタスクパラメータへ反映する。
 14. TDD 系タスク（`ANALYZE_TEST_FAILURE` / `EXECUTE_GOAL_DRIVEN_TDD` / `APPLY_CODE_FIX`）には `recommended_action` を保持し、`READY_FOR_EXECUTION` や割り込み中でも対話メタデータが失われないようにする。
 15. 実行後は `update_task_after_execution` で `COMPLETED/FAILED` を反映し、完了時にタスクをリセットする。
 16. `create_recovery_task` は失敗結果から回復用の複合タスクを生成し、試行回数をカウントする。

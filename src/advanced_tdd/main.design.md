@@ -18,7 +18,9 @@
 1. 設定を読み込み、`TestFailureAnalyzer` と `CodeFixSuggestionEngine` を初期化する。
 2. `analyze_and_fix_test_failure` は失敗情報を構造化して分析し、`analysis_summary` と `reason` / `recommended_action` / `target_summary` を保持した修正提案を返す。
 3. `execute_goal_driven_tdd` は `AutonomousSynthesizer` を使って合成を実行する。
-4. `_suggestion_to_dict` は `CodeFixSuggestion` の `impact_analysis` に加え、`target_file`、`conversation_hint`、`reason`、`recommended_action`、`target_summary` を会話層向けに露出する。
+4. `_suggestion_to_dict` は `CodeFixSuggestion` の `impact_analysis` に加え、`target_file`、`conversation_hint`、`reason`、`recommended_action`、`target_summary`、`symbol_id`、編集開始・終了行、`validation_command` を会話層向けに露出する。
+5. Arrange 修正では実行器が返した `test_file` を対象の正本とし、未設定時のみスタック位置のファイル名からテストファイルを補完する。
+6. Roslyn解析結果がある場合、非テスト側スタック位置のファイル・行をmanifestとメソッド範囲へ照合し、SUTメソッドとproperty access情報を構造的に特定する。
 
 ### Test Cases
 - **Happy Path**:
@@ -34,3 +36,8 @@
 ## 4. Operational Notes
 - `execute_goal_driven_tdd` の補助診断と `__main__` のサンプル結果表示は `src.utils.stdout_guard.debug_print` を通す。
 - 通常利用時の stdout 汚染を避けつつ、`NLP_DEBUG_STDOUT=1` で手動確認を継続できる。
+
+## 5. Review Notes
+
+- 2026-06-30: Arrange 修正対象の決定で、実行器の `test_file` をスタック位置より優先するよう同期。
+- 2026-07-01: 構造化ロジック修正のsymbol ID・編集範囲・検証コマンドを公開。

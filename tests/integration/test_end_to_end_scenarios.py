@@ -9,24 +9,35 @@ class TestEndToEndScenarios(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.test_dir = tempfile.mkdtemp()
-        cls.old_cwd = os.getcwd()
+        cls.project_root = os.getcwd()
         
-        # Copy necessary resources to the test directory
-        resources_src = os.path.join(cls.old_cwd, "resources")
-        resources_dst = os.path.join(cls.test_dir, "resources")
-        shutil.copytree(resources_src, resources_dst)
+        # Copy configuration and non-vector resources to the test directory.
+        shutil.copytree(
+            os.path.join(cls.project_root, "config"),
+            os.path.join(cls.test_dir, "config"),
+        )
+        shutil.copytree(
+            os.path.join(cls.project_root, "resources"),
+            os.path.join(cls.test_dir, "resources"),
+        )
         
         # Create necessary directories for operations
         os.makedirs(os.path.join(cls.test_dir, "logs"), exist_ok=True)
+        os.makedirs(os.path.join(cls.test_dir, "src"), exist_ok=True)
         
-        os.chdir(cls.test_dir)
-
     @classmethod
     def tearDownClass(cls):
-        os.chdir(cls.old_cwd)
         shutil.rmtree(cls.test_dir)
+
     def setUp(self):
-        self.pipeline = Pipeline()
+        current_directory = os.getcwd()
+        skip_vector_model = os.environ.get("SKIP_VECTOR_MODEL")
+        self.pipeline = Pipeline(workspace_root=self.test_dir)
+        self.assertEqual(os.getcwd(), current_directory)
+        self.assertEqual(
+            os.environ.get("SKIP_VECTOR_MODEL"),
+            skip_vector_model,
+        )
 
     def test_file_creation_and_reading_flow(self):
         """test_integration.txt を作成し、その後読み取るフローを検証"""
@@ -36,7 +47,9 @@ class TestEndToEndScenarios(unittest.TestCase):
         
         self.assertEqual(result["analysis"]["intent"], "FILE_CREATE")
         self.assertEqual(result["action_result"]["status"], "success")
-        self.assertTrue(os.path.exists("test_integration.txt"))
+        self.assertTrue(
+            os.path.exists(os.path.join(self.test_dir, "test_integration.txt"))
+        )
         
         # 2. Read File
         input_read = "test_integration.txt を読んで。"

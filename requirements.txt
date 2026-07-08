@@ -1,5 +1,5 @@
 # requirements.txt
 # This file lists the Python dependencies for the project.
 
-janome
-numpy
+Janome==0.5.0
+numpy==2.5.0

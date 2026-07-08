@@ -284,31 +284,35 @@ def _validate_policy_string_list(policy_path: Path, policy: dict, key: str) -> l
         return None
     return value
 
-def load_document_reference_policy(project_root: Path) -> tuple[list[str], list[str], list[str], list[str]]:
+def load_document_reference_policy(project_root: Path) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
     policy_path = project_root / "config" / "doc_reference_policy.json"
     if not policy_path.exists():
-        return [], [], [], [f"Document reference policy not found: {policy_path}"]
+        return [], [], [], [], [f"Document reference policy not found: {policy_path}"]
 
     try:
         policy = json.loads(policy_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        return [], [], [], [f"Invalid document reference policy '{policy_path}': {exc}"]
+        return [], [], [], [], [f"Invalid document reference policy '{policy_path}': {exc}"]
 
     required_docs = _validate_policy_string_list(policy_path, policy, "required_docs")
     if required_docs is None:
-        return [], [], [], [f"Invalid document reference policy '{policy_path}': 'required_docs' must be a list of non-empty strings"]
+        return [], [], [], [], [f"Invalid document reference policy '{policy_path}': 'required_docs' must be a list of non-empty strings"]
 
     existence_only_docs = _validate_policy_string_list(policy_path, policy, "existence_only_docs")
     if existence_only_docs is None:
-        return [], [], [], [f"Invalid document reference policy '{policy_path}': 'existence_only_docs' must be a list of non-empty strings"]
+        return [], [], [], [], [f"Invalid document reference policy '{policy_path}': 'existence_only_docs' must be a list of non-empty strings"]
 
     optional_reference_docs = _validate_policy_string_list(policy_path, policy, "optional_reference_docs")
     if optional_reference_docs is None:
         optional_reference_docs = _validate_policy_string_list(policy_path, policy, "temporary_docs")
         if optional_reference_docs is None:
-            return [], [], [], [f"Invalid document reference policy '{policy_path}': 'optional_reference_docs' must be a list of non-empty strings"]
+            return [], [], [], [], [f"Invalid document reference policy '{policy_path}': 'optional_reference_docs' must be a list of non-empty strings"]
 
-    return required_docs, existence_only_docs, optional_reference_docs, []
+    generated_reference_paths = _validate_policy_string_list(policy_path, policy, "generated_reference_paths")
+    if generated_reference_paths is None:
+        return [], [], [], [], [f"Invalid document reference policy '{policy_path}': 'generated_reference_paths' must be a list of non-empty strings"]
+
+    return required_docs, existence_only_docs, optional_reference_docs, generated_reference_paths, []
 
 def _format_doc_error(relative_doc_path: str, mode_label: str, detail: str) -> str:
     return f"[doc:{relative_doc_path}][mode:{mode_label}]: {detail}"
@@ -350,8 +354,17 @@ def collect_missing_documents(project_root: Path, relative_doc_paths: list[str],
             )
     return errors
 
-def collect_missing_document_references(project_root: Path, relative_doc_paths: list[str], mode_label: str) -> list[str]:
+def _normalize_policy_reference(raw_reference: str) -> str:
+    return raw_reference.strip().split("#", 1)[0].replace("\\", "/")
+
+def collect_missing_document_references(
+    project_root: Path,
+    relative_doc_paths: list[str],
+    mode_label: str,
+    generated_reference_paths: list[str] | None = None,
+) -> list[str]:
     errors = []
+    generated_refs = {_normalize_policy_reference(path) for path in (generated_reference_paths or [])}
 
     for relative_doc_path in relative_doc_paths:
         doc_path = project_root / relative_doc_path
@@ -363,6 +376,8 @@ def collect_missing_document_references(project_root: Path, relative_doc_paths: 
 
         for _, target in MARKDOWN_LINK_PATTERN.findall(stripped_content):
             if not looks_like_local_reference(target):
+                continue
+            if _normalize_policy_reference(target) in generated_refs:
                 continue
             resolved, should_validate = resolve_local_reference(project_root, doc_path, target)
             if not should_validate:
@@ -378,6 +393,8 @@ def collect_missing_document_references(project_root: Path, relative_doc_paths: 
 
         for inline_code in INLINE_CODE_PATTERN.findall(stripped_content):
             if not looks_like_inline_path(inline_code):
+                continue
+            if _normalize_policy_reference(inline_code) in generated_refs:
                 continue
             resolved, should_validate = resolve_local_reference(project_root, doc_path, inline_code)
             if not should_validate:
@@ -529,7 +546,7 @@ def main():
     project_map_tools_ids = set()
     project_map_tools_names = set()
     all_known_entities = set()
-    required_docs, existence_only_docs, optional_reference_docs, policy_errors = load_document_reference_policy(project_root)
+    required_docs, existence_only_docs, optional_reference_docs, generated_reference_paths, policy_errors = load_document_reference_policy(project_root)
     errors.extend(policy_errors)
     errors.extend(validate_resource_vocab(project_root))
 
@@ -587,11 +604,11 @@ def main():
 
     if required_docs:
         errors.extend(collect_missing_documents(project_root, required_docs, "required"))
-        errors.extend(collect_missing_document_references(project_root, required_docs, "required"))
+        errors.extend(collect_missing_document_references(project_root, required_docs, "required", generated_reference_paths))
     if existence_only_docs:
         errors.extend(collect_missing_documents(project_root, existence_only_docs, "existence-only"))
     if optional_reference_docs:
-        errors.extend(collect_missing_document_references(project_root, optional_reference_docs, "optional-reference"))
+        errors.extend(collect_missing_document_references(project_root, optional_reference_docs, "optional-reference", generated_reference_paths))
 
     # Standard libraries and common utilities to ignore
     ignore_deps = {'json', 'os', 're', 'sys', 'datetime', 'shutil', 'subprocess', 'retry_with_backoff'}

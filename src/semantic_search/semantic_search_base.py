@@ -142,7 +142,7 @@ class SemanticSearchBase:
             self.load()
         if not self.vector_engine:
             if os.environ.get("SUPPRESS_VECTOR_WARNINGS") != "1":
-                self.logger.warning("Vector engine is not available; returning empty semantic search results.")
+                self.logger.debug("Vector engine is not available; returning empty semantic search results.")
             return []
 
         raw_tokens = self.morph_analyzer.tokenize(query) if self.morph_analyzer else list(query)

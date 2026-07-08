@@ -1,10 +1,69 @@
 # -*- coding: utf-8 -*-
 import unittest
+from unittest.mock import MagicMock
 
 from src.utils.logic_auditor import LogicAuditor
 
 
 class TestLogicAuditor(unittest.TestCase):
+    def test_structured_audit_matches_step_ids_without_vector_scoring(self):
+        vector_engine = MagicMock()
+        auditor = LogicAuditor(vector_engine=vector_engine)
+        design = {
+            "steps": [
+                {"id": "step_1", "intent": "FETCH"},
+                {"id": "step_2", "intent": "RETURN"},
+            ]
+        }
+        source_structure = {
+            "implemented_steps": [
+                {"id": "step_1", "symbol_id": "M:Example.Fetch"},
+                {"id": "step_2", "symbol_id": "M:Example.Run"},
+            ]
+        }
+
+        result = auditor.audit(design, source_structure, "unrelated text")
+
+        self.assertEqual(result["status"], "consistent")
+        self.assertIsNone(result["consistency_score"])
+        self.assertEqual(result["coverage"]["missing_step_count"], 0)
+        vector_engine.vector_similarity.assert_not_called()
+
+    def test_structured_audit_reports_exact_missing_and_unexpected_ids(self):
+        auditor = LogicAuditor()
+        result = auditor.audit(
+            {
+                "steps": [
+                    {"id": "step_1"},
+                    {"id": "step_2"},
+                ]
+            },
+            {
+                "implemented_steps": [
+                    {"id": "step_1"},
+                    {"id": "step_3"},
+                ]
+            },
+        )
+
+        self.assertEqual(result["status"], "inconsistent")
+        self.assertEqual(
+            [(finding["type"], finding["step_id"]) for finding in result["findings"]],
+            [("missing_step", "step_2"), ("unexpected_step", "step_3")],
+        )
+
+    def test_structured_audit_is_indeterminate_without_step_contract(self):
+        auditor = LogicAuditor()
+
+        result = auditor.audit(
+            {"specification": {"core_logic": ["Do something"]}},
+            {"files_analyzed": 1},
+            "def run(): pass",
+        )
+
+        self.assertEqual(result["status"], "indeterminate")
+        self.assertIsNone(result["consistency_score"])
+
     def test_input_placeholder_matches_resolved_input_var(self):
         auditor = LogicAuditor()
         goals = [{

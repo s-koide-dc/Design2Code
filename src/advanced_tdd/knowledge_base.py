@@ -27,13 +27,13 @@ class RepairKnowledgeBase(SemanticSearchBase):
         super().__init__("repair_knowledge", storage_dir, vector_engine, morph_analyzer, metadata_path=metadata_path)
         
         self.workspace_root = root_path
-        self.semantic_threshold = 0.85 # 類似度のしきい値
         
         # 固有メタデータ
         self.fix_stats = {}
         self.type_mappings = {}
         self.negative_feedbacks: List[Dict[str, Any]] = []
         self.unresolved_symbols: List[str] = []
+        self.load_diagnostics: List[Dict[str, Any]] = []
         
         self.load()
 
@@ -83,11 +83,25 @@ class RepairKnowledgeBase(SemanticSearchBase):
             try:
                 with open(self.metadata_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    self.fix_stats = data.get('fix_stats', {})
-                    self.type_mappings = data.get('type_mappings', {})
-                    self.negative_feedbacks = data.get('negative_feedbacks', [])
-                    self.unresolved_symbols = data.get('unresolved_symbols', [])
-            except: pass
+                if not isinstance(data, dict):
+                    self.load_diagnostics.append({
+                        "type": "INVALID_REPAIR_KNOWLEDGE",
+                        "file": self.metadata_path,
+                        "error_type": "root_must_be_object",
+                    })
+                    return
+                self.fix_stats = data.get('fix_stats', {})
+                self.type_mappings = data.get('type_mappings', {})
+                self.negative_feedbacks = data.get('negative_feedbacks', [])
+                self.unresolved_symbols = data.get('unresolved_symbols', [])
+                self._normalise_repair_patterns()
+            except (OSError, json.JSONDecodeError) as exc:
+                self.load_diagnostics.append({
+                    "type": "REPAIR_KNOWLEDGE_LOAD_ERROR",
+                    "file": self.metadata_path,
+                    "error_type": type(exc).__name__,
+                })
+        self._normalise_repair_patterns()
 
     def save_knowledge(self):
         # メタデータを拡張して保存
@@ -106,7 +120,7 @@ class RepairKnowledgeBase(SemanticSearchBase):
             
             if hasattr(self, "collection") and self.collection is not None:
                 self.collection.items = list(self.items)
-                self.collection.id_to_index = {str(item.get("id", item.get("error_message_regex", item.get("name")))): idx for idx, item in enumerate(self.items)}
+                self.collection.id_to_index = {str(item.get("id", item.get("error_signature", item.get("name")))): idx for idx, item in enumerate(self.items)}
                 self.collection._save()
             
             self.is_dirty = False
@@ -138,16 +152,33 @@ class RepairKnowledgeBase(SemanticSearchBase):
         return penalties
 
     def get_best_fix_direction(self, root_cause: str, error_message: str) -> Optional[str] :
-        """原因とエラーメッセージから最適な修正方針を意味検索で取得する"""
-        results = self.hybrid_search(error_message, top_k=1, semantic_weight=0.7)
-        
-        if results:
-            best_pattern, score = results[0]
-            if score >= self.semantic_threshold:
-                self.logger.info(f"Semantic match found (score={score:.3f}): {best_pattern.get('error_message_regex')}")
-                return best_pattern.get('fix_direction')
-        
-        return None
+        """明示された原因に紐づく成功実績から修正方針を決定する。"""
+        if not isinstance(root_cause, str) or not root_cause:
+            return None
+        stats = self.fix_stats.get(root_cause)
+        if not isinstance(stats, dict):
+            return None
+        fixes = stats.get('fixes')
+        if not isinstance(fixes, dict) or not fixes:
+            return None
+
+        best_fix = None
+        best_count = None
+        for fix_direction, count in fixes.items():
+            if not isinstance(fix_direction, str) or not fix_direction:
+                continue
+            if not isinstance(count, int) or count <= 0:
+                continue
+            if best_count is None or count > best_count:
+                best_fix = fix_direction
+                best_count = count
+        if best_fix:
+            self.logger.info(
+                "Repair direction selected from explicit root_cause stats: %s -> %s",
+                root_cause,
+                best_fix,
+            )
+        return best_fix
 
     def add_repair_experience(self, experience: Dict[str, Any]):
         """修復の成功体験を記録し、必要に応じて新しいパターンを学習 (ベクトル化含む)"""
@@ -171,7 +202,7 @@ class RepairKnowledgeBase(SemanticSearchBase):
         
         # 2. 新しいパターンの学習
         if success and fix_type:
-            exists = any(p.get('error_message_regex') == error_type for p in self.items)
+            exists = any(self._pattern_signature(p) == error_type for p in self.items)
             
             if not exists:
                 new_vec = self.vectorize_text(error_type)
@@ -180,6 +211,7 @@ class RepairKnowledgeBase(SemanticSearchBase):
                     self.add_item({
                         'id': pattern_id,
                         'root_cause': root_cause,
+                        'error_signature': error_type,
                         'error_message_regex': error_type,
                         'fix_direction': fix_type,
                         'timestamp': datetime.now().isoformat()
@@ -192,6 +224,27 @@ class RepairKnowledgeBase(SemanticSearchBase):
         """エラー種別から安定した repair pattern ID を生成する。"""
         digest = hashlib.sha256(str(error_type).encode("utf-8")).hexdigest()[:16]
         return f"repair.{digest}"
+
+    def _normalise_repair_patterns(self) -> None:
+        normalised = []
+        for item in self.items:
+            if isinstance(item, dict):
+                signature = self._pattern_signature(item)
+                if signature is not None and not item.get('error_signature'):
+                    item = dict(item)
+                    item['error_signature'] = signature
+            normalised.append(item)
+        self.items = normalised
+
+    @staticmethod
+    def _pattern_signature(pattern: Dict[str, Any]) -> Optional[str]:
+        signature = pattern.get('error_signature')
+        if isinstance(signature, str) and signature:
+            return signature
+        legacy = pattern.get('error_message_regex')
+        if isinstance(legacy, str) and legacy:
+            return legacy
+        return None
 
 
     def add_type_mapping(self, type_name: str, prop_name: str, suggested_value: str):
@@ -216,14 +269,19 @@ class RepairKnowledgeBase(SemanticSearchBase):
                     path = os.path.join(log_dir, filename)
                     with open(path, 'r', encoding='utf-8') as f:
                         # JSON Line形式と単一JSON形式の両方をサポート
-                        for line in f:
+                        for line_number, line in enumerate(f, start=1):
                             line = line.strip()
                             if not line: continue
                             if line.endswith(','): line = line[:-1]
                             try:
                                 session = json.loads(line)
                                 count += self._extract_knowledge_from_session(session)
-                            except:
+                            except json.JSONDecodeError:
+                                self.logger.warning(
+                                    "Skipping invalid JSON log entry: %s:%d",
+                                    filename,
+                                    line_number,
+                                )
                                 continue
                 except Exception as e:
                     self.logger.warning(f"Error parsing log {filename}: {e}")

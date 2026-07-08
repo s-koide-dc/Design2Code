@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import os
-import re
 import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -16,7 +14,15 @@ from src.utils.stdout_guard import debug_print
 class AutonomousAligner:
     """設計書と実装の整合性を自律的に修正・維持するクラス"""
 
-    def __init__(self, project_root: str, config: Optional[Dict[str, Any]] = None, vector_engine=None, morph_analyzer=None):
+    def __init__(
+        self,
+        project_root: str,
+        config: Optional[Dict[str, Any]] = None,
+        vector_engine=None,
+        morph_analyzer=None,
+        structural_patch_builder=None,
+        post_change_validator=None,
+    ):
         self.project_root = Path(project_root)
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
@@ -31,6 +37,8 @@ class AutonomousAligner:
 
         self.vector_engine = vector_engine
         self.morph_analyzer = morph_analyzer
+        self.structural_patch_builder = structural_patch_builder
+        self.post_change_validator = post_change_validator
         
         self.auditor = LogicAuditor(
             vector_engine=self.vector_engine,
@@ -60,54 +68,99 @@ class AutonomousAligner:
         return report
 
     def fix_build_errors(self, source_file: Path, build_result: Dict[str, Any]) -> bool:
-        """ビルドエラーの内容に基づいてソースコードを直接修復する"""
+        """明示された構造パッチを検証し、成功した場合だけ適用する。"""
         if build_result.get("valid"):
             return False
 
+        if not callable(self.structural_patch_builder) or not callable(
+            self.post_change_validator
+        ):
+            self.logger.info(
+                "Build repair for %s was not applied because no structural "
+                "patch and post-change validator are configured.",
+                source_file,
+            )
+            return False
+
+        resolved_root = self.project_root.resolve()
+        resolved_source = source_file.resolve()
+        if resolved_source != resolved_root and resolved_root not in resolved_source.parents:
+            self.logger.error("Build repair target is outside project root: %s", source_file)
+            return False
+
+        original_content = source_file.read_text(encoding="utf-8")
+        patch = self.structural_patch_builder(
+            source_file,
+            original_content,
+            build_result,
+        )
+        if not isinstance(patch, dict) or not isinstance(patch.get("edits"), list):
+            self.logger.error("Structural patch builder returned an invalid patch.")
+            return False
         try:
-            with open(source_file, "r", encoding="utf-8") as f:
-                code_content = f.read()
+            candidate_content = self._apply_structural_edits(
+                original_content,
+                patch["edits"],
+            )
+        except (TypeError, ValueError):
+            self.logger.exception("Structural patch validation failed.")
+            return False
+        if candidate_content == original_content:
+            return False
 
-            errors = build_result.get("errors", [])
-            if not errors:
-                return False
+        validation = self.post_change_validator(
+            source_file,
+            candidate_content,
+            build_result,
+        )
+        if not isinstance(validation, dict) or validation.get("valid") is not True:
+            self.logger.info("Candidate build repair did not pass validation.")
+            return False
 
-            new_code = code_content
-            any_fix_applied = False
-            
-            # 各エラーに対して修正を試みる
-            for err in errors:
-                analysis = {
-                    "fix_direction": "fix_syntax_error",
-                    "analysis_details": {
-                        "error_message": f"{err['code']}: {err['message']}",
-                        "line_number": err.get("line")
-                    }
-                }
-                target_code = {
-                    "file": str(source_file),
-                    "current_implementation": new_code
-                }
-                
-                suggestions = self.fix_engine.generate_fix_suggestions(analysis, target_code)
-                
-                for sug in suggestions:
-                    if sug.auto_applicable and sug.safety_score >= 0.8:
-                        if sug.current_code in new_code:
-                            new_code = new_code.replace(sug.current_code, sug.suggested_code, 1)
-                            any_fix_applied = True
-                            self.logger.info(f"Applied build fix: {sug.description}")
-                            break # 一つのエラーが直ったら次のエラー（または再ビルド）へ
-            
-            if any_fix_applied:
-                with open(source_file, "w", encoding="utf-8") as f:
-                    f.write(new_code)
-                return True
+        source_file.write_text(candidate_content, encoding="utf-8")
+        self.alignment_history.append({
+            "timestamp": datetime.now().isoformat(),
+            "source_file": str(source_file),
+            "patch": patch,
+            "validation": validation,
+        })
+        return True
 
-        except Exception as e:
-            self.logger.error(f"Error during build error fixing: {e}")
-        
-        return False
+    @staticmethod
+    def _apply_structural_edits(
+        original_content: str,
+        edits: List[Dict[str, Any]],
+    ) -> str:
+        lines = original_content.splitlines(keepends=True)
+        normalized_edits = []
+        for edit in edits:
+            if not isinstance(edit, dict):
+                raise TypeError("Each structural edit must be an object.")
+            start_line = edit.get("start_line")
+            end_line = edit.get("end_line")
+            replacement = edit.get("replacement")
+            if (
+                not isinstance(start_line, int)
+                or isinstance(start_line, bool)
+                or not isinstance(end_line, int)
+                or isinstance(end_line, bool)
+                or not isinstance(replacement, str)
+                or start_line < 1
+                or end_line < start_line
+                or end_line > len(lines)
+            ):
+                raise ValueError("Invalid structural edit range.")
+            normalized_edits.append((start_line, end_line, replacement))
+
+        normalized_edits.sort(key=lambda item: item[0])
+        for previous, current in zip(normalized_edits, normalized_edits[1:]):
+            if current[0] <= previous[1]:
+                raise ValueError("Structural edits overlap.")
+
+        updated_lines = list(lines)
+        for start_line, end_line, replacement in reversed(normalized_edits):
+            updated_lines[start_line - 1:end_line] = [replacement]
+        return "".join(updated_lines)
 
     def align_module(self, design_doc_path: Path) -> Optional[Dict[str, Any]]:
         """特定のモジュールの整合性を監査・修正する"""
@@ -125,73 +178,67 @@ class AutonomousAligner:
             with open(source_file, "r", encoding="utf-8") as f:
                 code_content = f.read()
 
-            # 3. 監査の実行
-            # 現状、source_structure は簡易的に作成
+            # 3. 監査の実行。名称の単語集合など、コードから推測した特徴は渡さない。
             source_structure = {
                 "files_analyzed": 1,
-                "all_keywords": list(set(re.findall(r'[a-zA-Z]{3,}', code_content.lower())))
+                "source_file": str(source_file),
+                "language": source_file.suffix.lstrip("."),
             }
             
             audit_result = self.auditor.audit(design_data, source_structure, code_content)
+            initial_score = audit_result["consistency_score"]
             
             if audit_result["status"] == "consistent":
-                return {"module": module_name, "status": "consistent", "score": audit_result["consistency_score"]}
-
-            # 4. 修正の生成と適用 (収束するまで繰り返す)
-            applied_suggestions = []
-            max_iterations = 5
-            current_iteration = 0
-            new_code = code_content
-            
-            while current_iteration < max_iterations:
-                target_code = {
-                    "file": str(source_file),
-                    "current_implementation": new_code
+                return {
+                    "module": module_name,
+                    "status": "consistent",
+                    "score": initial_score,
+                    "fixes_applied": [],
+                    "pending_suggestions": [],
                 }
-                
-                suggestions = self.fix_engine.generate_fix_suggestions(audit_result, target_code)
-                
-                if not suggestions:
-                    break
-                
-                # 安全スコアの高い最初の提案を適用
-                applied_in_this_cycle = False
-                for sug in suggestions:
-                    if sug.auto_applicable and sug.safety_score >= 0.8:
-                        if not sug.current_code:
-                             # 末尾に単純挿入
-                             new_code = new_code.rstrip() + f"\n{sug.suggested_code}\n"
-                        elif sug.current_code in new_code:
-                             new_code = new_code.replace(sug.current_code, sug.suggested_code, 1)
-                        else:
-                             continue
-                        
-                        applied_suggestions.append(sug.description)
-                        applied_in_this_cycle = True
-                        break # 次の監査サイクルへ
-                
-                if not applied_in_this_cycle:
-                    break
-                
-                # 再監査
-                audit_result = self.auditor.audit(design_data, source_structure, new_code)
-                if audit_result["status"] == "consistent":
-                    break
-                
-                current_iteration += 1
-            
-            if new_code != code_content:
-                with open(source_file, "w", encoding="utf-8") as f:
-                    f.write(new_code)
-                self.logger.info(f"Applied {len(applied_suggestions)} fixes to {source_file}")
+
+            if audit_result["status"] == "indeterminate":
+                return {
+                    "module": module_name,
+                    "status": "indeterminate",
+                    "initial_score": None,
+                    "final_score": None,
+                    "findings": audit_result["findings"],
+                    "fixes_applied": [],
+                    "pending_suggestions": [],
+                    "mutation_blocked_reason": (
+                        "structured_design_and_implementation_steps_required"
+                    ),
+                }
+
+            target_code = {
+                "file": str(source_file),
+                "current_implementation": code_content,
+            }
+            suggestions = self.fix_engine.generate_fix_suggestions(
+                audit_result,
+                target_code,
+            )
 
             return {
                 "module": module_name,
-                "status": "aligned" if applied_suggestions else "consistent" if audit_result["status"] == "consistent" else "inconsistent",
-                "initial_score": audit_result["consistency_score"],
+                "status": "inconsistent",
+                "initial_score": initial_score,
                 "final_score": audit_result["consistency_score"],
                 "findings": audit_result["findings"],
-                "fixes_applied": applied_suggestions
+                "fixes_applied": [],
+                "pending_suggestions": [
+                    {
+                        "description": suggestion.description,
+                        "current_code": suggestion.current_code,
+                        "suggested_code": suggestion.suggested_code,
+                        "line_number": suggestion.line_number,
+                    }
+                    for suggestion in suggestions
+                ],
+                "mutation_blocked_reason": (
+                    "structural_patch_and_post_change_validation_required"
+                ),
             }
 
         except Exception as e:
@@ -213,8 +260,3 @@ if __name__ == "__main__":
     aligner = AutonomousAligner(".")
     report = aligner.align_all_modules()
     debug_print(f"Alignment completed. Modules processed: {report['total_modules_processed']}")
-    # TODO: Implement Logic: **整合性修復サイクル (Iterative Repair)**:
-        # TODO: Implement Logic: **修正提案の生成**: `findings` を `FixEngine` に渡し、スタブ挿入等の修正案を取得。
-        # TODO: Implement Logic: 以下のステップを、不整合が解消されるか最大試行回数（5回）に達するまで繰り返す。
-        # TODO: Implement Logic: **修正の適用**: 安全スコアが一定（0.8）以上の提案を、ソースファイルに直接適用。
-        # TODO: Implement Logic: **結果報告**: 最終的な整合性スコアと、適用された修正の履歴をレポートにまとめる。

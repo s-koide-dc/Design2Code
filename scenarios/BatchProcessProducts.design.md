@@ -9,10 +9,11 @@
 - **Description**: status
 - **Type/Format**: bool
 ### Core Logic
-1. 'products.json' を読み込み、JSON を商品リストに変換する
-2. [LOOP|GENERAL|Product|void|NONE] 各商品に対して以下の処理を繰り返す
-3. 商品Nameをコンソールに表示する
-4. [END|GENERAL]
+- [data_source|products_file|file] products.json
+1. [ACTION|FETCH|Product|List<Product>|IO|products_file|file] [semantic_roles:{"path":"products.json"}] 'products.json' を読み込み、JSON を商品リストに変換する
+2. [LOOP|GENERAL|Product|void|NONE] [refs:step_1] 各商品に対して以下の処理を繰り返す
+3. [ACTION|DISPLAY|Product|void|NONE] [refs:step_2] [semantic_roles:{"property":"Name"}] 商品Nameをコンソールに表示する
+4. [END|GENERAL] [refs:step_2]
 ### Test Cases
 - **Scenario**: Default
 - **Expected**: true

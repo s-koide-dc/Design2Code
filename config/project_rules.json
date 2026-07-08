@@ -40,6 +40,10 @@
       "src/pipeline_core": "Orchestrates the entire flow."
     }
   },
+  "document_contract": {
+    "minimum_level_2_sections": 2,
+    "require_section_body": true
+  },
   "structural_rules": [
     {
       "type": "dependency_constraint",

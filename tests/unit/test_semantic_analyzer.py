@@ -199,5 +199,55 @@ class TestSemanticAnalyzer(unittest.TestCase):
         self.assertAlmostEqual(result["analysis"]["entities"]["filename"]["confidence"], 0.9)
 
 
+class TestSemanticAnalyzerDataSourceDiagnostics(unittest.TestCase):
+    def test_invalid_knowledge_json_is_reported(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            knowledge_path = os.path.join(temp_dir, "knowledge.json")
+            with open(knowledge_path, "w", encoding="utf-8") as knowledge:
+                knowledge.write("{invalid")
+
+            analyzer = SemanticAnalyzer(
+                task_manager=MagicMock(),
+                knowledge_file_path=knowledge_path,
+            )
+            result = analyzer.analyze({"analysis": {"chunks": []}})
+
+        self.assertIn(
+            {
+                "module": "semantic_analyzer",
+                "source": "custom_knowledge",
+                "operation": "load",
+                "error_type": "JSONDecodeError",
+            },
+            result["errors"],
+        )
+
+    def test_broken_dictionary_is_distinct_from_no_match(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = os.path.join(temp_dir, "dictionary.db")
+            with open(db_path, "w", encoding="utf-8") as db:
+                db.write("not a sqlite database")
+            config = MagicMock()
+            config.custom_knowledge_path = os.path.join(temp_dir, "missing.json")
+            config.dictionary_db_path = db_path
+            analyzer = SemanticAnalyzer(task_manager=MagicMock(), config_manager=config)
+
+            result = analyzer.analyze({
+                "analysis": {
+                    "chunks": [[{"surface": "語", "base": "語", "pos": "名詞,一般"}]],
+                }
+            })
+
+        self.assertIsNone(result["analysis"]["topics"][0]["meaning"])
+        self.assertTrue(
+            any(
+                error.get("source") == "dictionary_db"
+                and error.get("operation") == "lookup_word"
+                and error.get("error_type") == "DatabaseError"
+                for error in result["errors"]
+            )
+        )
+
+
 if __name__ == '__main__':
     unittest.main()

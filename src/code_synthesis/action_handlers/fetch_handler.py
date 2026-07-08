@@ -21,12 +21,34 @@ def handle_fetch(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any])
             return None
         new_p = action_synthesizer.synthesizer._copy_path(path)
         out_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "string", "content", new_p, prefix="content", role="content")
-        new_p["statements"].append({
+        semantic_roles = action_synthesizer._get_semantic_roles(node)
+        error_policy = str(
+            semantic_roles.get("error_policy") or "return_default"
+        ).strip().lower()
+        if error_policy not in {"return_default", "rethrow", "continue"}:
+            return action_synthesizer._unresolved_path(
+                path,
+                node,
+                "invalid_error_policy",
+                details={"error_policy": error_policy},
+            )
+        stmt = {
             "type": "raw",
-            "code": f"var {out_var} = File.ReadAllText({params[0]});",
+            "code": f"{out_var} = File.ReadAllText({params[0]});",
             "node_id": node.get("id"),
-            "intent": INTENT_FETCH
-        })
+            "intent": INTENT_FETCH,
+            "out_var": out_var,
+            "var_type": "string",
+        }
+        new_p["statements"].append(
+            action_synthesizer.stmt_builder.wrap_with_try_catch(
+                stmt,
+                INTENT_FETCH,
+                "File.ReadAllText",
+                new_p,
+                error_policy=error_policy,
+            )
+        )
         new_p.setdefault("all_usings", set()).add("System.IO")
         new_p.setdefault("type_to_vars", {}).setdefault("string", []).append({
             "var_name": out_var,

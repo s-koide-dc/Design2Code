@@ -80,9 +80,9 @@ public class StatementBlueprint
     [JsonPropertyName("code")] public string Code { get; set; } = ""; 
     [JsonPropertyName("max_attempts")] public int MaxAttempts { get; set; } = 3;
     [JsonPropertyName("exception_type")] public string ExceptionType { get; set; } = "Exception";
-    [JsonPropertyName("base_delay_ms")] public int BaseDelayMs { get; set; } = 0;
-    [JsonPropertyName("max_delay_ms")] public int MaxDelayMs { get; set; } = 0;
-    [JsonPropertyName("backoff_multiplier")] public double BackoffMultiplier { get; set; } = 1.0;
+    [JsonPropertyName("base_delay_ms")] public int? BaseDelayMs { get; set; } = null;
+    [JsonPropertyName("max_delay_ms")] public int? MaxDelayMs { get; set; } = null;
+    [JsonPropertyName("backoff_multiplier")] public double? BackoffMultiplier { get; set; } = null;
     [JsonPropertyName("timeout_ms")] public int TimeoutMs { get; set; } = 30000;
 }
 
@@ -103,6 +103,7 @@ class Program
             if (string.IsNullOrWhiteSpace(inputJson)) return;
             var bp = JsonSerializer.Deserialize<Blueprint>(inputJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             if (bp == null) throw new Exception("Deserialization result is null.");
+            ValidateBlueprint(bp);
             var code = GenerateCode(bp);
             
             // 診断機能の追加: 生成したコードをパースして基本的なエラーをチェック
@@ -122,11 +123,21 @@ class Program
                 .ToList();
 
             Console.WriteLine(jsonStartMarker);
+            if (diagnostics.Any())
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new {
+                    status = "error",
+                    message = "Generated code contains C# syntax errors.",
+                    diagnostics = diagnostics
+                }));
+                Console.WriteLine(jsonEndMarker);
+                return;
+            }
             Console.WriteLine(JsonSerializer.Serialize(new { 
                 status = "success", 
                 code = bp.Optimize ? OptimizeCode(code) : code, 
                 diagnostics = diagnostics,
-                has_errors = diagnostics.Any()
+                has_errors = false
             }));
             Console.WriteLine(jsonEndMarker);
         }
@@ -137,6 +148,57 @@ class Program
             Console.WriteLine(jsonStartMarker);
             Console.WriteLine(JsonSerializer.Serialize(new { status = "error", message = ex.Message }));
             Console.WriteLine(jsonEndMarker);
+        }
+    }
+
+    static void ValidateBlueprint(Blueprint blueprint)
+    {
+        var supportedTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "raw", "call", "assign", "comment", "foreach", "if",
+            "retry", "timeout", "transaction"
+        };
+        var bodyRequiredTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "foreach", "if", "retry", "timeout", "transaction"
+        };
+
+        void ValidateStatements(IEnumerable<StatementBlueprint> statements, string location)
+        {
+            var index = 0;
+            foreach (var statement in statements ?? Enumerable.Empty<StatementBlueprint>())
+            {
+                var statementLocation = $"{location}[{index}]";
+                if (statement == null)
+                {
+                    throw new InvalidOperationException($"{statementLocation}: statement_not_object");
+                }
+                var statementType = statement.Type ?? "";
+                if (!supportedTypes.Contains(statementType))
+                {
+                    throw new InvalidOperationException(
+                        $"{statementLocation}: unsupported_statement_type '{statement.Type}'"
+                    );
+                }
+                if (bodyRequiredTypes.Contains(statementType) && (statement.Body == null || statement.Body.Count == 0))
+                {
+                    throw new InvalidOperationException(
+                        $"{statementLocation}: required_body_empty '{statement.Type}'"
+                    );
+                }
+                ValidateStatements(statement.Body ?? new(), $"{statementLocation}.body");
+                ValidateStatements(statement.ElseBody ?? new(), $"{statementLocation}.else_body");
+                index++;
+            }
+        }
+
+        var methods = blueprint.Methods ?? new();
+        for (var methodIndex = 0; methodIndex < methods.Count; methodIndex++)
+        {
+            ValidateStatements(
+                methods[methodIndex].Body ?? new(),
+                $"methods[{methodIndex}].body"
+            );
         }
     }
 
@@ -244,9 +306,7 @@ class Program
             switch (s.Type.ToLower())
             {
                 case "assign":
-                    ExpressionSyntax assignVal;
-                    try { assignVal = ParseExpression(s.Value); } 
-                    catch { assignVal = IdentifierName($"/* Parse Error: {s.Value} */"); }
+                    var assignVal = ParseRequiredExpression(s.Value, "assignment value");
                     
                     if (s.VarType == null)
                     {
@@ -263,16 +323,13 @@ class Program
                             .AddVariables(VariableDeclarator(Identifier(s.VarName)).WithInitializer(EqualsValueClause(assignVal))));
                     }
                 case "call":
-                    ExpressionSyntax invoke;
-                    try { invoke = ParseExpression(s.Method); }
-                    catch { invoke = IdentifierName($"/* Parse Error in Method: {s.Method} */"); }
+                    ExpressionSyntax invoke = ParseRequiredExpression(s.Method, "method");
 
                     if (s.Args?.Count > 0) 
                     {
-                        invoke = InvocationExpression(invoke).AddArgumentListArguments(s.Args.Select(a => {
-                            try { return Argument(ParseExpression(a)); }
-                            catch { return Argument(IdentifierName($"/* Parse Error in Arg: {a} */")); }
-                        }).ToArray());
+                        invoke = InvocationExpression(invoke).AddArgumentListArguments(
+                            s.Args.Select(a => Argument(ParseRequiredExpression(a, "argument"))).ToArray()
+                        );
                     }
                     else if (!string.IsNullOrEmpty(s.Method) && !s.Method.Contains("(")) invoke = InvocationExpression(invoke); // Ensure it's a call
                     
@@ -324,9 +381,9 @@ class Program
                     var retryVariable = "retryAttempt";
                     var retryBody = Block((s.Body ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>());
                     var catchType = string.IsNullOrWhiteSpace(s.ExceptionType) ? "Exception" : s.ExceptionType;
-                    var baseDelayMs = s.BaseDelayMs < 0 ? 0 : s.BaseDelayMs;
-                    var maxDelayMs = s.MaxDelayMs < 0 ? 0 : s.MaxDelayMs;
-                    var backoffMultiplier = s.BackoffMultiplier < 1.0 ? 1.0 : s.BackoffMultiplier;
+                    var baseDelayMs = Math.Max(0, s.BaseDelayMs ?? 0);
+                    var maxDelayMs = Math.Max(0, s.MaxDelayMs ?? 0);
+                    var backoffMultiplier = Math.Max(1.0, s.BackoffMultiplier ?? 1.0);
                     var catchStatements = new List<StatementSyntax>
                     {
                         IfStatement(
@@ -501,14 +558,35 @@ $@"{{
                     // 27.222: Only append semicolon if not a block or already semi-terminated
                     string suffix = (rawCode.EndsWith(";") || rawCode.EndsWith("}")) ? "\n" : ";\n";
                     return ParseStatement(rawCode + suffix);
-                case "comment": 
-                case "todo":
-                    var msg = s.Text ?? s.Value ?? s.Method ?? "TODO";
+                case "comment":
+                    var msg = s.Text ?? s.Value ?? s.Method ?? "";
                     return EmptyStatement().WithTrailingTrivia(Comment($"// {msg}\n"));
-                default: 
-                    return ParseStatement($"// TODO: Unsupported type '{s.Type}' - {s.Text}\n");
+                default:
+                    throw new InvalidOperationException($"Unsupported statement type '{s.Type}'.");
             }
-        } catch (Exception ex) { return ParseStatement($"// Build Error in {s.Type}: {ex.Message}\n"); }
+        } catch (Exception ex) {
+            throw new InvalidOperationException($"Failed to render statement type '{s.Type}': {ex.Message}", ex);
+        }
+    }
+
+    static ExpressionSyntax ParseRequiredExpression(string text, string location)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new InvalidOperationException($"{location} is empty.");
+        }
+        var expression = ParseExpression(text);
+        var errors = expression.GetDiagnostics()
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .Select(diagnostic => diagnostic.GetMessage())
+            .ToList();
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Invalid {location}: {string.Join("; ", errors)}"
+            );
+        }
+        return expression;
     }
 
     static string RenderStatementBlock(IEnumerable<StatementBlueprint> statements, bool isAsyncMethod, int indentLevel)
@@ -534,7 +612,7 @@ $@"{{
         }
         if (lines.Count == 0)
         {
-            lines.Add(indent + "// TODO: timeout body");
+            throw new InvalidOperationException("Required structural body rendered no statements.");
         }
         return string.Join(Environment.NewLine, lines);
     }

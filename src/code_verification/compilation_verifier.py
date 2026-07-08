@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 import os
 import subprocess
-import re
 import shutil
 import tempfile
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 class CompilationVerifier:
     """生成された C# コードのコンパイル可能性を検証するクラス"""
@@ -251,29 +250,79 @@ class CompilationVerifier:
     def _parse_errors(self, output: str) -> List[Dict[str, Any]]:
         """MSBuild のエラー出力をパースして構造化データにする"""
         errors = []
-        # Handle variations: "error CS0246: The type..." or "error CS0246:The type..."
-        pattern = r"(.+)\((\d+),(\d+)\):\s+error\s+(CS\d+)\s*:\s*(.+)"
-        for match in re.finditer(pattern, output):
-            code = match.group(4)
-            msg = match.group(5)
-            
-            # エラータイプの分類
-            error_type = "UNKNOWN"
-            if code in ["CS0103", "CS0246"]: error_type = "SYMBOL_NOT_FOUND"
-            elif code in ["CS1503", "CS0029", "CS0266"]: error_type = "TYPE_MISMATCH"
-            elif code in ["CS1002"]: error_type = "SYNTAX_ERROR"
-            elif code in ["CS0117", "CS1061"]: error_type = "MEMBER_NOT_FOUND"
-            elif code in ["CS0120"]: error_type = "INSTANCE_REQUIRED"
-
-            errors.append({
-                "file": match.group(1),
-                "line": int(match.group(2)),
-                "column": int(match.group(3)),
-                "code": code,
-                "error_type": error_type,
-                "message": msg
-            })
+        for raw_line in output.splitlines():
+            parsed = self._parse_msbuild_error_line(raw_line)
+            if parsed:
+                errors.append(parsed)
         return errors
+
+    def _parse_msbuild_error_line(self, raw_line: str) -> Optional[Dict[str, Any]]:
+        """Parse 'file(line,column): error CSxxxx: message' without regex."""
+        if not isinstance(raw_line, str):
+            return None
+
+        location_separator = "): error "
+        location_end = raw_line.find(location_separator)
+        if location_end < 0:
+            return None
+
+        location = raw_line[:location_end]
+        details = raw_line[location_end + len(location_separator):].strip()
+        open_paren = location.rfind("(")
+        if open_paren <= 0:
+            return None
+
+        file_path = location[:open_paren]
+        position_text = location[open_paren + 1:]
+        comma = position_text.find(",")
+        if comma <= 0:
+            return None
+
+        line_text = position_text[:comma].strip()
+        column_text = position_text[comma + 1:].strip()
+        if not line_text.isdigit() or not column_text.isdigit():
+            return None
+
+        detail_separator = details.find(":")
+        if detail_separator <= 0:
+            return None
+
+        code = details[:detail_separator].strip()
+        if not self._is_csharp_error_code(code):
+            return None
+
+        msg = details[detail_separator + 1:].strip()
+        return {
+            "file": file_path,
+            "line": int(line_text),
+            "column": int(column_text),
+            "code": code,
+            "error_type": self._classify_error_code(code),
+            "message": msg
+        }
+
+    @staticmethod
+    def _is_csharp_error_code(code: str) -> bool:
+        return (
+            isinstance(code, str)
+            and len(code) > 2
+            and code.startswith("CS")
+            and code[2:].isdigit()
+        )
+
+    @staticmethod
+    def _classify_error_code(code: str) -> str:
+        if code in ["CS0103", "CS0246"]:
+            return "SYMBOL_NOT_FOUND"
+        if code in ["CS1503", "CS0029", "CS0266"]:
+            return "TYPE_MISMATCH"
+        if code in ["CS1002"]:
+            return "SYNTAX_ERROR"
+        if code in ["CS0117", "CS1061"]:
+            return "MEMBER_NOT_FOUND"
+        if code in ["CS0120"]:
+            return "INSTANCE_REQUIRED"
+        return "UNKNOWN"
 
     def verify_project(self, project_root: str, project_name: str = None) -> Dict[str, Any]:
         """プロジェクト全体のビルドを実行して結果を返す"""

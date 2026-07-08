@@ -10,7 +10,7 @@ from src.morph_analyzer.morph_analyzer import MorphAnalyzer
 from src.syntactic_analyzer.syntactic_analyzer import SyntacticAnalyzer
 from src.semantic_analyzer.semantic_analyzer import SemanticAnalyzer
 from src.code_synthesis.method_store import MethodStore
-from src.code_synthesis.unified_knowledge_base import UnifiedKnowledgeBase
+from src.code_synthesis.unified_knowledge_base import AmbiguousMethodCandidatesError, UnifiedKnowledgeBase
 from src.autonomous_learning.structural_memory import StructuralMemory
 
 
@@ -41,6 +41,7 @@ class DesignOpsResolver:
             index_on_init=False,
         )
         self.ukb = UnifiedKnowledgeBase(self.config, self.method_store, self.structural_memory)
+        self._intent_keywords = self.ukb.get("intent_keywords", {})
         self._semantic_candidates: List[Dict[str, Any]] = []
         self._semantic_candidate_vectors: List[Any] = []
         self._semantic_candidates_ready = False
@@ -192,7 +193,7 @@ class DesignOpsResolver:
         query = self._build_query_from_context(context, line)
         if not query:
             return None, 0.0
-        candidates = self._sort_candidates(self.ukb.search(query, limit=5))
+        candidates = self._sort_candidates(self._search_ukb_candidates(query, limit=5))
         step, cand = self._select_with_hints(candidates, method_name, context, require_preferred=True)
         if step and cand:
             return step, self._score_candidate(cand)
@@ -203,7 +204,7 @@ class DesignOpsResolver:
             return step, self._score_candidate(cand)
 
         if self._needs_expanded_search(context):
-            expanded = self._sort_candidates(self.ukb.search(query, limit=20))
+            expanded = self._sort_candidates(self._search_ukb_candidates(query, limit=20))
             step, cand = self._select_with_hints(expanded, method_name, context, require_preferred=True)
             if step and cand:
                 return step, self._score_candidate(cand)
@@ -229,7 +230,7 @@ class DesignOpsResolver:
         if not query:
             return None, 0.0
 
-        candidates = self._sort_candidates(self.ukb.search(query, limit=5))
+        candidates = self._sort_candidates(self._search_ukb_candidates(query, limit=5))
         step, cand = self._select_with_hints(
             candidates,
             method_name,
@@ -256,7 +257,7 @@ class DesignOpsResolver:
                 return step, self._score_candidate(cand)
 
         if self._needs_expanded_search(context):
-            expanded = self._sort_candidates(self.ukb.search(query, limit=20))
+            expanded = self._sort_candidates(self._search_ukb_candidates(query, limit=20))
             step, cand = self._select_with_hints(
                 expanded,
                 method_name,
@@ -312,8 +313,7 @@ class DesignOpsResolver:
         if not query:
             return None
 
-        self._last_stats["ukb_search"] += 1
-        candidates = self._sort_candidates(self.ukb.search(query, limit=5))
+        candidates = self._sort_candidates(self._search_ukb_candidates(query, limit=5))
         if not candidates:
             return None
         self._last_stats["ukb_hits"] += 1
@@ -330,6 +330,18 @@ class DesignOpsResolver:
         syntax_terms = self._extract_syntax_terms(context)
         syntax_text = " ".join(syntax_terms)
         return " ".join([t for t in [topic_text, syntax_text, line] if t]).strip()
+
+    def _search_ukb_candidates(self, query: str, *, limit: int) -> List[Dict[str, Any]]:
+        self._last_stats["ukb_search"] += 1
+        try:
+            return self.ukb.search(query, limit=limit)
+        except AmbiguousMethodCandidatesError as error:
+            candidates: List[Dict[str, Any]] = []
+            for candidate_id in error.candidate_ids:
+                candidate = self.ukb.get_method_by_id(candidate_id)
+                if candidate:
+                    candidates.append(candidate)
+            return candidates
 
     def _analyze_line(self, line: str) -> Dict[str, Any]:
         context: Dict[str, Any] = {"original_text": line}
@@ -426,8 +438,12 @@ class DesignOpsResolver:
         if "JSON" in topic_texts or "json" in topic_texts:
             _prefer("JSON_DESERIALIZE", front=True)
 
-        if "表示" in topic_texts or "コンソール" in topic_texts:
-            _prefer("DISPLAY")
+        if isinstance(self._intent_keywords, dict):
+            for intent, keywords in self._intent_keywords.items():
+                if not isinstance(keywords, list):
+                    continue
+                if any(str(keyword) in topic_texts for keyword in keywords):
+                    _prefer(str(intent), front=str(intent).upper() == "TRANSFORM")
 
         return hints
 
@@ -478,8 +494,7 @@ class DesignOpsResolver:
         syntax_text = " ".join(syntax_terms)
         query = " ".join([t for t in [topic_text, syntax_text, line] if t]).strip()
 
-        self._last_stats["ukb_search"] += 1
-        candidates = self._sort_candidates(self.ukb.search(query, limit=5))
+        candidates = self._sort_candidates(self._search_ukb_candidates(query, limit=5))
         for cand in candidates:
             step = self._map_candidate_to_service_step(cand, None)
             if step:

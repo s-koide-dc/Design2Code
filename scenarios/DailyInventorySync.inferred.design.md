@@ -11,21 +11,9 @@
 ### Core Logic
 - [data_source|inventory_db|db] Inventory Database
 - [data_source|inventory_api|http] Inventory API Endpoint
-1. [ACTION|HTTP_REQUEST|Inventory|string|NONE|inventory_api] [semantic_roles:{"url":"https://inventory.example.com/api/current"}] https://inventory.example.com/api/current から在庫データを取得する
-2. [ACTION|JSON_DESERIALIZE|Inventory|List<Inventory>|NONE] [refs:step_1] 取得したデータを JSON デシリアライズして在庫リストに変換する
-3. [ACTION|PERSIST|Inventory|void|DB|inventory_db] [semantic_roles:{"sql":"UPDATE Inventory SET Stock = @Stock WHERE Id = @Id"}] 在庫リストの各項目について、SQL 'UPDATE Inventory SET Stock = @Stock WHERE Id = @Id' を実行して在庫情報を更新する
+1. [ACTION|HTTP_REQUEST|Inventory|string|NONE|inventory_api] [semantic_roles:{"url":"https://inventory.example.com/api/current","http_method":"GET","api_key_header":"X-API-Key","api_key_input":"input_1","timeout_ms":30000,"ops":["use_api_key_header"],"error_policy":"return_default"}] https://inventory.example.com/api/current から在庫データを取得する
+2. [ACTION|JSON_DESERIALIZE|Inventory|List<Inventory>|NONE] [refs:step_1] [semantic_roles:{"error_policy":"return_default"}] 取得したデータを JSON デシリアライズして在庫リストに変換する
+3. [ACTION|PERSIST|Inventory|void|DB|inventory_db] [refs:step_2] [semantic_roles:{"sql":"UPDATE Inventory SET Stock = @Stock WHERE Id = @Id","error_policy":"return_default"}] 在庫リストの各項目について、SQL 'UPDATE Inventory SET Stock = @Stock WHERE Id = @Id' を実行して在庫情報を更新する
 ### Test Cases
 - **Scenario**: Default
 - **Expected**: 1
-### Inference Metadata
-- inference_mode: infer_then_freeze
-- inference_fingerprint: af7300e56eee3dfbcb1c6996dd231b00fc3b5fa272746045fc1d04b5c80a83ef
-- assets:
-  - C:\workspace\NLP\config\config.json
-  - C:\workspace\NLP\config\project_rules.json
-  - C:\workspace\NLP\config\retry_rules.json
-  - C:\workspace\NLP\config\safety_policy.json
-  - C:\workspace\NLP\config\scoring_rules.json
-  - C:\workspace\NLP\resources\dictionary.db
-  - C:\workspace\NLP\resources\method_store.json
-  - C:\workspace\NLP\resources\vectors\chive-1.3-mc90.txt
