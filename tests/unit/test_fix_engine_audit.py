@@ -336,6 +336,127 @@ public decimal CalculateTotal(Order order) {
         self.assertEqual(suggestion.end_line, 1)
         self.assertEqual(suggestion.validation_command, ['dotnet', 'test'])
 
+    def test_null_check_without_contract_requires_manual_review(self):
+        analysis_result = {
+            'fix_direction': 'add_null_checks',
+            'root_cause': 'null_reference',
+        }
+        target_code = {
+            'file': 'UserService.cs',
+            'method': 'Normalize',
+            'current_implementation': 'return user.Name.Trim();',
+        }
+
+        suggestions = self.engine.generate_fix_suggestions(analysis_result, target_code)
+
+        self.assertEqual(len(suggestions), 1)
+        suggestion = suggestions[0]
+        self.assertEqual(suggestion.type, 'manual_fix')
+        self.assertFalse(suggestion.auto_applicable)
+        self.assertEqual(suggestion.suggested_code, '')
+        self.assertEqual(
+            suggestion.impact_analysis['recommended_action'],
+            'inspect_manual_fix',
+        )
+        self.assertEqual(
+            suggestion.impact_analysis['contract_reason'],
+            'missing_structural_edit_contract',
+        )
+
+    def test_null_check_with_contract_is_actionable(self):
+        analysis_result = {
+            'fix_direction': 'add_null_validation',
+            'null_check_edit': {
+                'replacement_code': (
+                    'public string Normalize(User user) {\n'
+                    '    ArgumentNullException.ThrowIfNull(user);\n'
+                    '    return user.Name.Trim();\n'
+                    '}'
+                ),
+                'symbol_id': 'M:UserService.Normalize',
+                'start_line': 10,
+                'end_line': 12,
+                'validation_command': ['dotnet', 'test'],
+            },
+        }
+        target_code = {
+            'file': 'UserService.cs',
+            'method': 'Normalize',
+            'current_implementation': 'return user.Name.Trim();',
+        }
+
+        suggestions = self.engine.generate_fix_suggestions(analysis_result, target_code)
+
+        self.assertEqual(len(suggestions), 1)
+        suggestion = suggestions[0]
+        self.assertEqual(suggestion.type, 'null_validation')
+        self.assertTrue(suggestion.auto_applicable)
+        self.assertIn('ThrowIfNull', suggestion.suggested_code)
+        self.assertEqual(suggestion.symbol_id, 'M:UserService.Normalize')
+        self.assertEqual(suggestion.line_number, 10)
+        self.assertEqual(suggestion.end_line, 12)
+        self.assertEqual(suggestion.validation_command, ['dotnet', 'test'])
+
+    def test_calculation_fix_without_contract_requires_manual_review(self):
+        analysis_result = {
+            'fix_direction': 'fix_calculation_logic',
+            'root_cause': 'calculation_logic_error',
+        }
+        target_code = {
+            'file': 'Calculator.cs',
+            'method': 'Total',
+            'current_implementation': 'return price;',
+        }
+
+        suggestions = self.engine.generate_fix_suggestions(analysis_result, target_code)
+
+        self.assertEqual(len(suggestions), 1)
+        suggestion = suggestions[0]
+        self.assertEqual(suggestion.type, 'manual_fix')
+        self.assertFalse(suggestion.auto_applicable)
+        self.assertEqual(suggestion.suggested_code, '')
+        self.assertEqual(
+            suggestion.impact_analysis['recommended_action'],
+            'inspect_manual_fix',
+        )
+        self.assertEqual(
+            suggestion.impact_analysis['contract_reason'],
+            'missing_structural_edit_contract',
+        )
+
+    def test_calculation_fix_with_contract_is_actionable(self):
+        analysis_result = {
+            'fix_direction': 'fix_calculation_logic',
+            'calculation_edit': {
+                'replacement_code': (
+                    'public decimal Total(decimal price, decimal taxRate) {\n'
+                    '    return price * (1 + taxRate);\n'
+                    '}'
+                ),
+                'symbol_id': 'M:Calculator.Total',
+                'start_line': 4,
+                'end_line': 6,
+                'validation_command': ['dotnet', 'test'],
+            },
+        }
+        target_code = {
+            'file': 'Calculator.cs',
+            'method': 'Total',
+            'current_implementation': 'return price;',
+        }
+
+        suggestions = self.engine.generate_fix_suggestions(analysis_result, target_code)
+
+        self.assertEqual(len(suggestions), 1)
+        suggestion = suggestions[0]
+        self.assertEqual(suggestion.type, 'calculation_fix')
+        self.assertTrue(suggestion.auto_applicable)
+        self.assertIn('taxRate', suggestion.suggested_code)
+        self.assertEqual(suggestion.symbol_id, 'M:Calculator.Total')
+        self.assertEqual(suggestion.line_number, 4)
+        self.assertEqual(suggestion.end_line, 6)
+        self.assertEqual(suggestion.validation_command, ['dotnet', 'test'])
+
     def test_numeric_mismatch_without_contract_requires_manual_review(self):
         analysis_result = {
             'status': 'inconsistent',

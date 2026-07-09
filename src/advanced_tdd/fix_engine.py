@@ -90,7 +90,9 @@ class CodeFixSuggestionEngine:
                 if suggestion: suggestions.append(suggestion)
             
             for suggestion in suggestions:
-                suggestion.impact_analysis = self._analyze_impact(suggestion, target_code)
+                impact = self._analyze_impact(suggestion, target_code)
+                impact.update(suggestion.impact_analysis or {})
+                suggestion.impact_analysis = impact
                 self._augment_suggestion_context(suggestion, target_code, analysis)
             
             validated = self.safety_validator.validate_fix_safety(suggestions, target_code)
@@ -112,6 +114,15 @@ class CodeFixSuggestionEngine:
         suggestion.impact_analysis.setdefault('target_method', target_code.get('method'))
         suggestion.impact_analysis.setdefault('root_cause', analysis.get('root_cause'))
         suggestion.impact_analysis.setdefault('fix_direction', analysis.get('fix_direction'))
+        existing_reason = suggestion.impact_analysis.get('reason')
+        if existing_reason in {
+            'complete_structural_edit_contract',
+            'missing_structural_edit_contract',
+            'complete_structural_arrange_contract',
+            'missing_structural_arrange_contract',
+        }:
+            suggestion.impact_analysis.setdefault('contract_reason', existing_reason)
+            suggestion.impact_analysis.pop('reason', None)
         conversation_context = self._build_conversation_context(suggestion, analysis_summary)
         suggestion.impact_analysis.setdefault('reason', conversation_context['reason'])
         suggestion.impact_analysis.setdefault('recommended_action', conversation_context['recommended_action'])
@@ -464,7 +475,14 @@ class CodeFixSuggestionEngine:
         )
 
     def _generate_null_check_fix(self, target_code, analysis):
-        return None
+        """null 関連修正は構造化編集契約がある場合だけ提案する。"""
+        source = analysis.get('null_check_edit') or analysis
+        return self._build_contract_based_suggestion(
+            suggestion_type='null_validation',
+            description='構造化されたnull検証修正',
+            target_code=target_code,
+            source=source,
+        )
 
     def _generate_manual_fix_placeholder(self, target_code, analysis):
         return CodeFixSuggestion(
@@ -480,7 +498,14 @@ class CodeFixSuggestionEngine:
         )
 
     def _generate_calculation_fix(self, target_code, analysis):
-        return None
+        """計算ロジック修正は構造化編集契約がある場合だけ提案する。"""
+        source = analysis.get('calculation_edit') or analysis
+        return self._build_contract_based_suggestion(
+            suggestion_type='calculation_fix',
+            description='構造化された計算ロジック修正',
+            target_code=target_code,
+            source=source,
+        )
 
     def _try_extract_expected_value(self, msg):
         return self._extract_labeled_value(msg, 'Expected')

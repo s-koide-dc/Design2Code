@@ -26,22 +26,26 @@
     - `replacement_code`、`start_line`、`end_line`、引数配列形式の `validation_command` を持つ構造化編集契約がある場合だけ適用可能候補を返す。
     - コンパイラメッセージから型名・名前空間・async の有無を推定してコードを書き換えない。
     - 契約が不足する場合は `manual_fix` を返し、`auto_applicable=False` とする。
-5.  **テスト期待値修正 (`self_healing_test`)**: 実際値（Actual）に基づきアサーションを自動更新。
-6.  **テストArrange修正 (`test_arrange_fix`)**:
+5.  **Null検証・計算ロジック修正**:
+    - `add_null_checks` / `add_null_validation` / `fix_calculation_logic` も、`replacement_code`、`symbol_id`、`start_line`、`end_line`、引数配列形式の `validation_command` を持つ構造化編集契約がある場合だけ適用可能候補を返す。
+    - 例外メッセージや期待値から null ガード、計算式、定数、演算子を推定してコードを書き換えない。
+    - 契約の完全性は `impact_analysis.contract_reason` に保持し、会話向けの `reason` とは分離する。
+6.  **テスト期待値修正 (`self_healing_test`)**: 実際値（Actual）に基づきアサーションを自動更新。
+7.  **テストArrange修正 (`test_arrange_fix`)**:
     - `arrange_statement`、`insert_line`、引数配列形式の `validation_command` を持つ構造化Arrange編集契約がある場合だけ適用可能候補を返す。
     - SUT/Test のソーステキストから依存名、Mock名、戻り値型、挿入位置を推定して `Returns(...)` を生成しない。
-7.  **設計への逆同期 (Back-porting)**:
+8.  **設計への逆同期 (Back-porting)**:
     - `design_path`、`backport_content`、`step_idx` を持つ構造化設計同期契約がある場合だけ、設計書更新案を生成する。
     - finding の説明文から値、比較演算子、ステップ番号を抽出して設計更新案を作らない。
-8.  **提案コンテキスト補完**: 生成した各 `CodeFixSuggestion` に `impact_analysis.target_file` / `target_method` / `root_cause` / `fix_direction` / `reason` / `recommended_action` / `target_summary` / `conversation_hint` を補完する。非適用候補の `recommended_action` は `inspect_manual_fix` とする。
-9.  **安全性評価**: `SafetyValidator` を用いて、適用可能候補を検証する。`safety_score` は既存モデル互換のために保持するが、`FixEngine` はスコアを計算・上書きしない。適用可否は構造化契約、`auto_applicable`、`SafetyValidator` の構造化 evidence で判断する。
+9.  **提案コンテキスト補完**: 生成した各 `CodeFixSuggestion` に `impact_analysis.target_file` / `target_method` / `root_cause` / `fix_direction` / `reason` / `recommended_action` / `target_summary` / `conversation_hint` を補完する。非適用候補の `recommended_action` は `inspect_manual_fix` とする。
+10.  **安全性評価**: `SafetyValidator` を用いて、適用可能候補を検証する。`safety_score` は既存モデル互換のために保持するが、`FixEngine` はスコアを計算・上書きしない。適用可否は構造化契約、`auto_applicable`、`SafetyValidator` の構造化 evidence で判断する。
 
 ### Test Cases
 - **Happy Path**: 完全な構造編集契約がある場合だけ、symbol ID・行範囲・置換コード・検証コマンドを持つ適用可能候補になること。
 - **Edge Case**: 構造編集契約が不足する場合、TODOを生成せず手動調査候補になること。
 - **Edge Case**: 値不一致・パラメータ不足でも構造化編集契約が不足する場合は手動調査候補になること。
-- **Happy Path**: C# のセミコロン不足が検知され、自動付与されること。
 - **Edge Case**: C# 構文エラーでも構造化編集契約が不足する場合は手動調査候補になること。
+- **Edge Case**: Null検証・計算ロジック修正でも構造化編集契約が不足する場合は手動調査候補になること。
 - **Edge Case**: Arrange修正でも構造化Arrange編集契約が不足する場合は手動調査候補になること。
 - **Edge Case**: Backportでも構造化設計同期契約が不足する場合は提案を生成しないこと。
 - **Happy Path**: 生成された提案に `target_file`、`reason`、`recommended_action`、`target_summary` が補完されること。
