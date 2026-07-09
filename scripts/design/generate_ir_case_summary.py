@@ -4,7 +4,7 @@ import re
 import glob
 import sys
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
@@ -83,7 +83,7 @@ def generate_summary(cases_dir: str, output_path: str) -> int:
 
 
 def parse_args() -> argparse.Namespace:
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base_dir = ROOT
     parser = argparse.ArgumentParser(description="Generate the IR case summary markdown table.")
     parser.add_argument(
         "--cases-dir",

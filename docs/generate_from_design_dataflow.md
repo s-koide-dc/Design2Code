@@ -22,7 +22,7 @@ This document covers the data flow triggered by `scripts/generate/generate_from_
 8. Verify compilation in a sandbox.
 9. Optionally run execution verification.
 10. Write the final `.cs` output file.
-11. Review one scenario with `scripts/review_design_generation_snapshot.py` or run curated regression checks with `scripts/run_design_generation_regression.py`.
+11. Review one scenario with `scripts/design/review_design_generation_snapshot.py` or run curated regression checks with `scripts/design/run_design_generation_regression.py`.
 
 ### Project mode (`--project`)
 1. Read a project `.design.md` file and parse it into a ProjectSpec.
@@ -120,7 +120,7 @@ Practical authoring order:
 6. Turn a design-authoring gap into an LLM-dependent implicit contract.
 
 ### Candidate selection boundary
-`scripts/suggest_design_tags.py` should only query candidates that satisfy all of the following:
+`scripts/design/suggest_design_tags.py` should only query candidates that satisfy all of the following:
 1. The step is a Core Logic step, not a `data_source` declaration.
 2. The step is missing `semantic_roles`.
 3. The step still contains an explicit literal signal that can anchor `path`, `url`, or `sql`.
@@ -186,7 +186,7 @@ Do not use `literal_roles_only` assistance as the main remedy when any of the fo
 To compare how far a new `.design.md` can be reduced before crossing the literal boundary, use:
 
 ```bash
-python scripts/probe_design_authoring_reduction.py --design path/to/NewModule.design.md
+python scripts/design/probe_design_authoring_reduction.py --design path/to/NewModule.design.md
 ```
 
 The current stages are:
@@ -205,7 +205,7 @@ Interpretation:
 To compare the same stages with optional `3B` literal assistance:
 
 ```bash
-python scripts/probe_design_authoring_reduction.py --design path/to/NewModule.design.md --assist-endpoint-url http://127.0.0.1:1234/v1/chat/completions
+python scripts/design/probe_design_authoring_reduction.py --design path/to/NewModule.design.md --assist-endpoint-url http://127.0.0.1:1234/v1/chat/completions
 ```
 
 For a practical starter shape and a prohibited over-reduced shape, see [docs/design_authoring_minimal_template.md](/C:/workspace/NLP/docs/design_authoring_minimal_template.md).
@@ -219,13 +219,13 @@ python scripts/validate_design_authoring.py --design path/to/NewModule.design.md
 To review the same design as original text, inferred design, and generated code in one pass, use:
 
 ```bash
-python scripts/review_design_generation_snapshot.py --design path/to/NewModule.design.md
+python scripts/design/review_design_generation_snapshot.py --design path/to/NewModule.design.md
 ```
 
 To run the current curated regression set with the same snapshot criteria, use:
 
 ```bash
-python scripts/run_design_generation_regression.py
+python scripts/design/run_design_generation_regression.py
 ```
 
 Notes:
@@ -234,7 +234,7 @@ Notes:
 3. The regression runner aggregates `inference_status`, `verification_valid`, `spec_issue_count`, and the full per-scenario snapshot payload into one JSON result.
 
 ## Current Assist Coverage Snapshot (2026-06-18)
-The current scenario inventory from `scripts/audit_literal_tag_assist_coverage.py` is:
+The current scenario inventory from `scripts/design/audit_literal_tag_assist_coverage.py` is:
 1. Total `.design.md` scenarios audited: `23`
 2. `blocked_no_candidate`: `14`
 3. `assist_recommended`: `11`
@@ -365,8 +365,8 @@ Flow
    9. Optionally run execution verification (`ExecutionVerifier`) when `--post-exec-verify` is set.
 10. Write the final code to `output_path`.
    11. Recommended follow-up:
-      - `scripts/review_design_generation_snapshot.py` for one scenario
-      - `scripts/run_design_generation_regression.py` for the curated multi-scenario guardrail
+      - `scripts/design/review_design_generation_snapshot.py` for one scenario
+      - `scripts/design/run_design_generation_regression.py` for the curated multi-scenario guardrail
 
 Outputs
 1. `.cs` file written to `output_path`.

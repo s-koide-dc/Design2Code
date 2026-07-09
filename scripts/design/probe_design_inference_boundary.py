@@ -14,12 +14,12 @@ from typing import Callable, Dict, List, Tuple
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-WORKSPACE_ROOT = SCRIPT_DIR.parent
+WORKSPACE_ROOT = SCRIPT_DIR.parents[1]
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.append(str(WORKSPACE_ROOT))
 
 from src.design_parser import infer_then_freeze_if_needed
-from scripts.strip_design_tags import strip_design_tags
+from scripts.design.strip_design_tags import strip_design_tags
 
 logging.getLogger("SemanticSearch.structural_memory").setLevel(logging.ERROR)
 

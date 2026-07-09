@@ -11,7 +11,7 @@ WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 
-from scripts.probe_design_authoring_reduction import collect_probe_payload
+from scripts.design.probe_design_authoring_reduction import collect_probe_payload
 from src.utils.cli_output import emit_error, emit_json_stdout
 
 

@@ -209,7 +209,7 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 
 ## 1.2.1 設計書生成の標準確認手順
 - 設計書生成まわりを変更したら、まず `scripts/validate_project_consistency.py` で docs / 設計書 / テスト参照の同期を確認します。
-- 次に、単発レビューは `scripts/review_design_generation_snapshot.py`、複数シナリオの回帰は `scripts/run_design_generation_regression.py` を使います。
+- 次に、単発レビューは `scripts/design/review_design_generation_snapshot.py`、複数シナリオの回帰は `scripts/design/run_design_generation_regression.py` を使います。
 - 現在の既定回帰セットは `ComplexLinqSearch` / `CsvSalesAggregation` / `DailyInventorySync` / `SecureOrderProcessing` / `AppModeEchoMinimal` です。
 
 ```bash
@@ -217,10 +217,10 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 python scripts/validate_project_consistency.py
 
 # 1 本の設計書について、元設計・inferred 設計・生成コード・compile 結果を確認
-python scripts/review_design_generation_snapshot.py --design scenarios/DailyInventorySync.design.md
+python scripts/design/review_design_generation_snapshot.py --design scenarios/DailyInventorySync.design.md
 
 # 既定の主要シナリオをまとめて回帰確認
-python scripts/run_design_generation_regression.py
+python scripts/design/run_design_generation_regression.py
 ```
 
 ## 1.2.2 設計書を書くときの境界
@@ -237,7 +237,7 @@ python scripts/run_design_generation_regression.py
 - LLM にタグ候補だけ提案させたい場合は、ファイルを増やさず次を使えます:
 
 ```bash
-python scripts/suggest_design_tags.py --design scenarios/ComplexLinqSearch.design.md --endpoint-url http://127.0.0.1:1234/v1/chat/completions
+python scripts/design/suggest_design_tags.py --design scenarios/ComplexLinqSearch.design.md --endpoint-url http://127.0.0.1:1234/v1/chat/completions
 ```
 
 - これは stdout に提案 JSON を返すだけで、`.design.md` は書き換えません。
@@ -251,7 +251,7 @@ python scripts/suggest_design_tags.py --design scenarios/ComplexLinqSearch.desig
 - 実 backend で usefulness を測る場合は次を使います:
 
 ```bash
-python scripts/inspect_design_tag_suggestion_quality.py --endpoint-url http://127.0.0.1:1234/v1/chat/completions --mode literal_roles_only
+python scripts/design/inspect_design_tag_suggestion_quality.py --endpoint-url http://127.0.0.1:1234/v1/chat/completions --mode literal_roles_only
 ```
 
 - `all_expected_found` が高いほど、固定ケースで必要な literal tag 提案を拾えています。
@@ -261,15 +261,15 @@ python scripts/inspect_design_tag_suggestion_quality.py --endpoint-url http://12
 - deterministic 境界確認は次で行えます:
 
 ```bash
-python scripts/probe_design_inference_boundary.py --design scenarios/ComplexLinqSearch.design.md
-python scripts/probe_design_inference_boundary.py --design scenarios/SyncExternalData.design.md
+python scripts/design/probe_design_inference_boundary.py --design scenarios/ComplexLinqSearch.design.md
+python scripts/design/probe_design_inference_boundary.py --design scenarios/SyncExternalData.design.md
 ```
 
 - 高速に境界だけ確認する場合は、生成対象を必要最小限に絞れます:
 
 ```bash
-python scripts/probe_design_inference_boundary.py --design scenarios/ComplexLinqSearch.design.md --variants original strip_tags strip_tags_drop_literals --generate-variants original strip_tags
-python scripts/probe_design_inference_boundary.py --design scenarios/SyncExternalData.design.md --variants original strip_tags strip_tags_drop_literals --generate-variants original strip_tags
+python scripts/design/probe_design_inference_boundary.py --design scenarios/ComplexLinqSearch.design.md --variants original strip_tags strip_tags_drop_literals --generate-variants original strip_tags
+python scripts/design/probe_design_inference_boundary.py --design scenarios/SyncExternalData.design.md --variants original strip_tags strip_tags_drop_literals --generate-variants original strip_tags
 ```
 
 - 期待値:
@@ -278,7 +278,7 @@ python scripts/probe_design_inference_boundary.py --design scenarios/SyncExterna
 - scenario 在庫を含む assist coverage 棚卸しは次で行えます:
 
 ```bash
-python scripts/audit_literal_tag_assist_coverage.py
+python scripts/design/audit_literal_tag_assist_coverage.py
 ```
 
 - `assist_recommended` が `true` のものは、strip 後に deterministic だけでは `NO_CANDIDATE` で止まるが、explicit literal candidate は残っているため `literal_roles_only` 補助の対象候補です。
@@ -360,7 +360,7 @@ python scripts/audit_literal_tag_assist_coverage.py
 ## 3. 設計書からの生成
 1. 設計書を `scenarios/*.design.md` に用意
 2. `scripts/generate/generate_from_design.py` を実行
-3. `scripts/review_design_generation_snapshot.py` か `scripts/run_design_generation_regression.py` で生成結果を確認
+3. `scripts/design/review_design_generation_snapshot.py` か `scripts/design/run_design_generation_regression.py` で生成結果を確認
 4. 出力: `cache/*Impact.cs` または `{ProjectName}/`
 
 ※ ブループリントは `cache/blueprints/<run_id>/blueprint.json` に保存されます。

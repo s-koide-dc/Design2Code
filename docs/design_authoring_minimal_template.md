@@ -123,13 +123,13 @@ Why this is prohibited:
 For a new module draft, check the reduction boundary with:
 
 ```bash
-python scripts/probe_design_authoring_reduction.py --design path/to/NewModule.design.md
+python scripts/design/probe_design_authoring_reduction.py --design path/to/NewModule.design.md
 ```
 
 If you are intentionally evaluating the assist boundary:
 
 ```bash
-python scripts/probe_design_authoring_reduction.py --design path/to/NewModule.design.md --assist-endpoint-url http://127.0.0.1:1234/v1/chat/completions
+python scripts/design/probe_design_authoring_reduction.py --design path/to/NewModule.design.md --assist-endpoint-url http://127.0.0.1:1234/v1/chat/completions
 ```
 
 Interpret the result like this:
@@ -163,7 +163,7 @@ In that mode, the validator still keeps deterministic generation primary. It onl
 After the draft passes the authoring gate, inspect the actual generated code as well:
 
 ```bash
-python scripts/review_design_generation_snapshot.py --design path/to/NewModule.design.md
+python scripts/design/review_design_generation_snapshot.py --design path/to/NewModule.design.md
 ```
 
 This review step is the place to confirm:

@@ -507,7 +507,7 @@ def main() -> int:
         if not args.assist_endpoint_url:
             emit_error("[!] --assist-literal-tags-http には --assist-endpoint-url が必要です。")
             raise ValueError("assist endpoint url is required")
-        from scripts.suggest_design_tags import _build_candidates, _build_messages, _request_http, _sanitize_response
+        from scripts.design.suggest_design_tags import _build_candidates, _build_messages, _request_http, _sanitize_response
 
         parsed, candidates = _build_candidates(Path(design_path))
         if not candidates:

@@ -152,17 +152,17 @@ Phase 3 へ持ち越すもの:
 - リライト結果の安全制約を、実 backend を使う end-to-end テストまで広げること
 
 運用補助:
-- `scripts/benchmark_response_rewriter.py` で one-shot と persistent の応答時間を同一 payload で比較できるようにし、CPU 実機での導入判断をしやすくする。
+- `scripts/response_rewriter/benchmark_response_rewriter.py` で one-shot と persistent の応答時間を同一 payload で比較できるようにし、CPU 実機での導入判断をしやすくする。
 - 実 backend の生成長は短文自然化向けに絞り、まず生成長を抑えた状態でレイテンシを計測する。
 - `openai_compatible_http` backend を追加し、`llama.cpp server` などのローカル OpenAI 互換 endpoint へ同一 rewrite contract を流せるようにして、実行基盤だけを差し替えやすくする。
-- `scripts/benchmark_response_rewriter.py` に http 計測モードを追加し、`llama.cpp server` の `/v1/chat/completions` を直接ベンチできるようにする。
-- `scripts/inspect_response_rewriter_quality.py` を追加し、固定ケース群で「実際に自然化したか」「安全ゲートで維持されたか」をまとめて確認できるようにする。
+- `scripts/response_rewriter/benchmark_response_rewriter.py` に http 計測モードを追加し、`llama.cpp server` の `/v1/chat/completions` を直接ベンチできるようにする。
+- `scripts/response_rewriter/inspect_response_rewriter_quality.py` を追加し、固定ケース群で「実際に自然化したか」「安全ゲートで維持されたか」をまとめて確認できるようにする。
 - quality CLI は `family_summary` と `case_ids_by_assessment` を返し、`--family deterministic_progress` で標準進捗テンプレートだけ、`--family deterministic_success` で標準成功文だけを切り出して再計測できるようにする。
 - `deterministic_progress` と `deterministic_success` は rewrite しない前提の preserve ケースとして扱い、標準文面はまず deterministic の自然さを優先する。
 - 現在の既定 allow-list は conversational intent 群のうち `GENERAL` / `WEATHER` / `TIME` / `CAPABILITY` を除いた集合とし、rewrite は主に雑談・感情応答・フィードバック系の conversational 応答に限定する。
 - LM Studio の OpenAI 互換 server で定常 2.6 秒前後、品質確認でも `semantic_regression: 0` / `unexpected_rewrite: 0` までは到達した。
 - ただし通常応答の自然化品質はまだ安定して改善できていないため、backend 候補は `openai_compatible_http` としつつ、既定 `enabled` は false のまま保持する。
-- `scripts/run_response_rewriter_conversation_probe.py` を追加し、実 backend を使った複数ターン会話の自然化有無と clarification 維持をターン単位で確認できるようにする。
+- `scripts/response_rewriter/run_response_rewriter_conversation_probe.py` を追加し、実 backend を使った複数ターン会話の自然化有無と clarification 維持をターン単位で確認できるようにする。
 - 安定化のため、rewrite 対象を conversational intent 群と `GENERAL` に限定する allow-list と、`action_result.status == success` に絞る allow-list を追加し、作業系完了文や途中状態の rewrite を既定で抑制する。
 - シナリオテストでは、通常会話ターンのみ rewrite され、clarification 中の割り込み応答と作業完了メッセージは deterministic に維持されることを固定する。
 

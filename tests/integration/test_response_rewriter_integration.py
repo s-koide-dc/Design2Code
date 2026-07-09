@@ -23,7 +23,7 @@ class TestResponseRewriterIntegration(unittest.TestCase):
         pipeline.config_manager.response_rewriter_config = {
             "enabled": True,
             "provider": "subprocess_stdio",
-            "command": [sys.executable, os.path.abspath("scripts/response_rewriter_stub_backend.py")],
+            "command": [sys.executable, os.path.abspath("scripts/response_rewriter/response_rewriter_stub_backend.py")],
             "response_format": "json",
             "timeout_seconds": 5,
             "prompt_contract": {

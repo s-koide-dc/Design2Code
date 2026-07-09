@@ -102,7 +102,7 @@ CLI 実行時の補助診断や異常系だけを出す。
   - 生成ドラフト出力
 - `scripts/validate/validate_ir_meaning_preservation_regression.py`
   - 検証成功メッセージ
-- `scripts/generate_ir_case_summary.py`
+- `scripts/design/generate_ir_case_summary.py`
   - 生成完了メッセージ
 - `scripts/tools/prune_backups.py`
   - dry-run と prune 完了メッセージ
@@ -113,17 +113,17 @@ CLI 実行時の補助診断や異常系だけを出す。
   - seed / rebuild / harvest 成功結果
 - `scripts/validate_project_consistency.py`
   - 成功時の整合性レポート
-- `scripts/benchmark_response_rewriter.py`
+- `scripts/response_rewriter/benchmark_response_rewriter.py`
   - レイテンシ計測結果の JSON 出力
   - subprocess / http の各計測結果
-- `scripts/inspect_response_rewriter_quality.py`
+- `scripts/response_rewriter/inspect_response_rewriter_quality.py`
   - 品質確認ケースごとの JSON 結果
   - family 別集計と assessment 別 case id 一覧
-- `scripts/run_response_rewriter_conversation_probe.py`
+- `scripts/response_rewriter/run_response_rewriter_conversation_probe.py`
   - 複数ターン会話プローブの JSON 結果
-- `scripts/review_design_generation_snapshot.py`
+- `scripts/design/review_design_generation_snapshot.py`
   - 単一 `.design.md` のレビュー snapshot JSON
-- `scripts/run_design_generation_regression.py`
+- `scripts/design/run_design_generation_regression.py`
   - 複数 `.design.md` の回帰結果 JSON
 - `src/cicd_integrator/quality_gate_checker.py`
   - `_emit_stdout`
@@ -176,7 +176,7 @@ CLI 実行時の補助診断や異常系だけを出す。
   - run file 未検出
   - 構造検証エラー
   - 構造検証 warning
-- `scripts/generate_ir_case_summary.py`
+- `scripts/design/generate_ir_case_summary.py`
   - ケースディレクトリ未検出
 - `scripts/tools/prune_backups.py`
   - backup ディレクトリ未検出
@@ -189,21 +189,21 @@ CLI 実行時の補助診断や異常系だけを出す。
 - `scripts/validate_project_consistency.py`
   - warning / error の一覧
   - ai_project_map.json 読込失敗
-- `scripts/benchmark_response_rewriter.py`
+- `scripts/response_rewriter/benchmark_response_rewriter.py`
   - payload file 未検出
   - backend 起動失敗
   - backend からの空応答 / 非ゼロ終了
   - http endpoint 未指定や接続失敗
-- `scripts/inspect_response_rewriter_quality.py`
+- `scripts/response_rewriter/inspect_response_rewriter_quality.py`
   - cases file 未検出
   - provider 必須引数不足
-- `scripts/run_response_rewriter_conversation_probe.py`
+- `scripts/response_rewriter/run_response_rewriter_conversation_probe.py`
   - turns file 未検出
   - provider 必須引数不足
   - 実 backend 接続失敗
-- `scripts/review_design_generation_snapshot.py`
+- `scripts/design/review_design_generation_snapshot.py`
   - design file 未検出
-- `scripts/run_design_generation_regression.py`
+- `scripts/design/run_design_generation_regression.py`
   - design file 未検出
 - `src/cicd_integrator/quality_gate_checker.py`
   - `_emit_stderr`

@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 from zipfile import ZipFile
 
-from scripts.rotate_logs import rotate_logs
+from scripts.tools.rotate_logs import rotate_logs
 from src.pipeline_core.pipeline_core import Pipeline
 
 
@@ -66,7 +66,7 @@ class TestLogRotation(unittest.TestCase):
         pipeline.log_manager.log_file_prefix = "pipeline"
 
         with patch(
-            "scripts.rotate_logs.rotate_logs",
+            "scripts.tools.rotate_logs.rotate_logs",
             side_effect=PermissionError("denied"),
         ):
             pipeline._rotate_expired_logs()
@@ -87,7 +87,7 @@ class TestLogRotation(unittest.TestCase):
         pipeline.log_manager.log_file_prefix = "pipeline"
 
         with patch(
-            "scripts.rotate_logs.rotate_logs",
+            "scripts.tools.rotate_logs.rotate_logs",
             side_effect=RuntimeError("invalid implementation state"),
         ):
             with self.assertRaises(RuntimeError):
