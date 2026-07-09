@@ -112,7 +112,7 @@
 ## 10. Future Enhancements
 
 ### 10.1 Log Rotation & Archival (Implemented)
-- **Status**: Implemented via `scripts/rotate_logs.py`
+- **Status**: Implemented via `scripts/tools/rotate_logs.py`
 - **Logic**:
   - 起動時に `Pipeline` から呼び出される。
   - 指定日数（例: 7日）より古い `pipeline_*.json/log` を `logs/archive/` に zip 圧縮して移動。

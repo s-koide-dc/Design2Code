@@ -7,12 +7,12 @@ import shutil
 import sys
 from pathlib import Path
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 
-from scripts.strip_design_tags import strip_design_tags
-from scripts.suggest_design_tags import (
+from scripts.design.strip_design_tags import strip_design_tags
+from scripts.design.suggest_design_tags import (
     DEFAULT_MODEL_ID,
     _build_candidates,
     _build_messages,

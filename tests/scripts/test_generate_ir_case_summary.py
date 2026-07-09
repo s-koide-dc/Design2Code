@@ -2,12 +2,10 @@ import unittest
 import sys
 import os
 
-# Add the scripts directory to the path so we can import the module
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-scripts_dir = os.path.join(base_dir, "scripts")
-sys.path.append(scripts_dir)
+sys.path.append(base_dir)
 
-from generate_ir_case_summary import parse_case_file
+from scripts.design.generate_ir_case_summary import parse_case_file
 
 class TestGenerateIrCaseSummary(unittest.TestCase):
     def test_parse_case_file_valid(self):

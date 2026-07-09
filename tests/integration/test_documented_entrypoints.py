@@ -198,7 +198,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         command = [
             sys.executable,
-            "scripts/strip_design_tags.py",
+            "scripts/design/strip_design_tags.py",
             "--design",
             str(input_path),
             "--output",
@@ -235,7 +235,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         strip_command = [
             sys.executable,
-            "scripts/strip_design_tags.py",
+            "scripts/design/strip_design_tags.py",
             "--design",
             "scenarios/StdinToStdoutTransform.design.md",
             "--output",
@@ -287,7 +287,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         strip_command = [
             sys.executable,
-            "scripts/strip_design_tags.py",
+            "scripts/design/strip_design_tags.py",
             "--design",
             "scenarios/CsvSalesAggregation.design.md",
             "--output",
@@ -343,7 +343,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         strip_command = [
             sys.executable,
-            "scripts/strip_design_tags.py",
+            "scripts/design/strip_design_tags.py",
             "--design",
             "scenarios/ComplexLinqSearch.design.md",
             "--output",
@@ -404,7 +404,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         strip_command = [
             sys.executable,
-            "scripts/strip_design_tags.py",
+            "scripts/design/strip_design_tags.py",
             "--design",
             "scenarios/SyncExternalData.design.md",
             "--output",
@@ -504,7 +504,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         strip_command = [
             sys.executable,
-            "scripts/strip_design_tags.py",
+            "scripts/design/strip_design_tags.py",
             "--design",
             "scenarios/ComplexLinqSearch.design.md",
             "--output",
@@ -621,7 +621,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_probe_design_inference_boundary_reports_literal_loss_boundary(self):
         command = [
             sys.executable,
-            "scripts/probe_design_inference_boundary.py",
+            "scripts/design/probe_design_inference_boundary.py",
             "--design",
             "scenarios/ComplexLinqSearch.design.md",
             "--variants",
@@ -660,7 +660,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_probe_design_inference_boundary_reports_sync_http_boundary(self):
         command = [
             sys.executable,
-            "scripts/probe_design_inference_boundary.py",
+            "scripts/design/probe_design_inference_boundary.py",
             "--design",
             "scenarios/SyncExternalData.design.md",
             "--variants",
@@ -752,7 +752,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         command = [
             sys.executable,
-            "scripts/audit_literal_tag_assist_coverage.py",
+            "scripts/design/audit_literal_tag_assist_coverage.py",
             "--scenarios-dir",
             str(scenarios_dir),
         ]
@@ -1751,7 +1751,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         output_path = self.cache_dir / "case_summary_table.md"
         command = [
             sys.executable,
-            "scripts/generate_ir_case_summary.py",
+            "scripts/design/generate_ir_case_summary.py",
             "--cases-dir",
             str(missing_dir),
             "--output",
@@ -1781,7 +1781,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             output_path = temp_root / "out" / "summary.md"
             command = [
                 sys.executable,
-                "scripts/generate_ir_case_summary.py",
+                "scripts/design/generate_ir_case_summary.py",
                 "--cases-dir",
                 str(cases_dir),
                 "--output",
@@ -1882,7 +1882,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_benchmark_response_rewriter_reports_missing_payload_file_to_stderr(self):
         command = [
             sys.executable,
-            "scripts/benchmark_response_rewriter.py",
+            "scripts/response_rewriter/benchmark_response_rewriter.py",
             "--payload-file",
             str(self.cache_dir / "missing_payload.json"),
         ]
@@ -1901,14 +1901,14 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_benchmark_response_rewriter_writes_json_result_to_stdout(self):
         command = [
             sys.executable,
-            "scripts/benchmark_response_rewriter.py",
+            "scripts/response_rewriter/benchmark_response_rewriter.py",
             "--mode",
             "persistent",
             "--iterations",
             "2",
             "--command",
             sys.executable,
-            "scripts/response_rewriter_stub_backend.py",
+            "scripts/response_rewriter/response_rewriter_stub_backend.py",
         ]
         completed = subprocess.run(
             command,
@@ -1962,7 +1962,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         command = [
             sys.executable,
-            "scripts/benchmark_response_rewriter.py",
+            "scripts/response_rewriter/benchmark_response_rewriter.py",
             "--mode",
             "http",
             "--iterations",
@@ -2027,7 +2027,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         command = [
             sys.executable,
-            "scripts/inspect_response_rewriter_quality.py",
+            "scripts/response_rewriter/inspect_response_rewriter_quality.py",
             "--provider",
             "openai_compatible_http",
             "--endpoint-url",
@@ -2105,7 +2105,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         command = [
             sys.executable,
-            "scripts/run_response_rewriter_conversation_probe.py",
+            "scripts/response_rewriter/run_response_rewriter_conversation_probe.py",
             "--turns-file",
             str(turns_path),
             "--provider",
@@ -2189,7 +2189,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         stripped_design = self.cache_dir / "ComplexLinqSearch.suggest.design.md"
         strip_command = [
             sys.executable,
-            "scripts/strip_design_tags.py",
+            "scripts/design/strip_design_tags.py",
             "--design",
             "scenarios/ComplexLinqSearch.design.md",
             "--output",
@@ -2210,7 +2210,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         command = [
             sys.executable,
-            "scripts/suggest_design_tags.py",
+            "scripts/design/suggest_design_tags.py",
             "--design",
             str(stripped_design),
             "--provider",
@@ -2251,7 +2251,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_probe_design_authoring_reduction_writes_json_result_to_stdout(self):
         command = [
             sys.executable,
-            "scripts/probe_design_authoring_reduction.py",
+            "scripts/design/probe_design_authoring_reduction.py",
             "--design",
             "scenarios/ComplexLinqSearch.design.md",
             "--skip-generate",
@@ -2323,7 +2323,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_review_design_generation_snapshot_accepts_complex_linq_search(self):
         command = [
             sys.executable,
-            "scripts/review_design_generation_snapshot.py",
+            "scripts/design/review_design_generation_snapshot.py",
             "--design",
             "scenarios/ComplexLinqSearch.design.md",
         ]
@@ -2437,7 +2437,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_review_design_generation_snapshot_accepts_new_db_minimal_scenario(self):
         command = [
             sys.executable,
-            "scripts/review_design_generation_snapshot.py",
+            "scripts/design/review_design_generation_snapshot.py",
             "--design",
             "scenarios/InventoryLookupMinimal.design.md",
         ]
@@ -2492,7 +2492,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_review_design_generation_snapshot_accepts_new_http_minimal_scenario(self):
         command = [
             sys.executable,
-            "scripts/review_design_generation_snapshot.py",
+            "scripts/design/review_design_generation_snapshot.py",
             "--design",
             "scenarios/ProductApiLookupMinimal.design.md",
         ]
@@ -2523,7 +2523,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_review_design_generation_snapshot_accepts_csv_sales_aggregation_without_nullable_warning(self):
         command = [
             sys.executable,
-            "scripts/review_design_generation_snapshot.py",
+            "scripts/design/review_design_generation_snapshot.py",
             "--design",
             "scenarios/CsvSalesAggregation.design.md",
         ]
@@ -2553,7 +2553,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_review_design_generation_snapshot_accepts_sync_external_data_without_poco_nullable_warning(self):
         command = [
             sys.executable,
-            "scripts/review_design_generation_snapshot.py",
+            "scripts/design/review_design_generation_snapshot.py",
             "--design",
             "scenarios/SyncExternalData.design.md",
         ]
@@ -2585,7 +2585,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_review_design_generation_snapshot_accepts_daily_inventory_sync(self):
         command = [
             sys.executable,
-            "scripts/review_design_generation_snapshot.py",
+            "scripts/design/review_design_generation_snapshot.py",
             "--design",
             "scenarios/DailyInventorySync.design.md",
         ]
@@ -2619,7 +2619,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_review_design_generation_snapshot_accepts_secure_order_processing_with_http_payload_context(self):
         command = [
             sys.executable,
-            "scripts/review_design_generation_snapshot.py",
+            "scripts/design/review_design_generation_snapshot.py",
             "--design",
             "scenarios/SecureOrderProcessing.design.md",
         ]
@@ -2676,7 +2676,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_review_design_generation_snapshot_accepts_new_env_minimal_scenario(self):
         command = [
             sys.executable,
-            "scripts/review_design_generation_snapshot.py",
+            "scripts/design/review_design_generation_snapshot.py",
             "--design",
             "scenarios/AppModeEchoMinimal.design.md",
         ]
@@ -2707,7 +2707,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_review_design_generation_snapshot_writes_json_result_to_stdout(self):
         command = [
             sys.executable,
-            "scripts/review_design_generation_snapshot.py",
+            "scripts/design/review_design_generation_snapshot.py",
             "--design",
             "scenarios/UserNamePrefixSearch.design.md",
         ]
@@ -2740,7 +2740,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_run_design_generation_regression_reports_missing_design_to_stderr(self):
         command = [
             sys.executable,
-            "scripts/run_design_generation_regression.py",
+            "scripts/design/run_design_generation_regression.py",
             "--design",
             "scenarios/DoesNotExist.design.md",
         ]
@@ -2761,7 +2761,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             output_dir = Path(temp_root_str) / "snapshots"
             command = [
                 sys.executable,
-                "scripts/run_design_generation_regression.py",
+                "scripts/design/run_design_generation_regression.py",
                 "--design",
                 "scenarios/DailyInventorySync.design.md",
                 "--design",
@@ -2800,7 +2800,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
     def test_run_design_generation_regression_default_set_includes_curated_scenarios(self):
         command = [
             sys.executable,
-            "scripts/run_design_generation_regression.py",
+            "scripts/design/run_design_generation_regression.py",
             "--design",
             "scenarios/ComplexLinqSearch.design.md",
             "--design",
@@ -2924,7 +2924,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
         command = [
             sys.executable,
-            "scripts/inspect_design_tag_suggestion_quality.py",
+            "scripts/design/inspect_design_tag_suggestion_quality.py",
             "--provider",
             "openai_compatible_http",
             "--endpoint-url",

@@ -9,11 +9,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 
-from scripts.suggest_design_tags import _build_candidates, _build_messages, _request_http, _sanitize_response
+from scripts.design.suggest_design_tags import _build_candidates, _build_messages, _request_http, _sanitize_response
 from src.code_synthesis.code_synthesizer import CodeSynthesizer
 from src.code_synthesis.method_store import MethodStore
 from src.code_synthesis.synthesis_pipeline import synthesize_structured_spec

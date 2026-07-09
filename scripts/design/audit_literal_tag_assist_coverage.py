@@ -8,12 +8,12 @@ import shutil
 import sys
 from pathlib import Path
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 
-from scripts.strip_design_tags import strip_design_tags
-from scripts.suggest_design_tags import _build_candidates, _likely_filename_literal
+from scripts.design.strip_design_tags import strip_design_tags
+from scripts.design.suggest_design_tags import _build_candidates, _likely_filename_literal
 from src.design_parser.design_inference import DesignInferenceEngine
 from src.design_parser import infer_then_freeze_if_needed
 from src.utils.cli_output import emit_error, emit_json_stdout

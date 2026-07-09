@@ -122,7 +122,7 @@ class Pipeline:
     def _rotate_expired_logs(self):
         """Archive expired logs while preserving unexpected programming failures."""
         try:
-            from scripts.rotate_logs import rotate_logs
+            from scripts.tools.rotate_logs import rotate_logs
             rotate_logs(
                 log_dir=self.log_manager.log_dir,
                 file_prefix=self.log_manager.log_file_prefix,

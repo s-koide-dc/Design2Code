@@ -14,12 +14,12 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-WORKSPACE_ROOT = SCRIPT_DIR.parent
+WORKSPACE_ROOT = SCRIPT_DIR.parents[1]
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.append(str(WORKSPACE_ROOT))
 
-from scripts.strip_design_tags import strip_design_tags
-from scripts.suggest_design_tags import _build_candidates, _build_messages, _request_http, _sanitize_response
+from scripts.design.strip_design_tags import strip_design_tags
+from scripts.design.suggest_design_tags import _build_candidates, _build_messages, _request_http, _sanitize_response
 from src.config.config_manager import ConfigManager
 from src.design_parser import infer_then_freeze_if_needed
 from src.utils.cli_output import emit_error, emit_json_stdout

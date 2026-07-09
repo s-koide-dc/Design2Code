@@ -87,7 +87,7 @@ Notes:
 5. `review_design_generation_snapshot.py`
 Purpose: Review the actual generated code together with the inferred design, instead of judging only the intermediate design transformation.
 Timing: After `validate_design_authoring.py` passes and before treating the draft as production-ready or adding it as a stable scenario.
-Command: `python scripts/review_design_generation_snapshot.py --design path/to/module.design.md`.
+Command: `python scripts/design/review_design_generation_snapshot.py --design path/to/module.design.md`.
 Notes:
 - Confirm that the generated `.cs` still matches the intended data flow.
 - Confirm that `spec_issues` is empty or explicitly understood.

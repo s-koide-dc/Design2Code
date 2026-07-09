@@ -8,11 +8,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 
-from scripts.review_design_generation_snapshot import build_review_snapshot
+from scripts.design.review_design_generation_snapshot import build_review_snapshot
 from src.utils.cli_output import emit_error, emit_json_stdout
 
 DEFAULT_DESIGNS = [
