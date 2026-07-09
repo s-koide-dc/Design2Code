@@ -19,6 +19,7 @@
     - **論理結合**:
         - `all_of`: `predicates` 内のすべての条件が真の場合に真を返す (AND)。
         - `any_of`: `predicates` 内のいずれかの条件が真の場合に真を返す (OR)。
+    - 未知の条件タイプや必要情報が不足する条件は例外や推測にせず `False` を返す。
 
 ### Test Cases
 - **Scenario**: Happy Path - Entity Exists
@@ -39,3 +40,6 @@
 
 ## 3. Dependencies
 - なし
+
+## 4. Review Notes
+- 2026-07-08: 未知条件を `False` に倒す現在の終端契約を明文化し、未実装TODOではなく実装済み境界として扱う。

@@ -17,7 +17,9 @@
 ### Core Logic
 1.  **既知のマッピング確認**: `resources/dependency_map.json` を優先的に参照。
 2.  **NuGet 検索**: マッピングがない場合、`NuGetClient` を用いて検索。
-3.  **エラー解析統合**: ビルドエラー (CS0246) からシンボルを自動抽出し、解決を試みる。
+3.  **エラー解析統合**: ビルドエラー (CS0246) からコンパイラメッセージ内の単一引用符で囲まれたシンボルを抽出し、解決を試みる。
+    - シンボル抽出は単純な正規表現に依存せず、最初の `'...'` 範囲を構造的に切り出す。
+    - 同一エラー一覧内で同じシンボルは一度だけ解決する。
 
 ## 3. Dependencies
 - **Internal**: `nuget_client`
@@ -25,4 +27,5 @@
 
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
+- 2026-07-08: CS0246 のシンボル抽出を正規表現から明示的な single-quote scanner へ変更し、重複シンボル解決の抑制を明記。
 

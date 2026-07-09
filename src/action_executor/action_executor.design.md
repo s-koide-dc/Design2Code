@@ -5,6 +5,11 @@
 `action_executor` は Planner が決定した `action_method` を実行し、ファイル操作・コマンド実行・解析/テスト・TDD支援などの具体的な副作用を担当する。  
 安全性のため、パスとコマンドは厳格に検証し、実行結果を `action_result` に格納する。
 
+### 1.1 Implementation Sync Notes (2026-07-08)
+- intent 判定は `src.utils.action_intents` の定数を使い、Planner / TaskManager と同じ intent 名を共有する。
+- 実処理は `FileOperations`、`CSharpOperations`、`TestAndCoverageOperations`、`RefactoringOperations`、`CICDOperations`、`TDDOperations` へ委譲し、`ActionExecutor` は実行前検証、バックアップ、結果メタデータ補完、例外処理の責務を持つ。
+- エラーパターン設定はレガシーな `regex` キーを `message_contains` へ正規化するが、実行時マッチングは正規表現評価ではなく例外型と構造化された literal 条件で行う。
+
 ## 2. Structured Specification
 
 ### Input
@@ -29,6 +34,10 @@
 11. `get_required_entities_for_intent` の主要 action intent 判定は `src.utils.action_intents` の共通定数を使い、実行条件分岐の文字列直書きを避ける。
 12. 許可済みコマンドは引数配列と `shell=False` で実行し、終了コードが非0の場合は `action_result.status="error"` と `returncode` を返す。学習イベントの記録有無にかかわらず失敗を成功扱いしない。
 13. コード修正の事前バックアップ対象は、明示された `filename` が無い場合、履歴中の構造化修正提案の `target_file` から解決する。
+14. `MEASURE_COVERAGE` / `ANALYZE_COVERAGE_GAPS` / `GENERATE_COVERAGE_REPORT` は `TestAndCoverageOperations` に委譲する。
+15. `ANALYZE_REFACTORING` / `SUGGEST_REFACTORING` / `APPLY_REFACTORING` は `RefactoringOperations` に委譲し、適用系はバックアップ検証を通過した場合のみ実行する。
+16. `ANALYZE_TEST_FAILURE` / `EXECUTE_GOAL_DRIVEN_TDD` / `APPLY_CODE_FIX` は `TDDOperations` に委譲し、対話層向け metadata は戻り値の `action_result` に保持する。
+17. `RUN_LEARNING_CYCLE` / `MANAGE_KNOWLEDGE` / `REVERSE_DICTIONARY_SEARCH` は `autonomous_learning` と semantic / vector search の有効状態を確認してから実行する。
 
 ### Test Cases
 - **Happy Path**:
@@ -52,3 +61,4 @@
 ## 4. Review Notes
 - 2026-06-29: コマンド非0終了のエラー契約と、構造化引数による非シェル実行を反映。
 - 2026-06-30: 履歴中の修正提案を使ったコード修正の事前バックアップ対象解決を反映。
+- 2026-07-08: action intent 定数化、operation class 委譲、TDD / coverage / refactoring / learning 系 action の実行契約を反映。

@@ -1,6 +1,6 @@
 # Planner Design Document
 
-## 1. Purpose (Updated 2026-04-14)
+## 1. Purpose (Updated 2026-07-08)
 `Planner` モジュールは、自然言語解析によって得られた意図（Intent）とエンティティを、システムが実行可能な「アクションプラン」に変換します。単なるマッピングにとどまらず、安全ポリシーの検証、タスク状態の管理、リトライ戦略の適用、プロジェクトルールの検証、および依存関係に基づく影響分析を通じたプランの最適化（洗練）を担当します。
 
 **主要機能**:
@@ -14,6 +14,11 @@
 - **履歴からのエラー検出**: 過去のアクション結果からの自動回復
 - **承認応答の正規化**: `src.utils.confirmation_response` の共通定数を使って承認/拒否ターンも自己修復判定へ含める
 - **action intent 定数化**: `src.utils.action_intents` の共通定数を使って action 分岐と補助集合を共有する
+
+### 1.1 Implementation Sync Notes (2026-07-08)
+- `Planner` は intent 名の文字列直書きではなく `src.utils.action_intents` / `src.utils.control_intents` / `src.utils.confirmation_response` の定数を使って分岐する。
+- 前回アクションが失敗している場合、同一 intent、`RETRY`、`GENERAL`、承認応答の `AGREE` / `DISAGREE` を自己修復候補として扱う。
+- TDD 対話向け intent（`ANALYZE_TEST_FAILURE` / `EXECUTE_GOAL_DRIVEN_TDD` / `APPLY_CODE_FIX`）では、後段が実行候補を安定して解決できるよう `recommended_action` をプランへ設定する。
 
 ## 2. Architecture Overview
 
