@@ -14,16 +14,21 @@
   2. `logs/learning_queue/` ディレクトリに、生イベントデータをJSON形式で保存します（バッチ学習用）。
   3. イベントタイプに応じて、以下の即時処理をディスパッチします。
      - **SESSION_COMPLETED**: 明確化履歴の確認、および成功した修復タスクからのナレッジ抽出。
-     - **USER_FEEDBACK**: 用語マッピング（「AはBの意味」等）の抽出と永続化。
-     - **TEST_FAILED / ACTION_FAILED**: 失敗パターンの記録（将来の分析用）。
+     - **USER_FEEDBACK**: 明示された用語マッピングまたは振る舞いフィードバックの永続化。
+     - **TEST_FAILED / ACTION_FAILED**: 失敗イベントを構造化し、将来の分析用に記録する。
 
 ### 2.2. 学習ロジック
 - **修復ナレッジの抽出**: 
   - セッション中に `RECOVERY_FROM_TEST_FAILURE` タスクが成功した場合、`RepairKnowledgeBase` を通じてその解決策を即座にインデックス化します。
 - **ユーザーフィードバックの解析**:
-  - 正規表現（`「(.+?)」\s*は\s*(.+?)\s*の[こと|意味]`）を用いて、ユーザーが教えた専門用語の対応関係を抽出します。
+  - `terminology_mapping.source` / `terminology_mapping.target` が明示された場合だけ専門用語の対応関係として扱います。
   - 抽出された用語は `learned_mappings.jsonl` に追記され、振る舞いに関するフィードバックは `behavioral_feedback.jsonl` に保存されます。
+- **失敗イベントの記録**:
+  - `TEST_FAILED` / `ACTION_FAILED` は `analysis` / `analysis_result.analyses` / `action_result.analysis_result.analyses` / `exception` などの構造化フィールドから `error_type`、`root_cause`、対象ファイル・メソッド、メッセージを正規化します。
+  - 正規化した失敗は `logs/failure_events.jsonl` に追記します。
+  - `RepairKnowledgeBase` が利用可能で、`error_type` が明示されている場合は、成功修復ではない観測として `add_repair_experience(success=False)` に渡し、根本原因別の発生統計を更新します。
+  - `RepairKnowledgeBase` への記録に失敗してもイベント受理は失敗させず、警告ログに留めます。
 
 ## 3. Dependencies
 - `RepairKnowledgeBase`: 修復パターンの蓄積
-- `logging`, `json`, `re`, `pathlib`: 基本機能
+- `logging`, `json`, `hashlib`, `pathlib`: 基本機能
