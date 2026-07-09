@@ -16,6 +16,101 @@ class ExecutionVerifier(CompilationVerifier):
 
     def __init__(self, config_manager=None):
         super().__init__(config_manager)
+        root = getattr(config_manager, "workspace_root", os.getcwd()) if config_manager else os.getcwd()
+        self.code_builder_project_path = os.path.join(
+            str(root),
+            "tools",
+            "csharp",
+            "CodeBuilder",
+            "CodeBuilder.csproj",
+        )
+        self.json_start_marker = "__CODEBUILDER_JSON_START__"
+        self.json_end_marker = "__CODEBUILDER_JSON_END__"
+
+    def _inspect_source_structure(self, source_code: str, method_name: str) -> Dict[str, Any]:
+        if not os.path.exists(self.code_builder_project_path):
+            return {
+                "status": "error",
+                "message": "CodeBuilder project is not available.",
+                "project_path": self.code_builder_project_path,
+            }
+
+        request = {
+            "source_code": source_code,
+            "method_name": method_name,
+        }
+        result = subprocess.run(
+            [
+                self.dotnet_path,
+                "run",
+                "--project",
+                self.code_builder_project_path,
+                "--quiet",
+                "--nologo",
+                "--",
+                "--inspect-source",
+            ],
+            input=json.dumps(request, ensure_ascii=False),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            return {
+                "status": "error",
+                "message": "CodeBuilder inspection command failed.",
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+
+        payload = self._extract_marked_json_payload(result.stdout)
+        if not payload:
+            return {
+                "status": "error",
+                "message": "CodeBuilder inspection did not return JSON.",
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            return {
+                "status": "error",
+                "message": "CodeBuilder inspection returned invalid JSON.",
+                "error_type": type(exc).__name__,
+                "stdout": result.stdout,
+            }
+        return parsed
+
+    def _extract_marked_json_payload(self, stdout: str) -> str:
+        if not stdout:
+            return ""
+        if self.json_start_marker in stdout and self.json_end_marker in stdout:
+            start_idx = stdout.rfind(self.json_start_marker)
+            end_idx = stdout.rfind(self.json_end_marker)
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                return stdout[start_idx + len(self.json_start_marker):end_idx].strip()
+        lines = [line for line in stdout.splitlines() if line.strip()]
+        return lines[-1] if lines else ""
+
+    def _build_constructor_args(self, parameters: List[Dict[str, Any]]) -> str:
+        args = []
+        for parameter in parameters or []:
+            param_type = parameter.get("type")
+            if isinstance(param_type, str) and param_type.strip():
+                args.append(f"NSubstitute.Substitute.For<{param_type.strip()}>()")
+        return ", ".join(args)
+
+    def _build_method_args(self, parameters: List[Dict[str, Any]]) -> List[str]:
+        from src.advanced_tdd.dummy_factory import DummyDataFactory
+
+        factory = DummyDataFactory()
+        args = []
+        for parameter in parameters or []:
+            param_type = parameter.get("type")
+            if isinstance(param_type, str) and param_type.strip():
+                args.append(factory.generate_instantiation(param_type.strip()))
+        return args
 
     def run_and_capture(self, source_code: str, method_name: str, args: List[Any] = None, work_dir: str = None, assertion_goals: List[Dict[str, Any]] = None, dependencies: List[Dict[str, str]] = None) -> Dict[str, Any]:
         """コードを単純実行可能な形式にラップして実行し、実行時エラーを捕捉する"""
@@ -26,97 +121,22 @@ class ExecutionVerifier(CompilationVerifier):
         dependencies = dependencies or []
         
         try:
-            def _extract_namespace(code: str) -> str | None:
-                for line in code.splitlines():
-                    text = line.strip()
-                    if text.startswith("namespace "):
-                        ns = text[len("namespace "):].strip()
-                        if ns.endswith("{"):
-                            ns = ns[:-1].strip()
-                        return ns if ns else None
-                return None
+            inspection_result = self._inspect_source_structure(source_code, method_name)
+            if inspection_result.get("status") != "success":
+                return {
+                    "success": False,
+                    "error_type": "SOURCE_INSPECTION_FAILED",
+                    "inspection": inspection_result,
+                }
 
-            def _extract_primary_class_name(code: str) -> str | None:
-                for line in code.splitlines():
-                    text = line.strip()
-                    if " class " in text:
-                        after = text.split(" class ", 1)[1].strip()
-                        token = after.split()[0] if after else ""
-                        token = token.split("{", 1)[0].split(":", 1)[0].strip()
-                        if token:
-                            return token
-                return None
-
-            class_name = _extract_primary_class_name(source_code) or "GeneratedProcessor"
-            ns_name = _extract_namespace(source_code)
-            qualified_name = f"{ns_name}.{class_name}" if ns_name else class_name
-
-            def _find_signature(code: str, member_name: str):
-                marker = f"{member_name}("
-                for line in code.splitlines():
-                    text = line.strip()
-                    if not text.startswith("public ") or marker not in text:
-                        continue
-                    marker_index = text.index(marker)
-                    params_start = marker_index + len(marker)
-                    params_end = text.find(")", params_start)
-                    if params_end < 0:
-                        return None
-                    return text[:marker_index].strip(), text[params_start:params_end]
-                return None
-
-            # GeneratedProcessor のコンストラクタ引数を構造化された宣言行から取得
-            ctor_signature = _find_signature(source_code, class_name)
-            ctor_args_code = ""
-            if ctor_signature:
-                params_str = ctor_signature[1].strip()
-                if params_str:
-                    params = params_str.split(",")
-                    arg_list = []
-                    for p in params:
-                        p = p.strip()
-                        if not p: continue
-                        p_parts = p.split(" ")
-                        p_type = p_parts[0]
-                        arg_list.append(f"NSubstitute.Substitute.For<{p_type}>()")
-                    ctor_args_code = ", ".join(arg_list)
-
-            # Method Arg Parsing (省略 - 既存ロジック維持)
-            method_args_code = []
-            method_signature = _find_signature(source_code, method_name)
-            
-            # 戻り値の型を特定（async 修飾を考慮）
-            return_type = "void"
-            for line in source_code.splitlines():
-                text = line.strip()
-                if "public " not in text or f"{method_name}(" not in text:
-                    continue
-                tokens = text.replace("(", " ").replace(")", " ").split()
-                if method_name not in tokens:
-                    continue
-                try:
-                    idx = tokens.index(method_name)
-                except ValueError:
-                    continue
-                if idx <= 1:
-                    continue
-                sig_tokens = tokens[1:idx]
-                sig_tokens = [t for t in sig_tokens if t != "async"]
-                if sig_tokens:
-                    return_type = sig_tokens[-1]
-                break
-
-            if method_signature:
-                from src.advanced_tdd.dummy_factory import DummyDataFactory
-                factory = DummyDataFactory()
-                m_params = method_signature[1].split(",")
-                for p in m_params:
-                    p = p.strip()
-                    if not p: continue
-                    p_parts = p.split(" ")
-                    p_type = p_parts[0]
-                    val = factory.generate_instantiation(p_type)
-                    method_args_code.append(val)
+            inspection = inspection_result["inspection"]
+            qualified_name = inspection["qualified_name"]
+            method_info = inspection["method"]
+            return_type = method_info.get("return_type", "void")
+            ctor_args_code = self._build_constructor_args(
+                inspection.get("constructor_parameters", []),
+            )
+            method_args_code = self._build_method_args(method_info.get("parameters", []))
             
             call_args = ", ".join(method_args_code) if method_args_code else ""
 
