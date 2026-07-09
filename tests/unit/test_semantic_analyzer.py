@@ -10,18 +10,18 @@ class TestSemanticAnalyzer(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.TemporaryDirectory()
         self.knowledge_path = os.path.join(self.test_dir.name, 'knowledge.json')
-        
+
         self.knowledge_data = {
             "天気": "空の状態",
             "晴れ": "雲が少ない状態"
         }
         with open(self.knowledge_path, 'w', encoding='utf-8') as f:
             json.dump(self.knowledge_data, f, ensure_ascii=False)
-            
+
         # Mock the TaskManager for SemanticAnalyzer initialization
         mock_task_manager = MagicMock()
         self.analyzer = SemanticAnalyzer(task_manager=mock_task_manager, knowledge_file_path=self.knowledge_path)
-        
+
         # Patch _get_meaning to only return what's in our test knowledge
         self.patcher_meaning = patch.object(SemanticAnalyzer, '_get_meaning')
         self.mock_get_meaning = self.patcher_meaning.start()
@@ -44,12 +44,12 @@ class TestSemanticAnalyzer(unittest.TestCase):
             "analysis": {"chunks": chunks},
             "pipeline_history": ["morph_analyzer", "syntactic_analyzer"]
         }
-        
+
         result_context = self.analyzer.analyze(initial_context)
-        
+
         self.assertIn("topics", result_context["analysis"])
         topics = result_context["analysis"]["topics"]
-        
+
         def get_topic(text):
             for t in topics:
                 if t["text"] == text:
@@ -59,11 +59,11 @@ class TestSemanticAnalyzer(unittest.TestCase):
         t_today = get_topic("今日")
         self.assertIsNotNone(t_today)
         self.assertIsNone(t_today["meaning"])
-        
+
         t_weather = get_topic("天気")
         self.assertIsNotNone(t_weather)
         self.assertEqual(t_weather["meaning"], "空の状態")
-        
+
         t_sunny = get_topic("晴れ")
         self.assertIsNotNone(t_sunny)
         self.assertEqual(t_sunny["meaning"], "雲が少ない状態")
@@ -77,9 +77,9 @@ class TestSemanticAnalyzer(unittest.TestCase):
             [{"surface": "速く", "pos": "形容詞,自立,*,*", "base": "速い"}]
         ]
         initial_context = {"analysis": {"chunks": chunks}}
-        
+
         result_context = self.analyzer.analyze(initial_context)
-        
+
         self.assertEqual(result_context["analysis"]["topics"], [])
 
     def test_edge_case_empty_chunks(self):
@@ -163,7 +163,7 @@ class TestSemanticAnalyzer(unittest.TestCase):
             {"entities": {"filename": {"value": "old.txt", "confidence": 0.85}}}
         ]
         initial_context = {
-            "original_text": "new_file.txt ではなく、それを読み込んで", 
+            "original_text": "new_file.txt ではなく、それを読み込んで",
             "history": history,
             "analysis": {"chunks": []}
         }

@@ -136,10 +136,10 @@ class Planner:
         rules = self._load_project_rules()
         if not rules:
             return {}
-            
+
         warnings = []
         adjustments = {}
-        
+
         # 1. Naming Convention Check (File Create/Rename)
         if intent in FILE_MUTATION_INTENTS:
             # Retrieve filename from potential parameter keys
@@ -147,7 +147,7 @@ class Planner:
             if filename:
                 naming = rules.get("naming_conventions", {}).get("files", {})
                 basename = os.path.basename(filename)
-                
+
                 # Python snake_case check
                 if filename.endswith(".py"):
                     # Simple check: no uppercase letters allowed for snake_case
@@ -197,7 +197,7 @@ class Planner:
         Creates a plan based on the detected intent and extracted entities.
         """
         context.setdefault("errors", [])
-        
+
         # --- NEW: Check for errors in history if current turn doesn't have result yet ---
         previous_action_result = context.get("action_result", {})
         if not previous_action_result:
@@ -217,7 +217,7 @@ class Planner:
         task_type = current_task.get("type", "SIMPLE_TASK") if current_task else None
         task_state = current_task.get("state") if current_task else None
 
-        
+
         # --- 1. Determine Intent and Entities for Planning ---
         if task_type == "COMPOUND_TASK":
             sub_task_index = current_task.get("current_subtask_index", 0)
@@ -225,7 +225,7 @@ class Planner:
                 active_subtask = current_task["subtasks"][sub_task_index]
                 intent = active_subtask["name"]
                 entities = active_subtask.get("parameters", {})
-                
+
                 intent_confidence = 1.0  # We are certain about the sub-task's intent
                 self.log_manager.log_event("planner_compound_subtask", {"session_id": context.get("session_id"), "subtask_name": intent, "subtask_entities": {k: v.get("value") for k, v in entities.items() if isinstance(v, dict)}}, level="DEBUG")
             else:
@@ -241,20 +241,20 @@ class Planner:
             intent_confidence = context["analysis"].get("intent_confidence", 0.0)
             analysis_entities = context["analysis"].get("entities", {})
             task_parameters = current_task.get("parameters", {}) if current_task else {}
-            
+
             merged_entities = {}
             merged_entities.update(task_parameters)
             merged_entities.update(analysis_entities)
-            
+
             # --- NEW: Entity Key Mapping ---
             # If the intent requires 'filename' but we have 'project_path', map it.
             if intent == INTENT_CS_ANALYZE and "project_path" in merged_entities and "filename" not in merged_entities:
                 merged_entities["filename"] = merged_entities["project_path"]
-            
+
             # If the intent requires 'project_path' but we have 'filename', map it.
             if intent == INTENT_CS_TEST_RUN and "filename" in merged_entities and "project_path" not in merged_entities:
                 merged_entities["project_path"] = merged_entities["filename"]
-            
+
             # Default language to 'csharp' for project analysis intents if not specified
             if intent in PROJECT_LANGUAGE_DEFAULT_INTENTS and "language" not in merged_entities:
                 merged_entities["language"] = {"value": "csharp", "confidence": 1.0}
@@ -268,7 +268,7 @@ class Planner:
         if intent == INTENT_DEFINITION:
             self.log_manager.log_event("planner_definition_intent_bypass", {"session_id": context.get("session_id")}, level="DEBUG")
             return context
-        
+
         # --- NEW: Project Rule Validation ---
         # Extract raw values for validation
         raw_params_for_validation = {}
@@ -277,7 +277,7 @@ class Planner:
                  raw_params_for_validation[k] = v.get("value")
             else:
                  raw_params_for_validation[k] = v
-        
+
         rule_check = self._apply_project_rules(intent, raw_params_for_validation)
         if rule_check.get("warnings"):
             # Add warning to errors list or handle as a soft block
@@ -285,7 +285,7 @@ class Planner:
             # However, if there is a suggestion, we might want to auto-apply or ask user
             for w in rule_check["warnings"]:
                 self.log_manager.log_event("planner_rule_warning", {"message": w}, level="WARN")
-            
+
             # If we have suggested filename, update the entity
             if rule_check.get("adjustments", {}).get("suggested_filename"):
                  suggested = rule_check["adjustments"]["suggested_filename"]
@@ -304,7 +304,7 @@ class Planner:
             # ONLY trigger healing if intent is same as failing task OR a generic RETRY intent
             last_failed_intent = context.get("history", [{}])[-1].get("analysis", {}).get("intent")
             should_heal = intent == last_failed_intent or intent in [INTENT_RETRY, INTENT_GENERAL, INTENT_AGREE, INTENT_DISAGREE]
-            
+
             if should_heal:
                 # 1. Try specialized self-healing first
                 healing_plan = self._plan_self_healing(context, previous_action_result)
@@ -315,7 +315,7 @@ class Planner:
 
                 # 2. Fallback to simple retry rules
                 for rule in self.retry_rules:
-                    if "original_error_type" in previous_action_result and rule.get("error_type") == previous_action_result["original_error_type"]: 
+                    if "original_error_type" in previous_action_result and rule.get("error_type") == previous_action_result["original_error_type"]:
                         context["plan"] = {
                             "suggestion": "以前の操作が失敗しました。再試行しますか？",
                             "retry_possible": True
@@ -333,7 +333,7 @@ class Planner:
                 sub_task_index = current_task.get("current_subtask_index", 0)
                 if sub_task_index < len(current_task.get("subtasks", [])):
                     task_to_check = current_task['subtasks'][sub_task_index]
-            
+
             is_task_ready_for_execution = task_to_check.get('state') == 'READY_FOR_EXECUTION'
 
 
@@ -351,7 +351,7 @@ class Planner:
         if intent == INTENT_FILE_DELETE:
             action_method_name = self.intent_to_action_method.get(INTENT_BACKUP_AND_DELETE, action_method_name)
         required_entities = self.action_executor.get_required_entities_for_intent(intent)
-        
+
         plan_parameters = {}
 
         missing_entities = []
@@ -377,7 +377,7 @@ class Planner:
                 low_confidence_entities.append(req_entity_key)
             else:
                 plan_parameters[req_entity_key] = val
-        
+
         # --- NEW: Add optional/contextual parameters ---
         # Always include output_path or query if available, as many project tasks benefit from it
         for optional_key in ["output_path", "query"]:
@@ -401,16 +401,16 @@ class Planner:
             context["errors"].append({"module": "planner", "message": f"必須エンティティが不足しています: {', '.join(missing_entities)}"})
             self.log_manager.log_event("planner_missing_entities", {"session_id": context.get("session_id"), "missing": missing_entities}, level="INFO")
             return context
-        
+
         if low_confidence_entities:
             context["errors"].append({"module": "planner", "message": f"信頼度が低いエンティティがあります: {', '.join(low_confidence_entities)}"})
             self.log_manager.log_event("planner_low_confidence_entities", {"session_id": context.get("session_id"), "low_confidence": low_confidence_entities}, level="INFO")
             return context
-        
+
         # --- 4. Build the Plan ---
         confirmation_needed = False
         is_executing_compound_subtask = (task_type == "COMPOUND_TASK" and task_state == "IN_PROGRESS")
-        
+
         if not is_executing_compound_subtask:
             intent_for_confirmation = current_task.get("name") if task_type == "COMPOUND_TASK" else intent
             # Note: Basic confirmation logic is now handled by SafetyPolicyValidator, but we can keep specific business logic here if needed.
@@ -418,7 +418,7 @@ class Planner:
 
         # --- Safety Policy Validation ---
         safety_result = self.safety_validator.validate_action(action_method_name, plan_parameters, intent)
-        
+
         if safety_result.risk_level == RiskLevel.HIGH and not is_executing_compound_subtask:
             confirmation_needed = True
 
@@ -441,7 +441,7 @@ class Planner:
         recommended_action = self._get_recommended_action_for_intent(intent)
         if recommended_action:
             context["plan"]["recommended_action"] = recommended_action
-        
+
         # --- NEW: Impact Analysis Integration ---
         # If we are applying a fix or explicitly asking for impact scope, try to find impacted methods and suggest tests
         if intent in [INTENT_APPLY_CODE_FIX, INTENT_CS_IMPACT_SCOPE] and "output_path" in plan_parameters:
@@ -458,7 +458,7 @@ class Planner:
         """
         error_type = error_result.get("original_error_type") or error_result.get("error_type")
         error_msg = error_result.get("original_error", "") or error_result.get("message", "")
-        
+
         # 0. Query AutonomousLearning for intelligent suggestions (Phase 2)
         if self.autonomous_learning:
             # error_result has everything needed (original_error_type, message)
@@ -492,7 +492,7 @@ class Planner:
             filename = self._extract_single_quoted_value(error_msg)
             if filename is None:
                 filename = context.get("analysis", {}).get("entities", {}).get("filename", {}).get("value")
-            
+
             if filename:
                 # Ensure it's just the value string if it was a dict
                 if isinstance(filename, dict):
@@ -520,7 +520,7 @@ class Planner:
         """
         output_path = parameters.get("output_path")
         target_name = parameters.get("target_name")
-        
+
         # --- NEW: Recover from history if missing in current context ---
         if not target_name or not output_path:
             history = context.get("history", [])
@@ -533,12 +533,12 @@ class Planner:
                 if target_name and output_path:
                     break
         # -------------------------------------------------------------
-        
+
         if not output_path or not target_name:
             return
 
         self.log_manager.log_event("planner_impact_analysis_start", {"target": target_name, "output_path": output_path}, level="DEBUG")
-        
+
         try:
             # Query ActionExecutor for impact scope
             query_params = {
@@ -546,17 +546,17 @@ class Planner:
                 "query_type": "impact_scope_method",
                 "target_name": target_name
             }
-            
+
             # Create a temporary context for query
             temp_context = {"session_id": context.get("session_id"), "analysis": {"entities": {}}}
             query_result_context = self.action_executor._query_csharp_analysis_results(temp_context, query_params)
-            
+
             if query_result_context.get("action_result", {}).get("status") == "success":
                 impacted_methods = query_result_context["action_result"].get("impacted_methods", [])
                 if impacted_methods:
                     context["plan"]["impacted_methods"] = impacted_methods
                     self.log_manager.log_event("planner_impact_detected", {"count": len(impacted_methods)}, level="INFO")
-                    
+
                     # Logic to suggest additional tests can go here
                     if len(impacted_methods) > 0:
                         # Query associated tests
@@ -566,19 +566,19 @@ class Planner:
                             "target_name": ",".join(impacted_methods)
                         }
                         test_query_result = self.action_executor._query_csharp_analysis_results(temp_context, test_query_params)
-                        
+
                         if test_query_result.get("action_result", {}).get("status") == "success":
                             associated_tests = test_query_result["action_result"].get("associated_tests", [])
-                            
+
                             # --- NEW: Also check if impacted_methods themselves contain tests ---
                             for m in impacted_methods:
                                 if "Test" in m and not any(t.get("test_class") and t["test_class"] in m for t in associated_tests):
                                     associated_tests.append({
                                         "target_method": m,
                                         "test_class": m.rsplit('.', 1)[0],
-                                        "test_file": "Unknown" 
+                                        "test_file": "Unknown"
                                     })
-                            
+
                             if associated_tests:
                                 context["plan"]["suggested_tests"] = associated_tests
                                 # Filter out "Unknown" files for the display message
@@ -586,10 +586,10 @@ class Planner:
                                 if not display_files:
                                     # Fallback to class names if files unknown
                                     display_files = [t["test_class"].split('.')[-1] for t in associated_tests]
-                                
+
                                 context["plan"]["suggestion"] = f"修正により影響を受けるコードのテスト（{', '.join(sorted(list(set(display_files))))}）の実行を推奨します。"
                                 context["plan"]["confirmation_needed"] = True
-                    
+
                     if len(impacted_methods) > 3 and not context["plan"].get("suggested_tests"):
                         context["plan"]["suggestion"] = f"修正対象 '{target_name}' は {len(impacted_methods)} 個のメソッドに影響します。広範囲のテスト実行を推奨します。"
                         context["plan"]["confirmation_needed"] = True # Force confirmation for high impact

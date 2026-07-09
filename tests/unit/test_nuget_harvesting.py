@@ -16,7 +16,7 @@ class TestNuGetHarvesting(unittest.TestCase):
         pkg_name = "CsvHelper"
         # Manual check for local version if API fails
         version = "33.1.0"
-            
+
         dlls = self.nuget_client.get_package_dlls(pkg_name, version)
         if not dlls:
             self.skipTest(f"CsvHelper {version} DLLs not found in local cache")
@@ -32,11 +32,11 @@ class TestNuGetHarvesting(unittest.TestCase):
         )
         if not os.path.exists(cli_path):
             self.skipTest(f"MethodHarvesterCLI is not built: {cli_path}")
-            
+
         print(f"Found DLLs: {dlls}")
         methods = self.harvester.harvest_from_package(pkg_name, version)
         self.assertTrue(len(methods) > 0)
-        
+
         # Check for a well-known method like Read
         read_methods = [m for m in methods if "Read" in m["name"]]
         self.assertTrue(len(read_methods) > 0)

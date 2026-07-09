@@ -43,7 +43,7 @@ public class MockModule {
 """
         design_path = self.test_dir / "mock_mod.design.md"
         source_path = self.test_dir / "mock_mod.cs"
-        
+
         with open(design_path, "w", encoding="utf-8") as f: f.write(design_content)
         with open(source_path, "w", encoding="utf-8") as f: f.write(source_content)
 
@@ -75,11 +75,11 @@ public class MockModule {
             "Implement calculation",
             str(result.get("pending_suggestions")),
         )
-        
+
         # ファイルが更新されているか確認
         with open(source_path, "r", encoding="utf-8") as f:
             updated_code = f.read()
-        
+
         self.assertEqual(updated_code, source_content)
 
     def test_fix_build_errors_does_not_mutate_without_validator(self):

@@ -46,7 +46,7 @@ class TestActionExecutor(unittest.TestCase):
         self.test_dir = os.path.abspath("test_workspace")
         if not os.path.exists(self.test_dir):
             os.makedirs(self.test_dir)
-        
+
         mock_log_manager = MagicMock()
         self.executor = ActionExecutor(
             log_manager=mock_log_manager,
@@ -74,7 +74,7 @@ class TestActionExecutor(unittest.TestCase):
         }
         result = self.executor.execute(context)
         self.assertEqual(result["action_result"]["status"], "success")
-        
+
         file_path = os.path.join(self.test_dir, "test.txt")
         self.assertTrue(os.path.exists(file_path))
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -84,7 +84,7 @@ class TestActionExecutor(unittest.TestCase):
         file_path = os.path.join(self.test_dir, "read_test.txt")
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write("content to read")
-            
+
         context = {
             "analysis": {
                 "intent": "FILE_READ",
@@ -123,7 +123,7 @@ class TestActionExecutor(unittest.TestCase):
         file_path = os.path.join(self.test_dir, "append_test.txt")
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write("initial")
-            
+
         context = {
             "analysis": {
                 "intent": "FILE_APPEND",
@@ -138,7 +138,7 @@ class TestActionExecutor(unittest.TestCase):
         }
         result = self.executor.execute(context)
         self.assertEqual(result["action_result"]["status"], "success")
-        
+
         with open(file_path, 'r', encoding='utf-8') as f:
             self.assertEqual(f.read(), "initial\nappended")
 
@@ -146,7 +146,7 @@ class TestActionExecutor(unittest.TestCase):
         file_path = os.path.join(self.test_dir, "delete_test.txt")
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write("to be deleted")
-            
+
         context = {
             "analysis": {
                 "intent": "FILE_DELETE",
@@ -171,7 +171,7 @@ class TestActionExecutor(unittest.TestCase):
         secret_file = os.path.join(secret_dir, "password.txt")
         with open(secret_file, 'w') as f:
             f.write("secret123")
-            
+
         try:
             # Attempt to read using relative traversal
             context = {
@@ -285,7 +285,7 @@ class TestActionExecutor(unittest.TestCase):
         self.assertEqual(result["action_result"]["status"], "error")
         self.assertEqual(result["action_result"]["message"], "コマンドが指定されていません。")
         self.assertIsNone(result["action_result"].get("suggested_action"))
-    
+
     def test_file_not_found_error_pattern(self):
         # This tests _handle_exception_with_patterns logic
         context = {
@@ -307,7 +307,7 @@ class TestActionExecutor(unittest.TestCase):
         """失敗時に自律学習がトリガーされるかテスト"""
         mock_learning = MagicMock()
         self.executor.autonomous_learning = mock_learning
-        
+
         context = {
             "plan": {
                 "action_method": "_read_file",
@@ -315,7 +315,7 @@ class TestActionExecutor(unittest.TestCase):
             }
         }
         self.executor.execute(context)
-        
+
         # trigger_learningが呼ばれたことを確認
         mock_learning.trigger_learning.assert_called()
         args, kwargs = mock_learning.trigger_learning.call_args
@@ -326,12 +326,12 @@ class TestActionExecutor(unittest.TestCase):
         """コマンド失敗時に自律学習がトリガーされるかテスト"""
         mock_learning = MagicMock()
         self.executor.autonomous_learning = mock_learning
-        
+
         # git statusを実行（リポジトリ外なら失敗する可能性があるが、確実に失敗させるために空コマンドなど）
         # ホワイトリストにあるコマンドで、returncodeが非0になるケース
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = MagicMock(returncode=1, stderr="Error from shell")
-            
+
             context = {
                 "plan": {
                     "action_method": "_run_command",
@@ -339,7 +339,7 @@ class TestActionExecutor(unittest.TestCase):
                 }
             }
             self.executor.execute(context)
-            
+
             mock_learning.trigger_learning.assert_called()
             args, kwargs = mock_learning.trigger_learning.call_args
             self.assertEqual(kwargs['event_type'], "ACTION_FAILED")

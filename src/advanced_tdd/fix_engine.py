@@ -9,7 +9,7 @@ from .safety_validator import SafetyValidator
 
 class CodeFixSuggestionEngine:
     """コード修正提案エンジン"""
-    
+
     REPAIR_TEMPLATES = {
         'missing_parameter': {
             'python': 'def {name}(self, {params}):',
@@ -26,13 +26,13 @@ class CodeFixSuggestionEngine:
         self.logger = logging.getLogger(__name__)
         self.ast_analyzer = ASTAnalyzer()
         self.safety_validator = SafetyValidator(config, semantic_analyzer, self.ast_analyzer)
-    
+
     def generate_fix_suggestions(self, analysis: Dict[str, Any], target_code: Dict[str, Any]) -> List[CodeFixSuggestion]:
         """修正提案を生成"""
         try:
             fix_direction = analysis.get('fix_direction')
             suggestions = []
-            
+
             # Logic Audit Result Handling (findings への対応強化)
             if 'findings' in analysis:
                 for finding in analysis['findings']:
@@ -45,7 +45,7 @@ class CodeFixSuggestionEngine:
                     elif finding['type'] == 'missing_parameter':
                          suggestion = self._generate_parameter_fix(target_code, finding)
                          if suggestion: suggestions.append(suggestion)
-                
+
                 # バックポート（設計書側を正とする）提案の追加
                 for finding in analysis['findings']:
                     if finding['type'] in ['logic_value_mismatch', 'inequality_mismatch']:
@@ -57,18 +57,18 @@ class CodeFixSuggestionEngine:
                     for suggestion in validated:
                         self._augment_suggestion_context(suggestion, target_code, analysis)
                     return validated
-            
+
             if fix_direction == 'implement_method_logic':
                 suggestion = self._generate_method_implementation_fix(target_code, analysis)
                 if suggestion: suggestions.append(suggestion)
-            
+
             elif fix_direction == 'self_healing_test' or fix_direction == 'logic_mismatch_with_branch':
                 if analysis.get('logic_analysis'):
                     suggestion = self._generate_precision_logic_fix(target_code, analysis)
                 else:
                     suggestion = self._generate_self_healing_test_fix(target_code, analysis)
                 if suggestion: suggestions.append(suggestion)
-            
+
             elif fix_direction == 'fix_test_arrange':
                 suggestion = self._generate_test_arrange_fix(target_code, analysis)
                 if suggestion: suggestions.append(suggestion)
@@ -76,30 +76,30 @@ class CodeFixSuggestionEngine:
             elif fix_direction in ['add_null_checks', 'add_null_validation']:
                 suggestion = self._generate_null_check_fix(target_code, analysis)
                 if suggestion: suggestions.append(suggestion)
-            
+
             elif fix_direction in ['runtime_exception', 'manual_investigation_required']:
                 suggestion = self._generate_manual_fix_placeholder(target_code, analysis)
                 if suggestion: suggestions.append(suggestion)
-            
+
             elif fix_direction == 'fix_calculation_logic':
                 suggestion = self._generate_calculation_fix(target_code, analysis)
                 if suggestion: suggestions.append(suggestion)
-            
+
             elif fix_direction == 'fix_syntax_error':
                 suggestion = self._generate_syntax_fix(target_code, analysis)
                 if suggestion: suggestions.append(suggestion)
-            
+
             for suggestion in suggestions:
                 impact = self._analyze_impact(suggestion, target_code)
                 impact.update(suggestion.impact_analysis or {})
                 suggestion.impact_analysis = impact
                 self._augment_suggestion_context(suggestion, target_code, analysis)
-            
+
             validated = self.safety_validator.validate_fix_safety(suggestions, target_code)
             for suggestion in validated:
                 self._augment_suggestion_context(suggestion, target_code, analysis)
             return validated
-            
+
         except Exception as e:
             self.logger.error(f"修正提案生成中にエラーが発生: {e}")
             return []
@@ -381,11 +381,11 @@ class CodeFixSuggestionEngine:
         error_msg = analysis.get('analysis_details', {}).get('error_message', '')
         actual = self._try_extract_actual_value(error_msg)
         if not actual: return None
-        
+
         # C# normalization: True/False -> true/false
         if actual.lower() in ['true', 'false']:
             actual = actual.lower()
-            
+
         # line_number を取得
         loc = analysis.get('analysis_details', {}).get('stack_trace_analysis', {}).get('primary_location', {})
         line_num = loc.get('line')
@@ -397,7 +397,7 @@ class CodeFixSuggestionEngine:
         condition = logic.get('branch_condition')
         input_val = logic.get('input_value')
         is_satisfied = logic.get('is_satisfied')
-        
+
         error_msg = analysis.get('analysis_details', {}).get('error_message', '')
         expected = self._try_extract_expected_value(error_msg)
 
@@ -415,7 +415,7 @@ class CodeFixSuggestionEngine:
                 impact_analysis={'reason': 'Test input mismatch with business logic'},
                 auto_applicable=False
             )
-            
+
         return self._generate_self_healing_test_fix(target_code, analysis)
 
     def _generate_syntax_fix(self, target_code: Dict[str, Any], analysis: Dict[str, Any]) -> Optional[CodeFixSuggestion]:
@@ -641,7 +641,7 @@ class CodeFixSuggestionEngine:
 
     def _generate_backport_suggestion(self, target_code: Dict[str, Any], finding: Dict[str, Any], analysis: Dict[str, Any]) -> Optional[CodeFixSuggestion]:
         """構造化された設計同期契約がある場合だけバックポート提案を生成する。"""
-        design_path = analysis.get('design_path') 
+        design_path = analysis.get('design_path')
         if not design_path: return None
         new_design_content = finding.get('backport_content')
         step_idx = finding.get('step_idx')
@@ -663,7 +663,7 @@ class CodeFixSuggestionEngine:
                 'step_idx': step_idx,
                 'reason': 'complete_structural_backport_contract',
             },
-            auto_applicable=False 
+            auto_applicable=False
         )
 
     def _analyze_impact(self, sug, target):

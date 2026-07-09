@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, List, Any
+from typing import List
 
 class BlueprintAssembler:
     """
@@ -9,7 +9,7 @@ class BlueprintAssembler:
     """
     def create_blueprint(self, method_name, path, inputs=None, ir_tree=None):
         usings = set(path.get("all_usings", []))
-            
+
         # A-3. Async Signature Correction (Strict Enforcement)
         is_async = path.get("is_async_needed", False)
         if not is_async:
@@ -20,7 +20,7 @@ class BlueprintAssembler:
                 # token-based simple check. Substring search only.
                 if "await " in code_text:
                     is_async = True; break
-                    
+
         # Build parameters from inputs and detect required usings
         params = []
         if inputs:
@@ -47,7 +47,7 @@ class BlueprintAssembler:
                 raw_ret = last_stmt.get("var_type", "dynamic")
             elif last_stmt.get("type") == "raw" and last_stmt.get("out_var"):
                 raw_ret = last_stmt.get("var_type", "dynamic")
-        
+
         final_ret = raw_ret
         return_value_type = raw_ret
         if is_async:
@@ -64,7 +64,7 @@ class BlueprintAssembler:
 
         # Prepare body with node_id metadata inside statements
         final_body = []
-        
+
         # 27.296: Phase 4 C-2: Guard Clauses (Input Validation)
         for p in params:
             p_name = p.get("name")
@@ -106,7 +106,7 @@ class BlueprintAssembler:
                 if s.get("else_body"):
                     _normalize_call_args(s.get("else_body", []))
         _normalize_call_args(final_body)
-            
+
         # 27.298: Final Return Strategy
         if return_value_type != "void":
             last_non_comment = None
@@ -199,7 +199,7 @@ class BlueprintAssembler:
             "optimize": True
         }
 
-        
+
         # Dependency Injection (DI) Management
         field_types = {"_dbConnection": "IDbConnection", "_httpClient": "HttpClient", "_logger": f"ILogger<{blueprint.get('class_name', 'GeneratedProcessor')}>"}
         if "field_type_map" in path:
@@ -207,24 +207,24 @@ class BlueprintAssembler:
 
         referenced_fields = set(path.get("referenced_fields", []))
         referenced_fields.update(detected_refs)
-        
+
         # A-1. Resource Audit
         data_sources = path.get("data_sources", [])
         if not data_sources and ir_tree:
             data_sources = ir_tree.get("data_sources", [])
-            
+
         for ds in data_sources:
             kind = ds.get("kind")
             if kind == "db": referenced_fields.add("_dbConnection")
             elif kind in ["http", "api"]: referenced_fields.add("_httpClient")
-        
+
         for f in sorted(referenced_fields):
             if f in field_types:
                 # 27.50: Skip static classes that were accidentally added to referenced_fields
                 type_name = field_types[f]
                 if type_name in ["Console", "File", "System.IO.File", "System.Console"]:
                     continue
-                    
+
                 blueprint["fields"].append({"name": f, "type": type_name})
                 if f == "_dbConnection": usings.add("System.Data")
                 if f == "_httpClient": usings.add("System.Net.Http")
@@ -232,7 +232,7 @@ class BlueprintAssembler:
                 if "." in field_types[f]:
                     ns = ".".join(field_types[f].split('.')[:-1])
                     usings.add(ns)
-        
+
         def _collect_required_usings(stmts, param_list, ret_type, has_async):
             required = set()
             code_blob = ""
@@ -270,7 +270,7 @@ class BlueprintAssembler:
         required_usings = _collect_required_usings(final_body, params, final_ret, is_async)
         usings.update(required_usings)
         blueprint["usings"] = sorted(list(usings))
-        
+
         # POCO Generation
         def _collect_used_types(stmts):
             types = set()
@@ -325,7 +325,7 @@ class BlueprintAssembler:
             if name == "Item" and len(path["poco_defs"]) > 1: continue
             if name not in used_type_tokens:
                 continue
-            
+
             poco_props = []
             for pn, pt in props.items():
                 pascal_name = "".join(word.capitalize() for word in pn.split('_') if word) if "_" in pn else (pn[0].upper() + pn[1:] if pn else pn)
@@ -333,9 +333,9 @@ class BlueprintAssembler:
                 if pascal_name != pn:
                     p_entry["attributes"] = [f"JsonPropertyName(\"{pn}\")"]
                 poco_props.append(p_entry)
-                
+
             blueprint["extra_classes"].append({"name": name, "properties": poco_props})
-        
+
         extra_code = path.get("extra_code", []) or []
         if extra_code:
             deduped = []

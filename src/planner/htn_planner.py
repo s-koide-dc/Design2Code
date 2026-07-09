@@ -1,28 +1,26 @@
 # -*- coding: utf-8 -*-
-import json
-import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from src.code_synthesis.unified_knowledge_base import UnifiedKnowledgeBase
 from src.code_synthesis.type_system import TypeSystem
 
 class HTNPlanner:
     """
     Hierarchical Task Network (HTN) Planner for Code Synthesis.
-    
+
     役割:
     抽象的なゴール（Intent + Entity）を受け取り、それを具体的な
     「メソッド呼び出しの連鎖（Action Sequence）」に分解する。
-    
+
     プロセス:
     1. Goal Decomposition: ゴールをサブタスクに分解 (例: UPDATE -> FETCH + MODIFY + SAVE)
     2. Method Assignment: 各サブタスクに対し、UnifiedKnowledgeBase から最適なメソッドを割り当てる
     3. Contract Validation: メソッド間の型整合性（Data Flow）を確認し、接続できない場合はアダプタ処理を挟む
     """
-    
+
     def __init__(self, ukb: UnifiedKnowledgeBase):
         self.ukb = ukb
         self.type_system = TypeSystem()
-        
+
         # 簡易的な HTN ルール (本来は外部設定ファイル化すべき)
         self.task_networks = {
             "UPDATE": ["FETCH", "MODIFY", "SAVE"],
@@ -39,26 +37,26 @@ class HTNPlanner:
         # --- 動的な再帰的分解ロジック ---
         def decompose(task_name, entity, depth=0):
             if depth > 3: return [] # 無限ループ防止
-            
+
             # 1. 直接のマッチングを試行
             query = f"{task_name.lower()} {entity}"
             candidates = self.ukb.search(query, limit=5, intent=task_name, target_entity=entity)
-            
+
             if candidates:
                 # 定石パターンはそのまま使用
                 if candidates[0].get("origin") == "pattern":
                     return [{"task": task_name, "entity": entity, "method": candidates[0], "status": "assigned"}]
-                
+
                 # 単一メソッドが見つかった場合
                 return [{"task": task_name, "entity": entity, "method": candidates[0], "status": "assigned"}]
-            
+
             # 2. 定義されたネットワークによる分解
             if task_name in self.task_networks:
                 sub_plan = []
                 for sub in self.task_networks[task_name]:
                     sub_plan.extend(decompose(sub, entity, depth + 1))
                 return sub_plan
-            
+
             # 3. 型ギャップによる動的ブリッジング (例: FETCH -> READ + TRANSFORM)
             if task_name == "FETCH" and depth == 0:
                 # ファイル/HTTPから読み込んでオブジェクトに変換する標準的なチェーン
@@ -70,7 +68,7 @@ class HTNPlanner:
             return [{"task": task_name, "entity": entity, "status": "missing"}]
 
         plan = decompose(intent, target_entity)
-        
+
         # --- ポストプロセス: 重複排除と役割の集約 ---
         final_plan = []
         covered_indices = set()
@@ -83,7 +81,7 @@ class HTNPlanner:
                     if plan[j]["task"] in covered_roles or (plan[j]["task"] == "READ" and "FETCH" in covered_roles):
                         covered_indices.add(j)
             final_plan.append(step)
-            
+
         return final_plan
 
     def validate_plan(self, plan: List[Dict[str, Any]]) -> List[str]:

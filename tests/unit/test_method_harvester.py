@@ -13,7 +13,7 @@ class TestMethodHarvester(unittest.TestCase):
 
     def test_side_effect_detection(self):
         """副作用の検知ロジックのテスト"""
-        
+
         # 1. 危険な操作を含むダミーデータ
         m_dangerous = {
             "name": "DeleteUserFile",
@@ -24,7 +24,7 @@ class TestMethodHarvester(unittest.TestCase):
             "parameters": [{"name": "path", "type": "string"}],
             "metrics": {"cyclomaticComplexity": 1}
         }
-        
+
         entry = self.harvester._create_method_entry(m_dangerous, "App.FileService")
         self.assertTrue(entry["has_side_effects"])
         self.assertIn("side-effect", entry["tags"])
@@ -39,7 +39,7 @@ class TestMethodHarvester(unittest.TestCase):
             "parameters": [{"name": "a", "type": "int"}, {"name": "b", "type": "int"}],
             "metrics": {"cyclomaticComplexity": 1}
         }
-        
+
         entry_safe = self.harvester._create_method_entry(m_safe, "App.MathService")
         self.assertFalse(entry_safe["has_side_effects"])
         self.assertNotIn("side-effect", entry_safe["tags"])
@@ -55,10 +55,10 @@ class TestMethodHarvester(unittest.TestCase):
             "parameters": [],
             "metrics": {"cyclomaticComplexity": 1}
         }
-        
+
         # YamlDotNet は static map にはないが NuGet にはある
         entry = self.harvester._create_method_entry(m_with_using, "App.YamlService", usings=["YamlDotNet.Serialization"])
-        
+
         self.assertIn("YamlDotNet", entry["dependencies"])
 
     def test_create_method_entry_returns_none_for_pruned_api(self):

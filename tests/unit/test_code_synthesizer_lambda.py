@@ -12,13 +12,13 @@ class TestReproLambda(unittest.TestCase):
         from unittest.mock import MagicMock
         import tempfile
         import os
-        
+
         self.test_dir = tempfile.TemporaryDirectory()
         self.store_path = os.path.join(self.test_dir.name, "test_method_store.json")
         self.dd_path = os.path.join(self.test_dir.name, "domain_dictionary.json")
         with open(self.store_path, "w", encoding="utf-8") as f:
             json.dump([], f)
-            
+
         with open(self.dd_path, "w", encoding="utf-8") as f:
             json.dump({
                 "mappings": {
@@ -57,7 +57,7 @@ class TestReproLambda(unittest.TestCase):
 
         self.ma = MorphAnalyzer(config_manager=self.cm)
         self.synthesizer = CodeSynthesizer(self.cm, method_store=self.ms, morph_analyzer=self.ma)
-        
+
         # Inject required methods for lambda/conditional testing
         store = self.ms
         store.add_method({
@@ -135,12 +135,12 @@ class TestReproLambda(unittest.TestCase):
                 "semantic_roles": {"property": "Price"},
             },
         ]
-        
+
         result = self.synthesizer.synthesize("FilterItems", design_steps)
         code = result["code"]
         print("\n--- Generated Code ---\n")
         print(code)
-        
+
         self.assertIn("item.Price > 100", code)
 
     def test_synthesize_contains_lambda(self):
@@ -154,12 +154,12 @@ class TestReproLambda(unittest.TestCase):
             },
             "名前が'test'を含むもので絞り込む"
         ]
-        
+
         result = self.synthesizer.synthesize("FindTestFiles", design_steps)
         code = result["code"]
         print("\n--- Generated Code (Contains) ---\n")
         print(code)
-        
+
         self.assertIn('.Contains("test")', code)
         self.assertIn(".ToArray()", code)
         self.assertIn('string[] result0 = System.IO.Directory.GetFiles(".")', code)
@@ -173,11 +173,11 @@ class TestReproLambda(unittest.TestCase):
             {"text": "GetUsers"},
             "Selectで各ユーザーの名前に変換する"
         ]
-        
+
         # '変換' が Select にマッピングされることを期待
         result = self.synthesizer.synthesize("GetNames", design_steps)
         code = result["code"]
-        
+
         # Select またはプロパティ名、あるいは Deserialize が含まれているか（変換ロジックの存在確認）
         self.assertTrue(any(kw in code for kw in [".Select", ".Name", "Deserialize"]))
 
@@ -206,12 +206,12 @@ class TestReproLambda(unittest.TestCase):
             },
             "を終えて"
         ]
-        
+
         result = self.synthesizer.synthesize("CheckAndRead", design_steps)
         code = result["code"]
         print("\n--- Generated Code (If-Else) ---\n")
         print(code)
-        
+
         self.assertIn("if (", code)
         self.assertIn("else", code)
         self.assertNotIn("TODO", code)

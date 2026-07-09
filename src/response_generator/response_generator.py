@@ -21,7 +21,7 @@ class ResponseGenerator:
     def __init__(self, vector_engine=None, log_manager=None, task_manager=None, config_manager=None, response_rewriter=None):
         """
         Initializes the Response Generator.
-        
+
         Args:
             vector_engine: Optional VectorEngine instance for similarity calculation.
             log_manager: Optional LogManager instance.
@@ -36,7 +36,7 @@ class ResponseGenerator:
         self.dialogue_templates = kb.get("dialogue_templates", {})
         self.recommended_action_labels = kb.get("recommended_action_labels", {})
         self.recommended_action_descriptions = kb.get("recommended_action_descriptions", {})
-        
+
         # Explicitly remove CAPABILITY from intent_responses loaded from knowledge_base.json
         # to ensure the hardcoded CAPABILITY response in generate() takes precedence.
         if INTENT_CAPABILITY in self.intent_responses:
@@ -48,7 +48,7 @@ class ResponseGenerator:
         self.task_manager = task_manager
         self.config_manager = config_manager
         self.response_rewriter = response_rewriter or ResponseRewriter(config_manager=config_manager)
-        
+
         # Load local definitions only if no task_manager is provided
         self._local_task_definitions = None
         if not self.task_manager:
@@ -419,7 +419,7 @@ class ResponseGenerator:
         if self.vector_engine and self.vector_engine.is_ready and topics_data:
             concepts = list(self.concept_responses.keys())
             words_to_check = [t.get('lemma') or t.get('text') for t in topics_data if isinstance(t, dict)]
-            
+
             query_vec = self.vector_engine.get_sentence_vector(words_to_check)
             if query_vec is not None:
                 matches = []
@@ -430,7 +430,7 @@ class ResponseGenerator:
                         if concept == "天気" and "天気" in words_to_check: # Special handling for weather concept
                              score += 0.1
                         matches.append((concept, score))
-                
+
                 if matches:
                     best_match, score = max(matches, key=lambda x: x[1])
                     if score > 0.4: # Threshold for concept matching
@@ -448,7 +448,7 @@ class ResponseGenerator:
                 if surface == "は" or "とは" in surface:
                     definition_particle_idx = i
                     break
-            
+
             if definition_particle_idx != -1:
                 longest_noun_sequence = ""
                 current_noun_sequence = ""
@@ -462,21 +462,21 @@ class ResponseGenerator:
                         if len(current_noun_sequence) > len(longest_noun_sequence):
                             longest_noun_sequence = current_noun_sequence
                         current_noun_sequence = ""
-                
+
                 # Check for any remaining sequence after the loop
                 if len(current_noun_sequence) > len(longest_noun_sequence):
                     longest_noun_sequence = current_noun_sequence
-                
+
                 if longest_noun_sequence:
                     key_term = longest_noun_sequence
-            
+
             # Fallback: if no clear noun phrase before particle, just use the first noun in topics
             if not key_term:
                 for topic in topics_data:
                     if topic.get("pos", "").startswith("名詞"):
                         key_term = topic.get("text")
                         break
-            
+
             # Now, find the meaning for the identified key_term
             if key_term:
                 found_meaning = False
@@ -486,7 +486,7 @@ class ResponseGenerator:
                         response_text = f"「{key_term}」ですね。辞書によると「{topic.get('meaning')}」という意味です。"
                         found_meaning = True
                         break
-                
+
                 # If exact match for meaning not found for key_term, assume not found.
                 if not found_meaning:
                     response_text = f"申し訳ありません。「{key_term}」の意味は辞書に見つかりませんでした。"
@@ -508,7 +508,7 @@ class ResponseGenerator:
                                 found_concept = concept
                                 break
                         if found_concept: break
-            
+
             if primary_topic and found_concept:
                 template = self.knowledge[primary_topic].get("response_template", "")
                 if template:
@@ -529,7 +529,7 @@ class ResponseGenerator:
         """Helper method to finalize the response context."""
         final_response_text = response_text
         action_result = context.get("action_result", {})
-        
+
         # Use intent from analysis or the current task name
         intent = context.get("analysis", {}).get("intent")
         task_info = context.get("task", {})
@@ -543,7 +543,7 @@ class ResponseGenerator:
         if action_result.get("status") in ["success", "error"]:
             raw_action_message = action_result.get("message", "")
             action_msg = action_result.get("message", "")
-            
+
             # --- NEW: Specific visualization for Impact Scope ---
             if intent == INTENT_CS_IMPACT_SCOPE and action_result.get("status") == "success":
                 impacted = action_result.get("impacted_methods", [])
@@ -556,39 +556,39 @@ class ResponseGenerator:
                         # 循環参照や自己参照を避けつつ、ターゲットから影響先へ矢印
                         if m != target:
                             mermaid.append(f"  T --> \"{m}\"")
-                    
+
                     mermaid.append("  classDef target fill:#f96,stroke:#333,stroke-width:4px;")
-                    
+
                     action_msg += "\n\n【影響範囲グラフ】\n```mermaid\n" + "\n".join(mermaid) + "\n```"
             # --------------------------------------------------
 
             # Special handling for C# Analysis results to make them more readable
             if (intent == INTENT_CS_ANALYZE or task_name == INTENT_CS_ANALYZE) and \
                action_result.get("status") == "success" and "analysis" in action_result:
-                
+
                 analysis = action_result["analysis"]
                 metrics = analysis.get("project_metrics", {})
                 objects = analysis.get("manifest", {}).get("objects", [])
-                
+
                 summary = []
                 summary.append(f"C#プロジェクトの解析が完了しました。")
                 summary.append(f"・抽出されたオブジェクト数: {len(objects)} 個 (クラス、レコード、構造体など)")
-                
+
                 if metrics:
                     summary.append(f"・総コード行数: {metrics.get('totalLineCount', 0)} 行")
                     summary.append(f"・平均サイクロマティック複雑度: {metrics.get('averageCyclomaticComplexity', 0):.2f}")
-                    
+
                     max_cc = metrics.get('maxCyclomaticComplexity', 0)
                     if max_cc > 10:
                         summary.append(f"⚠️ 注意: 最大複雑度が {max_cc} と高くなっています。リファクタリングの検討をお勧めします。")
-                
+
                 summary.append("\n【次にできること】")
                 summary.append("1. 「コードのリファクタリング分析をして」")
                 summary.append("2. 「C#のテストを実行して」")
                 summary.append("3. 「(クラス名) の要約を教えて」")
-                
+
                 action_msg = "\n".join(summary)
-            
+
             # Special handling for completed compound tasks
             elif task_info.get("state") == "COMPLETED" and task_info.get("type") == "COMPOUND_TASK":
                 action_msg = "完了しました。"
@@ -617,9 +617,9 @@ class ResponseGenerator:
                     final_response_text = f"{response_text}\n\n{action_msg}"
         elif dynamic_task_text and response_text == self.default_response:
             final_response_text = dynamic_task_text
-        
+
         context["response"] = {"text": final_response_text}
-        
+
         # --- NEW: Append task resumption message for interruptions ---
         if context.get("task_interruption") and context.get("task", {}).get("clarification_message"):
             resumption_msg = context["task"]["clarification_message"]
@@ -661,7 +661,7 @@ class ResponseGenerator:
         # --- Handle Compound Task Approval Requests ---
         if clarification_msg_type == "COMPOUND_TASK_OVERALL_APPROVAL":
             compound_task_name = task_info.get("name", "複合タスク")
-            
+
             # 1. Try to get template from task definitions
             task_def = self.task_definitions.get(compound_task_name, {})
             templates = task_def.get("templates", {})
@@ -672,7 +672,7 @@ class ResponseGenerator:
                 flat_params = {}
                 for k, v in task_params.items():
                     flat_params[k] = self._get_entity_value(v, "")
-                
+
                 try:
                     confirmation_message = overall_template.format(**flat_params)
                     context["response"] = {"text": confirmation_message}
@@ -683,7 +683,7 @@ class ResponseGenerator:
                     pass # Fallback to default generation
 
             subtasks = task_info.get("subtasks", [])
-            
+
             if subtasks:
                 first_subtask = subtasks[0]
                 first_subtask_name = first_subtask.get("name", "不明なサブタスク")
@@ -700,20 +700,20 @@ class ResponseGenerator:
                     action_description = f"複合タスク「{compound_task_name}」を開始します。最初のステップは「{first_subtask_name}」です。"
             else:
                 action_description = f"複合タスク「{compound_task_name}」を開始します。"
-            
+
             # If we reached here, we have an action_description but no complete message yet.
             # We'll let the common suffix logic at the end handle it.
-                
+
         elif clarification_msg_type == "COMPOUND_TASK_SUBTASK_APPROVAL":
             compound_task_name = task_info.get("name", "複合タスク")
             subtasks = task_info.get("subtasks", [])
             current_subtask_index = task_info.get("current_subtask_index", 0)
-            
+
             if current_subtask_index < len(subtasks):
                 active_subtask = subtasks[current_subtask_index]
                 subtask_name = active_subtask.get("name", "不明なサブタスク")
                 subtask_params = active_subtask.get("parameters", {})
-                
+
                 # サブタスクの種類に応じた詳細メッセージ生成
                 if active_subtask.get("action_method") == "_delete_file":
                     filename = self._get_entity_value(subtask_params.get("filename"), "ファイル")
@@ -730,7 +730,7 @@ class ResponseGenerator:
             else:
                 action_description = f"複合タスク「{compound_task_name}」の次のステップを実行します。"
         # --- End Handle Compound Task Approval Requests ---
-        
+
         # --- Existing Plan Confirmation Logic ---
         # If no compound task approval, fall back to plan-based confirmation (for simple tasks or overall compound task plan if plan exists)
         if not action_description: # If not handled by compound task approval
@@ -824,9 +824,9 @@ class ResponseGenerator:
              confirmation_message = f"{action_description}。よろしいですか？"
         else:
             confirmation_message = f"{action_description}します。よろしいですか？"
-            
+
         context["response"] = {"text": confirmation_message}
         context["pipeline_history"].append("response_generator_confirmation")
         context["pipeline_history"].append("soft_block_confirmation")
-        
+
         return context

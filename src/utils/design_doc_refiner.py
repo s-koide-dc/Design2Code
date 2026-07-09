@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 from src.advanced_tdd.ast_analyzer import ASTAnalyzer
 from src.utils.logic_auditor import LogicAuditor
 from src.utils.design_doc_parser import DesignDocParser
@@ -38,7 +37,7 @@ class DesignDocRefiner:
             # 1. 現状の解析
             with open(design_path, 'r', encoding='utf-8') as f:
                 design_content = f.read()
-            
+
             with open(source_path, 'r', encoding='utf-8') as f:
                 source_code = f.read()
 
@@ -48,13 +47,13 @@ class DesignDocRefiner:
 
             # 2. 整合性チェック (監査)
             audit_result = self.auditor.audit(design_data, source_structure, source_code)
-            
+
             # 3. 同期ロジック
             new_content = design_content
-            
+
             # A. Input/Output の同期 (最初のクラス/関数を対象)
             new_content = self._sync_interface(new_content, source_structure)
-            
+
             # B. Core Logic の TODO 補完
             new_content = self._refine_logic_placeholders(new_content, source_structure)
 
@@ -63,12 +62,12 @@ class DesignDocRefiner:
                 with open(design_path, 'w', encoding='utf-8') as f:
                     f.write(new_content)
                 return {
-                    "status": "success", 
+                    "status": "success",
                     "message": "設計書を実装と同期しました。",
                     "audit_score": audit_result.get("consistency_score"),
                     "findings": audit_result.get("findings")
                 }
-            
+
             return {"status": "no_change", "message": "設計書は既に実装と整合しています。"}
 
         except Exception as e:
@@ -201,7 +200,7 @@ class DesignDocRefiner:
         methods = []
         for cls in structure.get('classes', []):
             methods.extend([m['name'] if isinstance(m, dict) else str(m) for m in cls.get('methods', [])])
-        
+
         max_methods = cfg.get("logic_placeholder_max_methods", 5)
         line_template = cfg.get("logic_placeholder_line_template", "{index}. `{method}` メソッドを呼び出し、必要な処理を実行します。")
         fallback_line = cfg.get("logic_placeholder_fallback", "1. モジュール内の定義済み関数を呼び出し、処理を実行します。")

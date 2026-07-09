@@ -32,7 +32,7 @@ class TestSecurityBoundaries(unittest.TestCase):
         """Test that '..' traversal components are blocked."""
         # Simple traversal
         self.assertIsNone(self.executor._safe_join("../outside.txt"))
-        
+
         # Complex traversal trying to come back in
         # (Should be allowed if it stays within, but abspath resolves it)
         path = self.executor._safe_join("dir/../../in_root.txt")
@@ -52,7 +52,7 @@ class TestSecurityBoundaries(unittest.TestCase):
         """Test paths with multiple dots or tricky naming."""
         self.assertIsNotNone(self.executor._safe_join("...file.txt")) # Valid filename
         self.assertIsNone(self.executor._safe_join("/.../etc/passwd"))
-        
+
     def test_null_byte_injection(self):
         """Test for null byte injection."""
         self.assertIsNone(self.executor._safe_join("test.txt\0.js"))

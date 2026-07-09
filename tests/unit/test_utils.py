@@ -31,7 +31,7 @@ def mock_vector_engine():
             if v1 is None or v2 is None:
                 return 0.0
             return float(np.dot(v1, v2))
-    
+
     # Return a patcher that can be started/stopped
     return patch('src.vector_engine.vector_engine.VectorEngine', DummyVectorEngine)
 

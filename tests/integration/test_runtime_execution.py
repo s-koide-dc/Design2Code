@@ -39,13 +39,13 @@ class TestRuntimeExecution(unittest.TestCase):
                 "dependencies": ["CsvHelper"],
                 "code_body": """
 namespace Common.Serialization {
-    public class CsvUtil { 
-        public static string ToCsv(IEnumerable<dynamic> records) { 
-            using var writer = new StringWriter(); 
-            using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture); 
-            csv.WriteRecords(records); 
-            return writer.ToString(); 
-        } 
+    public class CsvUtil {
+        public static string ToCsv(IEnumerable<dynamic> records) {
+            using var writer = new StringWriter();
+            using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+            csv.WriteRecords(records);
+            return writer.ToString();
+        }
     }
 }""",
                 "id": "csv_util_to_csv"
@@ -61,7 +61,7 @@ namespace Common.Serialization {
                 "id": "data_factory_create"
             }
         ]
-        
+
         # 公開APIを通してメタデータと索引を一貫して更新する
         for method in new_methods:
             self.synthesizer.method_store.add_method(method)
@@ -72,13 +72,13 @@ namespace Common.Serialization {
 
     def test_synthesize_and_run_test(self):
         print("\n--- Test: Runtime Execution Verification ---")
-        
+
         steps = ["CreateSampleData", "ToCsv"]
         result = self.synthesizer.synthesize("ExportUserCsv", steps)
-        
+
         source_code = result["code"]
         print("Synthesized Code Length:", len(source_code))
-        
+
         # 2. テストコードの作成 (xUnit)
         test_code = """
 using Xunit;
@@ -91,10 +91,10 @@ public class RuntimeTest
     {
         // Arrange
         var processor = new GeneratedProcessor();
-        
+
         # Act
         var result = processor.ExportUserCsv();
-        
+
         # Assert
         Assert.NotNull(result);
         Assert.Contains("Alice", result);
@@ -110,7 +110,7 @@ public class RuntimeTest
         # 3. 実行検証
         deps = [{"name": d} for d in result["dependencies"]]
         runtime_result = self.verifier.verify_runtime(source_code, test_code, dependencies=deps)
-        
+
         print("Test Summary:", runtime_result.get("summary"))
         if not runtime_result["success"]:
             print("Test Failed!")
@@ -123,7 +123,7 @@ public class RuntimeTest
         self.assertEqual(runtime_result["summary"]["passed"], 1)
 
     def test_side_effect_execution_requires_external_sandbox(self):
-        
+
         # 危険な操作を含むコード
         source_code = """
 using System.IO;
@@ -146,7 +146,7 @@ public class SideEffectTest {
 """
         # 副作用フラグをTrueにして実行
         runtime_result = self.verifier.verify_runtime(source_code, test_code, has_side_effects=True)
-        
+
         self.assertFalse(runtime_result["success"])
         self.assertEqual(
             "SIDE_EFFECT_EXECUTION_BLOCKED",

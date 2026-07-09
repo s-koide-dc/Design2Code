@@ -27,7 +27,7 @@ class TestDummyFactoryLearning(unittest.TestCase):
             error_message="System.NullReferenceException: Object reference not set to an instance of an object. user.Profile is null",
             stack_trace="..."
         )
-        
+
         learned = self.factory.learn_from_failure(failure)
 
         self.assertFalse(learned)

@@ -34,7 +34,7 @@ This is a test module.
 - **Expected**: success
 """
         result = self.parser.parse_content(sample_md)
-        
+
         self.assertEqual(result["module_name"], "TestModule")
         self.assertIn("test module", result["purpose"])
         self.assertIn("id", result["specification"]["input"]["description"])

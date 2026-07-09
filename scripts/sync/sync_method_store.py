@@ -2,7 +2,6 @@
 import os
 import json
 import sys
-from typing import List, Dict, Any
 
 # Ensure project root is in path
 sys.path.append(os.getcwd())
@@ -20,7 +19,7 @@ def get_expanded_system_methods():
             "class": "System.Data.IDbConnection",
             "return_type": "IEnumerable<T>",
             "params": [
-                {"name": "cnn", "type": "IDbConnection", "role": "target"}, 
+                {"name": "cnn", "type": "IDbConnection", "role": "target"},
                 {"name": "sql", "type": "string", "role": "sql"},
                 {"name": "param", "type": "object", "role": "param"}
             ],
@@ -36,7 +35,7 @@ def get_expanded_system_methods():
             "class": "System.Data.IDbConnection",
             "return_type": "int",
             "params": [
-                {"name": "cnn", "type": "IDbConnection", "role": "target"}, 
+                {"name": "cnn", "type": "IDbConnection", "role": "target"},
                 {"name": "sql", "type": "string", "role": "sql"},
                 {"name": "param", "type": "object", "role": "param"}
             ],
@@ -52,7 +51,7 @@ def get_expanded_system_methods():
             "class": "System.Data.IDbConnection",
             "return_type": "T",
             "params": [
-                {"name": "cnn", "type": "IDbConnection", "role": "target"}, 
+                {"name": "cnn", "type": "IDbConnection", "role": "target"},
                 {"name": "sql", "type": "string", "role": "sql"},
                 {"name": "param", "type": "object", "role": "param"}
             ],
@@ -70,7 +69,7 @@ def get_expanded_system_methods():
             "class": "System.IO.File",
             "return_type": "Task",
             "params": [
-                {"name": "path", "type": "string", "role": "path"}, 
+                {"name": "path", "type": "string", "role": "path"},
                 {"name": "contents", "type": "string", "role": "content"}
             ],
             "code": "await System.IO.File.WriteAllTextAsync({path}, {contents})",
@@ -83,7 +82,7 @@ def get_expanded_system_methods():
             "class": "System.IO.File",
             "return_type": "void",
             "params": [
-                {"name": "path", "type": "string", "role": "path"}, 
+                {"name": "path", "type": "string", "role": "path"},
                 {"name": "contents", "type": "string", "role": "content"}
             ],
             "code": "System.IO.File.WriteAllText({path}, {contents})",
@@ -128,7 +127,7 @@ def get_expanded_system_methods():
             "class": "System.Net.Http.HttpClient",
             "return_type": "Task<string>",
             "params": [
-                {"name": "client", "type": "HttpClient", "role": "target"}, 
+                {"name": "client", "type": "HttpClient", "role": "target"},
                 {"name": "requestUri", "type": "string", "role": "url"}
             ],
             "code": "await {client}.GetStringAsync({requestUri})",
@@ -166,7 +165,7 @@ def get_expanded_system_methods():
             "class": "System.Linq.Enumerable",
             "return_type": "IEnumerable<T>",
             "params": [
-                {"name": "source", "type": "IEnumerable<T>", "role": "target"}, 
+                {"name": "source", "type": "IEnumerable<T>", "role": "target"},
                 {"name": "predicate", "type": "Func<T, bool>", "role": "predicate"}
             ],
             "code": "{source}.Where({predicate})",
@@ -179,7 +178,7 @@ def get_expanded_system_methods():
             "class": "System.Linq.Enumerable",
             "return_type": "IEnumerable<TResult>",
             "params": [
-                {"name": "source", "type": "IEnumerable<T>", "role": "target"}, 
+                {"name": "source", "type": "IEnumerable<T>", "role": "target"},
                 {"name": "selector", "type": "Func<T, TResult>", "role": "selector"}
             ],
             "code": "{source}.Select({selector})",
@@ -263,11 +262,11 @@ def sync():
     config = ConfigManager()
     vector_engine = VectorEngine()
     store = MethodStore(config, vector_engine=vector_engine)
-    
+
     # 既存の項目を完全にクリア (強制リセット)
     store.items = []
     store.id_to_index = {}
-    
+
     # 1. Harvest結果 (resources/method_store_final.json) の読み込み
     harvest_path = 'resources/method_store_final.json'
     if os.path.exists(harvest_path):
@@ -297,7 +296,7 @@ def sync():
         if "summary" not in m:
             m["summary"] = f"Standard library method: {m['name']} in {m['class']}"
         store.add_method(m, overwrite=True)
-    
+
     # 3. 保存
     store.save()
     print(f"Synchronization complete. Total methods: {len(store.items)}")

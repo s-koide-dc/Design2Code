@@ -13,12 +13,12 @@ class TestConfigManager(unittest.TestCase):
         self.workspace_root = Path(self.test_dir)
         self.config_dir = self.workspace_root / "config"
         os.makedirs(self.config_dir)
-        
+
         # Create dummy config files
         self.config_data = {"logging": {"log_level": "DEBUG"}, "test_key": "test_val"}
         with open(self.config_dir / "config.json", 'w', encoding='utf-8') as f:
             json.dump(self.config_data, f)
-            
+
         self.safety_data = {"safe_commands": ["git", "ls"]}
         with open(self.config_dir / "safety_policy.json", 'w', encoding='utf-8') as f:
             json.dump(self.safety_data, f)
@@ -29,7 +29,7 @@ class TestConfigManager(unittest.TestCase):
     def test_load_valid_config(self):
         """正常な設定ファイルの読み込み検証"""
         cm = ConfigManager(workspace_root=self.test_dir)
-        
+
         self.assertEqual(cm.get("test_key"), "test_val")
         self.assertEqual(cm.get_section("logging")["log_level"], "DEBUG")
         self.assertIn("git", cm.get_safety_policy()["safe_commands"])
@@ -51,7 +51,7 @@ class TestConfigManager(unittest.TestCase):
         """不正なJSONファイルが含まれる場合の検証"""
         with open(self.config_dir / "bad.json", 'w', encoding='utf-8') as f:
             f.write("{ invalid json")
-            
+
         cm = ConfigManager(workspace_root=self.test_dir)
         # _load_json を直接テスト
         res = cm._load_json(self.config_dir / "bad.json")
@@ -81,7 +81,7 @@ class TestConfigManager(unittest.TestCase):
     def test_path_resolution(self):
         """各リソースパスが正しく解決されているか検証"""
         cm = ConfigManager(workspace_root=self.test_dir)
-        
+
         # 相対パスではなく絶対パスになっていること
         self.assertTrue(os.path.isabs(cm.intent_corpus_path))
         self.assertIn("resources", cm.vector_model_path)

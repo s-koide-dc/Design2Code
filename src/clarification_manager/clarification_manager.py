@@ -23,7 +23,7 @@ class ClarificationManager:
         self.action_executor = action_executor
         self.log_manager = log_manager
         self.clarification_history = {} # Tracks attempts per original_text_id or session_id
-        
+
         # Load clarification templates - assuming they will be in knowledge_base.json or similar
         self.clarification_templates = self._load_clarification_templates()
 
@@ -114,11 +114,11 @@ class ClarificationManager:
         context.setdefault("response", {})
         context.setdefault("errors", [])
         context.setdefault("pipeline_history", [])
-        
+
         # Preserve clarification_needed if already set by TaskManager or others
         if not context.get("clarification_needed"):
             context["clarification_needed"] = False
-            
+
         context["pipeline_history"].append("clarification_manager")
 
         # Ensure missing_entity template is a dict (robustness for varying knowledge_base.json or default templates)
@@ -134,7 +134,7 @@ class ClarificationManager:
         intent_confidence = context["analysis"].get("intent_confidence", 0.0)
         entities = context["analysis"].get("entities", {})
         current_task = context.get("task")
-        
+
         # If clarification is already explicitly set in context (e.g. by TaskManager), respect it.
         if context.get("clarification_needed"):
             if not context.get("dialogue_state"):
@@ -143,16 +143,16 @@ class ClarificationManager:
             if not context["response"].get("text") and context.get("task", {}).get("clarification_message"):
                 context["response"]["text"] = context["task"]["clarification_message"]
             return context
-        
+
         # If a task is ready for execution, do not block on low intent confidence.
         if current_task and current_task.get("state") == "READY_FOR_EXECUTION":
             return context
 
-        internal_session_id = context.get("session_id") or hash(context.get("original_text", "")) 
-            
+        internal_session_id = context.get("session_id") or hash(context.get("original_text", ""))
+
         current_attempts = self.clarification_history.get(internal_session_id, 0)
-        
-        
+
+
         clarification_message = None
 
         # 1. Check for errors in context["errors"] first
@@ -164,7 +164,7 @@ class ClarificationManager:
                 {"reason": "external_error", "errors": error_messages},
                 "ERROR"
             )
-        
+
         # 2. Check max clarification attempts
         if not clarification_message and current_attempts >= self._max_clarification_attempts:
             missing_info_list = []
@@ -180,7 +180,7 @@ class ClarificationManager:
                     else: # String or other type
                         if not entity_data:
                             missing_info_list.append(req_entity)
-            
+
             clarification_message = self.clarification_templates["max_attempts_reached"].format(
                 missing_info=", ".join(missing_info_list) if missing_info_list else "なし"
             )
@@ -190,13 +190,13 @@ class ClarificationManager:
                 "WARNING"
             )
             self.clarification_history[internal_session_id] = 0 # Reset for next new original_text - FIX 2
-            
+
             # If max attempts reached, return context immediately with the clarification message
             context["clarification_needed"] = True
             context["dialogue_state"] = TASK_CLARIFICATION
             context["response"]["text"] = clarification_message
             return context
-        
+
         # 3. Check Intent Ambiguity (only if no direct error or max attempts reached)
         if not clarification_message and intent_confidence < self._intent_threshold:
             clarification_message = self.clarification_templates["low_intent_confidence"].format(
@@ -222,11 +222,11 @@ class ClarificationManager:
                         "INFO"
                     )
                     break
-            
+
             # Check for missing required entities
             if not clarification_message and intent: # Only check if intent is known
                 required_entities = self.action_executor.get_required_entities_for_intent(intent)
-                
+
                 # Check both top-level entities and active subtask parameters
                 current_task = context.get("task", {})
                 check_params = entities
@@ -253,7 +253,7 @@ class ClarificationManager:
 
                     if is_missing:
                         clarification_message = self.clarification_templates["missing_entity"].get(
-                            req_entity, 
+                            req_entity,
                             self.clarification_templates["missing_entity"]["default"]
                         ).format(entity_key=req_entity)
                         self.log_manager.log_event(
@@ -262,7 +262,7 @@ class ClarificationManager:
                             "INFO"
                         )
                         break # Only ask for one missing entity at a time for simplicity
-        
+
         if clarification_message:
             context["clarification_needed"] = True
             context["dialogue_state"] = TASK_CLARIFICATION
@@ -284,7 +284,7 @@ class ClarificationManager:
                 {"session_id": internal_session_id, "intent": intent},
                 "INFO"
             )
-        
+
         return context
 
 # Dummy for ActionExecutor, would be replaced by actual ActionExecutor.get_required_entities
@@ -356,7 +356,7 @@ if __name__ == '__main__':
     debug_print(result4["response"]["text"])
     assert result4["clarification_needed"] == True
     assert "手動で操作してください" in result4["response"]["text"]
-    
+
     debug_print("\n--- Test Case 5: No Clarification Needed ---")
     context5 = {
         "original_text": "明確な指示",

@@ -2,7 +2,7 @@
 import json
 import os
 import copy
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 
 from src.code_synthesis.type_system import TypeSystem
 from src.symbol_matching.symbol_matcher import SymbolMatcher
@@ -29,7 +29,7 @@ from src.utils.semantic_intents import (
 
 class CodeSynthesizer:
     """[Phase 23.3: Pure Orchestration] Design-to-Code の中心的なオーケストレータークラス。"""
-    
+
     def __init__(self, config, method_store=None, morph_analyzer=None, matcher=None):
         self.config = config
         self.morph_analyzer = morph_analyzer or MorphAnalyzer(config_manager=config)
@@ -200,7 +200,7 @@ class CodeSynthesizer:
         from src.design_parser import validate_structured_spec_or_raise
         from src.ir_generator.ir_generator import IRGenerator
         validate_structured_spec_or_raise(structured_spec)
-        
+
         # 27.138: Pre-resolve source info before IR generation
         source_map = {ds["id"]: ds["kind"] for ds in structured_spec.get("data_sources", [])}
         for step in structured_spec.get("steps", []):
@@ -211,7 +211,7 @@ class CodeSynthesizer:
         inputs = structured_spec.get("inputs", [])
         inferred_input_type = None
         self.design_steps_history = [s.get("text", "") for s in steps if isinstance(s, dict)]
-        
+
         # 27.200: Infer return type if not specified
         if not return_type:
             outputs = structured_spec.get("outputs", [])
@@ -227,7 +227,7 @@ class CodeSynthesizer:
         entity_schema = getattr(self.method_store, 'entity_schema', self.entity_schema)
         ir_gen = IRGenerator(self.config, knowledge_base=self.ukb, method_store=self.method_store, morph_analyzer=self.morph_analyzer, entity_schema=copy.deepcopy(entity_schema), matcher=self.matcher)
         ir_tree = ir_gen.from_structured_spec(structured_spec, intent_hint=intent)
-        
+
         # 27.405: CRITICAL - Propagate return type hint to IR tree for path initialization
         if return_type:
             ir_tree["return_type_hint"] = return_type
@@ -295,7 +295,7 @@ class CodeSynthesizer:
                 },
                 "trace": {"ir_tree": ir_tree},
             }
-            
+
         best_path = sorted(
             final_paths,
             key=lambda p: (p.get("completed_nodes", 0), len(p.get("statements", []))),
@@ -441,7 +441,7 @@ class CodeSynthesizer:
                 },
             }
         code = res.get("code") or ""
-        
+
         pre_resolved = kwargs.get("pre_resolved_dependencies") or []
         dep_set = []
         path_deps = best_path.get("dependencies")
@@ -503,16 +503,16 @@ class CodeSynthesizer:
         """[Phase 7 F-2] データの Source から Sink への到達性を検証する監査ロジック"""
         sink_intents = ["PERSIST", "DISPLAY", "RETURN", "NOTIFICATION"]
         name_to_role = path.get("name_to_role", {})
-        
+
         # 1. 重要な結果変数（Source 由来）を特定
         sources = []
         for name, role in name_to_role.items():
             if role in ["content", "data", "accumulator"]:
                 sources.append(name)
-        
+
         # 2. ステートメントをスキャンして利用状況をチェック
         consumed_vars = set()
-        
+
         from src.utils.text_parser import contains_word
 
         def _raw_uses_var(code_text: str, var_name: str) -> bool:
@@ -537,7 +537,7 @@ class CodeSynthesizer:
                     continue
                 if s_type == "call":
                     args = stmt.get("args", [])
-                    
+
                     # 引数として使われているか
                     for s in sources:
                         usage_found = False
@@ -548,7 +548,7 @@ class CodeSynthesizer:
                             if isinstance(arg, dict) and arg.get("var") == s:
                                 usage_found = True
                                 break
-                        
+
                         if usage_found:
                             # Sink インテントでの利用か確認
                             if stmt.get("intent") in sink_intents:
@@ -570,12 +570,12 @@ class CodeSynthesizer:
                         for s in sources:
                             if _raw_uses_var(code_text, s):
                                 consumed_vars.add(s)
-                
+
                 if "body" in stmt: check_consumption(stmt["body"])
                 if "else_body" in stmt: check_consumption(stmt["else_body"])
 
         check_consumption(path.get("statements", []))
-        
+
         # 3. 到達していない変数を警告としてコメント挿入
         orphans = [s for s in sources if s not in consumed_vars]
         if orphans:

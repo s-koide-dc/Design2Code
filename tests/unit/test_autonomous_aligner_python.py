@@ -40,7 +40,7 @@ def process_data(data):
 """
         design_path = self.test_dir / "pymock_mod.design.md"
         source_path = self.test_dir / "pymock_mod.py"
-        
+
         with open(design_path, "w", encoding="utf-8") as f: f.write(design_content)
         with open(source_path, "w", encoding="utf-8") as f: f.write(source_content)
 
@@ -70,10 +70,10 @@ def process_data(data):
             "Implement score calculation",
             str(result.get("pending_suggestions")),
         )
-        
+
         with open(source_path, "r", encoding="utf-8") as f:
             updated_code = f.read()
-        
+
         self.assertEqual(updated_code, source_content)
 
 if __name__ == "__main__":

@@ -65,7 +65,7 @@ class CodeBuilderClient:
         run_id = f"{ts}_{os.getpid()}"
         blueprint_dir = os.path.join(root, "cache", "blueprints", run_id)
         blueprint_path = os.path.abspath(os.path.join(blueprint_dir, "blueprint.json"))
-        
+
         try:
             os.makedirs(os.path.dirname(blueprint_path), exist_ok=True)
             with open(blueprint_path, "w", encoding="utf-8") as f:
@@ -74,7 +74,7 @@ class CodeBuilderClient:
             logging.error(f"Failed to save blueprint: {e}")
 
         json_input = json.dumps(blueprint, ensure_ascii=False)
-        
+
         try:
             if self.use_dotnet_run:
                 cmd = ["dotnet", "run", "--project", self.project_path, "--quiet", "--nologo", "--"]

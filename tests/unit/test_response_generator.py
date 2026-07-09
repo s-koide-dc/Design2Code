@@ -53,9 +53,9 @@ class TestResponseGenerator(unittest.TestCase):
             "analysis": {"topics": ["今日", "天気", "晴れ"]},
             "pipeline_history": ["morph_analyzer", "syntactic_analyzer", "semantic_analyzer"]
         }
-        
+
         result_context = self.generator.generate(initial_context)
-        
+
         self.assertIn("response", result_context)
         self.assertIn("text", result_context["response"])
         self.assertGreater(len(result_context["response"]["text"]), 0) # Check if response text is not empty
@@ -67,9 +67,9 @@ class TestResponseGenerator(unittest.TestCase):
         主要トピックは存在するが、関連概念が見つからない場合、トピックに特化したデフォルト応答を返す。
         """
         initial_context = {"analysis": {"topics": ["今日", "天気"]}, "pipeline_history": []}
-        
+
         result_context = self.generator.generate(initial_context)
-        
+
         self.assertIn("response", result_context)
         self.assertIn("text", result_context["response"])
         self.assertGreater(len(result_context["response"]["text"]), 0) # Check if response text is not empty
@@ -79,9 +79,9 @@ class TestResponseGenerator(unittest.TestCase):
         既知のトピックが一つもない場合、汎用のデフォルト応答を返す。
         """
         initial_context = {"analysis": {"topics": ["猫", "かわいい"]}, "pipeline_history": []}
-        
+
         result_context = self.generator.generate(initial_context)
-        
+
         self.assertIn("response", result_context)
         self.assertIn("text", result_context["response"])
         self.assertGreater(len(result_context["response"]["text"]), 0) # Check if response text is not empty
@@ -91,9 +91,9 @@ class TestResponseGenerator(unittest.TestCase):
         エッジケース: 空のトピックリスト。
         """
         initial_context = {"analysis": {"topics": []}, "pipeline_history": []}
-        
+
         result_context = self.generator.generate(initial_context)
-        
+
         self.assertIn("response", result_context)
         self.assertIn("text", result_context["response"])
         self.assertGreater(len(result_context["response"]["text"]), 0) # Check if response text is not empty
@@ -104,9 +104,9 @@ class TestResponseGenerator(unittest.TestCase):
         エッジケース: contextにtopicsキーが存在しない場合、エラーではなくデフォルト応答を返す。
         """
         initial_context = {"analysis": {}, "pipeline_history": []}
-        
+
         result_context = self.generator.generate(initial_context)
-        
+
         self.assertEqual(len(result_context.get("errors", [])), 0) # No errors should be generated
         self.assertIn("response", result_context)
         self.assertIn("text", result_context["response"])

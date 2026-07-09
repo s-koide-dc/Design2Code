@@ -192,7 +192,7 @@ def extract_dependencies(design_file_path):
     """Extracts internal dependencies from a design document."""
     if not design_file_path or not os.path.exists(design_file_path):
         return []
-        
+
     try:
         with open(design_file_path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -203,24 +203,24 @@ def extract_dependencies(design_file_path):
     section_match = re.search(r'##\s*3\.\s*Dependencies[\s\S]*', content, re.IGNORECASE)
     if not section_match:
         return []
-    
+
     section_content = section_match.group(0)
     internal_block_match = re.search(r'-\s*\*?\*?(?:Internal|内部)\*?\*?\s*:\s*([\s\S]*?)(?:\n\s*-\s*\*?\*?(?:External|外部)|\n#|\Z)', section_content, re.IGNORECASE)
     if not internal_block_match:
         internal_block_match = re.search(r'-\s*\*?\*?(?:Internal|内部)\*?\*?\s*:\s*(.*)', section_content, re.IGNORECASE)
-    
+
     if not internal_block_match:
         return []
-    
+
     block_text = internal_block_match.group(1).strip()
-    
+
     dependencies = []
     bullets = re.findall(r'-?\s*`?([a-zA-Z0-9_]+)`?(?::|\s|\Z)', block_text)
     if bullets:
         dependencies = [b for b in bullets if b and b.lower() not in ['internal', '内部', 'external', '外部', 'none', 'なし']]
     else:
         dependencies = [dep.strip().replace('`', '').replace('"', '').replace("'", "") for dep in block_text.split(',') if dep.strip()]
-    
+
     dependencies = [d for d in dependencies if d and d.strip(' .').lower() not in ['internal', '内部', 'external', '外部', 'none', 'なし']]
     return dependencies
 
@@ -231,9 +231,9 @@ def find_tool_projects(base_dir="tools"):
     tool_projects = []
     if not os.path.exists(base_dir):
         return tool_projects
-    
+
     ignore_dirs = {'bin', 'obj', 'node_modules', '.git', '__pycache__'}
-    
+
     for lang_dir in os.listdir(base_dir):
         lang_path = os.path.join(base_dir, lang_dir)
         if os.path.isdir(lang_path) and lang_dir not in ignore_dirs:
@@ -576,7 +576,7 @@ def main():
     src_path = project_root / 'src'
     tools_path = project_root / 'tools'
     project_map_path = project_root / 'ai_project_map.json'
-    
+
     errors = []
     warnings = []
     changed_tracked_paths = collect_changed_tracked_paths(project_root)
@@ -593,11 +593,11 @@ def main():
         with open(project_map_path, 'r', encoding='utf-8') as f:
             project_map = json.load(f)
         project_map_modules = {module['name'] for module in project_map.get('modules', [])}
-        
+
         # Tools matching: use "language/name" as the identifier
         project_map_tools_ids = {f"{tool['language']}/{tool['name']}" for tool in project_map.get('tools_catalog', [])}
         project_map_tools_names = {tool['name'] for tool in project_map.get('tools_catalog', [])}
-        
+
         all_known_entities = project_map_modules | project_map_tools_names
 
     except (FileNotFoundError, json.JSONDecodeError) as e:
@@ -659,29 +659,29 @@ def main():
             module_full_path = src_path / module_dir
             if not module_full_path.is_dir() or module_dir.startswith('__'):
                 continue
-            
+
             # 規約に基づき、module_name はフォルダ名の snake_case
             module_name = to_snake_case(module_dir)
-            
+
             # a) ai_project_map.json に登録されているか
             if module_name not in project_map_modules:
                 warnings.append(f"[module:{module_name}]: Not registered in 'ai_project_map.json'.")
-            
+
             # b) [module_name].design.md または何らかの .design.md が存在するか
             design_doc_name = f"{module_name}.design.md"
             module_design_docs = list(module_full_path.glob("*.design.md"))
-            
+
             primary_design_doc = module_full_path / design_doc_name
             if not primary_design_doc.exists():
                 # フォルダ名そのままの可能性も考慮
                 primary_design_doc = module_full_path / f"{module_dir}.design.md"
-                
+
             if not primary_design_doc.exists() and not module_design_docs:
                 errors.append(f"[module:{module_name}]: Missing any design document (*.design.md).")
             else:
                 # 代表的な設計書（あれば primary、なければ最初に見つかったもの）
                 actual_design_doc = primary_design_doc if primary_design_doc.exists() else module_design_docs[0]
-                
+
                 # c) 鮮度チェック (Freshness Check)
                 # Filesystem mtimes change during checkout/test runs, so only warn when
                 # tracked source files are changed without a matching design-doc change.
@@ -697,7 +697,7 @@ def main():
                 docs_to_scan = [primary_design_doc] if primary_design_doc.exists() else module_design_docs
                 for doc in docs_to_scan:
                     all_deps.update(extract_dependencies(str(doc)))
-                
+
                 for dep in all_deps:
                     if dep not in all_known_entities and dep not in ignore_deps:
                         # Case insensitive check for ActionExecutor vs action_executor
@@ -710,7 +710,7 @@ def main():
     else:
         for tool_proj in find_tool_projects(str(tools_path)):
             tool_full_name = f"{tool_proj['language']}/{tool_proj['name']}"
-            
+
             if tool_full_name not in project_map_tools_ids:
                 warnings.append(f"[tool:{tool_full_name}]: Not found in 'ai_project_map.json' tools_catalog. Run sync_project_map.py.")
                 continue
@@ -724,7 +724,7 @@ def main():
             if not design_doc_path:
                 warnings.append(f"[tool:{tool_full_name}]: Missing design document (*.design.md).")
                 continue
-            
+
             if has_changed_source_without_design(
                 changed_tracked_paths,
                 Path(tool_proj['path']),

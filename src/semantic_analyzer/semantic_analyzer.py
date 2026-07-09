@@ -30,15 +30,15 @@ class SemanticAnalyzer:
         self.config_manager = config_manager
         self.morph_analyzer = morph_analyzer
         self.data_source_diagnostics: List[Dict[str, str]] = []
-        
+
         # 1. Load Custom Knowledge (templates, specific terms)
         kb_path = knowledge_file_path
         if not kb_path and config_manager:
             kb_path = config_manager.custom_knowledge_path
-            
+
         full_kb = self._load_knowledge_base(kb_path)
         self.custom_knowledge = full_kb.get("knowledge", full_kb)
-        
+
         # 2. Database Connection for Dictionary
         self.db_path = config_manager.dictionary_db_path if config_manager else os.path.join('resources', 'dictionary.db')
 
@@ -58,11 +58,11 @@ class SemanticAnalyzer:
         kb_entry = self.custom_knowledge.get(word)
         if kb_entry:
             return kb_entry.get("meaning") if isinstance(kb_entry, dict) else kb_entry if isinstance(kb_entry, str) else None
-        
+
         # 2. Check SQLite Dictionary
         if not os.path.exists(self.db_path):
             return None
-            
+
         try:
             with closing(sqlite3.connect(self.db_path)) as conn:
                 cursor = conn.cursor()
@@ -77,7 +77,7 @@ class SemanticAnalyzer:
         """Searches for words by their meaning using FTS5."""
         if not os.path.exists(self.db_path):
             return []
-            
+
         try:
             with closing(sqlite3.connect(self.db_path)) as conn:
                 cursor = conn.cursor()
@@ -97,7 +97,7 @@ class SemanticAnalyzer:
             return {}
         if not os.path.exists(filepath):
             return {}
-            
+
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 loaded = json.load(f)
@@ -131,7 +131,7 @@ class SemanticAnalyzer:
                     if text == "*": text = token.get("surface", "")
                     meaning = self._get_meaning(text)
                     topics.append({"text": text, "pos": pos, "meaning": meaning})
-        
+
         unique_topics = []
         seen = set()
         for t in topics:
@@ -139,12 +139,12 @@ class SemanticAnalyzer:
                 unique_topics.append(t)
                 seen.add(t["text"])
         context["analysis"]["topics"] = unique_topics
-        
+
         history = context.get("history", [])
         text = context.get("original_text", "")
         intent = context["analysis"].get("intent")
         extracted = self._extract_entities(text, history, context, intent)
-        
+
         existing = context["analysis"].get("entities", {})
         existing.update(extracted)
         context["analysis"]["entities"] = existing
@@ -157,7 +157,7 @@ class SemanticAnalyzer:
     def _extract_entities(self, text: str, history: list, context: dict, intent: str) -> dict:
         extracted = {}
         base_conf = 0.9
-        
+
         current_task = context.get("task", {})
         task_name = current_task.get("name")
 
@@ -165,7 +165,7 @@ class SemanticAnalyzer:
         fn_in_quotes = r'[「『"“”](?P<qfn>[^」』"“”]+)[」』"“”]'
         bare_fn = r'(?P<bfn>[\w\-\./\\]+\.[a-zA-Z0-9]{1,10})'
         dotted_name = r'(?P<dn>[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)'
-        
+
         filename_search_text = text
         # Skip filename extraction from the part of text that is clearly content
         explicit_content_match = re.search(r'(?:中身|内容)は\s*([『"「“][^』"」”]+[』"」”])', text)
@@ -186,7 +186,7 @@ class SemanticAnalyzer:
         # Clear extensions are allowed to be extracted as filenames automatically.
         extensions = r'\.(json|txt|md|csv|xml|html|cs|config|log|pdf|zip|png|jpg)'
         fn_with_ext = rf'(?P<bfn>[\w\-\./\\]+{extensions})'
-        
+
         # We REMOVE {dotted_name} from the automatic extraction to avoid matching code.
         single_fn_pattern = rf'(?:{fn_in_quotes}|(?:(?:名前は|ファイル名が|ファイル)\s*){dotted_name}|{fn_with_ext})'
 
@@ -197,21 +197,21 @@ class SemanticAnalyzer:
             if len(parts) >= 2:
                 src_part = parts[0]
                 dest_part = parts[1]
-                
+
                 src_match = re.search(single_fn_pattern, src_part)
                 if src_match:
                     try:
-                        val = (src_match.groupdict().get('qfn') or 
-                               src_match.groupdict().get('dn') or 
+                        val = (src_match.groupdict().get('qfn') or
+                               src_match.groupdict().get('dn') or
                                src_match.groupdict().get('bfn'))
                         if val: extracted["source_filename"] = {"value": normalize_path(val), "confidence": base_conf}
                     except IndexError: pass
-                
+
                 dest_match = re.search(single_fn_pattern, dest_part)
                 if dest_match:
                     try:
-                        val = (dest_match.groupdict().get('qfn') or 
-                               dest_match.groupdict().get('dn') or 
+                        val = (dest_match.groupdict().get('qfn') or
+                               dest_match.groupdict().get('dn') or
                                dest_match.groupdict().get('bfn'))
                         if val: extracted["destination_filename"] = {"value": normalize_path(val), "confidence": base_conf}
                     except IndexError: pass
@@ -221,8 +221,8 @@ class SemanticAnalyzer:
             m = re.search(single_fn_pattern, filename_search_text, re.UNICODE)
             if m:
                 try:
-                    val = (m.groupdict().get('qfn') or 
-                           m.groupdict().get('dn') or 
+                    val = (m.groupdict().get('qfn') or
+                           m.groupdict().get('dn') or
                            m.groupdict().get('bfn'))
                     if val:
                         val = val.strip()
@@ -243,7 +243,7 @@ class SemanticAnalyzer:
             # Heuristic: If we already have a filename, and there are other quoted strings, one of them is content.
             all_quoted = re.findall(r'[「『"“”]([^」』"“”]+)[」』"“”]', text)
             filename_val = extracted.get("filename", {}).get("value")
-            
+
             if not explicit_content and all_quoted:
                 if filename_val:
                     # Look for a quoted string that is NOT the filename
@@ -259,7 +259,7 @@ class SemanticAnalyzer:
 
         # 4. Ensure filename doesn't duplicate content (Sanity Check)
         if extracted.get("filename") and extracted.get("content") and extracted["filename"]["value"] == extracted["content"]["value"]:
-             # If they are identical, it was likely misidentified. 
+             # If they are identical, it was likely misidentified.
              if re.search(rf'[「『"“”]{re.escape(extracted["filename"]["value"])}[」』"“”]\s*(?:を)?(?:作成|作って|作る|追記|追加)', text):
                   del extracted["content"]
 
@@ -295,7 +295,7 @@ class SemanticAnalyzer:
         # 7. Language and Commands
         lang_match = re.search(r'\b(python|csharp|javascript)\b', text, re.IGNORECASE)
         if lang_match: extracted["language"] = {"value": lang_match.group(1).lower().replace("c#", "csharp"), "confidence": base_conf}
-        
+
         if intent == INTENT_CS_TEST_RUN and not extracted.get("project_path"):
             fn = extracted.get("filename")
             if fn:
@@ -304,7 +304,7 @@ class SemanticAnalyzer:
             else:
                 res = self._resolve_from_history(history, "project_path") or self._resolve_from_history(history, "filename")
                 if res: extracted["project_path"] = res
-        
+
         cmd_match = re.search(r'「([^」]+)」\s*(?:を実行|を動かして)', text)
         if cmd_match: extracted["command"] = {"value": cmd_match.group(1), "confidence": base_conf}
 

@@ -17,21 +17,21 @@ class TestFixEngineAudit(unittest.TestCase):
         self.test_dir = tempfile.TemporaryDirectory()
         self.old_cwd = os.getcwd()
         os.chdir(self.test_dir.name)
-        
+
         # Create dummy SUT and Test files for Arrange fix test
         self.sut_file = "UserService.cs"
         self.test_file = "UserServiceTests.cs"
-        
+
         with open(self.sut_file, 'w', encoding='utf-8') as f:
             f.write("""
-            public class UserService { 
+            public class UserService {
                 private IUserRepository _repo;
-                public int CreateUser(User u) { 
-                    return _repo.Save(u); 
-                } 
+                public int CreateUser(User u) {
+                    return _repo.Save(u);
+                }
             }
             """)
-            
+
         with open(self.test_file, 'w', encoding='utf-8') as f:
             f.write("[Test] public void TestCreateUser() { }")
 
@@ -53,7 +53,7 @@ class TestFixEngineAudit(unittest.TestCase):
                 }
             ]
         }
-        
+
         target_code = {
             'file': 'UserService.cs',
             'method': 'CreateUser',
@@ -63,14 +63,14 @@ public void CreateUser(User user) {
 }
 """
         }
-        
+
         # 2. Act
         suggestions = self.engine.generate_fix_suggestions(analysis_result, target_code)
-        
+
         # 3. Assert
         self.assertEqual(len(suggestions), 1)
         suggestion = suggestions[0]
-        
+
         self.assertEqual(suggestion.type, 'logic_gap_fix')
         self.assertIn('Validate user input', suggestion.description)
         self.assertEqual(suggestion.suggested_code, '')
@@ -105,7 +105,7 @@ public void CreateUser(User user) {
                 }
             ]
         }
-        
+
         target_code = {
             'file': 'OrderService.cs',
             'method': 'CalculateTotal',
@@ -116,14 +116,14 @@ public decimal CalculateTotal(Order order) {
 }
 """
         }
-        
+
         # 2. Act
         suggestions = self.engine.generate_fix_suggestions(analysis_result, target_code)
-        
+
         # 3. Assert
         self.assertEqual(len(suggestions), 1)
         suggestion = suggestions[0]
-        
+
         self.assertTrue(suggestion.auto_applicable)
         self.assertNotIn('TODO', suggestion.suggested_code)
         self.assertEqual(
@@ -152,7 +152,7 @@ public decimal CalculateTotal(Order order) {
                 }
             }
         }
-        
+
         target_code = {
             'file': 'UserServiceTests.cs',
             'method': 'TestCreateUser',
@@ -160,17 +160,17 @@ public decimal CalculateTotal(Order order) {
         [Test]
         public void TestCreateUser() {
             var mockRepo = new Mock<IUserRepository>();
-            mockRepo.Setup(r => r.Save(It.IsAny<User>())); 
+            mockRepo.Setup(r => r.Save(It.IsAny<User>()));
             var service = new UserService(mockRepo.Object);
             var result = service.CreateUser(new User());
             Assert.AreEqual(5, result);
         }
         """
         }
-        
+
         # 2. Act
         suggestions = self.engine.generate_fix_suggestions(analysis_result, target_code)
-        
+
         self.assertEqual(len(suggestions), 1)
         suggestion = suggestions[0]
         self.assertEqual(suggestion.type, 'manual_fix')

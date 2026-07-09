@@ -8,13 +8,13 @@ class TestSemanticAnalyzerSearch(unittest.TestCase):
         # Mock task_manager
         class MockTaskManager:
             pass
-        
+
         # Mock config_manager
         class MockConfig:
             workspace_root = os.getcwd()
             custom_knowledge_path = os.path.join(workspace_root, "resources", "custom_knowledge.json")
             dictionary_db_path = os.path.join(workspace_root, "resources", "dictionary.db")
-            
+
         self.dictionary_db_path = MockConfig.dictionary_db_path
         self.analyzer = SemanticAnalyzer(MockTaskManager(), config_manager=MockConfig())
 

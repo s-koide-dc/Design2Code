@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 # src/pipeline_core/pipeline_core.py
 
 import os
 import sys
 import json
 from datetime import datetime
-from src.utils.context_utils import _get_context_summary
 
 from src.morph_analyzer.morph_analyzer import MorphAnalyzer
 from src.syntactic_analyzer.syntactic_analyzer import SyntacticAnalyzer
@@ -54,13 +53,13 @@ class Pipeline:
         self._intent_detector = None
         self._response_generator = None
         self._autonomous_learning = None
-        
+
         # 2. Setup Analyzers and Managers with injected config
         self.morph_analyzer = MorphAnalyzer(config_manager=self.config_manager)
         self.syntactic_analyzer = SyntacticAnalyzer()
         self.context_manager = ContextManager()
         self.log_manager = LogManager(config_manager=self.config_manager)
-        
+
         self._rotate_expired_logs()
 
         # Start background loading of VectorEngine using paths from config
@@ -72,35 +71,35 @@ class Pipeline:
             autonomous_learning=self.autonomous_learning,
             morph_analyzer=self.morph_analyzer,
             config_manager=self.config_manager
-        ) 
+        )
         self.task_manager = TaskManager(
-            action_executor=self.action_executor, 
+            action_executor=self.action_executor,
             log_manager=self.log_manager,
             config_manager=self.config_manager
         )
-        
+
         self.semantic_analyzer = SemanticAnalyzer(
-            task_manager=self.task_manager, 
+            task_manager=self.task_manager,
             config_manager=self.config_manager
         )
         self.semantic_analyzer.log_manager = self.log_manager # Injection
         self.action_executor.semantic_analyzer = self.semantic_analyzer
-        
+
         c_config = self.config_manager.get_section("clarification")
         _clarification_thresholds = clarification_thresholds or {
             "intent": c_config.get("intent_threshold", 0.75),
             "entity": c_config.get("entity_threshold", 0.75)
         }
         self.clarification_manager = ClarificationManager(
-            action_executor=self.action_executor, 
+            action_executor=self.action_executor,
             log_manager=self.log_manager,
             clarification_thresholds=_clarification_thresholds
         )
-        
+
         p_config = self.config_manager.get_section("planner")
         _planner_intent_threshold = planner_intent_threshold if planner_intent_threshold is not None else p_config.get("intent_threshold", 0.8)
         self.planner = Planner(
-            action_executor=self.action_executor, 
+            action_executor=self.action_executor,
             log_manager=self.log_manager,
             autonomous_learning=self.autonomous_learning,
             intent_entity_thresholds={"intent": _planner_intent_threshold, "entity": _clarification_thresholds["entity"]},
@@ -176,7 +175,7 @@ class Pipeline:
     @property
     def intent_detector(self):
         if self._intent_detector is None:
-            self._intent_detector = IntentDetector(task_manager=self.task_manager) 
+            self._intent_detector = IntentDetector(task_manager=self.task_manager)
             self._intent_detector.set_vector_engine(self.vector_engine)
             self._intent_detector.prepare_corpus_vectors(self.morph_analyzer)
             if self._autonomous_learning: self._autonomous_learning.intent_detector = self._intent_detector
@@ -197,14 +196,14 @@ class Pipeline:
     def autonomous_learning(self):
         if self._autonomous_learning is None:
             self._autonomous_learning = AutonomousLearning(
-                workspace_root=os.getcwd(), 
-                log_manager=self.log_manager, 
+                workspace_root=os.getcwd(),
+                log_manager=self.log_manager,
                 intent_detector=self._intent_detector,
                 vector_engine=self.vector_engine,
                 morph_analyzer=self.morph_analyzer
             )
         return self._autonomous_learning
-    
+
     def _log_and_return_error(self, session_id: str, message: str, level: str = "ERROR") -> dict:
         error_context = {
             "original_text": "", "session_id": session_id, "pipeline_history": [],
@@ -222,12 +221,12 @@ class Pipeline:
         """Persists the events of the current turn to a JSON file for analytics."""
         events = self.log_manager.get_events_after(start_time)
         if not events: return
-        
+
         log_dir = "logs"
         os.makedirs(log_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         log_file = os.path.join(log_dir, f"pipeline_{timestamp}.json")
-        
+
         try:
             with open(log_file, 'w', encoding='utf-8') as f:
                 for event in events:

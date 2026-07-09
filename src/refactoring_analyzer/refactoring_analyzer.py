@@ -24,16 +24,9 @@ from .metrics import (
     RefactoringJSONReporter,
     RefactoringHTMLReporter
 )
-from .detectors import (
-    LongMethodDetector,
-    DuplicateCodeDetector,
-    ComplexConditionDetector,
-    GodClassDetector
-)
-
 class RefactoringAnalyzer:
     """リファクタリング分析の中心的なコントローラー"""
-    
+
     def __init__(self, workspace_root: str = ".", log_manager=None, action_executor=None):
         self.workspace_root = workspace_root
         self.log_manager = log_manager
@@ -44,11 +37,11 @@ class RefactoringAnalyzer:
             "python": PythonRefactoringAnalyzer(self.config.get("python", {})),
             "javascript": JavaScriptRefactoringAnalyzer(self.config.get("javascript", {}))
         }
-    
+
     def _load_refactoring_config(self) -> Dict[str, Any]:
         """リファクタリング設定を読み込む"""
         config_path = os.path.join(self.workspace_root, "resources", "refactoring_config.json")
-        
+
         default_config = {
             "project_profiles": {},
             "exclusion_rules": {
@@ -84,7 +77,7 @@ class RefactoringAnalyzer:
                 "tools": ["eslint"]
             }
         }
-        
+
         try:
             if os.path.exists(config_path):
                 with open(config_path, 'r', encoding='utf-8') as f:
@@ -99,9 +92,9 @@ class RefactoringAnalyzer:
         except Exception as e:
             if self.log_manager:
                 self.log_manager.log_event("refactoring_config_error", {"error": str(e)}, "WARNING")
-        
+
         return default_config
-    
+
     def _deep_merge_config(self, base_config: Dict[str, Any], override_config: Dict[str, Any]) -> None:
         """設定の深いマージを実行"""
         for key, value in override_config.items():
@@ -115,14 +108,14 @@ class RefactoringAnalyzer:
         profile = self.config.get("project_profiles", {}).get(profile_name)
         if not profile:
             return False
-        
+
         self._deep_merge_config(self.config, profile)
         return True
 
     def analyze_project(self, project_path: str, language: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
         """プロジェクトのリファクタリング分析を実行"""
         options = options or {}
-        
+
         try:
             if self.log_manager:
                 self.log_manager.log_event("refactoring_analysis_start", {
@@ -130,32 +123,32 @@ class RefactoringAnalyzer:
                     "language": language,
                     "options": options
                 })
-            
+
             if not os.path.exists(project_path):
                 error_msg = f"プロジェクトパスが存在しません: {project_path}"
                 return {"status": "error", "message": error_msg}
-            
+
             # 1. コードスメル検出
             smell_result = self._detect_code_smells(project_path, language, options)
             if smell_result["status"] != "success":
                 return smell_result
-            
+
             # 2. リファクタリング提案生成
             suggestions = self._generate_refactoring_suggestions(smell_result["code_smells"], language, options)
-            
+
             # 3. 品質メトリクス計算
             roslyn_analysis_data = smell_result.get("roslyn_analysis") if language == "csharp" else None
             quality_metrics = self._calculate_quality_metrics(project_path, language, smell_result["code_smells"], roslyn_analysis_data)
-            
+
             # 4. 影響範囲分析
             impact_analysis = self._analyze_impact_scope(suggestions, project_path, language, roslyn_analysis_data)
-            
+
             # 5. 推奨事項生成
             recommendations = self._generate_recommendations(smell_result, suggestions, quality_metrics)
-            
+
             # 6. レポート生成
             reports = self._generate_reports(smell_result, suggestions, quality_metrics, recommendations, options)
-            
+
             # 7. 結果統合
             result = {
                 "status": "success",
@@ -171,40 +164,40 @@ class RefactoringAnalyzer:
                 "reports": reports,
                 "timestamp": datetime.now().isoformat()
             }
-            
+
             return result
         except Exception as e:
             return {"status": "error", "message": str(e)}
-    
+
     def _detect_code_smells(self, project_path: str, language: str, options: Dict[str, Any]) -> Dict[str, Any]:
         """コードスメルを検出"""
         if language not in self.analyzers:
             return {"status": "error", "message": f"サポートされていない言語です: {language}"}
-        
+
         return self.analyzers[language].detect_smells(project_path, options)
-    
+
     def _generate_refactoring_suggestions(self, code_smells: List[Dict[str, Any]], language: str, options: Dict[str, Any]) -> List[Dict[str, Any]]:
         """リファクタリング提案を生成"""
         suggestion_engine = RefactoringSuggestionEngine(language, self.config.get(language, {}))
         return suggestion_engine.generate_suggestions(code_smells, options)
-    
+
     def _calculate_quality_metrics(self, project_path: str, language: str, code_smells: List[Dict[str, Any]], roslyn_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """品質メトリクスを計算"""
         metrics_calculator = QualityMetricsCalculator(language)
         return metrics_calculator.calculate(project_path, code_smells, roslyn_data)
-    
+
     def _analyze_impact_scope(self, suggestions: List[Dict[str, Any]], project_path: str, language: str, roslyn_analysis_results: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """影響範囲を分析"""
         impact_analyzer = ImpactScopeAnalyzer(language, roslyn_analysis_results)
         return impact_analyzer.analyze(suggestions, project_path)
-    
+
     def _generate_recommendations(self, smell_result: Dict[str, Any], suggestions: List[Dict[str, Any]], quality_metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
         """推奨事項を生成"""
         recommendation_engine = RecommendationEngine()
         return recommendation_engine.generate(smell_result, suggestions, quality_metrics)
-    
-    def _generate_reports(self, smell_result: Dict[str, Any], suggestions: List[Dict[str, Any]], 
-                          quality_metrics: Dict[str, Any], recommendations: List[Dict[str, Any]], 
+
+    def _generate_reports(self, smell_result: Dict[str, Any], suggestions: List[Dict[str, Any]],
+                          quality_metrics: Dict[str, Any], recommendations: List[Dict[str, Any]],
                           options: Dict[str, Any]) -> Dict[str, str]:
         """レポートを生成"""
         output_formats = options.get("output_formats", ["json", "html"])
@@ -212,17 +205,17 @@ class RefactoringAnalyzer:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_dir = os.path.join(self.workspace_root, "refactoring_reports")
         os.makedirs(report_dir, exist_ok=True)
-        
+
         if "json" in output_formats:
             json_path = os.path.join(report_dir, f"analysis_{timestamp}.json")
             RefactoringJSONReporter().generate(json_path, smell_result, suggestions, quality_metrics, recommendations)
             reports["detailed_report"] = json_path
-        
+
         if "html" in output_formats:
             html_path = os.path.join(report_dir, f"analysis_{timestamp}.html")
             RefactoringHTMLReporter().generate(html_path, smell_result, suggestions, quality_metrics, recommendations)
             reports["summary_report"] = html_path
-            
+
         return reports
 
     def _create_analysis_summary(self, code_smells: List[Dict[str, Any]], suggestions: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -232,9 +225,9 @@ class RefactoringAnalyzer:
             severity = smell.get("severity", "medium")
             if severity in severity_counts:
                 severity_counts[severity] += 1
-        
+
         auto_fixable_count = sum(1 for sug in suggestions if sug.get("auto_fixable", False))
-        
+
         return {
             "total_smells": len(code_smells),
             "high_priority": severity_counts["high"],

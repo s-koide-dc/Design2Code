@@ -48,7 +48,7 @@ class TestSemanticMethodSearch(unittest.TestCase):
             os.environ["SKIP_VECTOR_MODEL"] = cls.original_skip_vector_model
 
     def test_file_write_search_respects_structural_capabilities(self):
-        store = MethodStore(self.cm, self.ma, vector_engine=self.ve) 
+        store = MethodStore(self.cm, self.ma, vector_engine=self.ve)
         query = "データをファイルに書き出す"
         results = store.search(
             query,

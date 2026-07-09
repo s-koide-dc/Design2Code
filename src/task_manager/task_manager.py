@@ -43,15 +43,15 @@ class TaskManager:
         from .condition_evaluator import ConditionEvaluator
         from .session_manager import SessionManager
         from types import SimpleNamespace
-        
+
         # 1. Initialize global config manager
         self.config_manager = config_manager
-        
+
         # 2. Setup internal TaskManager configuration from config_manager or defaults
         tm_config = {}
         if self.config_manager:
             tm_config = self.config_manager.get_section("task_manager")
-        
+
         # Merge with environment variables for flexibility
         self.config = SimpleNamespace(
             enable_persistence=os.getenv("TASK_PERSISTENCE_ENABLED", str(tm_config.get("enable_persistence", "false"))).lower() == "true",
@@ -63,7 +63,7 @@ class TaskManager:
             log_state_transitions=os.getenv("TASK_LOG_TRANSITIONS", str(tm_config.get("log_state_transitions", "false"))).lower() == "true",
             max_recovery_attempts=int(tm_config.get("max_recovery_attempts", 3))
         )
-        
+
         # Critical intents from safety policy if available
         if self.config_manager:
             safety_policy = self.config_manager.get_safety_policy()
@@ -77,17 +77,17 @@ class TaskManager:
             td_path = config_manager.task_definitions_path
         elif not td_path:
             td_path = os.getenv("TASK_DEFINITIONS_PATH", "resources/task_definitions.json")
-            
+
         self.task_definitions_path = td_path
-        
+
         self.action_executor = action_executor
         self.log_manager = log_manager
         self.active_tasks = {} # session_id -> current_task_context
         self.session_last_activity = {} # session_id -> timestamp
-        
+
         # メトリクス収集
         self.metrics = TaskManagerMetrics() if self.config.debug_mode else None
-        
+
         # 状態永続化
         self.persistence = TaskPersistence(
             storage_dir=self.config.persistence_dir,
@@ -119,7 +119,7 @@ class TaskManager:
 
         if not os.path.exists(filepath):
             return default_definitions
-        
+
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 loaded_definitions = json.load(f)
@@ -164,7 +164,7 @@ class TaskManager:
         elif self.config and self.config.log_state_transitions:
             # Fallback if no log_manager
             pass
-        
+
         if self.metrics:
             self.metrics.record_state_transition(session_id, from_state, to_state)
 
@@ -193,30 +193,30 @@ class TaskManager:
             dict: The updated context object, potentially with a 'task' field describing the current task state.
         """
         session_id = context.get("session_id", "default_session")
-        
+
         # セッション活動の更新
         self._update_session_activity(session_id)
-        
+
         # セッション数制限のチェック
-        if (len(self.active_tasks) >= self.config.max_active_sessions and 
+        if (len(self.active_tasks) >= self.config.max_active_sessions and
             session_id not in self.active_tasks):
             context.setdefault("errors", []).append({
                 "module": "task_manager",
                 "message": f"最大セッション数({self.config.max_active_sessions})に達しています。"
             })
             return context
-        
+
         # 定期的なクリーンアップ（10%の確率で実行）
         import random
         if random.random() < 0.1:
             self.cleanup_stale_sessions()
-        
+
         context.setdefault("errors", []) # Ensure errors list is always present
         context.setdefault("clarification_needed", False) # Ensure clarification_needed exists and is false by default
 
         intent = context["analysis"].get("intent")
         entities = context["analysis"].get("entities", {})
-        
+
         self._log_debug(f"Managing task state for session {session_id}, intent: {intent}")
 
         current_task = self.active_tasks.get(session_id)
@@ -237,7 +237,7 @@ class TaskManager:
             if fn_val:
                 intent = INTENT_FILE_CREATE
                 context["analysis"]["intent"] = INTENT_FILE_CREATE
-        
+
         # --- NEW: Propagate entities from current turn to task parameters ---
         if current_task:
             self._apply_recommended_action_metadata(current_task)
@@ -249,7 +249,7 @@ class TaskManager:
                     conf = entity_data.get("confidence", 1.0)
                 else:
                     val = entity_data
-                
+
                 if val:
                     # Update if not exists or if current is empty or if new is higher confidence
                     current_val = current_task["parameters"].get(entity_key)
@@ -265,12 +265,12 @@ class TaskManager:
             active_task = self.active_tasks.get(session_id)
             if active_task and active_task.get("clarification_needed"):
                 self._log_debug(f"Active task found with clarification needed: {active_task['name']}")
-                
+
                 # Check for user_response entity (from vector fallback) or directly use intent
                 user_response_val = RESPONSE_APPROVED if intent == INTENT_AGREE else RESPONSE_REJECTED if intent == INTENT_DISAGREE else intent
                 if isinstance(entities.get("user_response"), dict):
                     user_response_val = entities["user_response"].get("value", intent)
-                
+
                 # Temporarily store for evaluation
                 active_task["parameters"]["user_response"] = user_response_val
 
@@ -281,7 +281,7 @@ class TaskManager:
                         "task": active_task
                     }
                     transitions = clarification_task_def.get("transitions", {}).get("INIT", [])
-                    
+
                     for transition in transitions:
                         if self._evaluate_condition(transition["condition"], clarification_eval_context):
                             if transition["next_state"] == STATE_AGREED:
@@ -291,16 +291,16 @@ class TaskManager:
                                 active_task.pop("awaiting_entity", None)
                                 if not active_task.get("approval_history"): active_task["approval_history"] = []
                                 active_task["approval_history"].append({"timestamp": time.time(), "action": "APPROVED"})
-                                
+
                                 if active_task.get("type") == "COMPOUND_TASK" and active_task.get("state") == "INIT":
                                     active_task["state"] = "IN_PROGRESS"
-                                
+
                                 active_task["parameters"].pop("user_response", None)
                                 # Reset intent to trigger re-evaluation of the now-approved task
                                 context["analysis"]["intent"] = active_task["name"]
                                 context["clarification_needed"] = False
                                 return self.manage_task_state(context)
-                            
+
                             elif transition["next_state"] == STATE_DISAGREED:
                                 self.reset_task(session_id)
                                 context["task_cancelled"] = True
@@ -319,7 +319,7 @@ class TaskManager:
                 self.active_tasks[session_id] = restored_task
                 current_task = restored_task
                 self._log_debug(f"Restored task state for session {session_id}")
-        
+
         # Handle CANCEL_TASK explicitly
         if intent == INTENT_CANCEL_TASK:
             if session_id in self.active_tasks:
@@ -353,20 +353,20 @@ class TaskManager:
                             active_task_context_for_interruption = current_task
             else: # Simple Task
                 active_task_context_for_interruption = current_task
-            
+
             if active_task_context_for_interruption and active_task_context_for_interruption.get("clarification_needed"):
                 context["task"] = current_task # Keep parent task in context
                 context["task_interruption"] = True
                 context["analysis"]["intent"] = intent # Revert intent to conversational for Pipeline
-                
+
                 # メトリクス記録
                 if self.metrics:
                     self.metrics.record_interruption(session_id, "CONVERSATIONAL_DURING_CLARIFICATION")
-                
+
                 # NOTE: We NO LONGER set context["response"] here.
                 # Let ResponseGenerator handle the conversational response first.
                 # The task state is preserved, and clarification_needed remains true.
-                
+
                 # Set clarification_needed for early return
                 self._update_clarification_status(context)
                 return context
@@ -395,7 +395,7 @@ class TaskManager:
                             "task": active_task
                         }
                         transitions = clarification_task_def.get("transitions", {}).get("INIT", [])
-                        
+
                         for transition in transitions:
                             if self._evaluate_condition(transition["condition"], clarification_eval_context):
                                 self._log_debug(f"Transition condition met: {transition['next_state']}")
@@ -404,7 +404,7 @@ class TaskManager:
                                     # User agreed, clear clarification needed flags and re-evaluate the original task
                                     active_task["clarification_needed"] = False
                                     active_task["clarification_message"] = None
-                                    
+
                                     # 承認履歴の記録
                                     if not active_task.get("approval_history"):
                                         active_task["approval_history"] = []
@@ -414,11 +414,11 @@ class TaskManager:
                                         "task_type": active_task.get("type", "SIMPLE_TASK"),
                                         "task_name": active_task.get("name")
                                     })
-                                    
+
                                     # For compound tasks, set state to IN_PROGRESS after overall approval
                                     if active_task.get("type") == "COMPOUND_TASK" and active_task.get("state") == "INIT":
                                         active_task["state"] = "IN_PROGRESS"
-                                    
+
                                     # For compound tasks, also clear subtask clarification flags
                                     if active_task.get("type") == "COMPOUND_TASK":
                                         current_subtask_index = active_task.get("current_subtask_index", 0)
@@ -431,11 +431,11 @@ class TaskManager:
                                                 if subtask.get("clarification_needed"):
                                                     subtask["clarification_needed"] = False
                                                     subtask["clarification_message"] = None
-                                    
+
                                     # Remove user_response parameter from active task
                                     active_task["parameters"].pop("user_response", None)
                                     # Recursively call manage_task_state to re-process the active task, now that it's agreed
-                                    
+
                                     # 複合タスクの場合は、現在のサブタスクのインテントを設定
                                     if active_task.get("type") == "COMPOUND_TASK":
                                         current_subtask_index = active_task.get("current_subtask_index", 0)
@@ -453,17 +453,17 @@ class TaskManager:
                                     else:
                                         # 単純タスクの場合は、タスクのパラメータを使用
                                         context["analysis"]["entities"] = active_task["parameters"]
-                                    
+
                                     # Remove the clarification_needed from the input context for this recursive call
                                     context["clarification_needed"] = False
-                                    
+
                                     # If action_result is present, process it after approval
                                     if context.get("action_result"):
                                         # Process action result first, then return directly
                                         return self.update_task_after_execution(context)
-                                    
+
                                     return self.manage_task_state(context) # Recursive call
-                                
+
                                 elif transition["next_state"] == STATE_DISAGREED:
                                     # User disagreed, cancel the active task
                                     # 拒否履歴の記録
@@ -475,7 +475,7 @@ class TaskManager:
                                         "task_type": active_task.get("type", "SIMPLE_TASK"),
                                         "task_name": active_task.get("name")
                                     })
-                                    
+
                                     self.reset_task(session_id)
                                     context["task_cancelled"] = True
                                     context["clarification_needed"] = False # Clarification handled, no longer needed
@@ -486,7 +486,7 @@ class TaskManager:
                                     return context
             # If CLARIFICATION_RESPONSE intent but no active task or no clear response, fall through
             # to regular processing, which might lead to clarification about the clarification.
-        
+
         # Determine the effective intent for task management
         effective_intent = intent # Start with the current turn's intent
 
@@ -516,16 +516,16 @@ class TaskManager:
                     # If it has entities (e.g., "test.txt" -> filename), it's likely a slot-filling answer
                     # that was misclassified as GENERAL/conversational.
                     has_new_entities = bool(context["analysis"].get("entities"))
-                    
+
                     if not has_new_entities:
                         # Treat as simple interruption: Return context with task info but without processing this input
                         context["task"] = current_task
                         context["task_interruption"] = True # Signal pipeline to interpret as conversation
-                        
+
                         # メトリクス記録
                         if self.metrics:
                             self.metrics.record_interruption(session_id, "CONVERSATIONAL_NO_ENTITIES")
-                        
+
                         # Set clarification_needed based on current task state
                         if current_task.get("clarification_needed"):
                             context["clarification_needed"] = True
@@ -575,7 +575,7 @@ class TaskManager:
                     "clarification_type": "APPROVAL" if task_definition.get("require_overall_approval", True) else None
                 }
                 self._apply_recommended_action_metadata(current_task, effective_intent)
-                
+
                 # Propagate entities to the new task immediately
                 for entity_key, entity_data in entities.items():
                     if entity_data.get("value"):
@@ -584,7 +584,7 @@ class TaskManager:
                 # デバッグ情報
                 require_approval = task_definition.get("require_overall_approval", True)
                 self._log_debug(f"Compound task {effective_intent}: require_overall_approval={require_approval}, clarification_needed={current_task['clarification_needed']}")
-                
+
                 if task_definition.get("require_overall_approval", True):
                     context["clarification_needed"] = True # Set top-level clarification_needed only if approval is required
                     # 複合タスクの承認メッセージをcontextにも設定
@@ -611,23 +611,23 @@ class TaskManager:
                 }
                 self._apply_recommended_action_metadata(current_task, effective_intent)
             self.active_tasks[session_id] = current_task
-            
+
             # メトリクス記録
             if self.metrics:
                 self.metrics.start_task(session_id, effective_intent, task_definition.get("type", "SIMPLE_TASK"))
-            
+
             # 永続化
             if self.persistence:
                 self.persistence.save_task_state(session_id, current_task)
-            
+
             context["analysis"]["task_initiated"] = True # For logging/tracking
             self._log_debug(f"Created new task: {effective_intent} for session {session_id}")
-            
+
             for entity_key, entity_data in entities.items():
                 if entity_data.get("value"):
                     current_task["parameters"][entity_key] = entity_data
             # --- END NEW ---
-        
+
         if current_task:
             context["task"] = current_task # Set it early so _evaluate_condition can see it
             task_name = current_task["name"]
@@ -650,7 +650,7 @@ class TaskManager:
                     # Overall approval is needed, return early
                     self._update_clarification_status(context)
                     return context
-                
+
                 sub_task_index = current_task.get("current_subtask_index", 0)
 
                 # If we've completed all subtasks, the compound task is effectively done for state management
@@ -658,7 +658,7 @@ class TaskManager:
                     # All sub-tasks are done, no more state management needed here.
                     self._update_clarification_status(context)
                     return context
-                
+
                 sub_task = current_task["subtasks"][sub_task_index]
                 self._apply_recommended_action_metadata(sub_task, sub_task.get("name"))
                 sub_task_def = self.task_definitions.get(sub_task["name"])
@@ -673,11 +673,11 @@ class TaskManager:
                     return context
 
                 if sub_task: # Process current sub-task regardless of state
-                    
+
                     # 1. Propagate entities from parent and current turn (only if not already ready)
                     if sub_task.get("state") in ["PENDING", "INIT"]:
                         sub_task.setdefault("parameters", {})
-                        
+
                         # Use parameter_mapping from the parent task's definition
                         parent_task_def = self.task_definitions.get(current_task["name"], {})
                         subtask_info_from_def = parent_task_def.get("subtasks", [])[sub_task_index]
@@ -691,13 +691,13 @@ class TaskManager:
                         for entity_key, entity_data in entities.items():
                             if entity_data.get("value"):
                                 sub_task["parameters"][entity_key] = entity_data
-                                
+
                         # 2. Create a temporary context for evaluating the sub-task's state
                         # We create a new context for the sub_task evaluation to avoid side-effects
                         sub_task_eval_context = {
                             "analysis": {"entities": sub_task["parameters"]},
                             # _evaluate_condition uses context['task']['parameters'] as a fallback
-                            "task": sub_task 
+                            "task": sub_task
                         }
 
                         # 3. Evaluate transitions for the sub-task
@@ -713,19 +713,19 @@ class TaskManager:
                                 sub_task["clarification_needed"] = False # Reset on successful transition
                                 sub_task["clarification_message"] = None
                                 sub_task["clarification_type"] = None
-                                
+
                                 # ログ記録
                                 self._log_state_transition(session_id, old_state, new_state, f"{current_task['name']}.{sub_task['name']}")
-                                
+
                                 # 永続化
                                 if self.persistence:
                                     self.persistence.save_task_state(session_id, current_task)
-                                break 
-                    
+                                break
+
                     # --- NEW: Level 2 Approval Check for Critical Subtasks (check regardless of state transition) ---
 
-                    if (sub_task["state"] == "READY_FOR_EXECUTION" and 
-                        sub_task["name"] in self.CRITICAL_INTENTS and 
+                    if (sub_task["state"] == "READY_FOR_EXECUTION" and
+                        sub_task["name"] in self.CRITICAL_INTENTS and
                         not sub_task.get("clarification_needed", False) and
                         current_task.get("state") != "IN_PROGRESS"):  # Skip if overall task already approved
 
@@ -740,7 +740,7 @@ class TaskManager:
                         sub_task["clarification_type"] = "APPROVAL"
                         current_task["clarification_type"] = "APPROVAL"
                         context["clarification_needed"] = True # <--- This line is supposed to set it to True
-                        
+
                         # メトリクス記録
                         if self.metrics:
                             self.metrics.record_approval_request(session_id, "CRITICAL_SUBTASK")
@@ -752,7 +752,7 @@ class TaskManager:
                     if not context.get("clarification_needed") and sub_task["state"] != "READY_FOR_EXECUTION":
                         required = sub_task_def.get("required_entities", [])
                         missing_entities = [req for req in required if req not in sub_task["parameters"] or not sub_task["parameters"].get(req)]
-                        
+
                         if missing_entities:
                             first_missing = missing_entities[0]
                             clarification_msgs = sub_task_def.get("clarification_messages", {})
@@ -781,7 +781,7 @@ class TaskManager:
                 # Propagate clarification_needed from the current sub_task to the top-level context
                 if sub_task.get("clarification_needed"):
                     context["clarification_needed"] = True
-                
+
                 return context
             # --- END COMPOUND TASK LOGIC ---
 
@@ -792,11 +792,11 @@ class TaskManager:
                     current_task["parameters"][entity_key] = entity_data
                 elif isinstance(entity_data, str):
                     current_task["parameters"][entity_key] = {"value": entity_data, "confidence": 1.0}
-            
+
             # 2. Transition state for the simple task SECOND
             current_state = current_task["state"]
             transitions = task_def.get("transitions", {}).get(current_state, [])
-            
+
             for transition in transitions:
                 if self._evaluate_condition(transition["condition"], context):
                     old_state = current_task.get("state", "INIT")
@@ -809,7 +809,7 @@ class TaskManager:
                     self._log_state_transition(session_id, old_state, new_state, current_task["name"])
                     if self.persistence: self.persistence.save_task_state(session_id, current_task)
                     break
-            
+
             # 3. Check for missing entities THIRD
             if current_task["state"] != "READY_FOR_EXECUTION":
 
@@ -831,17 +831,17 @@ class TaskManager:
                     current_task["clarification_type"] = "MISSING_ENTITY"
                     current_task["awaiting_entity"] = first_missing
                     context["clarification_needed"] = True
-                    
+
                     # LOG
                     if self.log_manager:
                         self.log_manager.log_event("clarification_needed", {"message": message}, level="INFO")
-                    
+
                     # --- NEW: Flag the specific entity we are waiting for ---
                     context["analysis"]["awaiting_entity"] = first_missing
                     # -------------------------------------------------------
 
 
-                    
+
                     # メトリクス記録
                     if self.metrics:
                         self.metrics.record_approval_request(session_id, "MISSING_ENTITY")
@@ -877,12 +877,12 @@ class TaskManager:
                 sub_task_index = current_task.get("current_subtask_index", 0)
                 if sub_task_index < len(current_task["subtasks"]):
                     active_subtask = current_task["subtasks"][sub_task_index]
-                    
+
                     if action_result.get("status") == "success":
                         active_subtask["state"] = "COMPLETED"
                         # Move to next subtask
                         current_task["current_subtask_index"] += 1
-                        
+
                         # Check if all subtasks are completed
                         if current_task["current_subtask_index"] >= len(current_task["subtasks"]):
                             current_task["state"] = "COMPLETED"
@@ -901,10 +901,10 @@ class TaskManager:
                     current_task["state"] = "COMPLETED"
                 else:
                     current_task["state"] = "FAILED"
-            
+
             # Update context's task field with the latest state
-            context["task"] = current_task 
-            
+            context["task"] = current_task
+
             # If the main task (simple or compound) is completed or failed, remove it from active tasks
             if current_task["state"] in ["COMPLETED", "FAILED"]:
                 self.reset_task(session_id)
@@ -916,20 +916,20 @@ class TaskManager:
         if session_id in self.active_tasks:
             task = self.active_tasks[session_id]
             task_name = task.get("name", "unknown")
-            
+
             self._log_debug(f"Resetting task {task_name} for session {session_id}")
-            
+
             # メトリクス記録
             if self.metrics:
                 final_state = task.get("state", "UNKNOWN")
                 self.metrics.complete_task(session_id, final_state)
-            
+
             # 永続化状態の削除
             if self.persistence:
                 self.persistence.delete_task_state(session_id)
-            
+
             del self.active_tasks[session_id]
-            
+
         if session_id in self.session_last_activity:
             del self.session_last_activity[session_id]
 
@@ -942,12 +942,12 @@ class TaskManager:
         import time
         current_time = time.time()
         timeout_seconds = self.config.session_timeout_minutes * 60
-        
+
         stale_sessions = []
         for session_id, last_activity in self.session_last_activity.items():
             if current_time - last_activity > timeout_seconds:
                 stale_sessions.append(session_id)
-        
+
         for session_id in stale_sessions:
             task = self.active_tasks.get(session_id)
             if task and task.get("clarification_needed"):
@@ -958,7 +958,7 @@ class TaskManager:
             else:
                 self._log_debug(f"Cleaning up stale session: {session_id}")
             self.reset_task(session_id)
-        
+
         # メトリクスのクリーンアップ
         if self.metrics:
             cleaned_count = self.metrics.cleanup_stale_tasks(
@@ -966,20 +966,20 @@ class TaskManager:
             )
             if cleaned_count > 0:
                 self._log_debug(f"Cleaned up {cleaned_count} stale task metrics")
-        
+
         # 永続化ファイルのクリーンアップ
         if self.persistence:
             self.persistence.cleanup_old_states()
-        
+
         return len(stale_sessions)
 
     def get_session_stats(self) -> dict:
         """セッション統計の取得"""
         stats = self.session_manager.get_stats()
-        
+
         if self.metrics:
             stats.update(self.metrics.get_summary_stats())
-        
+
         return stats
 
     def get_session_id(self, context: dict) -> str:
@@ -1008,31 +1008,31 @@ class TaskManager:
     def force_cleanup_session(self, session_id: str) -> bool:
         """
         指定セッションを強制的にクリーンアップ
-        
+
         Args:
             session_id: クリーンアップするセッションID
-            
+
         Returns:
             bool: クリーンアップが実行されたかどうか
         """
         if session_id in self.active_tasks:
             self._log_debug(f"Force cleaning up session: {session_id}")
-            
+
             # メトリクス記録
             if self.metrics:
                 self.metrics.complete_task(session_id, "FORCE_CLEANUP")
-            
+
             # 永続化状態の削除
             if self.persistence:
                 self.persistence.delete_task_state(session_id)
-            
+
             del self.active_tasks[session_id]
-            
+
             if session_id in self.session_last_activity:
                 del self.session_last_activity[session_id]
-            
+
             return True
-        
+
         return False
 
     def create_recovery_task(self, session_id: str, context: dict) -> dict:
@@ -1049,19 +1049,19 @@ class TaskManager:
             attempts = self.active_tasks[session_id].get("recovery_attempts", 0)
 
         self._log_debug(f"Creating recovery task for session {session_id}, attempt {attempts + 1}")
-        
+
         # 回復タスクの意図を設定
         recovery_intent = INTENT_RECOVERY_FROM_TEST_FAILURE # 現時点ではテスト失敗に特化
-        
+
         # 既存のタスクがあればリセット
         self.reset_task(session_id)
-            
+
         # 必要なエンティティをコンテキストから抽出
         entities = {}
         # テストファイル名の抽出（CS_TEST_RUN 等の結果に含まれる可能性がある）
         test_file = context.get("analysis", {}).get("entities", {}).get("filename", {}).get("value") or \
                     context.get("analysis", {}).get("entities", {}).get("project_path", {}).get("value")
-        
+
         if test_file:
             entities["test_file"] = {"value": test_file, "confidence": 1.0}
             # project_path も必要
@@ -1080,9 +1080,9 @@ class TaskManager:
             "history": context.get("history", []),
             "errors": []
         }
-        
+
         updated_context = self.manage_task_state(dummy_context)
-        
+
         # 試行回数をインクリメントして設定
         if session_id in self.active_tasks:
             self.active_tasks[session_id]["recovery_attempts"] = attempts + 1
@@ -1091,7 +1091,7 @@ class TaskManager:
         context["task"] = updated_context.get("task")
         context["clarification_needed"] = updated_context.get("clarification_needed")
         context["response"] = updated_context.get("response")
-        
+
         self._log_debug(f"Recovery task '{recovery_intent}' initiated.")
         return context
 
@@ -1105,10 +1105,10 @@ class TaskManager:
     def get_memory_usage_stats(self) -> dict:
         """メモリ使用量統計の取得"""
         stats = self.session_manager.get_memory_usage_stats()
-        
+
         if self.metrics:
             stats["metrics_memory"] = self.metrics.get_summary_stats()
-        
+
         return stats
 
     def validate_task_integrity(self, session_id: str) -> dict:

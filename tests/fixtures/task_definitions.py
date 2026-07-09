@@ -108,10 +108,10 @@ COMMON_TASK_DEFINITIONS = {
 def get_test_definitions(**overrides):
     """
     テスト用のタスク定義を取得
-    
+
     Args:
         **overrides: 特定のタスク定義をオーバーライドする場合
-        
+
     Returns:
         dict: テスト用タスク定義
     """

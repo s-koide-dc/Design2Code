@@ -11,7 +11,7 @@ class TestLogManager(unittest.TestCase):
     def setUp(self):
         self.test_log_dir = "test_logs_temp"
         self.log_manager = LogManager(log_dir=self.test_log_dir, log_level="DEBUG")
-        
+
     def tearDown(self):
         if os.path.exists(self.test_log_dir):
             shutil.rmtree(self.test_log_dir)
@@ -27,7 +27,7 @@ class TestLogManager(unittest.TestCase):
             text_log_content = f.read()
             self.assertIn("intent_detection", text_log_content)
             self.assertIn("FILE_CREATE", text_log_content)
-        
+
         with open(self.log_manager.json_log_file_path, 'r', encoding='utf-8') as f:
             json_log_content = f.read()
             self.assertIn('"event_type": "pipeline_stage_completion"', json_log_content)
@@ -41,7 +41,7 @@ class TestLogManager(unittest.TestCase):
             text_log_content = f.read()
             self.assertIn("action_execution", text_log_content)
             self.assertIn("success", text_log_content)
-        
+
         with open(self.log_manager.json_log_file_path, 'r', encoding='utf-8') as f:
             json_log_content = f.read()
             self.assertIn('"action": "_create_file"', json_log_content)
@@ -61,7 +61,7 @@ class TestLogManager(unittest.TestCase):
             text_log_content = f.read()
             self.assertIn("action_execution", text_log_content)
             self.assertIn("ERROR", text_log_content)
-        
+
         with open(self.log_manager.json_log_file_path, 'r', encoding='utf-8') as f:
             json_log_content = f.read()
             self.assertIn('"status": "error"', json_log_content)

@@ -28,24 +28,24 @@ class MethodHarvester:
 
         new_methods = []
         details_dir = os.path.join(analysis_output_path, "details")
-        
+
         for obj in manifest.get("objects", []):
             if obj.get("type") not in ["Class", "Record", "Struct"]:
                 continue
-            
+
             detail_file = os.path.join(details_dir, f"{obj['id']}.json")
             if not os.path.exists(detail_file):
                 continue
-                
+
             with open(detail_file, 'r', encoding='utf-8') as f:
                 detail = json.load(f)
-            
+
             for m in detail.get("methods", []):
                 # フィルタリング基準
                 cc = m.get("metrics", {}).get("cyclomaticComplexity", 0)
                 if cc > 5 or cc == 0: continue # 複雑すぎる、または空のメソッドは除外
                 if m.get("accessibility") != "Public": continue # 公開メソッドのみ
-                
+
                 # 部品化
                 method_entry = self._create_method_entry(m, detail.get("fullName"), detail.get("usings", []))
                 if method_entry is not None:
@@ -55,7 +55,7 @@ class MethodHarvester:
         store = MethodStore(config=self.config_manager)
         for nm in new_methods:
             store.add_method(nm, overwrite=True)
-            
+
         return {"status": "success", "count": len(new_methods), "policy_audit": self.policy.get_audit_summary()}
 
     def _create_method_entry(self, m_detail: Dict[str, Any], class_full_name: str, usings: List[str] = None) -> Optional[Dict[Any, Any]]:
@@ -71,14 +71,14 @@ class MethodHarvester:
 
         is_static = "static" in m_detail.get("modifiers", [])
         prefix = "" if is_static else "_service."
-        
+
         call_params = ", ".join([f"{{{p['name']}}}" for p in params])
         code_template = f"{prefix}{m_detail['name']}({call_params})"
 
         namespace = class_full_name.rsplit(".", 1)[0] if "." in class_full_name else ""
         raw_code = m_detail.get("bodyCode", "")
         code_body = raw_code
-        
+
         if namespace and raw_code:
             # Keep the full body unless an explicit extraction is provided upstream.
             code_body = raw_code

@@ -67,12 +67,12 @@ class CompilationVerifier:
     def initialize_sandbox(self, work_dir: str, dependencies: List[Dict[str, str]] = None) -> bool:
         """指定されたディレクトリにプロジェクトを作成し、Restoreを実行して準備する"""
         os.makedirs(work_dir, exist_ok=True)
-        
+
         # プロジェクトファイルの作成
         package_refs = ""
         default_deps = list(self.default_deps)
         final_deps, _ = self._merge_deps(default_deps, dependencies)
-        
+
         for dep in final_deps:
             ver = dep.get("version", "*")
             package_refs += f'    <PackageReference Include="{dep["name"]}" Version="{ver}" />\n'
@@ -94,7 +94,7 @@ class CompilationVerifier:
 """
         with open(target_csproj, 'w', encoding='utf-8') as f:
             f.write(csproj_content)
-            
+
         # ダミーの空ファイルを生成してRestoreを走らせる
         with open(os.path.join(work_dir, "GeneratedCode.cs"), 'w', encoding='utf-8') as f:
             f.write("// Initializing\npublic class Init {}")
@@ -107,7 +107,7 @@ class CompilationVerifier:
             text=True,
             timeout=60
         )
-        
+
         if result.returncode == 0:
             self._initialized_dirs.add(work_dir)
             return True
@@ -115,11 +115,11 @@ class CompilationVerifier:
 
     def verify(self, source_code: str, dependencies: List[Dict[str, str]] = None, work_dir: str = None) -> Dict[str, Any]:
         """サンドボックス環境でコードをビルドし、結果を返す"""
-        
+
         # 1. 作業ディレクトリの準備
         temp_dir = work_dir or tempfile.mkdtemp(prefix="cs_sandbox_")
         os.makedirs(temp_dir, exist_ok=True)
-        
+
         try:
             # 1.1. ベース・サンドボックスの適用 (高速化)
             is_fast_track = False
@@ -137,20 +137,20 @@ class CompilationVerifier:
             # 依存関係の構築
             package_refs = ""
             default_deps = list(self.default_deps)
-            
+
             # マージ (指定がない場合はデフォルトのみ)
             final_deps, deps_changed = self._merge_deps(default_deps, dependencies)
             if deps_changed:
                 # 依存が増減/バージョン変更される場合は restore が必要
                 is_fast_track = False
-            
+
             for dep in final_deps:
                 ver = dep.get("version", "*") # バージョン指定がなければ最新
                 package_refs += f'    <PackageReference Include="{dep["name"]}" Version="{ver}" />\n'
 
             # 2. プロジェクトの初期化
             target_csproj = os.path.join(temp_dir, 'Sandbox.csproj')
-            
+
             # 依存関係に変更があるか、csproj が存在しない場合は作成
             csproj_content = f"""<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -173,7 +173,7 @@ class CompilationVerifier:
                 with open(target_csproj, 'r', encoding='utf-8') as f:
                     if f.read() != csproj_content:
                         should_write_csproj = True
-            
+
             if should_write_csproj:
                 with open(target_csproj, 'w', encoding='utf-8') as f:
                     f.write(csproj_content)
@@ -190,7 +190,7 @@ class CompilationVerifier:
             build_cmd = [self.dotnet_path, 'build', '--verbosity', 'quiet', '--nologo']
             if is_fast_track:
                 build_cmd.append('--no-restore')
-                
+
             result = subprocess.run(
                 build_cmd,
                 cwd=temp_dir,
@@ -202,7 +202,7 @@ class CompilationVerifier:
             # 5. 結果の解析
             is_valid = (result.returncode == 0)
             errors = self._parse_errors(result.stdout + result.stderr)
-            
+
             # ビルド成功時はエラーがあっても（警告等）成功とみなす
             if is_valid:
                 return {
@@ -210,7 +210,7 @@ class CompilationVerifier:
                     'errors': [],
                     'stdout': result.stdout
                 }
-            
+
             return {
                 'valid': False,
                 'errors': errors,
@@ -234,12 +234,12 @@ class CompilationVerifier:
         """コードが完全なクラス定義を含まない場合、ラップする"""
         if "class " in code:
             return code
-            
+
         # using句とそれ以外を分離
         lines = code.split('\n')
         usings = [line for line in lines if line.strip().startswith("using ")]
         rest = [line for line in lines if not line.strip().startswith("using ")]
-        
+
         wrapped = "\n".join(usings) + "\n\n"
         wrapped += "public class Sandbox {\n"
         wrapped += "    private static dynamic _service = null;\n" # ダミー

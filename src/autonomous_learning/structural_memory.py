@@ -2,7 +2,6 @@
 import os
 import json
 import numpy as np
-import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -15,7 +14,7 @@ class StructuralMemory(SemanticSearchBase):
     プロジェクトの構造情報（クラス・メソッドの役割）を保持し、
     セマンティック検索を可能にするクラス。
     """
-    
+
     def __init__(self, storage_dir: str, config_manager=None, vector_engine=None, morph_analyzer=None, index_on_init: bool = True):
         root = config_manager.workspace_root if config_manager else os.getcwd()
         super().__init__("structural_memory", storage_dir, vector_engine, morph_analyzer, workspace_root=root)
@@ -52,7 +51,7 @@ class StructuralMemory(SemanticSearchBase):
                 return str(value)
             except Exception:
                 return fallback
-        
+
         workspace_path = Path(self.workspace_root)
         src_dir = workspace_path / 'src'
         if not src_dir.exists():
@@ -82,7 +81,7 @@ class StructuralMemory(SemanticSearchBase):
                     os.remove(self.collection.vector_path)
                 except (FileNotFoundError, PermissionError):
                     pass
-        
+
         batch_ids = []
         batch_vectors = []
         batch_items = []
@@ -91,32 +90,32 @@ class StructuralMemory(SemanticSearchBase):
         for root, dirs, files in os.walk(src_dir):
             # 27.320: Exclude directories that cause logical pollution or noise
             dirs[:] = [d for d in dirs if d not in ["tests", "scenarios", "obj", "bin", ".git", ".venv"]]
-            
+
             for file in files:
                 if file.endswith(('.py', '.cs')):
                     file_path = Path(root) / file
                     rel_path = file_path.relative_to(workspace_path)
-                    
+
                     try:
                         ext = os.path.splitext(file)[1].lower()
                         lang = 'python' if ext == '.py' else 'csharp'
-                        
+
                         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                             content = f.read()
-                        
+
                         analysis_res = self.ast_analyzer.analyze_code_structure(content, language=lang)
                         if analysis_res.get('status') != 'success':
                             continue
-                            
+
                         structure = analysis_res.get('structure', {})
-                        
+
                         for cls in structure.get('classes', []):
                             if not isinstance(cls, dict): continue
                             cls_name = _normalize_id(cls.get('name', 'Unknown'), "Unknown")
                             summary = f"Class {cls_name} in {rel_path}. "
                             if cls.get('docstring'):
                                 summary += f"Description: {cls['docstring']} "
-                            
+
                             methods = cls.get('methods', [])
                             properties = cls.get('properties', [])
                             if methods:
@@ -140,7 +139,7 @@ class StructuralMemory(SemanticSearchBase):
                                     prop_names.append(p_name)
                                 if prop_names:
                                     summary += f"Contains properties: {', '.join(prop_names)}. "
-                            
+
                             vec = self.vectorize_text(summary)
                             if vec is None: vec = np.zeros(300)
 
@@ -172,7 +171,7 @@ class StructuralMemory(SemanticSearchBase):
                                 full_m_name = f"{cls_name}.{m_name}"
                                 m_summary = f"Method {m_name} of class {cls_name}. "
                                 if m.get('docstring'): m_summary += f"Description: {m.get('docstring')}"
-                                
+
                                 m_vec = self.vectorize_text(m_summary)
                                 if m_vec is None: m_vec = np.zeros(300)
 
@@ -213,17 +212,17 @@ class StructuralMemory(SemanticSearchBase):
                                         'structural_fingerprint'
                                     ),
                                 })
-                        
+
                         for func in structure.get('functions', []):
                             if not isinstance(func, dict): continue
                             func_name = _normalize_id(func.get('name', 'Unknown'), "Unknown")
                             summary = f"Function {func_name} in {rel_path}. "
                             if func.get('docstring'):
                                 summary += f"Description: {func['docstring']}"
-                            
+
                             vec = self.vectorize_text(summary)
                             if vec is None: vec = np.zeros(300)
-                            
+
                             function_symbol_id = f"{rel_path}::{func_name}"
                             batch_ids.append(function_symbol_id)
                             batch_vectors.append(vec)
@@ -259,7 +258,7 @@ class StructuralMemory(SemanticSearchBase):
                                     'structural_fingerprint'
                                 ),
                             })
-                                
+
                     except Exception as e:
                         self.logger.warning(f"Failed to index {file_path}: {e}")
 
@@ -267,7 +266,7 @@ class StructuralMemory(SemanticSearchBase):
             self.collection.upsert(batch_ids, batch_vectors, batch_items)
             self.items = self.collection.items
             self.save_memory()
-        
+
         self.logger.info(f"Indexed {len(self.items)} components.")
 
     def search_component(
@@ -386,21 +385,21 @@ class StructuralMemory(SemanticSearchBase):
         for item in self.items:
             if item.get("type") == "class" and item.get("name") == class_name:
                 return item.get("properties")
-        
+
         return None
 
     def get_method_code(self, item: Dict[str, Any]) -> Optional[str]:
         """指定されたアイテム（メソッド）の実際のソースコードを取得する"""
         file_rel_path = item.get("file")
         if not file_rel_path: return None
-        
+
         abs_path = os.path.join(self.workspace_root, file_rel_path)
         if not os.path.exists(abs_path): return None
-        
+
         try:
             with open(abs_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
-            
+
             start_line = item.get('start_line')
             end_line = item.get('end_line')
             if not isinstance(start_line, int) or not isinstance(end_line, int):
@@ -411,8 +410,8 @@ class StructuralMemory(SemanticSearchBase):
             if end_line > len(lines):
                 return None
             return "\n".join(lines[start_line - 1:end_line])
-            
+
         except Exception as e:
             self.logger.error(f"Failed to get code for {item.get('name')}: {e}")
-        
+
         return None

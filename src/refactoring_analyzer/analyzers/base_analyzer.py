@@ -3,11 +3,10 @@
 
 import os
 from typing import Dict, List, Any
-from ..detectors import LongMethodDetector, DuplicateCodeDetector, ComplexConditionDetector, GodClassDetector
 
 class BaseRefactoringAnalyzer:
     """リファクタリング分析器の基底クラス"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.analysis_diagnostics: List[Dict[str, str]] = []
@@ -23,19 +22,19 @@ class BaseRefactoringAnalyzer:
             diagnostic["detector"] = detector
         if diagnostic not in self.analysis_diagnostics:
             self.analysis_diagnostics.append(diagnostic)
-    
+
     def _initialize_detectors(self) -> Dict[str, Any]:
         """検出器を初期化（サブクラスで実装）"""
         raise NotImplementedError
-    
+
     def detect_smells(self, project_path: str, options: Dict[str, Any]) -> Dict[str, Any]:
         """コードスメルを検出（サブクラスで実装）"""
         raise NotImplementedError
-    
+
     def _safe_analyze_file(self, file_path: str, project_root: str) -> List[Dict[str, Any]]:
         """安全なファイル分析（エラーハンドリング強化版）"""
         smells = []
-        
+
         # ファイルサイズチェック（10MB制限）
         try:
             file_size = os.path.getsize(file_path)
@@ -76,34 +75,34 @@ class BaseRefactoringAnalyzer:
                     type(exc).__name__,
                     detector=detector_name,
                 )
-        
+
         return smells
-    
+
     def _should_exclude_file(self, file_path: str, content: str = None) -> bool:
         """ファイルを除外すべきかどうかを判定"""
         exclusion_rules = self.config.get("exclusion_rules", {})
-        
+
         # ファイルパターンによる除外
         file_patterns = exclusion_rules.get("file_patterns", [])
         for pattern in file_patterns:
             if self._match_pattern(file_path, pattern):
                 return True
-        
+
         # ディレクトリパターンによる除外
         dir_patterns = exclusion_rules.get("directory_patterns", [])
         for pattern in dir_patterns:
             if pattern in file_path.replace("\\", "/"):
                 return True
-        
+
         # コンテンツパターンによる除外
         if content:
             content_patterns = exclusion_rules.get("content_patterns", [])
             for pattern in content_patterns:
                 if pattern in content:
                     return True
-        
+
         return False
-    
+
     def _match_pattern(self, file_path: str, pattern: str) -> bool:
         """パターンマッチングを実行"""
         import fnmatch

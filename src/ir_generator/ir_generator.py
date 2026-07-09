@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
 import os
 import copy
 from typing import List, Dict, Any, Tuple, Optional
@@ -131,7 +130,7 @@ class IRGenerator:
         self.config = config
         self.morph_analyzer = morph_analyzer or MorphAnalyzer(config_manager=config)
         self.matcher = matcher
-        self.ukb = knowledge_base 
+        self.ukb = knowledge_base
         self.method_store = method_store
         self.logic_auditor = LogicAuditor(
             morph_analyzer=self.morph_analyzer,
@@ -195,7 +194,7 @@ class IRGenerator:
             heuristics = self.ukb.get("entity_heuristics", {}) if (self.ukb and hasattr(self.ukb, 'get')) else {}
             if not isinstance(heuristics, dict):
                 heuristics = {}
-            
+
             step_intent_tag = raw_step.get("intent") if isinstance(raw_step, dict) else None
             if isinstance(step_intent_tag, str) and step_intent_tag in [INTENT_GENERAL, INTENT_ACTION, ""]:
                 step_intent_tag = None
@@ -203,7 +202,7 @@ class IRGenerator:
             source_kind = raw_step.get("source_kind") if isinstance(raw_step, dict) else None
             if not source_kind and source_ref:
                 source_kind = source_map.get(source_ref)
-            
+
             # 27.422: Infer source_kind from extension if missing
             if not source_kind and source_ref:
                 if any(ext in str(source_ref).lower() for ext in [".json", ".txt", ".csv", ".xml"]):
@@ -216,7 +215,7 @@ class IRGenerator:
                 c_text = c_info["text"]; c_type = c_info["type"]
                 step_entry = copy.deepcopy(raw_step) if isinstance(raw_step, dict) else {"text": c_text}
                 step_entry["text"] = c_text
-                
+
                 # 27.154: Pass source_kind to analyze_step to ensure intent elevation
                 analysis = self._analyze_step_integrated(
                     c_text,
@@ -225,7 +224,7 @@ class IRGenerator:
                     source_kind=source_kind,
                     output_type_hint=step_entry.get("output_type"),
                 )
-                
+
                 node_type = step_entry.get("kind") or c_type or analysis["node_type"]
                 if step_entry.get("kind") in [NODE_ACTION, INTENT_GENERAL]:
                     if step_intent_tag:
@@ -234,7 +233,7 @@ class IRGenerator:
                         node_type = c_type
                 if sub_idx > 0 and node_type in [NODE_LOOP, NODE_CONDITION]:
                     node_type = NODE_ACTION
-                
+
                 target_entity = step_entry.get("target_entity") or analysis["target_entity"]
                 weak_entities = heuristics.get("weak_entities", ["Item", "object"])
                 if target_entity in weak_entities:
@@ -267,7 +266,7 @@ class IRGenerator:
                     context_history,
                     weak_entities,
                 )
-                
+
             # 27.162: STRICT INTENT LOCK.
             # Phase 4: Final intent/runtime-role coercion
             # This is the last place where coarse intent is normalized before
@@ -354,7 +353,7 @@ class IRGenerator:
             source_kind = self._resolve_final_source_kind(source_kind, final_intent, final_semantic_map, context_history)
             node_id = step_entry.get('id', f"step_{idx+1}")
             if len(clauses) > 1: node_id = f"{node_id}_{sub_idx+1}"
-            
+
             node = self._build_ir_node(
                 node_id,
                 node_type,
@@ -378,7 +377,7 @@ class IRGenerator:
             if final_intent == "PERSIST" and prefer_scalar_input and last_node_id:
                 if node.get("input_link") != last_node_id:
                     node["input_link"] = last_node_id
-            
+
             # 27.440: Phase 7 F-1 Auto-Chaining for JSON Deserialization
             if not simple_list_input:
                 auto_json_node = self._maybe_insert_json_deserialize_node(
@@ -400,7 +399,7 @@ class IRGenerator:
             # If intent is PERSIST and we have a COLLECTION coming in,
             # we need to serialize the collection to string first.
             is_coll_input = self._has_collection_input_context(context_history)
-            
+
             debug_print(
                 f"[DEBUG] IRGen: node_id={node_id}, intent={final_intent}, "
                 f"is_coll_input={is_coll_input}, source_kind={source_kind}"
@@ -419,7 +418,7 @@ class IRGenerator:
                     context_history,
                     is_coll_input,
                 )
-                        
+
             if node_type == "ELSE":
                 self._handle_else_clause(block_stack, context_history, c_text, main_entity, source_kind, node_id)
                 continue
@@ -1332,10 +1331,10 @@ class IRGenerator:
         if self.morph_analyzer:
             res = self.morph_analyzer.analyze({"original_text": step_text})
             tokens = res.get("analysis", {}).get("tokens", [])
-        
+
         v_intent, sim = self.intent_detector.detect(step_text, tokens=tokens)
         if intent_hint and intent_hint != INTENT_GENERAL: v_intent = intent_hint
-        
+
         # 27.155: PRE-SPLIT INTENT ELEVATION.
         if v_intent in [INTENT_FETCH, INTENT_PERSIST, INTENT_GENERAL] and source_kind == "db":
             v_intent = INTENT_DATABASE_QUERY if v_intent != INTENT_PERSIST else INTENT_PERSIST
@@ -1344,7 +1343,7 @@ class IRGenerator:
         intent_meta = rules.get("intent_metadata", {})
         meta = intent_meta.get(v_intent, {})
         role = meta.get("role", ROLE_ACTION)
-        
+
         if v_intent == INTENT_HTTP_REQUEST:
             role = meta.get("role", ROLE_READ)
         elif v_intent in [INTENT_FILE_IO, INTENT_PERSIST, INTENT_FETCH]:
@@ -1352,7 +1351,7 @@ class IRGenerator:
                 role = ROLE_WRITE
             elif v_intent == INTENT_FETCH:
                 role = ROLE_READ
-        
+
         cardinality = meta.get("cardinality", "SINGLE")
         logic_goals = self.logic_auditor.extract_assertion_goals([step_text])
         semantic_roles = {}

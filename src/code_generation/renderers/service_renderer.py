@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List
 
 
 def render_service_class(name: str, iface: str, repo_iface: str, methods: list, root_namespace: str) -> str:

@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-import os
-import json
 from typing import Dict, List, Any, Optional, Tuple
-from pathlib import Path
 from src.utils.text_parser import extract_quoted_literals
 from src.utils.semantic_intents import (
     INTENT_DATABASE_QUERY,
@@ -31,7 +28,7 @@ class LogicAuditor:
     def extract_assertion_goals(self, design_steps: List[str]) -> List[Dict[str, Any]]:
         """設計ステップから論理制約を抽出し、正規化された演算子を返す (セマンティック解析版)"""
         goals: List[Dict[str, Any]] = []
-        
+
         audit_cfg = self._load_logic_audit_config()
         # 演算子概念を代表するセマンティック・アンカー (Vector空間での重心)
         operator_anchors = audit_cfg.get("operator_anchors") if isinstance(audit_cfg.get("operator_anchors"), dict) else {
@@ -521,7 +518,7 @@ class LogicAuditor:
     def _resolve_semantic_context(self, step: str, start: int, end: int, tokens: List[Dict]) -> Tuple[str, str, Optional[str]]:
         var_hint, op_candidate, target_hint = "", "", None
         audit_cfg = self._load_logic_audit_config()
-        
+
         current_pos = 0
         token_with_pos = []
         for t in tokens:

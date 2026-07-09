@@ -25,7 +25,7 @@ def create_sample_config(workspace_root: str):
     """サンプル設定ファイルを作成"""
     config_dir = os.path.join(workspace_root, 'config')
     os.makedirs(config_dir, exist_ok=True)
-    
+
     sample_config = {
         'learning': {
             'min_pattern_frequency': 3,
@@ -38,29 +38,29 @@ def create_sample_config(workspace_root: str):
             'require_approval': True
         }
     }
-    
+
     config_path = os.path.join(config_dir, 'autonomous_learning.json')
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(sample_config, f, ensure_ascii=False, indent=2)
-    
+
     return config_path
 
 
 class TestLogAnalyzer(unittest.TestCase):
     """LogAnalyzerのテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.temp_dir = tempfile.mkdtemp()
         self.log_dir = os.path.join(self.temp_dir, 'logs')
         os.makedirs(self.log_dir, exist_ok=True)
-        
+
         self.analyzer = LogAnalyzer(self.log_dir)
-    
+
     def tearDown(self):
         """テスト後のクリーンアップ"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-    
+
     def test_collect_logs_success(self):
         """ログ収集成功テスト"""
         # テスト用ログファイルを作成（イベント形式）
@@ -93,16 +93,16 @@ class TestLogAnalyzer(unittest.TestCase):
                 }
             }
         ]
-        
+
         log_file = os.path.join(self.log_dir, 'test_log.json')
         with open(log_file, 'w', encoding='utf-8') as f:
             for entry in log_data:
                 json.dump(entry, f, ensure_ascii=False)
                 f.write('\n')
-        
+
         # ログ収集実行
         logs = self.analyzer.collect_logs(days_back=1)
-        
+
         # 結果検証
         self.assertEqual(len(logs), 1)
         self.assertEqual(logs[0]['session_id'], 'test_session')
@@ -111,7 +111,7 @@ class TestLogAnalyzer(unittest.TestCase):
             "create_file_request",
             logs[0]["learning_evidence"][0]["pattern"],
         )
-    
+
     def test_collect_logs_empty_directory(self):
         """空ディレクトリでのログ収集テスト"""
         logs = self.analyzer.collect_logs(days_back=1)
@@ -148,7 +148,7 @@ class TestLogAnalyzer(unittest.TestCase):
             self.analyzer.collect_logs(days_back=-1)
         with self.assertRaises(TypeError):
             self.analyzer.collect_logs(days_back=1.5)
-    
+
     def test_extract_success_patterns(self):
         """成功パターン抽出テスト"""
         # 成功ログのサンプル
@@ -196,15 +196,15 @@ class TestLogAnalyzer(unittest.TestCase):
                 'action_result': {'status': 'success'}
             }
         ]
-        
+
         patterns = self.analyzer.extract_patterns(logs)
-        
+
         # 成功パターンが抽出されることを確認
         self.assertGreater(len(patterns['success']), 0)
-        
+
         # FILE_CREATEパターンが含まれることを確認
         file_create_patterns = [
-            p for p in patterns['success'] 
+            p for p in patterns['success']
             if p.context.get('intent') == 'FILE_CREATE'
         ]
         self.assertGreater(len(file_create_patterns), 0)
@@ -222,7 +222,7 @@ class TestLogAnalyzer(unittest.TestCase):
         patterns = self.analyzer.extract_patterns(logs)
 
         self.assertEqual([], patterns["success"])
-    
+
     def test_extract_error_patterns(self):
         """エラーパターン抽出テスト"""
         logs = [
@@ -253,12 +253,12 @@ class TestLogAnalyzer(unittest.TestCase):
                 }],
             }
         ]
-        
+
         patterns = self.analyzer.extract_patterns(logs)
-        
+
         # エラーパターンが抽出されることを確認
         self.assertGreater(len(patterns['error']), 0)
-    
+
     def test_identify_improvement_opportunities(self):
         """改善機会特定テスト"""
         logs = [
@@ -314,12 +314,12 @@ class TestLogAnalyzer(unittest.TestCase):
                 'clarification_needed': True
             }
         ]
-        
+
         patterns = self.analyzer.extract_patterns(logs)
-        
+
         # 改善機会が特定されることを確認
         self.assertGreater(len(patterns['improvement']), 0)
-        
+
         # 低信頼度と頻繁な明確化の問題が特定されることを確認
         issues = [p.context.get('issue') for p in patterns['improvement']]
         self.assertIn('low_intent_confidence', issues)
@@ -328,12 +328,12 @@ class TestLogAnalyzer(unittest.TestCase):
 
 class TestPatternLearner(unittest.TestCase):
     """PatternLearnerのテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.config = {}
         self.learner = PatternLearner(self.config)
-    
+
     def test_learn_from_success_patterns(self):
         """成功パターンからの学習テスト"""
         patterns = {
@@ -373,19 +373,19 @@ class TestPatternLearner(unittest.TestCase):
             'error': [],
             'improvement': []
         }
-        
+
         suggestions = self.learner.learn_from_patterns(patterns)
-        
+
         # 意図検出ルールが提案されることを確認
         intent_suggestions = [s for s in suggestions if s.rule_type == 'intent_rule']
         self.assertGreater(len(intent_suggestions), 0)
-        
+
         # 提案内容の確認
         suggestion = intent_suggestions[0]
         self.assertEqual(suggestion.rule_definition['intent'], 'FILE_CREATE')
         self.assertEqual(suggestion.impact_scope, 'intent_detection')
         self.assertEqual(suggestion.risk_level, 'low')
-    
+
     def test_learn_from_error_patterns(self):
         """エラーパターンからの学習テスト"""
         patterns = {
@@ -424,19 +424,19 @@ class TestPatternLearner(unittest.TestCase):
             ],
             'improvement': []
         }
-        
+
         suggestions = self.learner.learn_from_patterns(patterns)
-        
+
         # リトライルールが提案されることを確認
         retry_suggestions = [s for s in suggestions if s.rule_type == 'retry_rule']
         self.assertGreater(len(retry_suggestions), 0)
-        
+
         # 提案内容の確認
         suggestion = retry_suggestions[0]
         self.assertEqual(suggestion.rule_definition['error_pattern'], 'file_not_found')
         self.assertEqual(suggestion.impact_scope, 'error_handling')
         self.assertEqual(suggestion.risk_level, 'medium')
-    
+
     def test_learn_from_improvement_patterns(self):
         """改善パターンからの学習テスト"""
         patterns = {
@@ -476,13 +476,13 @@ class TestPatternLearner(unittest.TestCase):
                 )
             ]
         }
-        
+
         suggestions = self.learner.learn_from_patterns(patterns)
-        
+
         # 明確化ルールが提案されることを確認
         clarification_suggestions = [s for s in suggestions if s.rule_type == 'clarification_rule']
         self.assertGreater(len(clarification_suggestions), 0)
-        
+
         # 提案内容の確認
         suggestion = clarification_suggestions[0]
         self.assertEqual(suggestion.rule_definition['type'], 'clarification_trigger')
@@ -517,7 +517,7 @@ class TestPatternLearner(unittest.TestCase):
 
 class TestSafetyEvaluator(unittest.TestCase):
     """SafetyEvaluatorのテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.safety_config = {
@@ -525,7 +525,7 @@ class TestSafetyEvaluator(unittest.TestCase):
             'require_safety_review': True,
         }
         self.evaluator = SafetyEvaluator(self.safety_config)
-    
+
     def test_evaluate_safe_suggestions(self):
         """安全な提案の評価テスト"""
         suggestions = [
@@ -551,13 +551,13 @@ class TestSafetyEvaluator(unittest.TestCase):
                 },
             )
         ]
-        
+
         evaluated = self.evaluator.evaluate_suggestions(suggestions)
-        
+
         # 安全な提案は通ることを確認
         self.assertEqual(len(evaluated), 1)
         self.assertEqual('low', evaluated[0].risk_level)
-    
+
     def test_evaluate_dangerous_suggestions(self):
         """危険な提案の評価テスト"""
         suggestions = [
@@ -583,16 +583,16 @@ class TestSafetyEvaluator(unittest.TestCase):
                 },
             )
         ]
-        
+
         evaluated = self.evaluator.evaluate_suggestions(suggestions)
-        
+
         # 危険な提案は除外されることを確認
         self.assertEqual(len(evaluated), 0)
         self.assertEqual(
             'risk_level_not_allowed',
             self.evaluator.evaluation_diagnostics[0]['reason'],
         )
-    
+
     def test_rejects_missing_safety_review(self):
         suggestion = RuleSuggestion(
             rule_type='retry_rule',
@@ -635,16 +635,16 @@ class TestEventProcessor(unittest.TestCase):
             'clarification_needed': True,
             'pipeline_history': ['clarification_manager']
         }
-        
+
         result = self.processor.process_event(event_type, data)
-        
+
         self.assertEqual(result['status'], 'accepted')
         self.assertIsNotNone(result['event_id'])
-        
+
         # キューファイルが作成されたか確認
         files = list(self.log_dir.glob('*.json'))
         self.assertEqual(len(files), 1)
-        
+
         with files[0].open('r', encoding='utf-8') as f:
             saved_event = json.load(f)
             self.assertEqual(saved_event['event_type'], event_type)
@@ -657,7 +657,7 @@ class TestEventProcessor(unittest.TestCase):
             'test_name': 'test_func',
             'error_message': 'Error occurred'
         }
-        
+
         result = self.processor.process_event(event_type, data)
         self.assertEqual(result['status'], 'accepted')
 
@@ -755,27 +755,27 @@ class TestEventProcessor(unittest.TestCase):
 
 class TestAutonomousLearning(unittest.TestCase):
     """AutonomousLearningのテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         # ログ出力を抑制
         logging.getLogger('src.autonomous_learning.autonomous_learning').setLevel(logging.ERROR)
-        
+
         self.temp_dir = tempfile.mkdtemp()
         self.log_dir = os.path.join(self.temp_dir, 'logs')
         os.makedirs(self.log_dir, exist_ok=True)
-        
+
         # サンプル設定作成
         create_sample_config(self.temp_dir)
-        
+
         self.mock_log_manager = Mock()
         self.learner = AutonomousLearning(self.temp_dir, self.mock_log_manager)
-    
+
     def tearDown(self):
         """テスト後のクリーンアップ"""
         self.learner.close(timeout=5)
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-    
+
     def test_initialization(self):
         """初期化テスト"""
         self.assertIsNotNone(self.learner.log_analyzer)
@@ -788,15 +788,15 @@ class TestAutonomousLearning(unittest.TestCase):
         """同期モードでの学習トリガーテスト"""
         event_type = 'TEST_FAILED'
         data = {'message': 'test'}
-        
+
         result = self.learner.trigger_learning(event_type, data, async_mode=False)
         self.assertEqual(result['status'], 'accepted')
-    
+
     def test_trigger_learning_async(self):
         """非同期モードでの学習トリガーテスト"""
         event_type = 'SESSION_COMPLETED'
         data = {'session_id': 'async_test'}
-        
+
         result = self.learner.trigger_learning(event_type, data, async_mode=True)
         self.assertEqual(result['status'], 'accepted')
         self.assertEqual(result['mode'], 'async')
@@ -871,7 +871,7 @@ class TestAutonomousLearning(unittest.TestCase):
                 "learned_mappings.jsonl.processed"
             ).exists()
         )
-    
+
     def test_run_learning_cycle_insufficient_data(self):
         """データ不足時の学習サイクルテスト"""
         # 少量のログファイルを作成
@@ -881,13 +881,13 @@ class TestAutonomousLearning(unittest.TestCase):
             for entry in log_data:
                 json.dump(entry, f)
                 f.write('\n')
-        
+
         result = self.learner.run_learning_cycle()
-        
+
         # データ不足でスキップされることを確認
         self.assertEqual(result['status'], 'skipped')
         self.assertEqual(result['reason'], 'insufficient_data')
-    
+
     def test_run_learning_cycle_success(self):
         """成功時の学習サイクルテスト"""
         import io
@@ -930,37 +930,37 @@ class TestAutonomousLearning(unittest.TestCase):
                             'message': 'Error occurred'
                         }
                     })
-            
+
             log_file = os.path.join(self.log_dir, 'learning_log.json')
             with open(log_file, 'w', encoding='utf-8') as f:
                 for entry in log_data:
                     json.dump(entry, f, ensure_ascii=False)
                     f.write('\n')
-            
+
             result = self.learner.run_learning_cycle()
-            
+
             # 成功することを確認
             self.assertEqual(result['status'], 'success')
             self.assertGreater(result['log_count'], 10)
             self.assertIn('report', result)
-            
+
             # レポート内容の確認
             report = result['report']
             self.assertIn('summary', report)
             self.assertIn('patterns', report)
             self.assertIn('suggestions', report)
             self.assertIn('recommendations', report)
-    
+
     def test_config_loading(self):
         """設定読み込みテスト"""
         config = self.learner.config
-        
+
         # デフォルト設定が読み込まれることを確認
         self.assertIn('learning', config)
         self.assertIn('safety', config)
         self.assertEqual(config['learning']['min_pattern_frequency'], 3)
         self.assertEqual(config['learning']['confidence_threshold'], 0.7)
-    
+
     def test_generate_report(self):
         """レポート生成テスト"""
         # サンプルデータ
@@ -983,16 +983,16 @@ class TestAutonomousLearning(unittest.TestCase):
                 []
             )
         ]
-        
+
         report = self.learner._generate_report(logs, patterns, suggestions)
-        
+
         # レポート構造の確認
         self.assertIn('timestamp', report)
         self.assertIn('summary', report)
         self.assertIn('patterns', report)
         self.assertIn('suggestions', report)
         self.assertIn('recommendations', report)
-        
+
         # サマリー内容の確認
         summary = report['summary']
         self.assertEqual(summary['total_logs'], 1)
@@ -1050,24 +1050,24 @@ class TestAutonomousLearning(unittest.TestCase):
 
 class TestIntegration(unittest.TestCase):
     """統合テストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.temp_dir = tempfile.mkdtemp()
         self.log_dir = os.path.join(self.temp_dir, 'logs')
         os.makedirs(self.log_dir, exist_ok=True)
-        
+
         create_sample_config(self.temp_dir)
-    
+
     def tearDown(self):
         """テスト後のクリーンアップ"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-    
+
     def test_end_to_end_learning_workflow(self):
         """エンドツーエンドの学習ワークフローテスト"""
         import io
         from contextlib import redirect_stdout
-        
+
         # テスト出力を綺麗にするため、標準出力をキャプチャし、警告ログを一時的に無効化
         with redirect_stdout(io.StringIO()):
             with self.assertLogs('src.autonomous_learning.autonomous_learning', level='INFO') as cm:
@@ -1087,7 +1087,7 @@ class TestIntegration(unittest.TestCase):
                             'timestamp': timestamp,
                             'data': {'session_id': session_id}
                         })
-                    
+
                     summary = {
                         'intent': intent,
                         'intent_confidence': confidence,
@@ -1181,7 +1181,7 @@ class TestIntegration(unittest.TestCase):
                             'learning_evidence': learning_evidence,
                         }
                     })
-                    
+
                     if status == 'error':
                         events.append({
                             'event_type': 'action_execution_error',
@@ -1191,23 +1191,23 @@ class TestIntegration(unittest.TestCase):
                     return events
 
                 realistic_logs = []
-                
+
                 # 成功パターン
                 realistic_logs.extend(create_event_sequence('session_1', 'ファイルを作成してください', 'FILE_CREATE', 0.9, 'success'))
                 realistic_logs.extend(create_event_sequence('session_2', '新しいファイルを作って', 'FILE_CREATE', 0.85, 'success'))
                 realistic_logs.extend(create_event_sequence('session_3', 'ファイル作成をお願いします', 'FILE_CREATE', 0.88, 'success'))
-                
+
                 # エラーパターン
                 realistic_logs.extend(create_event_sequence('session_4', 'ファイルを削除して', 'FILE_DELETE', 0.8, 'error', error_msg='ファイルが見つかりません'))
                 realistic_logs.extend(create_event_sequence('session_5', '別のファイルを削除', 'FILE_DELETE', 0.75, 'error', error_msg='ファイルが見つかりません'))
-                
+
                 # 低信頼度パターン
                 realistic_logs.extend(create_event_sequence('session_6', 'なんかして', 'GENERAL', 0.3, 'success', clarification=True))
                 realistic_logs.extend(create_event_sequence('session_7', 'あれをやって', 'GENERAL', 0.25, 'success', clarification=True))
                 realistic_logs.extend(create_event_sequence('session_8', 'よくわからない', 'GENERAL', 0.2, 'success', clarification=True))
                 realistic_logs.extend(create_event_sequence('session_9', 'それをお願い', 'GENERAL', 0.35, 'success', clarification=True))
                 realistic_logs.extend(create_event_sequence('session_10', 'どうにかして', 'GENERAL', 0.28, 'success', clarification=True))
-                
+
                 # 追加: 十分なデータ数を確保するためのダミーログ
                 realistic_logs.extend(create_event_sequence('session_11', '予備のログ', 'FILE_CREATE', 0.9, 'success'))
 
@@ -1216,31 +1216,31 @@ class TestIntegration(unittest.TestCase):
                     for entry in realistic_logs:
                         json.dump(entry, f, ensure_ascii=False)
                         f.write('\n')
-                
+
                 # Step 2: 自律学習実行
                 learner = AutonomousLearning(self.temp_dir)
                 result = learner.run_learning_cycle()
-                
+
                 # Step 3: 結果検証
                 self.assertEqual(result['status'], 'success')
                 self.assertGreaterEqual(result['log_count'], 10)
                 self.assertGreater(result['patterns_found'], 0)
-                
+
                 # Step 4: レポート内容確認
                 report = result['report']
-                
+
                 # 成功パターンの確認
                 success_patterns = report['patterns']['success']
                 self.assertGreater(len(success_patterns), 0)
-                
+
                 # エラーパターンの確認
                 error_patterns = report['patterns']['error']
                 self.assertGreater(len(error_patterns), 0)
-                
+
                 # 改善パターンの確認
                 improvement_patterns = report['patterns']['improvement']
                 self.assertGreater(len(improvement_patterns), 0)
-                
+
                 # 推奨事項の確認
                 recommendations = report['recommendations']
                 self.assertGreater(len(recommendations), 0)

@@ -20,12 +20,12 @@ class RuleSuggestion:
 
 class PatternLearner:
     """パターン学習を担当するクラス"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.validation_diagnostics: List[Dict[str, Any]] = []
-    
+
     def learn_from_patterns(self, patterns: Dict[str, List[LearningPattern]]) -> List[RuleSuggestion]:
         """パターンから新しいルールを学習"""
         self.validation_diagnostics = []

@@ -1,4 +1,5 @@
 # CSharpOperations Design Document
+<!-- metadata-sync: 2026-07-09T00:00:00+09:00 -->
 
 ## 1. Purpose (Updated 2026-07-08)
 `CSharpOperations` は、独立したモジュールとして、C# ソースコードの静的解析（Roslynを使用）および `dotnet` コマンドを用いたテスト実行・結果解析を担当します。

@@ -1,4 +1,5 @@
 # CICDOperations Design Document
+<!-- metadata-sync: 2026-07-09T00:00:00+09:00 -->
 
 ## 1. Purpose
 `CICDOperations` は、独立したモジュールとして、CI/CDパイプラインのセットアップ、品質ゲートの設定、および設定ファイルの生成・統合を担当します。`CICDIntegrator` と連携し、プロジェクトの自動化と品質維持を支援します。

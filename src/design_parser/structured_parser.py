@@ -49,12 +49,12 @@ class StructuredDesignParser:
         core_logic = spec.get("core_logic") or []
         data_sources: List[Dict[str, str]] = []
         steps: List[Dict[str, Any]] = []
-        
+
         # First pass: Extract all data sources
         for raw in core_logic:
             normalized_raw = str(raw).strip()
             normalized_raw = self._strip_leading_numbering(normalized_raw)
-                
+
             ds = self._extract_data_source_declaration(normalized_raw)
             if ds:
                 if not any(existing.get("id") == ds["id"] for existing in data_sources):
@@ -103,11 +103,11 @@ class StructuredDesignParser:
         for step in steps:
             source_ref = step.get("source_ref")
             source_kind = step.get("source_kind")
-            
+
             if source_ref and not source_kind:
                 if source_ref in source_map:
                     step["source_kind"] = source_map[source_ref]
-            
+
             # Default for FETCH if still missing
             if step["intent"] == INTENT_FETCH and not step.get("source_kind"):
                 step["source_kind"] = "file"
@@ -242,7 +242,7 @@ class StructuredDesignParser:
         if kind in [NODE_ELSE, NODE_END]:
             # Special handling for simple blocks
             return parts, remainder
-            
+
         if len(parts) not in [4, 5, 6, 7]:
             return [], text
 

@@ -1,4 +1,5 @@
 # TDDOperations Design Document
+<!-- metadata-sync: 2026-07-09T00:00:00+09:00 -->
 
 ## 1. Purpose (Updated 2026-02-10)
 `TDDOperations` は、独立したモジュールとして、テスト失敗の分析、修正提案の生成、およびコード修正の自動適用を担当します。`AdvancedTDDSupport` と連携し、テスト駆動開発のプロセスを自動化・支援します。

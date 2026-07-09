@@ -29,17 +29,17 @@ class TestConversationScenarios(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Initialize pipeline once for all tests to save time on model loading."""
-        
+
         # Create dummy resource files for new modules
         cls.test_resources_dir = os.path.abspath("conversation_test_resources")
         os.makedirs(cls.test_resources_dir, exist_ok=True)
 
         # --- NEW: Call update_intent_corpus here ---
         # Ensure intent corpus is updated before pipeline initialization
-        
+
         def update_intent_corpus_for_tests():
             file_path = os.path.join(cls.test_resources_dir, "intent_corpus.json")
-            
+
             test_intents_data = {
                 "intents": [
                     {
@@ -142,7 +142,7 @@ class TestConversationScenarios(unittest.TestCase):
                     },
                     {
                         "name": "FILE_READ",
-                        "patterns": [ 
+                        "patterns": [
                             {"pattern": "読(?:んで|む|み)", "confidence_score": 0.9},
                             {"pattern": "表示", "confidence_score": 0.9}
                         ],
@@ -219,7 +219,7 @@ class TestConversationScenarios(unittest.TestCase):
         # Create dummy resource files for new modules (Copied from test_full_integrated_pipeline.py for isolation)
         cls.test_resources_dir = "conversation_test_resources"
         os.makedirs(cls.test_resources_dir, exist_ok=True)
-        
+
         # task_definitions.json
         cls.task_definitions_path = os.path.join(cls.test_resources_dir, "task_definitions.json")
         with open(cls.task_definitions_path, "w", encoding="utf-8") as f:
@@ -469,13 +469,13 @@ class TestConversationScenarios(unittest.TestCase):
             # Initialize Pipeline
             # We use lower threshold for tests to ensure intent detection works with simple inputs
             cls.pipeline = Pipeline(
-                clarification_thresholds={"intent": 0.6, "entity": 0.7}, 
+                clarification_thresholds={"intent": 0.6, "entity": 0.7},
                 planner_intent_threshold=0.7
             )
             cls.pipeline._autonomous_learning = MagicMock()
             cls.pipeline.action_executor.autonomous_learning = cls.pipeline._autonomous_learning
             cls.pipeline.planner.autonomous_learning = cls.pipeline._autonomous_learning
-            
+
             # Manually set paths for relevant managers to our dummy files
             cls.pipeline.task_manager.task_definitions_path = cls.task_definitions_path
             cls.pipeline.task_manager.task_definitions = cls.pipeline.task_manager._load_task_definitions(cls.task_definitions_path)
@@ -514,7 +514,7 @@ class TestConversationScenarios(unittest.TestCase):
         self.pipeline.task_manager.active_tasks = {}
         # Clear any pending confirmation plans
         self.pipeline.context_manager.clear_pending_confirmation_plan()
-        
+
         # Clean up any files created during a test
         for item in os.listdir(self.test_ws):
             item_path = os.path.join(self.test_ws, item)
@@ -649,20 +649,20 @@ class TestConversationScenarios(unittest.TestCase):
         # print(f"\n--- Starting Conversation Flow ---")
         for step in flow:
             user_input = step['user']
-    
+
             # --- NEW: Print Unicode code points ---
-    
+
             # --- END NEW ---
-            
+
             result = self.pipeline.run(user_input)
             ai_response = result.get("response", {}).get("text", "")
             # print(f"AI: {ai_response}")
 
             if "expected_ai" in step and step["expected_ai"]:
                 self.assertIn(step["expected_ai"], ai_response)
-            
+
             if "confirm_needed" in step:
-                self.assertEqual(result.get("clarification_needed", False), step["confirm_needed"], 
+                self.assertEqual(result.get("clarification_needed", False), step["confirm_needed"],
                                  f"Clarification status mismatch for input: '{user_input}'. Expected {step['confirm_needed']}, got {result.get('clarification_needed', False)}")
 
             if "check_file" in step:
@@ -906,7 +906,7 @@ class TestConversationScenarios(unittest.TestCase):
             {"user": "ファイルを作って", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},
             # Interrupting intent (TIME/GENERAL)
                         {"user": "今何時？", "expected_ai": "ファイル名を教えていただけますか？", "confirm_needed": True},            # Ideally task manager should still be active and waiting for filename?
-            # Or does the new intent clear the task? 
+            # Or does the new intent clear the task?
             # Current Design: "Conversational intents should bypass..." but if task is active, TaskManager processes it.
             # If the input doesn't match a filename entity, it might be confusing.
             # BUT, TaskManager logic says: "If active task exists, new input... even if conversational... update state".
@@ -916,7 +916,7 @@ class TestConversationScenarios(unittest.TestCase):
             # Wait, our design update says: "Active task exists -> TaskManager receives input."
             # So the AI might try to use "今何時？" as the filename!
             # Let's see behavior. If it fails, that's a finding.
-            
+
             # For this test, let's assume valid resumption inputs
             {"user": "interrupt_test.txt", "expected_ai": "ファイルの内容を教えていただけますか？", "confirm_needed": True},
             {"user": "内容は『Resumed』です", "expected_ai": "作成しました", "confirm_needed": False, "check_file": "interrupt_test.txt"}

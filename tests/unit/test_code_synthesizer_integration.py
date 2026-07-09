@@ -22,15 +22,15 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         from unittest.mock import MagicMock
         import tempfile
         import shutil
-        
+
         self.test_dir = tempfile.TemporaryDirectory()
         self.store_path = os.path.join(self.test_dir.name, "test_method_store.json")
         self.dd_path = os.path.join(self.test_dir.name, "domain_dictionary.json")
-        
+
         # Create an empty store file
         with open(self.store_path, "w", encoding="utf-8") as f:
             json.dump([], f)
-            
+
         # Create a dummy domain dictionary
         with open(self.dd_path, "w", encoding="utf-8") as f:
             json.dump({
@@ -85,9 +85,9 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.ms = MethodStore(self.cm, morph_analyzer=self.ma, vector_engine=self.vector_engine)
         self.ms.items = []
         self.ms.metadata_by_id = {}
-        
+
         self.synthesizer = CodeSynthesizer(self.cm, method_store=self.ms, morph_analyzer=self.ma)
-        
+
         # Mock builder_client to return code based on blueprint
         def mock_build_code(blueprint):
             methods = blueprint.get("methods", [])
@@ -175,19 +175,19 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
                         code_lines.append(f"{indent}}}")
             render(body)
             code_lines.append("}")
-            
+
             # Simple DI injection representation
             full_code = []
             for field in blueprint.get("fields", []):
                 full_code.append(f"private readonly {field['type']} {field['name']};")
-            
+
             return {"status": "success", "code": "\n".join(full_code + code_lines)}
-            
+
         self.synthesizer.builder_client.build_code = MagicMock(side_effect=mock_build_code)
-        
+
         # Inject required methods for testing
         store = self.ms
-        
+
         store.add_method({
             "id": "validate_email_test",
             "name": "ValidateEmail",
@@ -200,7 +200,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "capabilities": ["TRANSFORM"],
             "tags": ["validation"]
         }, overwrite=True)
-        
+
         store.add_method({
             "id": "get_user_test",
             "name": "GetUser",
@@ -213,7 +213,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "capabilities": ["FETCH"],
             "tags": ["data"]
         }, overwrite=True)
-        
+
         store.add_method({
             "id": "save_data_test",
             "name": "SaveData",
@@ -459,7 +459,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         }
         result = self.synthesizer.synthesize_from_structured_spec("ProcessAndSave", spec)
         code = result["code"]
-        
+
         # 生成コードが得られていることを確認
         self.assertTrue(isinstance(code, str) and len(code) > 0)
         self.assertIn("ProcessAndSave", code)
@@ -472,7 +472,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "火星にロケットを飛ばす",
             "データを保存する"
         ]
-        
+
         spec = self._build_spec("SpaceMission", design_steps)
         result = self.synthesizer.synthesize_from_structured_spec("SpaceMission", spec)
         self.assertEqual("error", result.get("status"))
@@ -525,7 +525,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         }
         result = self.synthesizer.synthesize_from_structured_spec("GetAndSaveUser", spec)
         code = result["code"]
-        
+
         # 生成コードが得られていることを確認
         self.assertTrue(isinstance(code, str) and len(code) > 0)
         self.assertIn("GetAndSaveUser", code)
@@ -537,11 +537,11 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         save_method = store.get_method_by_id("save_data_test")
         if save_method:
             save_method["has_side_effects"] = True
-            
+
         design_steps = ["データを保存する"]
         spec = self._build_spec("SaveAction", design_steps)
         result = self.synthesizer.synthesize_from_structured_spec("SaveAction", spec, return_trace=True)
-        
+
         # Now check if it's in trace
         self.assertTrue(result.get("status") != "FAILED")
 
@@ -562,7 +562,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "tags": ["di"]
         }
         store.add_method(di_method, overwrite=True)
-        
+
         spec = {
             "module_name": "DoBusiness",
             "purpose": "DI call",
@@ -588,7 +588,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         result = self.synthesizer.synthesize_from_structured_spec("DoBusiness", spec)
         code = result["code"]
         self._debug_dump_generated_code("DI Generated Code", code)
-        
+
         # 生成コードが得られていることを確認
         self.assertTrue(isinstance(code, str) and len(code) > 0)
         self.assertIn("DoBusiness", code)

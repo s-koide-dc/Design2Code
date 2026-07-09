@@ -10,7 +10,7 @@ class TestEndToEndScenarios(unittest.TestCase):
     def setUpClass(cls):
         cls.test_dir = tempfile.mkdtemp()
         cls.project_root = os.getcwd()
-        
+
         # Copy configuration and non-vector resources to the test directory.
         shutil.copytree(
             os.path.join(cls.project_root, "config"),
@@ -20,11 +20,11 @@ class TestEndToEndScenarios(unittest.TestCase):
             os.path.join(cls.project_root, "resources"),
             os.path.join(cls.test_dir, "resources"),
         )
-        
+
         # Create necessary directories for operations
         os.makedirs(os.path.join(cls.test_dir, "logs"), exist_ok=True)
         os.makedirs(os.path.join(cls.test_dir, "src"), exist_ok=True)
-        
+
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.test_dir)
@@ -44,17 +44,17 @@ class TestEndToEndScenarios(unittest.TestCase):
         # 1. Create File
         input_text = "test_integration.txt を作成して。内容は「統合テスト成功」にして。"
         result = self.pipeline.run(input_text)
-        
+
         self.assertEqual(result["analysis"]["intent"], "FILE_CREATE")
         self.assertEqual(result["action_result"]["status"], "success")
         self.assertTrue(
             os.path.exists(os.path.join(self.test_dir, "test_integration.txt"))
         )
-        
+
         # 2. Read File
         input_read = "test_integration.txt を読んで。"
         result_read = self.pipeline.run(input_read)
-        
+
         self.assertEqual(result_read["analysis"]["intent"], "FILE_READ")
         self.assertIn("統合テスト成功", result_read["action_result"]["content"])
 
@@ -62,7 +62,7 @@ class TestEndToEndScenarios(unittest.TestCase):
         """統合レベルでのパス・トラバーサル阻止を検証"""
         input_text = "../outside_workspace.txt を読んで。"
         result = self.pipeline.run(input_text)
-        
+
         self.assertEqual(result["action_result"]["status"], "error")
         self.assertIn("無効なパス", result["action_result"]["message"])
 

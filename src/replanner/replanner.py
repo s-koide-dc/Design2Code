@@ -14,16 +14,16 @@ class Replanner:
         self.patcher = IRPatcher()
         self.history = [] # Trial history to ensure convergence
 
-    def replan(self, 
-               structured_spec: Dict[str, Any], 
-               ir_tree: Dict[str, Any], 
-               synthesis_result: Dict[str, Any], 
+    def replan(self,
+               structured_spec: Dict[str, Any],
+               ir_tree: Dict[str, Any],
+               synthesis_result: Dict[str, Any],
                verification_result: Dict[str, Any],
                semantic_issues: List[str]) -> Dict[str, Any]:
-        
+
         # 1. 分析失敗理由の特定
         hints = self.analyzer.analyze(synthesis_result, verification_result, semantic_issues)
-        
+
         # 2. 合成結果の論理検証（妄想的リテラルの検出など）
         mismatch_hints = self.analyzer.analyze_logic_mismatch(ir_tree, synthesis_result)
         hints.extend(mismatch_hints)
@@ -41,7 +41,7 @@ class Replanner:
             # Allow repeated input_link/ref hints to be retried within retry budget
             if non_link_hints:
                 return {"status": "FAILED", "message": "Convergence error: Repeating repair hints detected."}
-        
+
         self.history.append(hint_fingerprint)
         if len(self.history) > 5:
             return {"status": "FAILED", "message": "Max retry limit reached."}
@@ -50,7 +50,7 @@ class Replanner:
 
         # 3. IR ツリーへのパッチ適用
         patched_ir = self.patcher.apply_patches(copy.deepcopy(ir_tree), hints)
-        
+
         return {
             "status": "REPLANNED",
             "patched_ir": patched_ir,

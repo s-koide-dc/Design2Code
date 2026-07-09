@@ -38,12 +38,12 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
     def test_evaluate_complex_condition_and(self):
         # A && B
         condition = "x > 0 && x < 20"
-        
+
         # Input: 10 -> True
         result = self.analyzer._evaluate_complex_condition(condition, 10)
         self.assertTrue(result['is_satisfied'])
         self.assertTrue(result['evaluated'])
-        
+
         # Input: 30 -> False
         result = self.analyzer._evaluate_complex_condition(condition, 30)
         self.assertFalse(result['is_satisfied'])
@@ -54,7 +54,7 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
     def test_evaluate_complex_condition_or(self):
         # A || B
         condition = "x < 0 || x > 100"
-        
+
         # Input: -5 -> True
         result = self.analyzer._evaluate_complex_condition(condition, -5)
         self.assertTrue(result['is_satisfied'])
@@ -72,12 +72,12 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
         # A && B || C
         # Should be treated as (A && B) || C
         condition = "x > 0 && x < 10 || x == 100"
-        
+
         # Case 1: (True && True) || False -> True
         # Input: 5
         result = self.analyzer._evaluate_complex_condition(condition, 5)
         self.assertTrue(result['is_satisfied'])
-        
+
         # Case 2: (False && False) || True -> True
         # Input: 100
         result = self.analyzer._evaluate_complex_condition(condition, 100)
@@ -93,7 +93,7 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
         self.assertTrue(self.analyzer._evaluate_condition(10, '>', '5'))
         self.assertTrue(self.analyzer._evaluate_condition(10, '==', '10'))
         self.assertFalse(self.analyzer._evaluate_condition(10, '<', '5'))
-        
+
         # String comparison
         self.assertTrue(self.analyzer._evaluate_condition("Admin", '==', '"Admin"'))
         self.assertFalse(self.analyzer._evaluate_condition("User", '==', '"Admin"'))
@@ -126,13 +126,13 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
         # Test Enum resolution
         self.assertEqual(self.analyzer._resolve_identifier_value('UserRole.Admin', roslyn_data), 1)
         self.assertEqual(self.analyzer._resolve_identifier_value('MyApp.UserRole.User', roslyn_data), 2)
-        
+
         # Test Constant resolution
         self.assertEqual(self.analyzer._resolve_identifier_value('Constants.MaxRetries', roslyn_data), 5)
-        
+
         # Test Unresolved
         self.assertEqual(self.analyzer._resolve_identifier_value('Unknown.Value', roslyn_data), 'Unknown.Value')
-        
+
         # Test Literal (pass-through)
         self.assertEqual(self.analyzer._resolve_identifier_value('100', roslyn_data), '100')
 
@@ -146,12 +146,12 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
                 }
             }
         }
-        
+
         # Condition: status == Status.Active
         # Input: 1 (Active)
         # Should resolve Status.Active -> 1, then compare 1 == 1
         self.assertTrue(self.analyzer._evaluate_condition(1, '==', 'Status.Active', roslyn_data))
-        
+
         # Input: 0 (Inactive)
         self.assertFalse(self.analyzer._evaluate_condition(0, '==', 'Status.Active', roslyn_data))
 
@@ -221,7 +221,7 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
             roslyn_data,
             {'input_values': {'val': 5}},
         )
-        
+
         # Verify
         self.assertIsNotNone(result)
         self.assertEqual(result['refined_root_cause'], 'logic_mismatch_with_branch')
@@ -239,19 +239,19 @@ class TestFailureAnalyzerLogic(unittest.TestCase):
             error_message="Expected: True, Actual: False",
             stack_trace=""
         )
-        
+
         # Condition: user.Age >= 18
         condition = "user.Age >= 18"
-        
+
         result = self.analyzer._evaluate_complex_condition(
             condition,
             {'Age': 15},
             test_failure=failure,
         )
-        
+
         self.assertTrue(result['evaluated'])
         self.assertFalse(result['is_satisfied']) # 15 >= 18 is False
-        
+
         # Another case: Test_WhenUserAgeIs20 (Satisfied)
         failure_success = TestFailure(
             test_file="UserTests.cs",

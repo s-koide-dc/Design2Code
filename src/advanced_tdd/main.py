@@ -10,14 +10,14 @@ from src.utils.stdout_guard import debug_print
 
 class AdvancedTDDSupport:
     """高度TDD支援のメインクラス"""
-    
+
     def __init__(self, workspace_root: str = ".", test_generator=None, failure_analyzer=None, fix_engine=None, refactoring_analyzer=None, semantic_analyzer=None):
         self.workspace_root = workspace_root
         self.logger = logging.getLogger(__name__)
-        
+
         # 設定の読み込み
         self.config = self._load_config()
-        
+
         # コンポーネントの初期化
         self.test_generator = test_generator # Passed from outside
         self.semantic_analyzer = semantic_analyzer
@@ -27,7 +27,7 @@ class AdvancedTDDSupport:
             self.failure_analyzer = failure_analyzer
         else:
             self.failure_analyzer = TestFailureAnalyzer(self.config.get('phase3', {}).get('failure_analysis', {}))
-        
+
         # fix_engineの初期化 (外部から渡されない場合は内部で生成)
         if fix_engine:
             self.fix_engine = fix_engine
@@ -35,25 +35,25 @@ class AdvancedTDDSupport:
             self.fix_engine = CodeFixSuggestionEngine(self.config.get('phase3', {}).get('code_fix', {}), self.semantic_analyzer)
 
         self.refactoring_analyzer = refactoring_analyzer # Passed from outside
-        
+
         # GoalDrivenTDDEngine was deprecated. Using AutonomousSynthesizer.
         from src.code_synthesis.autonomous_synthesizer import AutonomousSynthesizer
-        
+
         # Create ConfigManager wrapping the raw config
         # Assuming ConfigManager can be initialized meaningfully or we pass a mock/wrapper if needed.
         # Ideally we should use the singleton or proper init if possible, but for now we create one.
         # If ConfigManager requires a path, we might need to handle it.
         # Let's assume ConfigManager(workspace_root) pattern or similar if standard.
-        # If not, we might need a dummy adapter. 
+        # If not, we might need a dummy adapter.
         # Checking ConfigManager usage in other files: it usually takes a config_path or similar.
         # Here we have self.config dict.
-        
-        # Simplest approach: Create a ConfigManager and inject our dict if possible, 
+
+        # Simplest approach: Create a ConfigManager and inject our dict if possible,
         # or just pass it if AutonomousSynthesizer supports it (it doesn't, it expects object with properties).
-        
+
         # Let's inspect code_synthesizer.py again to see how it uses config_manager.
         # It accesses self.config_manager.scoring_rules.
-        
+
         # So we need an object that has 'scoring_rules' as attribute or property.
         class ConfigAdapter:
             def __init__(self, config_dict, workspace_root):
@@ -90,11 +90,11 @@ class AdvancedTDDSupport:
             morph_analyzer=None, # will be created internally if None
             vector_engine=None   # will be created internally if None
         )
-    
+
     def _load_config(self) -> Dict[str, Any]:
         """設定ファイルを読み込み"""
         config_path = os.path.join(self.workspace_root, 'config', 'advanced_tdd_config.json')
-        
+
         default_config = {
             'phase3': {
                 'failure_analysis': {
@@ -117,7 +117,7 @@ class AdvancedTDDSupport:
                 }
             }
         }
-        
+
         if os.path.exists(config_path):
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
@@ -126,9 +126,9 @@ class AdvancedTDDSupport:
                     self._deep_merge(default_config, user_config)
             except Exception as e:
                 self.logger.warning(f"設定ファイルの読み込みに失敗、デフォルト設定を使用: {e}")
-        
+
         return default_config
-    
+
     def _deep_merge(self, base: Dict, update: Dict) -> None:
         """辞書の深いマージ"""
         for key, value in update.items():
@@ -136,7 +136,7 @@ class AdvancedTDDSupport:
                 self._deep_merge(base[key], value)
             else:
                 base[key] = value
-    
+
     # Phase 3: テスト失敗分析・修正提案
     def analyze_and_fix_test_failure(self, test_failure_data: Dict[str, Any], roslyn_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """テスト失敗を分析して修正提案を生成"""
@@ -150,7 +150,7 @@ class AdvancedTDDSupport:
                 stack_trace=test_failure_data.get('stack_trace', ''),
                 line_number=test_failure_data.get('line_number')
             )
-            
+
             # 失敗分析 (Roslynデータを渡す)
             analysis = self.failure_analyzer.analyze_test_failure(
                 test_failure,
@@ -158,10 +158,10 @@ class AdvancedTDDSupport:
                 expected_intent=test_failure_data.get('expected_intent'),
                 analysis_context=test_failure_data.get('analysis_context'),
             )
-            
+
             if analysis['status'] != 'success':
                 return analysis
-            
+
             # 修正提案生成
             target_code = test_failure_data.get('target_code', {})
             if roslyn_data:
@@ -210,7 +210,7 @@ class AdvancedTDDSupport:
                                 'target_method_analysis': method_detail,
                             }
                             break
-            
+
             # Handle fix_test_arrange by loading test code instead of production code
             if analysis.get('fix_direction') == 'fix_test_arrange':
                 try:
@@ -228,7 +228,7 @@ class AdvancedTDDSupport:
                     if test_file_path and os.path.exists(test_file_path):
                         with open(test_file_path, 'r', encoding='utf-8') as f:
                             test_content = f.read()
-                        
+
                         target_code = {
                             **target_code,
                             'file': test_file_path,
@@ -240,21 +240,21 @@ class AdvancedTDDSupport:
                     self.logger.warning(f"Failed to load test file for fix_test_arrange: {ex}")
 
             fix_suggestions = self.fix_engine.generate_fix_suggestions(analysis, target_code)
-            
+
             return {
                 'status': 'success',
                 'analysis': analysis,
                 'fix_suggestions': [self._suggestion_to_dict(s) for s in fix_suggestions],
                 'validation_plan': self._create_validation_plan(fix_suggestions)
             }
-            
+
         except Exception as e:
             self.logger.error(f"テスト失敗分析中にエラーが発生: {e}")
             return {
                 'status': 'error',
                 'error': str(e)
             }
-    
+
     # Phase 4: ゴール駆動型TDD
     def execute_goal_driven_tdd(self, goal_data: Dict[str, Any]) -> Dict[str, Any]:
         """ゴール駆動型TDDを実行"""
@@ -267,20 +267,20 @@ class AdvancedTDDSupport:
                 priority=goal_data.get('priority', 'medium'),
                 estimated_effort=goal_data.get('estimated_effort', '1 hour')
             )
-            
+
             constraints = goal_data.get('constraints', {})
             context = goal_data.get('context', {})
-            
+
             # TDDサイクル実行 (Using Unified Engine)
             # execute_goal_driven_tdd returns {'status': ..., 'tdd_cycle_results': ..., 'generated_artifacts': ...}
             # decompose_and_synthesize returns {'status': ..., 'results': [{'requirement': ..., 'result': ...}]}
-            
+
             synth_result = self.tdd_engine.decompose_and_synthesize(goal)
-            
+
             # Map result format for compatibility
             cycle_results = []
             code_artifacts = []
-            
+
             if synth_result.get("status") == "success":
                 for item in synth_result.get("results", []):
                     req_res = item["result"]
@@ -289,11 +289,11 @@ class AdvancedTDDSupport:
                         "success": req_res.get("status") in ["success", "partial_success"],
                         "attempts": req_res.get("attempts", 0)
                     })
-            
+
             return {
                 'status': synth_result.get("status"),
                 'tdd_cycle_results': {
-                    'total': len(cycle_results), 
+                    'total': len(cycle_results),
                     'success': sum(1 for c in cycle_results if c["success"]),
                     'total_iterations': len(cycle_results),
                     'success_rate': sum(1 for c in cycle_results if c["success"]) / max(1, len(cycle_results)),
@@ -310,14 +310,14 @@ class AdvancedTDDSupport:
                     'technical_debt': "low"
                 } # Dummy for compatibility
             }
-            
+
         except Exception as e:
             self.logger.error(f"ゴール駆動型TDD実行中にエラーが発生: {e}")
             return {
                 'status': 'error',
                 'error': str(e)
             }
-    
+
     def _suggestion_to_dict(self, suggestion: CodeFixSuggestion) -> Dict[str, Any]:
         """CodeFixSuggestionを辞書に変換"""
         return {
@@ -340,21 +340,21 @@ class AdvancedTDDSupport:
             'recommended_action': suggestion.impact_analysis.get('recommended_action') if suggestion.impact_analysis else None,
             'target_summary': suggestion.impact_analysis.get('target_summary') if suggestion.impact_analysis else None
         }
-    
+
     def _create_validation_plan(self, suggestions: List[CodeFixSuggestion]) -> Dict[str, Any]:
         """検証計画を作成"""
         if not suggestions:
             return {'steps': [], 'estimated_time': '0 seconds'}
-        
+
         steps = [
             'Apply suggested fix',
             'Run failing test',
             'Run all related tests',
             'Verify no regression'
         ]
-        
+
         estimated_time = f"{len(suggestions) * 30} seconds"
-        
+
         return {
             'steps': steps,
             'estimated_time': estimated_time,
@@ -365,7 +365,7 @@ def create_sample_config(workspace_root: str):
     """サンプル設定ファイルを作成"""
     config_dir = os.path.join(workspace_root, 'config')
     os.makedirs(config_dir, exist_ok=True)
-    
+
     sample_config = {
         'phase3': {
             'failure_analysis': {
@@ -402,23 +402,23 @@ def create_sample_config(workspace_root: str):
             'pattern_learning_threshold': 5
         }
     }
-    
+
     config_path = os.path.join(config_dir, 'advanced_tdd_config.json')
     with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(sample_config, f, ensure_ascii=False, indent=2)
-    
+
     return config_path
 
 if __name__ == "__main__":
     # 基本的な使用例
     workspace_root = "."
-    
+
     # サンプル設定作成
     create_sample_config(workspace_root)
-    
+
     # 高度TDD支援実行
     tdd_support = AdvancedTDDSupport(workspace_root)
-    
+
     # Phase 3 例: テスト失敗分析
     test_failure_example = {
         'test_file': 'tests/CalculatorTests.cs',
@@ -432,11 +432,11 @@ if __name__ == "__main__":
             'current_implementation': 'public int Add(int a, int b) { return 0; }'
         }
     }
-    
+
     phase3_result = tdd_support.analyze_and_fix_test_failure(test_failure_example)
     debug_print("Phase 3 結果:")
     debug_print(json.dumps(phase3_result, ensure_ascii=False, indent=2))
-    
+
     # Phase 4 例: ゴール駆動型TDD
     goal_example = {
         'description': '電卓アプリケーションに四則演算機能を追加',
@@ -454,7 +454,7 @@ if __name__ == "__main__":
             'existing_code': 'src/Calculator.cs'
         }
     }
-    
+
     phase4_result = tdd_support.execute_goal_driven_tdd(goal_example)
     debug_print("\nPhase 4 結果:")
     debug_print(json.dumps(phase4_result, ensure_ascii=False, indent=2))

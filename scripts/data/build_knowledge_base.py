@@ -16,13 +16,13 @@ def build_knowledge_base():
     """
     emit_progress("Custom Knowledge Base Maintenance")
     emit_progress("-" * 30)
-    
+
     if not os.path.exists(DB_PATH):
         emit_error(f"警告: 辞書 DB が見つかりません: {DB_PATH}")
         emit_error("先に parse_jmdict.py を実行して dictionary.db を作成してください。")
 
     curated_knowledge = {
-        "knowledge": {}, 
+        "knowledge": {},
         "default_responses": {
             "general_unknown": "ごめんなさい、よく分かりません。",
             "unknown_topic": "そのトピック「{topic}」については今勉強中です！もっと詳しくなったら教えてくださいね。"
@@ -49,7 +49,7 @@ def build_knowledge_base():
         "エージェント": {"meaning": "ユーザーの代わりに特定のタスクやアクションを実行するソフトウェア。"},
         "クラス": {"meaning": "class。オブジェクト指向プログラミングにおける設計図。"}
     }
-    
+
     for term, data in critical_terms.items():
         if term not in curated_knowledge["knowledge"]:
             emit_progress(f"Adding critical term: {term}")

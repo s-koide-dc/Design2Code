@@ -16,7 +16,7 @@ class TestVectorEngine(unittest.TestCase):
         self.test_dir = tempfile.TemporaryDirectory()
         self.model_path = os.path.join(self.test_dir.name, 'vectors.txt')
         self.max_vocab = 100
-        
+
         # Create a dummy vectors.txt
         with open(self.model_path, 'w', encoding='utf-8') as f:
             f.write("4 2\n")
@@ -24,7 +24,7 @@ class TestVectorEngine(unittest.TestCase):
             f.write("猫 0.8 0.2\n")
             f.write("最高 0.1 0.9\n")
             f.write("気分 0.2 0.8\n")
-            
+
         self.vocab_cache_path = self.model_path + f".v{self.max_vocab}.vocab.npy"
         self.matrix_cache_path = self.model_path + f".v{self.max_vocab}.matrix.npy"
 
@@ -94,10 +94,10 @@ class TestVectorEngine(unittest.TestCase):
         engine = VectorEngine(model_path=self.model_path, max_vocab=self.max_vocab)
         vec1 = engine.get_sentence_vector(["最高"])
         vec2 = engine.get_sentence_vector(["気分"])
-        
+
         self.assertIsNotNone(vec1)
         self.assertIsNotNone(vec2)
-        
+
         similarity = engine.vector_similarity(vec1, vec2)
         self.assertIsInstance(similarity, float)
         self.assertGreater(similarity, 0.0)

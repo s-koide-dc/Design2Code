@@ -12,7 +12,7 @@ class TestDependencyResolver(unittest.TestCase):
         class MockConfig:
             workspace_root = os.getcwd()
             dependency_map_path = os.path.join(workspace_root, "resources", "dependency_map.json")
-            
+
         self.resolver = DependencyResolver(MockConfig())
 
     @patch('src.utils.nuget_client.NuGetClient.resolve_package')
@@ -26,11 +26,11 @@ class TestDependencyResolver(unittest.TestCase):
                 "error_type": "SYMBOL_NOT_FOUND"
             }
         ]
-        
+
         mock_resolve.return_value = {"name": "YamlDotNet", "version": "15.1.2"}
-        
+
         missing_pkgs = self.resolver.analyze_build_errors(errors)
-        
+
         self.assertEqual(len(missing_pkgs), 1)
         self.assertEqual(missing_pkgs[0]["name"], "YamlDotNet")
         mock_resolve.assert_called_with("YamlDotNet")

@@ -5,13 +5,12 @@ import os
 import shutil
 import subprocess
 import logging
-from datetime import datetime
 from typing import Dict, Any
 from collections import defaultdict
 
 class TDDOperations:
     """TDDおよびコード修正の操作を担当する独立モジュール"""
-    
+
     def __init__(self, action_executor):
         self.ae = action_executor
         self.logger = logging.getLogger(__name__)
@@ -196,14 +195,14 @@ class TDDOperations:
     def analyze_test_failure(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """テスト失敗を分析して修正提案を生成"""
         parameters = context.get("plan", {}).get("parameters", {})
-        
+
         # --- NEW: Auto-populate from action_result or history if available ---
         # Search for test results in current context or history
         last_result = context.get("action_result", {})
         summary = last_result.get("test_summary", {})
-        
+
         error_details = summary.get("error_details", [])
-        
+
         # Build error handling: if no error_details but we have build_failed and raw_output
         if not error_details and last_result.get("build_failed") and last_result.get("raw_output"):
             raw_output = last_result["raw_output"]
@@ -214,13 +213,13 @@ class TDDOperations:
             history = context.get("history", [])
             for past_context in reversed(history):
                 past_result = past_context.get("action_result", {})
-                
+
                 # Check for execution errors
                 if past_result.get("test_summary", {}).get("error_details"):
                     summary = past_result["test_summary"]
                     error_details = summary.get("error_details", [])
                     break
-                
+
                 # Check for build errors in history
                 if past_result.get("build_failed") and past_result.get("raw_output"):
                     raw_output = past_result["raw_output"]
@@ -234,7 +233,7 @@ class TDDOperations:
             context,
             parameters,
         )
-        
+
         for failure in error_details:
             test_method = failure.get("method", "")
 
@@ -254,7 +253,7 @@ class TDDOperations:
                     'target_method_analysis': None,
                 }
             }
-            
+
             try:
                 result = self.ae.advanced_tdd_support.analyze_and_fix_test_failure(
                     test_failure_data,
@@ -278,7 +277,7 @@ class TDDOperations:
 
             primary_failure = error_details[0] if error_details else {}
             primary_target = self._relativize_path(primary_failure.get("file", ""))
-            
+
             context["action_result"] = {
                 "status": "error",
                 "message": f"{len(error_details)}件の失敗を分析しましたが、修正案を生成できませんでした。{debug_info}",
@@ -305,7 +304,7 @@ class TDDOperations:
             f"生成された修正提案数: {len(all_suggestions)}個",
             "\n主要な修正提案:"
         ]
-        
+
         for i, suggestion in enumerate(all_suggestions[:5], 1): # Show top 5
             applicability = "自動適用可" if suggestion.get('auto_applicable', True) else "手動確認"
             message_parts.append(f"{i}. [{suggestion.get('test_method', '不明')}] {suggestion['description']} ({applicability})")
@@ -372,11 +371,11 @@ class TDDOperations:
             }
         }
         return context
-    
+
     def execute_goal_driven_tdd(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """ゴール駆動型TDDを実行"""
         parameters = context.get("plan", {}).get("parameters", {})
-        
+
         goal_data = {
             'description': self.ae._get_entity_value(parameters.get("goal_description", "")),
             'acceptance_criteria': parameters.get("acceptance_criteria", []),
@@ -393,16 +392,16 @@ class TDDOperations:
                 'existing_tests': self.ae._get_entity_value(parameters.get("existing_tests", ""))
             }
         }
-        
+
         try:
             result = self.ae.advanced_tdd_support.execute_goal_driven_tdd(goal_data)
-            
+
             if result['status'] == 'success':
                 cycle_results = result['tdd_cycle_results']
                 artifacts = result['generated_artifacts']
                 metrics = result['quality_metrics']
                 goal_description = goal_data['description']
-                
+
                 message_parts = [
                     f"ゴール駆動型TDDが完了しました。",
                     f"目標: {goal_description}",
@@ -410,7 +409,7 @@ class TDDOperations:
                     f"成功率: {cycle_results['success_rate']:.1%}",
                     f"実行時間: {cycle_results['total_time_seconds']:.1f}秒"
                 ]
-                
+
                 test_count = len(artifacts.get('tests', []))
                 code_count = len(artifacts.get('code', []))
                 message_parts.extend([
@@ -418,20 +417,20 @@ class TDDOperations:
                     f"- テストケース: {test_count}個",
                     f"- コード実装: {code_count}個"
                 ])
-                
+
                 message_parts.extend([
                     f"\n品質メトリクス:",
                     f"- 推定カバレッジ: {metrics['estimated_coverage']}%",
                     f"- 循環複雑度: {metrics['cyclomatic_complexity']}",
                     f"- 技術的負債: {metrics['technical_debt']}"
                 ])
-                
+
                 recommendations = result.get('recommendations', [])
                 if recommendations:
                     message_parts.append(f"\n推奨事項:")
                     for i, rec in enumerate(recommendations[:3], 1):
                         message_parts.append(f"{i}. {rec}")
-                
+
                 context["action_result"] = {
                     "status": "success",
                     "message": "\n".join(message_parts),
@@ -465,7 +464,7 @@ class TDDOperations:
                         next_action="inspect_tdd_error"
                     )
                 }
-                
+
         except Exception as e:
             self.ae.log_manager.log_event("tdd_execution_error", {"message": f"ゴール駆動型TDD実行中にエラーが発生: {e}"}, level="ERROR")
             context["action_result"] = {
@@ -477,35 +476,35 @@ class TDDOperations:
                     next_action="inspect_tdd_error"
                 )
             }
-        
+
         return context
-    
+
     def apply_code_fix(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """コード修正提案を適用（一括適用対応）"""
         parameters = context.get("plan", {}).get("parameters", {})
         fix_id_requested = self.ae._get_entity_value(parameters.get("fix_id", ""))
         backup_enabled = parameters.get("backup_enabled", True)
-        
+
         # If fix_id_requested doesn't look like a real ID, treat as "all"
         known_id_prefixes = ("fix_", "heal_", "manual_", "calc_", "nullcheck_")
         is_valid_id = fix_id_requested and fix_id_requested.startswith(known_id_prefixes)
         if fix_id_requested and not is_valid_id:
             fix_id_requested = "all"
-        
+
         if not fix_id_requested:
             fix_id_requested = "all"
 
         target_suggestions = []
         analysis_result_context = {}
         history = context.get("history", [])
-        
+
         # 適用対象の提案を特定
         found_suggestions = False
         for i, past_context in enumerate(reversed(history)):
             past_result = past_context.get("action_result", {})
             past_analysis = past_result.get("analysis_result", {})
             suggestions = past_analysis.get("fix_suggestions", [])
-            
+
             if suggestions:
                 analysis_result_context = past_analysis
                 if fix_id_requested and fix_id_requested.lower() != "all":
@@ -518,7 +517,7 @@ class TDDOperations:
                     # すべての提案を一括対象にする
                     target_suggestions = suggestions
                     found_suggestions = True
-                
+
                 if found_suggestions:
                     break
 
@@ -538,7 +537,7 @@ class TDDOperations:
         try:
             # ファイルごとに修正をグループ化して適用
             fixes_by_file = defaultdict(list)
-            
+
             for sug in target_suggestions:
                 # ターゲットファイルの特定
                 if not sug.get("auto_applicable", True):
@@ -559,19 +558,19 @@ class TDDOperations:
                                     if 'Test' in f or f.endswith('Tests.cs'):
                                         target_file = f
                                         break
-                            
+
                             if not target_file:
                                 # Check if it's an SUT fix (has target_code) or Test fix
                                 if analysis.get("target_code", {}).get("file"):
                                     target_file = analysis["target_code"]["file"]
                                 else:
                                     target_file = test_context.get("test_file")
-                            
+
                             # Remove line suffix
                             if target_file:
                                 target_file = self._strip_line_suffix(target_file)
                             break
-                
+
                 if target_file:
                     is_cs_file = target_file.endswith('.cs')
                     if sug.get("type") == "add_package":
@@ -585,13 +584,13 @@ class TDDOperations:
 
             for target_file, suggestions in fixes_by_file.items():
                 target_path = self.ae._safe_join(target_file) if target_file != "PROJECT_CONFIG" else None
-                
+
                 # 特殊ケース: add_package はコマンド実行
                 if any(s.get("type") == "add_package" for s in suggestions):
                     for sug in suggestions:
                         if sug.get("type") == "add_package":
                             package_name = sug["suggested_code"]
-                            
+
                             # .csproj を探す (近傍からルートへ)
                             search_dir = os.path.dirname(target_path) if target_path else self.ae.workspace_root
                             csproj_files = []
@@ -604,7 +603,7 @@ class TDDOperations:
                                 next_dir = os.path.dirname(curr)
                                 if next_dir == curr: break
                                 curr = next_dir
-                            
+
                             if csproj_files:
                                 try:
                                     proj_dir = curr
@@ -623,7 +622,7 @@ class TDDOperations:
                                     })
                             else:
                                 failed_count += 1
-                    
+
                     if all(s.get("type") == "add_package" for s in suggestions):
                         continue
 
@@ -727,7 +726,7 @@ class TDDOperations:
                 if not behavioral_result["valid"]:
                     all_valid = False
                     error_msg = behavioral_result["error"]
-            
+
             should_rollback = not all_valid
             has_add_package = any(s.get("type") == "add_package" for s in target_suggestions)
             if has_add_package and not all_valid:
@@ -781,9 +780,9 @@ class TDDOperations:
                     next_action="inspect_fix_application_error"
                 )
             }
-        
+
         return context
-    
+
     def validate_code_syntax(self, file_path: str, relative_path: str) -> Dict[str, Any]:
         """コードの構文を検証"""
         try:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from src.utils.semantic_intents import (
     INTENT_DATABASE_QUERY,
     INTENT_FETCH,
@@ -21,7 +21,7 @@ class StatementBuilder:
     def render_statements(self, statements: List[Dict[str, Any]], path: Dict[str, Any]) -> str:
         code_lines = []
         indent = "    " * path.get("indent_level", 2)
-        
+
         for stmt in statements:
             s_type = stmt.get("type")
             if s_type == "call":
@@ -33,9 +33,9 @@ class StatementBuilder:
                     else:
                         method_expr = f"{method_expr}()"
                 if isinstance(method_expr, tuple): method_expr = method_expr[0]
-                
+
                 if not method_expr: continue
-                
+
                 prefix = ""
                 if stmt.get("out_var"):
                     if stmt.get("is_assignment_only"):
@@ -43,32 +43,32 @@ class StatementBuilder:
                     else:
                         v_type = stmt.get("var_type", "var")
                         prefix = f"{v_type} {stmt['out_var']} = "
-                
+
                 await_pref = "await " if stmt.get("is_async") else ""
                 full_line = f"{indent}{prefix}{await_pref}{method_expr}"
-                
+
                 if not any(full_line.strip().endswith(c) for c in [";", "}", "{"]):
                     full_line += ";"
                 code_lines.append(full_line)
-            
+
             elif s_type == "foreach":
                 code_lines.append(self.render_foreach(stmt["source"], stmt["item_name"], stmt["var_type"], stmt["body"], path))
-            
+
             elif s_type == "if":
                 code_lines.append(self.render_if(stmt["condition"], stmt["body"], stmt.get("else_body", []), path))
-            
+
             elif s_type == "raw":
                 full_line = f"{indent}{stmt['code']}"
                 if full_line.strip().endswith("}"):
                     full_line = full_line.rstrip().rstrip(";")
                 code_lines.append(full_line)
-                
+
             elif s_type == "comment":
                 code_lines.append(f"{indent}// {stmt['text']}")
 
             elif s_type == "try_catch":
                 code_lines.append(self.render_try_catch(stmt["body"], stmt["intent"], stmt["method_name"], path))
-                
+
         return "\n".join(code_lines)
 
     def render_try_catch(
@@ -87,9 +87,9 @@ class StatementBuilder:
         inner_path = path.copy()
         inner_path["indent_level"] = cur_indent + 1
         body_code = self.render_statements(body, inner_path)
-        
+
         code = f"{indent}try\n{indent}{{\n{body_code}\n{indent}}}\n"
-        
+
         # 27.395: Smart return for resilient blocks
         ret_val = ""
         method_ret = path.get("method_return_type", "void")
@@ -154,10 +154,10 @@ class StatementBuilder:
         resilient_intents = [INTENT_DATABASE_QUERY, INTENT_HTTP_REQUEST, INTENT_FILE_IO, INTENT_FETCH, INTENT_PERSIST, INTENT_JSON_DESERIALIZE]
         if intent not in resilient_intents:
             return stmt
-            
+
         out_var = stmt.get("out_var")
         var_type = stmt.get("var_type", "var")
-        
+
         hoisted_decl = None
         if out_var:
             type_defaults = {
@@ -167,7 +167,7 @@ class StatementBuilder:
             default_val = type_defaults.get(var_type, "null")
             decl_type = var_type
             value_types = {"int", "long", "double", "float", "decimal", "bool", "char", "byte", "short", "uint", "ulong", "ushort", "DateTime", "Guid"}
-            if "IEnumerable" in var_type or "List" in var_type: 
+            if "IEnumerable" in var_type or "List" in var_type:
                 concrete = var_type.replace('IEnumerable', 'List')
                 if not concrete.startswith("List<"): concrete = f"List<{concrete}>"
                 default_val = f"new {concrete}()"
@@ -177,9 +177,9 @@ class StatementBuilder:
                 path.setdefault("all_usings", set()).add("System")
             elif default_val == "null" and isinstance(var_type, str) and var_type and not var_type.endswith("?") and var_type not in value_types:
                 decl_type = f"{var_type}?"
-            
+
             hoisted_decl = {"type": "raw", "code": f"{decl_type} {out_var} = {default_val};", "var_type": decl_type}
-            
+
             existing_codes = [h.get("code") for h in path.setdefault("hoisted_statements", [])]
             if hoisted_decl["code"] not in existing_codes:
                 path["hoisted_statements"].append(hoisted_decl)
@@ -262,7 +262,7 @@ class StatementBuilder:
         }
         full_class = m.get("class", "")
         instance_name = m.get("target") or m.get("target_instance") or class_to_field.get(full_class)
-        
+
         receiver = ""
         if not instance_name and m_class and m_class not in static_classes and full_class not in static_classes:
             simple_class_name = m_class.split(".")[-1]
@@ -276,7 +276,7 @@ class StatementBuilder:
             if is_predefined or is_new_di or instance_name in path.get("referenced_fields", set()):
                 receiver = f"{instance_name}."
                 path.setdefault("referenced_fields", set()).add(instance_name)
-                
+
                 if args:
                     first_arg = args[0].strip()
                     if first_arg == instance_name or first_arg == f"_{instance_name.lstrip('_')}":
@@ -286,7 +286,7 @@ class StatementBuilder:
             receiver = f"{args[0]}."
             args = args[1:]
             m_class = ""
-        
+
         display_class = m_class
         if "." in m_class:
             class_simple = m_class.split(".")[-1]
@@ -297,7 +297,7 @@ class StatementBuilder:
         if receiver: final_prefix = receiver
         elif display_class and display_class not in ["Utils", ""]:
             final_prefix = f"{display_class}."
-            
+
         if m.get("is_constructor"):
             final_prefix = f"new {display_class} "
             if receiver: final_prefix = f"new {display_class} "
@@ -318,7 +318,7 @@ class StatementBuilder:
                     t_arg = f"List<{t_arg}>"
             if "<T>" in m_name: m_name = m_name.replace("<T>", f"<{t_arg}>")
             else: m_name = f"{m_name}<{t_arg}>"
-        
+
         safe_args = [str(a) if a is not None else "\"\"" for a in args]
         return f"{final_prefix}{m_name}({', '.join(safe_args)})"
 
@@ -356,20 +356,20 @@ class StatementBuilder:
         else:
             ent = node.get("target_entity", "Item").lower()
             base = ent if ent not in ["item", "string", "int", "decimal", "bool", "object", "void"] else "result"
-            
+
         reserved = ["abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked", "class", "const", "continue", "decimal", "default", "delegate", "do", "double", "else", "enum", "event", "explicit", "extern", "false", "finally", "fixed", "float", "for", "foreach", "goto", "if", "implicit", "in", "int", "interface", "internal", "is", "lock", "long", "namespace", "new", "null", "object", "operator", "out", "override", "params", "private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed", "short", "sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw", "true", "try", "typeof", "uint", "ulong", "unchecked", "unsafe", "ushort", "using", "virtual", "void", "volatile", "while"]
         if base in reserved: base = "result"
-        
+
         used_names = path.setdefault("used_names", set())
         candidate = base
         if base == "result" and candidate not in used_names and not any(n.startswith("result") for n in used_names):
             candidate = "result0"
         counter = 1
-        
+
         while candidate in used_names:
             candidate = f"{base}{counter}"
             counter += 1
-            
+
         used_names.add(candidate)
         if role:
             path.setdefault("name_to_role", {})[candidate] = role
@@ -406,7 +406,7 @@ class StatementBuilder:
 
     def fix_placeholders_recursive(self, statements: List[Dict[str, Any]], old: str, new: str):
         for stmt in statements:
-            if stmt.get("method"): 
+            if stmt.get("method"):
                 m_code = stmt["method"][0] if isinstance(stmt["method"], tuple) else stmt["method"]
                 stmt["method"] = m_code.replace(f"<{old}>", f"<{new}>")
             if stmt.get("var_type"): stmt["var_type"] = stmt["var_type"].replace(old, new)

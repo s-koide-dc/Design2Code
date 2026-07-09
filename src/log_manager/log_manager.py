@@ -74,7 +74,7 @@ class LogManager:
         """Recursively sanitizes sensitive fields in log data."""
         if not isinstance(data, dict):
             return data
-            
+
         sanitized = {}
         for key, value in data.items():
             if key in self.sensitive_fields or self._is_sensitive_key(key):
@@ -102,11 +102,11 @@ class LogManager:
         from datetime import timedelta
         # Use a small buffer (5 seconds)
         adjusted_start = start_timestamp - timedelta(seconds=5)
-        
+
         events = []
         if not os.path.exists(self.json_log_file_path):
             return []
-            
+
         try:
             with open(self.json_log_file_path, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
@@ -176,12 +176,12 @@ class LogManager:
         """
         Logs an event to both human-readable and JSON log files.
         For security-sensitive events, strictly enforces audit data requirements.
-        
+
         Args:
             event_type (str): Type of event.
             data (dict): Event data.
             level (str): Log level.
-            
+
         Raises:
             AuditComplianceError: If strict_audit is True and a security event is missing required fields.
         """
@@ -192,14 +192,14 @@ class LogManager:
         if event_type in SECURITY_SENSITIVE_EVENTS:
             missing_fields = []
             required_fields = ["parameters", "status"]
-            
+
             for field in required_fields:
                 if field not in data:
                     missing_fields.append(field)
-            
+
             if missing_fields:
                 error_msg = f"Security-sensitive event '{event_type}' missing critical audit fields: {', '.join(missing_fields)}"
-                
+
                 # Log the violation attempt before raising error
                 violation_entry = {
                     "timestamp": datetime.now().isoformat(),
@@ -255,7 +255,7 @@ class LogManager:
             "original_error": data.get("original_error"),
             "suggested_action": data.get("suggested_action")
         }
-        
+
         error_records = []
         if os.path.exists(self.error_summary_file_path):
             try:
@@ -272,6 +272,6 @@ class LogManager:
                 self.logger.warning("Error reading error summary file: %s. Starting new.", e)
 
         error_records.append(error_data)
-        
+
         with open(self.error_summary_file_path, 'w', encoding='utf-8') as f:
             json.dump(error_records, f, indent=4, ensure_ascii=False)

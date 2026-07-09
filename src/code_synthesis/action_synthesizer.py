@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 import copy
-import sys
-import json
-import os
 from typing import List, Dict, Any, Optional
 from src.code_synthesis.unified_knowledge_base import AmbiguousMethodCandidatesError
 
@@ -199,14 +196,14 @@ class ActionSynthesizer:
             res = handle_display_transform(self, runtime_node, path)
             if res is not None:
                 return res
-        
+
         target_entity = node.get("target_entity", "Item")
         htn_plan = node.get("htn_plan")
-        
+
         if path.get("in_loop") and htn_plan and len(htn_plan) > 1:
             if any(s.get("task") in [INTENT_FETCH, INTENT_DATABASE_QUERY, INTENT_JSON_DESERIALIZE] for s in htn_plan):
                 htn_plan = None
-        
+
         if htn_plan and len(htn_plan) > 1:
             return handle_htn_plan(self, runtime_node, path, htn_plan)
 
@@ -216,7 +213,7 @@ class ActionSynthesizer:
             return handle_io(self, runtime_node, path)
         if intent == INTENT_JSON_DESERIALIZE:
             return handle_json(self, runtime_node, path)
-        
+
         candidates = gather_candidates(self, runtime_node, path, target_entity)
         if runtime_node.get("_ambiguous_method_candidates"):
             return self._unresolved_path(
@@ -1485,7 +1482,7 @@ class ActionSynthesizer:
                     role_mismatch = True
                 if effective_role in [ROLE_WRITE, ROLE_PERSIST] and c_role in [ROLE_READ, ROLE_FETCH]:
                     role_mismatch = True
-            
+
             if role_mismatch:
                 continue
 

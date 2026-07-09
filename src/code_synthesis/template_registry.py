@@ -13,7 +13,7 @@ class TemplateRegistry:
             # Default path relative to project root
             root = os.getcwd()
             knowledge_path = os.path.join(root, "resources", "canonical_knowledge.json")
-        
+
         if os.path.exists(knowledge_path):
             try:
                 with open(knowledge_path, "r", encoding="utf-8") as f:
@@ -36,16 +36,16 @@ class TemplateRegistry:
             t_caps = t.get("capabilities", [])
             if t_intent != intent and intent not in t_caps:
                 continue
-            
+
             # Special filter for DB
             if (intent in [INTENT_DATABASE_QUERY, INTENT_FETCH, INTENT_PERSIST] or INTENT_DATABASE_QUERY in t_caps) and t.get("target") == "_dbConnection":
                 if not is_db_allowed:
                     continue
-            
+
             # Special filter for Source Kind
             t_source = t.get("source_kind")
             if t_source and source_kind and t_source != source_kind:
                 continue
-            
+
             results.append(t)
         return results

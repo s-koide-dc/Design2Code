@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 # src/action_executor/action_executor.py
 
 import os
@@ -83,7 +83,7 @@ class ActionExecutor:
             {"pattern": "secret", "match": "segment"},
             {"pattern": "token", "match": "segment"},
         ]
-        
+
         self.vector_engine = vector_engine
         self.morph_analyzer = morph_analyzer
         self.semantic_analyzer = semantic_analyzer
@@ -102,20 +102,20 @@ class ActionExecutor:
             self.list_commands = policy_data.get("list_commands", self.list_commands)
             self.read_allowed_dirs = policy_data.get("read_allowed_dirs", self.read_allowed_dirs)
             self.read_blocked_rules = policy_data.get("read_blocked_rules", self.read_blocked_rules)
-            
+
         ep_path = error_patterns_path
         if not ep_path and config_manager:
             ep_path = config_manager.error_patterns_path
         elif not ep_path:
             ep_path = "resources/error_patterns.json"
-            
+
         self.error_patterns = self._load_error_patterns(ep_path)
         self.test_generator = TestGenerator(self.workspace_root)
         self.advanced_tdd_support = AdvancedTDDSupport(self.workspace_root, test_generator=self.test_generator)
         self.coverage_analyzer = CoverageAnalyzer(self.workspace_root, log_manager)
         self.refactoring_analyzer = RefactoringAnalyzer(self.workspace_root, log_manager, action_executor=self)
         self.cicd_integrator = CICDIntegrator(self.workspace_root, log_manager)
-        
+
         # オペレーションクラスの初期化
         self.file_ops = FileOperations(self)
         self.csharp_ops = CSharpOperations(self)
@@ -146,7 +146,7 @@ class ActionExecutor:
         if safety_check_status == "BLOCK":
             context["action_result"] = {"status": "error", "message": "Safety Policyにより禁止された操作です。実行できません。"}
             return context
-        
+
         # 2. Confirmation Check
         if confirmation_needed:
             if not (context.get("confirmation_granted") or context.get("confirmed")):
@@ -163,17 +163,17 @@ class ActionExecutor:
             self.log_manager.log_event("action_execution_start", {"action": action_method_name, "parameters": parameters}, level="INFO")
             result_ctx = self.execute_action(action_method_name, context, parameters)
             self._augment_action_result_metadata(result_ctx, action_method_name, parameters)
-            
+
             # Log completion status
             status = result_ctx.get("action_result", {}).get("status", "error")
             self.log_manager.log_event("action_execution", {
-                "action": action_method_name, 
-                "parameters": parameters, 
+                "action": action_method_name,
+                "parameters": parameters,
                 "status": status,
                 "message": result_ctx.get("action_result", {}).get("message", "")
             }, level="INFO")
             return result_ctx
-        
+
         return context
 
     def execute_action(self, method_name: str, context: dict, parameters: dict) -> dict:
@@ -188,7 +188,7 @@ class ActionExecutor:
                 context["action_result"] = {"status": "error", "message": f"アクション実行中に予期せぬエラー: {e}"}
         else:
             context["action_result"] = {"status": "error", "message": f"不明なアクションメソッド: {method_name}"}
-        
+
         return context
 
     def _run_learning_cycle(self, context: dict, parameters: dict) -> dict:
@@ -200,7 +200,7 @@ class ActionExecutor:
         try:
             result = self.autonomous_learning.run_learning_cycle()
             status = result.get("status")
-            
+
             if status == "success":
                 report = result.get("report", {})
                 patterns_found = result.get("patterns_found", 0)
@@ -214,10 +214,10 @@ class ActionExecutor:
             else:
                  msg = f"学習サイクル中にエラーが発生しました: {result.get('error')}"
                  context["action_result"] = {"status": "error", "message": msg, "details": result}
-                 
+
         except Exception as e:
             context["action_result"] = {"status": "error", "message": f"学習サイクル実行中に予期せぬエラー: {e}"}
-            
+
         return context
 
     def _manage_knowledge(self, context: dict, parameters: dict) -> dict:
@@ -227,42 +227,42 @@ class ActionExecutor:
              return context
 
         op = parameters.get("operation", "list")
-        
+
         if op == "list":
             summary = self.autonomous_learning.generate_knowledge_summary()
             msg = "【現在の学習状況】\n"
             msg += f"- 修復パターン数: {summary['repair_knowledge']['patterns_count']}\n"
             msg += f"- リトライルール数: {summary['retry_rules']['count']}\n"
             msg += f"- コンプライアンス監査項目: {summary['compliance']['findings_count']}件\n"
-            
+
             proactive = summary['compliance'].get('proactive_suggestion')
             if proactive:
                 msg += f"\n💡 AIからの提案:\n  {proactive['message']}\n"
-            
+
             if summary.get("recent_feedback"):
                 msg += "\n【直近のフィードバック】\n"
                 for fb in summary["recent_feedback"]:
                     msg += f"- {fb.get('feedback')} ({fb.get('timestamp')[:10]})\n"
-            
+
             context["action_result"] = {"status": "success", "message": msg, "summary": summary}
-            
+
         elif op == "search_code":
             query = parameters.get("query")
             if not query:
                 context["action_result"] = {"status": "error", "message": "検索クエリを指定してください。"}
                 return context
-            
+
             results = self.autonomous_learning.find_relevant_code(query)
             if not results:
                 context["action_result"] = {"status": "success", "message": "関連するコードは見つかりませんでした。"}
                 return context
-            
+
             msg = f"「{query}」に関連するコンポーネント:\n"
             for r in results:
                 msg += f"- {r['name']} ({r['file']}): {r['summary'][:100]}... (類似度: {r['similarity']:.2f})\n"
-            
+
             context["action_result"] = {"status": "success", "message": msg, "results": results}
-        
+
         else:
             context["action_result"] = {"status": "error", "message": f"不明な操作です: {op}"}
 
@@ -289,7 +289,7 @@ class ActionExecutor:
         msg = f"「{query}」の意味を持つ可能性のある言葉:\n"
         for r in results:
             msg += f"- {r['word']}: {r['meaning']}\n"
-        
+
         context["action_result"] = {"status": "success", "message": msg, "results": results}
         return context
 
@@ -310,18 +310,18 @@ class ActionExecutor:
             from src.advanced_tdd.ast_analyzer import ASTAnalyzer
             analyzer = ASTAnalyzer()
             structure = analyzer.analyze_file(full_path)
-            
+
             # 2. Markdown生成
             module_name = os.path.splitext(os.path.basename(target_file))[0]
             doc_content = f"# {module_name} Design Document\n\n"
             doc_content += "## 1. Purpose\n(ここにモジュールの目的を記述してください。自動生成されたスケルトンです。)\n\n"
             doc_content += "## 2. Structured Specification\n\n"
-            
+
             for cls in structure.get('classes', []):
                 doc_content += f"### Class: {cls['name']}\n"
                 if cls.get('docstring'):
                     doc_content += f"- **Description**: {cls['docstring']}\n"
-                
+
                 if cls.get('methods'):
                     doc_content += "- **Methods**:\n"
                     for m in cls['methods']:
@@ -341,12 +341,12 @@ class ActionExecutor:
             # 3. ファイル書き出し (規約に基づき src/{module}/{module}.design.md)
             design_path = os.path.splitext(target_file)[0] + ".design.md"
             full_design_path = self._safe_join(design_path)
-            
+
             with open(full_design_path, 'w', encoding='utf-8') as f:
                 f.write(doc_content)
-            
+
             context["action_result"] = {
-                "status": "success", 
+                "status": "success",
                 "message": f"設計書 '{design_path}' を生成しました。内容を確認・補記してください。",
                 "generated_file": design_path
             }
@@ -371,7 +371,7 @@ class ActionExecutor:
         source_file = target_design.replace(".design.md", ".py")
         if not os.path.exists(self._safe_join(source_file)):
             source_file = target_design.replace(".design.md", ".cs")
-        
+
         full_source_path = self._safe_join(source_file)
         if not full_source_path or not os.path.exists(full_source_path):
             context["action_result"] = {"status": "error", "message": f"対応するソースファイルが見つかりません: {source_file}"}
@@ -380,9 +380,9 @@ class ActionExecutor:
         try:
             from src.utils.design_doc_refiner import DesignDocRefiner
             refiner = DesignDocRefiner(self.config_manager)
-            
+
             result = refiner.sync_from_code(full_design_path, full_source_path)
-            
+
             if result["status"] == "success":
                 msg = f"設計書 '{target_design}' を実装と同期しました。\n"
                 if result.get("findings"):
@@ -390,7 +390,7 @@ class ActionExecutor:
                     for f in result["findings"][:3]: # 上位3件を表示
                         icon = "🔴" if f["severity"] == "high" else "🟡"
                         msg += f"- {icon} {f['detail']}\n"
-                
+
                 context["action_result"] = {
                     "status": "success",
                     "message": msg,
@@ -433,7 +433,7 @@ class ActionExecutor:
         except ValueError:
             context["action_result"] = {"status": "error", "message": "コマンドの形式が正しくありません。"}
             return context
-        
+
         if not cmd_parts:
             context["action_result"] = {"status": "error", "message": "コマンドが空です。"}
             return context
@@ -535,7 +535,7 @@ class ActionExecutor:
             context["action_result"] = {"status": "error", "message": "コマンドがタイムアウトしました。", "type": "TimeoutExpired"}
         except Exception as e:
             context["action_result"] = {"status": "error", "message": f"コマンドの実行に失敗しました: {e}", "type": type(e).__name__}
-            
+
         return context
 
     def _augment_action_result_metadata(self, context: dict, action_method_name: str, parameters: dict) -> None:
@@ -725,12 +725,12 @@ class ActionExecutor:
 
         # Resolve the real path of the workspace root (follows symlinks)
         workspace_real = os.path.realpath(self.workspace_root)
-        
+
         try:
             # 外部ユーティリティで正規化
             from src.utils.context_utils import normalize_path
             filename = normalize_path(filename)
-            
+
             # Join and resolve the real path of the target file
             target_path = os.path.join(workspace_real, filename)
             target_real = os.path.realpath(target_path)
@@ -740,12 +740,12 @@ class ActionExecutor:
         # Block Windows UNC paths
         if os.name == 'nt' and (target_real.startswith('\\\\') or target_path.startswith('\\\\')):
             return None
-        
+
         # Ensure the target path is strictly within the workspace root
         # Using realpath handles symbolic link attacks
         if not target_real.startswith(workspace_real + os.sep) and target_real != workspace_real:
             return None
-            
+
         return target_real
 
     def _move_file(self, context, parameters):
@@ -794,7 +794,7 @@ class ActionExecutor:
             return ["source_filename", "destination_filename", "content"]
         elif intent == INTENT_LIST_DIR:
             # 'directory' is optional, defaults to '.'
-            return [] 
+            return []
         elif intent == INTENT_CMD_RUN:
             return ["command"]
         elif intent == INTENT_GET_CWD:
@@ -895,11 +895,11 @@ class ActionExecutor:
         Matches an exception against loaded structured patterns and returns a message.
         """
         error_message = str(exc)
-        
+
         # Trigger autonomous learning for any action failure
         if self.autonomous_learning:
             self.autonomous_learning.trigger_learning(
-                event_type="ACTION_FAILED", 
+                event_type="ACTION_FAILED",
                 data={"error_type": exc.__class__.__name__, "message": error_message}
             )
 
@@ -911,11 +911,11 @@ class ActionExecutor:
                     "suggested_action": pattern_obj["suggested_action"],
                     "original_error": error_message
                 }
-        
+
         # Fallback to default generic message
         return {
-            "status": "error", 
-            "message": default_message, 
+            "status": "error",
+            "message": default_message,
             "original_error": error_message,
             "original_error_type": exc.__class__.__name__ # Add this
         }
@@ -956,28 +956,28 @@ class ActionExecutor:
         return self.ref_ops.apply_refactoring(context, parameters)
     def _setup_cicd_pipeline(self, context: dict, parameters: dict) -> dict:
         return self.cicd_ops.setup_cicd_pipeline(context, parameters)
-    
+
     def _configure_quality_gates(self, context: dict, parameters: dict) -> dict:
         return self.cicd_ops.configure_quality_gates(context, parameters)
-    
+
     def _generate_cicd_config(self, context: dict, parameters: dict) -> dict:
         return self.cicd_ops.generate_cicd_config(context, parameters)
-    
+
     def _find_latest_report(self, report_dir: str) -> dict:
         return self.cicd_ops.find_latest_report(report_dir)
     # ===== 高度TDD支援機能 (Phase 3-4) =====
-    
+
     def _analyze_test_failure(self, context: dict, parameters: dict) -> dict:
         return self.tdd_ops.analyze_test_failure(context)
-    
+
     def _execute_goal_driven_tdd(self, context: dict, parameters: dict) -> dict:
         return self.tdd_ops.execute_goal_driven_tdd(context)
-    
+
     def _apply_code_fix(self, context: dict, parameters: dict) -> dict:
         return self.tdd_ops.apply_code_fix(context)
-    
+
     def _validate_code_syntax(self, file_path: str, relative_path: str) -> dict:
         return self.tdd_ops.validate_code_syntax(file_path, relative_path)
-    
+
     def _check_quality_gates(self, context: dict, parameters: dict) -> dict:
         return self.cicd_ops.check_quality_gates(context, parameters)

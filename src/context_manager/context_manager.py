@@ -5,7 +5,7 @@ class ContextManager:
     def __init__(self, max_history=10):
         """
         Initializes the Context Manager.
-        
+
         Args:
             max_history (int): Maximum number of past contexts to retain.
         """
@@ -31,7 +31,7 @@ class ContextManager:
             "entities": context.get("analysis", {}).get("entities", {}),
             "action_result": context.get("action_result", {})
         }
-        
+
         history_list = self.history[session_id]
         history_list.append(entry)
         self._trim_history(session_id)

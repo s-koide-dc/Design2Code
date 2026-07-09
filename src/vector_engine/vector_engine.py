@@ -3,7 +3,7 @@ import os
 import sys
 import numpy as np
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Dict, Optional
 from src.semantic_search.light_vector_db import PretrainedVectorStore
 import hashlib
 
@@ -23,7 +23,7 @@ class VectorEngine:
         self.model_path = model_path
         self.store: Optional[PretrainedVectorStore] = None
         self._oov_cache: Dict[str, np.ndarray] = {}
-        
+
         if skip_load or os.environ.get("SKIP_VECTOR_MODEL") == "1":
             self.logger.info("VectorEngine: Fast mode enabled (skipping model load).")
             self.is_ready = True
@@ -38,7 +38,7 @@ class VectorEngine:
                  if os.path.exists(p):
                      model_path = p
                      break
-        
+
         if model_path and os.path.exists(model_path):
             self.load_with_cache(model_path, max_vocab=max_vocab)
         else:
@@ -48,7 +48,7 @@ class VectorEngine:
         """Loads vectors using PretrainedVectorStore if cache available."""
         vocab_cache_path = path + f".v{max_vocab}.vocab.npy"
         matrix_cache_path = path + f".v{max_vocab}.matrix.npy"
-        
+
         if os.path.exists(vocab_cache_path) and os.path.exists(matrix_cache_path):
             test_mode = bool(os.environ.get("PYTEST_CURRENT_TEST") or "unittest" in sys.modules)
             disable_mmap = os.environ.get("DISABLE_VECTOR_MMAP") == "1"
@@ -107,7 +107,7 @@ class VectorEngine:
                         vocab.append(word)
                         count += 1
                     except ValueError: continue
-            
+
             self.temp_vocab = vocab
             self.temp_matrix = np.array(vec_list, dtype=np.float32)
             self.is_ready = True
@@ -137,7 +137,7 @@ class VectorEngine:
         if not self.is_ready or not self.store: return (None, 0.0)
         q_vec = self.store.get_vector(query)
         if q_vec is None: return (None, 0.0)
-        
+
         results = []
         for c in candidates:
             c_vec = self.store.get_vector(c)
@@ -151,14 +151,14 @@ class VectorEngine:
     def get_sentence_vector(self, words: list) -> Optional[np.ndarray]:
         if not self.is_ready or not words or not self.store:
             return None
-        
+
         vecs = []
         for w in words:
             v = self.store.get_vector(w)
             if v is None:
                 v = self._get_oov_vector(w)
             if v is not None: vecs.append(v)
-            
+
         if not vecs: return None
         mean_vec = np.mean(vecs, axis=0)
         norm = np.linalg.norm(mean_vec)

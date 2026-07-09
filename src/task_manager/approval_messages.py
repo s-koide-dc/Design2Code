@@ -12,7 +12,7 @@ from src.utils.action_intents import INTENT_CMD_RUN, INTENT_FILE_DELETE
 
 class ApprovalMessageGenerator:
     """承認メッセージの生成を管理するクラス"""
-    
+
     def __init__(self, task_definitions_path: str = "resources/task_definitions.json"):
         self.task_definitions = self._load_task_definitions(task_definitions_path)
         self.templates = {
@@ -34,22 +34,22 @@ class ApprovalMessageGenerator:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             return {}
-    
+
     def generate_overall_approval_message(self, task_name: str, parameters: Dict[str, Any], task_definitions: Dict[str, Any] = None) -> str:
         """複合タスク全体承認メッセージを生成"""
         # 1. Try provided task definitions, then fallback to self.task_definitions
         definitions = task_definitions if task_definitions is not None else self.task_definitions
-        
+
         task_def = definitions.get(task_name, {})
         overall_template = task_def.get("templates", {}).get("overall_approval")
-        
+
         if not overall_template:
             # Fallback to hardcoded templates
             overall_template = self.templates["COMPOUND_TASK_OVERALL"].get(
-                task_name, 
+                task_name,
                 self.templates["COMPOUND_TASK_OVERALL"]["default"]
             )
-        
+
         try:
             # パラメータから値を抽出
             format_params = {}
@@ -58,27 +58,27 @@ class ApprovalMessageGenerator:
                     format_params[key] = value["value"]
                 else:
                     format_params[key] = str(value)
-            
+
             format_params["task_name"] = task_name
             return overall_template.format(**format_params)
         except (KeyError, ValueError):
             # フォーマットエラーの場合はデフォルトメッセージ
             default_tpl = self.templates["COMPOUND_TASK_OVERALL"].get("default")
             return default_tpl.format(task_name=task_name)
-    
+
     def generate_critical_subtask_message(self, task_name: str, subtask_name: str, parameters: Dict[str, Any], task_definitions: Dict[str, Any] = None) -> str:
         """クリティカルサブタスク承認メッセージを生成"""
         definitions = task_definitions if task_definitions is not None else self.task_definitions
         # 1. Try to get template from subtask's own definition first
         subtask_def = definitions.get(subtask_name, {})
         template = subtask_def.get("templates", {}).get("step_approval")
-        
+
         if not template:
             template = self.templates["CRITICAL_SUBTASK"].get(
                 subtask_name,
                 self.templates["CRITICAL_SUBTASK"]["default"]
             )
-        
+
         try:
             # パラメータから値を抽出
             format_params = {}
@@ -87,13 +87,13 @@ class ApprovalMessageGenerator:
                     format_params[key] = value["value"]
                 else:
                     format_params[key] = str(value)
-            
+
             format_params["task_name"] = task_name
             format_params["subtask_name"] = subtask_name
             return template.format(**format_params)
         except (KeyError, ValueError):
             # フォーマットエラーの場合はデフォルトメッセージ
             return self.templates["CRITICAL_SUBTASK"]["default"].format(
-                task_name=task_name, 
+                task_name=task_name,
                 subtask_name=subtask_name
             )

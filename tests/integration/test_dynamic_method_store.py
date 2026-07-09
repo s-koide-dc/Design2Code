@@ -49,19 +49,19 @@ class TestDynamicMethodStore(unittest.TestCase):
             "dependencies": ["CsvHelper"],
             "code_body": """
 namespace Common.Serialization {
-    public class CsvUtil { 
-        public static string ToCsv(IEnumerable<dynamic> records) { 
-            using var writer = new StringWriter(); 
-            using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture); 
-            csv.WriteRecords(records); 
-            return writer.ToString(); 
-        } 
+    public class CsvUtil {
+        public static string ToCsv(IEnumerable<dynamic> records) {
+            using var writer = new StringWriter();
+            using var csv = new CsvWriter(writer, CultureInfo.InvariantCulture);
+            csv.WriteRecords(records);
+            return writer.ToString();
+        }
     }
 }""",
             "tags": ["csv", "export"],
             "id": "csv_util_to_csv"
         }
-        
+
         # ダミーデータ生成メソッド
         dummy_data_method = {
             "name": "CreateSampleData",
@@ -74,7 +74,7 @@ namespace Common.Serialization {
             "tags": ["create", "data"],
             "id": "data_factory_create"
         }
-        
+
         # 公開APIを通してメタデータと索引を一貫して更新する
         self.synthesizer.method_store.add_method(new_method)
         self.synthesizer.method_store.add_method(dummy_data_method)
@@ -85,31 +85,31 @@ namespace Common.Serialization {
 
     def test_synthesize_and_verify_with_dynamic_dependencies(self):
         print("\n--- Test: Dynamic Dependency Injection (CsvHelper) ---")
-        
+
         # 1. 合成リクエスト
         steps = [
             "CreateSampleData",
             "ToCsv"
         ]
-        
+
         result = self.synthesizer.synthesize("ExportUserCsv", steps)
-        
+
         print("Synthesized Code:")
         print(result["code"])
-        
+
         # 依存関係が抽出できているか（環境により変動するため厳格化しない）
         self.assertIsInstance(result["dependencies"], list)
         print(f"Dependencies: {result['dependencies']}")
-        
+
         # 2. CompilationVerifier で検証
         # 抽出された依存関係を使用してビルド
         deps = [{"name": d} for d in result["dependencies"]]
-        
+
         verify_result = self.verifier.verify(result["code"], dependencies=deps)
-        
+
         print("Build Output:")
         print(verify_result.get("stdout"))
-        
+
         if verify_result.get("errors"):
              print("Build Errors:")
              for err in verify_result["errors"]:

@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, Any, Optional, Set
+from typing import Dict, Any, Optional
 from .models import TestFailure
 
 class DummyDataFactory:
     """C#ダミーデータ生成ファクトリ (完全汎用・解析データ駆動版)"""
-    
+
     def __init__(self, analysis_results: Optional[Dict[str, Any]] = None, knowledge_base: Any = None):
         # 型名 -> {プロパティ名: 推奨値}
         self.learned_rules: Dict[str, Dict[str, str]] = {}
@@ -13,7 +13,7 @@ class DummyDataFactory:
         if self.kb and hasattr(self.kb, 'type_mappings'):
             # 既存の知識を読み込み
             self.learned_rules.update(self.kb.type_mappings)
-            
+
         # 解析結果 (ナレッジグラフ) を保持して動的な型解決に使用
         self.analysis_results = analysis_results
         self.property_types: Dict[str, str] = {}
@@ -133,7 +133,7 @@ class DummyDataFactory:
     def generate_instantiation(self, type_name: str) -> str:
         """型名からインスタンス化コードを生成"""
         t = type_name.strip()
-        
+
         # 3. 基本型
         t_low = t.lower()
         if t_low in ['int', 'int32', 'long']: return '0'
@@ -145,7 +145,7 @@ class DummyDataFactory:
 
         # 名前空間の正規化
         t_clean = t.replace('System.Collections.Generic.', '').replace('System.', '').split('.')[-1]
-        
+
         # 学習したプロパティがある場合、オブジェクト初期化子を使用
         if t_clean in self.learned_rules:
             props = self.learned_rules[t_clean]
@@ -165,11 +165,11 @@ class DummyDataFactory:
         is_interface = t_clean.startswith('I') and len(t_clean) > 1 and t_clean[1].isupper()
         if is_interface:
             return f"Substitute.For<{t_clean}>()"
-        
+
         # 3. 特殊なシステム型
         if t_clean == 'CancellationToken': return "CancellationToken.None"
         if t_clean == 'DateTime': return "DateTime.Now"
-        
+
         # 4. 解析データに基づく動的生成
         if self.analysis_results:
             objects = self.analysis_results.get('manifest', {}).get('objects', [])

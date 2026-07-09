@@ -5,7 +5,7 @@ import json
 import tempfile
 import shutil
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from .compilation_verifier import CompilationVerifier
 from src.utils.stdout_guard import debug_print
 
@@ -116,10 +116,10 @@ class ExecutionVerifier(CompilationVerifier):
         """コードを単純実行可能な形式にラップして実行し、実行時エラーを捕捉する"""
         temp_dir = work_dir or tempfile.mkdtemp(prefix="cs_exec_")
         os.makedirs(temp_dir, exist_ok=True)
-        
+
         assertion_goals = assertion_goals or []
         dependencies = dependencies or []
-        
+
         try:
             inspection_result = self._inspect_source_structure(source_code, method_name)
             if inspection_result.get("status") != "success":
@@ -137,26 +137,26 @@ class ExecutionVerifier(CompilationVerifier):
                 inspection.get("constructor_parameters", []),
             )
             method_args_code = self._build_method_args(method_info.get("parameters", []))
-            
+
             call_args = ", ".join(method_args_code) if method_args_code else ""
 
             # アサーションコードの生成
             assertion_code = ""
             is_collection = any(kw in return_type for kw in ["IEnumerable", "List", "[]"])
-            
+
             if return_type != "void":
                 for goal in assertion_goals:
                     if goal['type'] == 'numeric':
                         op = goal['operator']
                         expected = goal['expected_value']
                         var_hint = goal.get('variable_hint')
-                        
+
                         op_map = {
-                            "GreaterEqual": ">=", "LessEqual": "<=", "Equal": "==", 
+                            "GreaterEqual": ">=", "LessEqual": "<=", "Equal": "==",
                             "NotEqual": "!=", "Greater": ">", "Less": "<"
                         }
                         cs_op = op_map.get(op, "==")
-                        
+
                         # 評価対象の式
                         expr = "result"
                         if is_collection:
@@ -226,7 +226,7 @@ public class Program
         {{
             Exception actualEx = ex;
             if (ex is AggregateException aggEx) actualEx = aggEx.InnerException;
-            
+
             Console.WriteLine("__RUNTIME_JSON__" + JsonSerializer.Serialize(new
             {{
                 type = actualEx.GetType().FullName,
@@ -240,7 +240,7 @@ public class Program
 """
             # csproj (work_dir が指定されていない、またはファイルが存在しない場合のみ作成)
             target_csproj = os.path.join(temp_dir, "Exec.csproj")
-            
+
             dep_items = ""
             for dep in dependencies:
                 name = dep.get("name")
@@ -269,18 +269,18 @@ public class Program
             all_usings = set()
             other_source = []
             other_wrapper = []
-            
+
             for line in source_lines:
                 if line.strip().startswith("using "): all_usings.add(line.strip())
                 else: other_source.append(line)
             for line in wrapper_lines:
                 if line.strip().startswith("using "): all_usings.add(line.strip())
                 else: other_wrapper.append(line)
-                
+
             combined_code = "\n".join(sorted(list(all_usings))) + "\n\n"
             combined_code += "\n".join(other_source) + "\n\n"
             combined_code += "\n".join(other_wrapper)
-            
+
             with open(os.path.join(temp_dir, "Program.cs"), "w", encoding="utf-8") as f:
                 f.write(combined_code)
 
@@ -347,7 +347,7 @@ public class Program
             }
         temp_dir = tempfile.mkdtemp(prefix="cs_test_")
         os.makedirs(temp_dir, exist_ok=True)
-        
+
         try:
             def _extract_namespace(code: str) -> str | None:
                 for line in code.splitlines():

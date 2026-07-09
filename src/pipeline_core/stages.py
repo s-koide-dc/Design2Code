@@ -3,7 +3,6 @@
 
 from abc import ABC, abstractmethod
 import time
-import os
 from src.utils.context_utils import _get_context_summary
 from src.utils.confirmation_response import INTENT_AGREE, INTENT_DISAGREE
 from src.utils.action_intents import INTENT_RECOVERY_FROM_TEST_FAILURE
@@ -26,7 +25,7 @@ class PipelineStage(ABC):
 class SetupStage(PipelineStage):
     def execute(self, context: dict, pipeline: 'Pipeline') -> dict:
         text = context.get("original_text", "")
-        
+
         # 1. Input Length Validation
         MAX_INPUT_LENGTH = 200 * 1024 # 200KB
         if len(text) > MAX_INPUT_LENGTH:
@@ -39,7 +38,7 @@ class SetupStage(PipelineStage):
             context["original_text"] = text
         else:
             session_id = context.get("session_id", "default_session")
-        
+
         context["session_id"] = session_id
         pipeline.log_manager.log_event("pipeline_start", {"original_text": text, "session_id": session_id}, level="INFO")
 
@@ -76,13 +75,13 @@ def _extract_session_id(text: str) -> tuple[str | None, str]:
 class LanguageAnalysisStage(PipelineStage):
     def execute(self, context: dict, pipeline: 'Pipeline') -> dict:
         if context.get("_early_exit"): return context
-        
+
         context = pipeline.morph_analyzer.analyze(context)
         pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "morph_analysis", "context_summary": _get_context_summary(context)}, level="DEBUG")
-        
+
         context = pipeline.syntactic_analyzer.analyze(context)
         pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "syntactic_analysis", "context_summary": _get_context_summary(context)}, level="DEBUG")
-        
+
         session_id = pipeline.task_manager.get_session_id(context)
         context["session_id"] = session_id
         return context
@@ -90,14 +89,14 @@ class LanguageAnalysisStage(PipelineStage):
 class IntentDetectionStage(PipelineStage):
     def execute(self, context: dict, pipeline: 'Pipeline') -> dict:
         if context.get("_early_exit"): return context
-        
+
         session_id = context["session_id"]
         current_task = pipeline.task_manager.active_tasks.get(session_id)
         if current_task: context["task"] = current_task
-        
+
         context = pipeline.intent_detector.detect(context)
         pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "intent_detection", "context_summary": _get_context_summary(context)}, level="INFO")
-        
+
         current_intent = context["analysis"].get("intent")
 
         if current_intent == INTENT_CORRECTION:
@@ -139,10 +138,10 @@ class IntentDetectionStage(PipelineStage):
 class SemanticAnalysisStage(PipelineStage):
     def execute(self, context: dict, pipeline: 'Pipeline') -> dict:
         if context.get("_early_exit"): return context
-        
+
         session_id = context["session_id"]
         context["history"] = pipeline.context_manager.get_history(session_id)
-        
+
         if not context.get("_skip_initial_pipeline_steps", False):
             context = pipeline.semantic_analyzer.analyze(context)
             pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "semantic_analysis", "context_summary": _get_context_summary(context)}, level="DEBUG")
@@ -151,56 +150,56 @@ class SemanticAnalysisStage(PipelineStage):
         has_recent_error = False
         if context["history"] and context["history"][-1].get("action_result", {}).get("status") == "error":
             has_recent_error = True
-        
+
         context["_is_healing_mode"] = has_recent_error
-        
+
         return context
 
 class TaskManagementStage(PipelineStage):
     def execute(self, context: dict, pipeline: 'Pipeline') -> dict:
         if context.get("_early_exit"): return context
-        
+
         if not context.get("_skip_initial_pipeline_steps", False) and not context.get("_is_healing_mode"):
             context = pipeline.task_manager.manage_task_state(context)
-            
+
             current_intent = context["analysis"].get("intent")
             if current_intent in CONVERSATIONAL_INTENTS and context.get("task_interruption"):
                 context = pipeline.response_generator.generate(context)
                 pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "response_generation", "context_summary": _get_context_summary(context)}, level="DEBUG")
                 context["_early_exit"] = True
-        
+
         return context
 
 class ClarificationStage(PipelineStage):
     def execute(self, context: dict, pipeline: 'Pipeline') -> dict:
         if context.get("_early_exit"): return context
-        
+
         if not context.get("_skip_initial_pipeline_steps", False) and not context.get("_is_healing_mode"):
             context = pipeline.clarification_manager.manage_clarification(context)
             pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "clarification_management", "context_summary": _get_context_summary(context)}, level="INFO")
-        
+
         if context.get("clarification_needed") and not context.get("_is_healing_mode"):
             current_intent = context["analysis"].get("intent")
             is_conversational = current_intent in CONVERSATIONAL_INTENTS
-            
+
             if not context.get("response", {}).get("text"):
                 if context.get("dialogue_state") == PENDING_CONFIRMATION:
                     context = pipeline.response_generator.generate_confirmation_message(context)
                 else:
                     context = pipeline.response_generator.generate(context)
                 pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "response_generation", "context_summary": _get_context_summary(context)}, level="DEBUG")
-            
+
             # If it's NOT a simple conversational intent, exit early.
             # For DEFINITION/GENERAL, we want to proceed to ResponseStage to finalize.
             if not is_conversational:
                 context["_early_exit"] = True
-            
+
         return context
 
 class ExecutionStage(PipelineStage):
     def execute(self, context: dict, pipeline: 'Pipeline') -> dict:
         if context.get("_early_exit"): return context
-        
+
         current_intent = context["analysis"].get("intent")
         is_conversational = current_intent in CONVERSATIONAL_INTENTS
         if is_conversational:
@@ -226,7 +225,7 @@ class ExecutionStage(PipelineStage):
             if not context.get("plan"):
                 context = pipeline.planner.create_plan(context)
                 pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "plan_creation", "context_summary": _get_context_summary(context)}, level="INFO")
-                
+
                 # Automated Recovery Task Promotion
                 plan = context.get("plan", {})
                 if plan and plan.get("healing_type") in ["KNOWLEDGE_BASE_RECOVERY", "RETRY_RULE_MATCH"]:
@@ -238,7 +237,7 @@ class ExecutionStage(PipelineStage):
                             context["clarification_needed"] = True
                             context["_early_exit"] = True
                             return context
-                        
+
                         context = pipeline.task_manager.create_recovery_task(session_id, context)
 
                 if context.get("errors"):
@@ -247,11 +246,11 @@ class ExecutionStage(PipelineStage):
                         pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "response_generation", "context_summary": _get_context_summary(context)}, level="DEBUG")
                     context["_early_exit"] = True
                     return context
-            
-            if context.get("clarification_needed") and not context.get("plan"): 
+
+            if context.get("clarification_needed") and not context.get("plan"):
                 context["_early_exit"] = True
                 break
-            
+
             if context.get("plan", {}).get("confirmation_needed"):
                 pipeline.context_manager.set_pending_confirmation_plan(context["plan"], session_id)
                 context = pipeline.response_generator.generate_confirmation_message(context)
@@ -260,8 +259,8 @@ class ExecutionStage(PipelineStage):
                 # Redundant log removed to avoid test confusion if multiple modules log this
                 # pipeline.log_manager.log_event("clarification_needed", {"message": context.get("response", {}).get("text")}, level="INFO")
                 context["_early_exit"] = True
-                break 
-            
+                break
+
             if not context.get("plan"): break
 
             # Execute
@@ -275,12 +274,12 @@ class ExecutionStage(PipelineStage):
                 context['plan'] = None
                 context['action_result'] = {}
                 context = pipeline.task_manager.manage_task_state(context)
-                if context.get("clarification_needed"): 
+                if context.get("clarification_needed"):
                     context["_early_exit"] = True
                     break
-                else: continue 
+                else: continue
             else: break
-        
+
         if iteration_count >= MAX_ITERATIONS and not context.get("response", {}).get("text"):
              pipeline.log_manager.log_event("pipeline_max_iterations", {"session_id": session_id})
              context["response"]["text"] = "タスクの実行ステップ数が上限に達しました。安全のため一旦停止します。"
@@ -292,7 +291,7 @@ class ResponseStage(PipelineStage):
         if not context.get("response", {}).get("text"):
              context = pipeline.response_generator.generate(context)
              pipeline.log_manager.log_event("pipeline_stage_completion", {"stage": "response_generation", "context_summary": _get_context_summary(context)}, level="DEBUG")
-        
+
         pipeline.log_manager.log_event("pipeline_end", {"final_response": context.get("response", {}).get("text")}, level="INFO")
         pipeline.context_manager.add_context(context)
         pipeline.autonomous_learning.trigger_learning(event_type="SESSION_COMPLETED", data=context)

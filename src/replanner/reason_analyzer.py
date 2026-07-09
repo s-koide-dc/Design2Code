@@ -11,7 +11,7 @@ class ReasonAnalyzer:
     def analyze(self, synthesis_result: Dict[str, Any], verification_result: Dict[str, Any], semantic_issues: List[str]) -> List[Dict[str, Any]]:
         hints = []
         code = synthesis_result.get("code", "")
-        
+
         # 1. コンパイルエラーの分析
         if not verification_result.get("valid", True):
             errors = verification_result.get("errors", [])
@@ -30,10 +30,10 @@ class ReasonAnalyzer:
         err_code = error.get("code", "")
         msg = error.get("message", "")
         line_num = error.get("line", 0)
-        
+
         # MSBuild エラーメッセージからシングルクォートで囲まれたシンボルを抽出
         symbol = self._extract_single_quoted_value(msg)
-        
+
         # エラー発生行の直近上部にある Node ID コメントを探索
         target_node_id = None
         if full_code and line_num > 0:
@@ -76,7 +76,7 @@ class ReasonAnalyzer:
             trace = synthesis_result.get("trace", {})
             blueprint = trace.get("blueprint", {})
             failed_node_ids = []
-            
+
             def _find_todos(body):
                 for s in body:
                     if s.get("type") == "comment" and "TODO: Step failed" in s.get("text", ""):
@@ -85,10 +85,10 @@ class ReasonAnalyzer:
                             failed_node_ids.append(failed_node_id)
                     if "body" in s: _find_todos(s["body"])
                     if "else_body" in s: _find_todos(s["else_body"])
-            
+
             for m in blueprint.get("methods", []):
                 _find_todos(m.get("body", []))
-                
+
             return {
                 "reason": "LOGIC_GAP_DETECTED",
                 "detail": f"Generated code contains TODOs for: {', '.join(failed_node_ids[:3])}",
@@ -201,7 +201,7 @@ class ReasonAnalyzer:
                 "detail": issue,
                 "patch": {"type": "FORCE_INTENT_RESOLUTION", "method": method, "target_id": target_id}
             }
-        
+
         disconnected = self._parse_data_flow_disconnection(issue)
         if disconnected:
             source_id = disconnected.get("source_id")
@@ -303,7 +303,7 @@ class ReasonAnalyzer:
 
         trace = synthesis_result.get("trace", {})
         blueprint = trace.get("blueprint", {})
-        
+
         flat_nodes = []
         def _flatten(nodes):
             for n in nodes:
@@ -323,7 +323,7 @@ class ReasonAnalyzer:
                         s_node_id = s.get("node_id")
                         if s_node_id:
                             target_node = next((n for n in flat_nodes if n["id"] == s_node_id), None)
-                        
+
                         if target_node:
                             if target_node.get("target_entity") == "Item" or target_node.get("output_type") == "string":
                                 continue
@@ -356,5 +356,5 @@ class ReasonAnalyzer:
                     "detail": f"{f['detail']} (at Node '{node['id']}')",
                     "patch": {"type": "FIX_LOGIC_GAPS", "failed_texts": [node["id"]]}
                 })
-            
+
         return hints

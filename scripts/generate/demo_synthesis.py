@@ -298,7 +298,7 @@ def run_demo():
                 if node.get("children"):
                     for child in node["children"]:
                         print(f"    Child Node: {child.get('type')}, Intent: {child.get('intent')}, Logic: {child.get('semantic_map', {}).get('logic')}")
-        
+
         current_code = result["code"]
         current_deps = result.get("dependencies", [])
 
