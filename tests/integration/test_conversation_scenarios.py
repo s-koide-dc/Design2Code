@@ -5,6 +5,7 @@ import sys
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from unittest.mock import MagicMock
 from src.pipeline_core.pipeline_core import Pipeline
 from src.safety.safety_policy_validator import RiskLevel, SafetyCheckStatus, SafetyCheckResult
 from src.utils.confirmation_response import (
@@ -471,6 +472,9 @@ class TestConversationScenarios(unittest.TestCase):
                 clarification_thresholds={"intent": 0.6, "entity": 0.7}, 
                 planner_intent_threshold=0.7
             )
+            cls.pipeline._autonomous_learning = MagicMock()
+            cls.pipeline.action_executor.autonomous_learning = cls.pipeline._autonomous_learning
+            cls.pipeline.planner.autonomous_learning = cls.pipeline._autonomous_learning
             
             # Manually set paths for relevant managers to our dummy files
             cls.pipeline.task_manager.task_definitions_path = cls.task_definitions_path

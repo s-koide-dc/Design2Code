@@ -36,6 +36,17 @@ def main() -> int:
     def emit_error(message: str) -> None:
         emit_stderr(message)
 
+    def prepare_isolated_inference_design(design_path: str, output_path: str | None) -> str:
+        if not output_path:
+            return design_path
+        source = Path(design_path)
+        output_parent = Path(output_path).resolve().parent
+        isolation_dir = output_parent / ".design_inference" / source.stem
+        isolation_dir.mkdir(parents=True, exist_ok=True)
+        isolated = isolation_dir / source.name
+        isolated.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        return str(isolated)
+
     parser = argparse.ArgumentParser(description="E2E Design-to-Code Generator")
     parser.add_argument("--design", required=True, help="Path to .design.md")
     parser.add_argument("--output", required=False, help="Output .cs path")
@@ -577,11 +588,12 @@ def main() -> int:
 
     suggestion_payload = None
     try:
+        inference_design = prepare_isolated_inference_design(args.design, args.output)
         if args.assist_literal_tags_http and args.assist_policy == "always":
-            suggestion_payload = maybe_build_literal_tag_assist_payload(args.design)
+            suggestion_payload = maybe_build_literal_tag_assist_payload(inference_design)
 
         inference_result = infer_then_freeze_if_needed(
-            args.design,
+            inference_design,
             config_manager=config,
             vector_engine=vector_engine,
             suggestion_payload=suggestion_payload,
@@ -589,9 +601,9 @@ def main() -> int:
 
         if should_retry_with_literal_assist(inference_result):
             emit_progress("[*] Deterministic inference blocked with NO_CANDIDATE. Retrying with literal tag assistance...")
-            suggestion_payload = maybe_build_literal_tag_assist_payload(args.design)
+            suggestion_payload = maybe_build_literal_tag_assist_payload(inference_design)
             inference_result = infer_then_freeze_if_needed(
-                args.design,
+                inference_design,
                 config_manager=config,
                 vector_engine=vector_engine,
                 suggestion_payload=suggestion_payload,

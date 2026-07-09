@@ -1125,6 +1125,32 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         finally:
             self._restore_text_snapshot(source_path, snapshot)
 
+    def test_validate_project_consistency_ignores_mtime_only_source_changes(self):
+        source_path = self.workspace_root / "src" / "advanced_tdd" / "knowledge_base.py"
+        original_stat = source_path.stat()
+        try:
+            os.utime(source_path, None)
+            command = [
+                sys.executable,
+                "scripts/validate_project_consistency.py",
+            ]
+            completed = subprocess.run(
+                command,
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                completed.returncode,
+                0,
+                msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
+            )
+            self.assertNotIn("[module:advanced_tdd]: Source files are newer than design documents.", completed.stderr)
+        finally:
+            os.utime(source_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+
     def test_validate_project_consistency_reports_missing_map_to_stderr(self):
         map_path = self.workspace_root / "ai_project_map.json"
         backup_path = self.cache_dir / "ai_project_map.validate.backup_for_test"

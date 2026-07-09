@@ -119,6 +119,14 @@ def _run_inference(design_path: Path, args: argparse.Namespace, config: ConfigMa
     }
 
 
+def _prepare_isolated_inference_design(design_path: Path, output_dir: Path) -> Path:
+    isolation_dir = output_dir / ".design_inference" / design_path.stem
+    isolation_dir.mkdir(parents=True, exist_ok=True)
+    isolated = isolation_dir / design_path.name
+    isolated.write_text(design_path.read_text(encoding="utf-8"), encoding="utf-8")
+    return isolated
+
+
 def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
     design_path = Path(args.design)
     config = ConfigManager()
@@ -130,8 +138,12 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
     replanner = Replanner(config)
     nuget_client = NuGetClient(config)
     spec_auditor = SpecAuditor(knowledge_base=synthesizer.ukb)
+    module_name_hint = design_path.name[:-10] if design_path.name.endswith(".design.md") else design_path.stem
+    output_dir = Path(args.output_dir) if args.output_dir else (WORKSPACE_ROOT / "cache" / f"{module_name_hint}.review_snapshot")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    inference_design_path = _prepare_isolated_inference_design(design_path, output_dir)
 
-    inference_bundle = _run_inference(design_path, args, config, vector_engine)
+    inference_bundle = _run_inference(inference_design_path, args, config, vector_engine)
     inference_result = inference_bundle["inference_result"]
     if inference_result.get("status") == "blocked":
         return {
@@ -175,8 +187,6 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
             },
         }
 
-    output_dir = Path(args.output_dir) if args.output_dir else (WORKSPACE_ROOT / "cache" / f"{module_name}.review_snapshot")
-    output_dir.mkdir(parents=True, exist_ok=True)
     inferred_copy_path = output_dir / inferred_design_path.name
     generated_code_path = output_dir / f"{module_name}.cs"
     inferred_text = inferred_design_path.read_text(encoding="utf-8")

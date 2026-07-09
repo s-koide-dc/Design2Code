@@ -2,8 +2,8 @@ import os
 import json
 import re
 import sys
+import subprocess
 from pathlib import Path
-from datetime import datetime
 
 sys.path.append(os.getcwd())
 
@@ -145,11 +145,48 @@ RESOURCE_CAPABILITY_ALLOWED = RESOURCE_INTENT_ALLOWED | {
 
 RESOURCE_ROLE_SYNONYM_ALLOWED = RESOURCE_CAPABILITY_ALLOWED | RESOURCE_ROLE_ALLOWED
 
-def get_last_modified_time(file_path):
-    """Gets the last modified time of a file/directory."""
-    if not file_path or not os.path.exists(file_path):
-        return None
-    return datetime.fromtimestamp(os.path.getmtime(file_path))
+def collect_changed_tracked_paths(project_root: Path) -> set[Path]:
+    """Returns tracked files changed against HEAD, independent of filesystem mtimes."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(project_root), "diff", "--name-only", "HEAD", "--"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, ValueError):
+        return set()
+    if completed.returncode != 0:
+        return set()
+    changed = set()
+    for line in completed.stdout.splitlines():
+        relative = line.strip()
+        if relative:
+            changed.add((project_root / relative).resolve())
+    return changed
+
+def has_changed_source_without_design(
+    changed_paths: set[Path],
+    owner_root: Path,
+    source_suffixes: tuple[str, ...],
+) -> bool:
+    owner_root = owner_root.resolve()
+    changed_under_owner = []
+    for changed_path in changed_paths:
+        try:
+            changed_path.relative_to(owner_root)
+        except ValueError:
+            continue
+        changed_under_owner.append(changed_path)
+
+    source_changed = any(
+        path.name.endswith(source_suffixes) and not path.name.endswith(".design.md")
+        for path in changed_under_owner
+    )
+    if not source_changed:
+        return False
+    design_changed = any(path.name.endswith(".design.md") for path in changed_under_owner)
+    return not design_changed
 
 def extract_dependencies(design_file_path):
     """Extracts internal dependencies from a design document."""
@@ -542,6 +579,7 @@ def main():
     
     errors = []
     warnings = []
+    changed_tracked_paths = collect_changed_tracked_paths(project_root)
     project_map_modules = set()
     project_map_tools_ids = set()
     project_map_tools_names = set()
@@ -640,26 +678,18 @@ def main():
                 
             if not primary_design_doc.exists() and not module_design_docs:
                 errors.append(f"[module:{module_name}]: Missing any design document (*.design.md).")
-                design_mtime = None
             else:
                 # 代表的な設計書（あれば primary、なければ最初に見つかったもの）
                 actual_design_doc = primary_design_doc if primary_design_doc.exists() else module_design_docs[0]
                 
                 # c) 鮮度チェック (Freshness Check)
-                # 全ての設計書の中で最新のものを基準にする
-                design_mtime = max(get_last_modified_time(str(d)) for d in module_design_docs) if module_design_docs else get_last_modified_time(str(actual_design_doc))
-                
-                outdated = False
-                for root, _, files in os.walk(module_full_path):
-                    for file in files:
-                        if file.endswith(('.py', '.js', '.cs')) and not file.endswith('.design.md'):
-                            file_path = os.path.join(root, file)
-                            if get_last_modified_time(file_path) > design_mtime:
-                                outdated = True
-                                break
-                    if outdated: break
-                
-                if outdated:
+                # Filesystem mtimes change during checkout/test runs, so only warn when
+                # tracked source files are changed without a matching design-doc change.
+                if has_changed_source_without_design(
+                    changed_tracked_paths,
+                    module_full_path,
+                    ('.py', '.js', '.cs'),
+                ):
                     warnings.append(f"[module:{module_name}]: Source files are newer than design documents. Specification might be outdated.")
 
                 # d) 依存関係の整合性チェック (primary があればそれ、なければ全ての設計書から抽出)
@@ -695,9 +725,11 @@ def main():
                 warnings.append(f"[tool:{tool_full_name}]: Missing design document (*.design.md).")
                 continue
             
-            tool_folder_mtime = get_last_modified_time(tool_proj['path'])
-            design_doc_mtime = get_last_modified_time(design_doc_path)
-            if tool_folder_mtime and design_doc_mtime and tool_folder_mtime > design_doc_mtime:
+            if has_changed_source_without_design(
+                changed_tracked_paths,
+                Path(tool_proj['path']),
+                ('.py', '.js', '.cs'),
+            ):
                 warnings.append(f"[tool:{tool_full_name}]: Tool folder is newer than its design document. The documentation may be outdated.")
 
     # 4. Print results
