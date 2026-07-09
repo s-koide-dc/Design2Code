@@ -128,7 +128,9 @@ namespace Generated
   - janome
   - numpy
 
-- .NET SDK（C# 解析や CodeBuilder 利用時）
+- .NET SDK 10.0.109 以上の 10.0 系安定版（C# 解析や CodeBuilder 利用時）
+  - `global.json` で `10.0.109` / `allowPrerelease: false` / `rollForward: latestFeature` を指定しています。
+  - preview SDK が同居していても、このリポジトリ直下では安定版 SDK を使う前提です。
 
 ### 初期セットアップ例
 ```bash
