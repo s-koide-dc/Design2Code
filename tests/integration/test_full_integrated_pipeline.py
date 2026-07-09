@@ -8,7 +8,7 @@ from src.safety.safety_policy_validator import RiskLevel, SafetyCheckStatus, Saf
 from src.utils.confirmation_response import INTENT_AGREE, INTENT_DISAGREE
 from src.utils.control_intents import INTENT_DEFINITION, INTENT_GENERAL, INTENT_TIME
 import sys
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import errno
 
 # Assume required resources for Planner and TaskManager are set up (e.g., task_definitions.json, retry_rules.json)
@@ -271,6 +271,9 @@ class TestPipelineIntegration(unittest.TestCase):
                 clarification_thresholds={"intent": 0.75, "entity": 0.75}, # Set a lower threshold for testing
                 planner_intent_threshold=0.8 # Set a lower threshold for Planner as well
             )
+            cls.pipeline._autonomous_learning = MagicMock()
+            cls.pipeline.action_executor.autonomous_learning = cls.pipeline._autonomous_learning
+            cls.pipeline.planner.autonomous_learning = cls.pipeline._autonomous_learning
             
             # Manually set paths for relevant managers to our dummy files
             cls.pipeline.task_manager.task_definitions_path = cls.task_definitions_path

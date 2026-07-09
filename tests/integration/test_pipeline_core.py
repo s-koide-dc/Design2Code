@@ -21,6 +21,9 @@ class TestPipelineCore(unittest.TestCase):
         pass
 
     def setUp(self):
+        self.addCleanup(
+            lambda: os.remove("temp.txt") if os.path.exists("temp.txt") else None
+        )
         self.original_suppress_vector_warnings = os.environ.get(
             "SUPPRESS_VECTOR_WARNINGS"
         )
