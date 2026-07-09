@@ -32,12 +32,12 @@
 12. 複合タスク実行時はサブタスクの状態遷移と承認を処理し、クリティカルサブタスクでは二段階承認（全体承認とサブタスク承認）を要求できる。
 13. 不足エンティティがある場合は `clarification_message` を生成し、`awaiting_entity` を記録する。タスク由来の補足質問中は `src.utils.dialogue_state.TASK_CLARIFICATION` を維持する。
 14. 補足応答の汎用 `filename` は、active task が待機している `project_path` / source / destination へ割り当ててからタスクパラメータへ反映する。
-14. TDD 系タスク（`ANALYZE_TEST_FAILURE` / `EXECUTE_GOAL_DRIVEN_TDD` / `APPLY_CODE_FIX`）には `recommended_action` を保持し、`READY_FOR_EXECUTION` や割り込み中でも対話メタデータが失われないようにする。
-15. 実行後は `update_task_after_execution` で `COMPLETED/FAILED` を反映し、完了時にタスクをリセットする。
-16. `create_recovery_task` は失敗結果から回復用の複合タスクを生成し、試行回数をカウントする。
-17. `PROVIDE_CONTENT` から `FILE_CREATE` への補正や、危険 intent の既定値は `src.utils.action_intents` の共通定数を利用する。
-18. `ApprovalMessageGenerator` のクリティカルサブタスク文面キーも `src.utils.action_intents` の共通定数を利用し、`FILE_DELETE` / `CMD_RUN` の文字列直書きを避ける。
-19. 回復タスク生成時の `RECOVERY_FROM_TEST_FAILURE` も `src.utils.action_intents` の共通定数を使い、task 定義資産と runtime の語彙を一致させる。
+15. TDD 系タスク（`ANALYZE_TEST_FAILURE` / `EXECUTE_GOAL_DRIVEN_TDD` / `APPLY_CODE_FIX`）には `recommended_action` を保持し、`READY_FOR_EXECUTION` や割り込み中でも対話メタデータが失われないようにする。
+16. 実行後は `update_task_after_execution` で `COMPLETED/FAILED` を反映し、完了時にタスクをリセットする。
+17. `create_recovery_task` は失敗結果から回復用の複合タスクを生成し、試行回数をカウントする。
+18. `PROVIDE_CONTENT` から `FILE_CREATE` への補正や、危険 intent の既定値は `src.utils.action_intents` の共通定数を利用する。
+19. `ApprovalMessageGenerator` のクリティカルサブタスク文面キーも `src.utils.action_intents` の共通定数を利用し、`FILE_DELETE` / `CMD_RUN` の文字列直書きを避ける。
+20. 回復タスク生成時の `RECOVERY_FROM_TEST_FAILURE` も `src.utils.action_intents` の共通定数を使い、task 定義資産と runtime の語彙を一致させる。
 
 ### Test Cases
 - **Happy Path**:
@@ -62,3 +62,6 @@
 ## 4. Operational Notes
 - `log_manager` が存在しない場合のデバッグ fallback は `src.utils.stdout_guard.debug_print` を使う。
 - これにより、`TASK_MANAGER_DEBUG=true` でも通常の stdout を汚さず、`NLP_DEBUG_STDOUT=1` のときだけ補助メッセージを確認できる。
+
+## 5. Review Notes
+- 2026-07-08: `ConditionEvaluator` / `SessionManager` / `TaskManagerMetrics` の補助契約を再確認し、未知条件は `False`、整合性検証の検出項目、`TIMEOUT` 終端状態を設計書側に同期。

@@ -661,6 +661,68 @@ class TestEventProcessor(unittest.TestCase):
         result = self.processor.process_event(event_type, data)
         self.assertEqual(result['status'], 'accepted')
 
+    def test_process_event_test_failed_records_structured_failure(self):
+        repair_kb = Mock()
+        processor = EventProcessor(self.workspace_root, repair_kb=repair_kb)
+        data = {
+            "test_file": "tests/test_calc.py",
+            "test_method": "test_add",
+            "error_type": "assertion_failure",
+            "error_message": "Expected 5 but got 4",
+            "analysis_result": {
+                "analyses": [{
+                    "root_cause": "calculation_logic_error",
+                    "fix_direction": "adjust_expression",
+                }],
+            },
+        }
+
+        result = processor.process_event("TEST_FAILED", data)
+
+        self.assertEqual("accepted", result["status"])
+        failure_path = self.workspace_root / "logs" / "failure_events.jsonl"
+        records = [
+            json.loads(line)
+            for line in failure_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(1, len(records))
+        record = records[0]
+        self.assertEqual("failure", record["type"])
+        self.assertEqual("TEST_FAILED", record["event_type"])
+        self.assertEqual("assertion_failure", record["error_type"])
+        self.assertEqual("calculation_logic_error", record["root_cause"])
+        self.assertEqual("tests/test_calc.py", record["target"]["file"])
+        self.assertEqual("test_add", record["target"]["method"])
+        self.assertTrue(record["failure_signature"].startswith("failure."))
+        repair_kb.add_repair_experience.assert_called_once_with({
+            "root_cause": "calculation_logic_error",
+            "error_type": "assertion_failure",
+            "fix_type": None,
+            "success": False,
+        })
+
+    def test_failure_recording_accepts_event_when_repair_kb_fails(self):
+        repair_kb = Mock()
+        repair_kb.add_repair_experience.side_effect = RuntimeError("store unavailable")
+        processor = EventProcessor(self.workspace_root, repair_kb=repair_kb)
+
+        with self.assertLogs("src.autonomous_learning.event_processor", level="WARNING"):
+            result = processor.process_event("ACTION_FAILED", {
+                "target": {"file": "src/tool.py", "method": "run"},
+                "exception": {
+                    "type": "RuntimeError",
+                    "message": "execution failed",
+                },
+            })
+
+        self.assertEqual("accepted", result["status"])
+        failure_path = self.workspace_root / "logs" / "failure_events.jsonl"
+        record = json.loads(failure_path.read_text(encoding="utf-8").strip())
+        self.assertEqual("ACTION_FAILED", record["event_type"])
+        self.assertEqual("RuntimeError", record["error_type"])
+        self.assertEqual("src/tool.py", record["target"]["file"])
+
     def test_structured_terminology_mapping_is_recorded(self):
         result = self.processor.process_event("USER_FEEDBACK", {
             "finding_id": "finding-1",

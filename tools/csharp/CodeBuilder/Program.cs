@@ -86,6 +86,35 @@ public class StatementBlueprint
     [JsonPropertyName("timeout_ms")] public int TimeoutMs { get; set; } = 30000;
 }
 
+public class SourceInspectionRequest
+{
+    [JsonPropertyName("source_code")] public string SourceCode { get; set; } = "";
+    [JsonPropertyName("method_name")] public string MethodName { get; set; } = "";
+}
+
+public class ParameterInspection
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("type")] public string Type { get; set; } = "";
+}
+
+public class MethodInspection
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("return_type")] public string ReturnType { get; set; } = "void";
+    [JsonPropertyName("is_async")] public bool IsAsync { get; set; }
+    [JsonPropertyName("parameters")] public List<ParameterInspection> Parameters { get; set; } = new();
+}
+
+public class SourceInspection
+{
+    [JsonPropertyName("namespace")] public string? Namespace { get; set; }
+    [JsonPropertyName("class_name")] public string ClassName { get; set; } = "";
+    [JsonPropertyName("qualified_name")] public string QualifiedName { get; set; } = "";
+    [JsonPropertyName("constructor_parameters")] public List<ParameterInspection> ConstructorParameters { get; set; } = new();
+    [JsonPropertyName("method")] public MethodInspection Method { get; set; } = new();
+}
+
 class Program
 {
     static void Main(string[] args)
@@ -101,6 +130,11 @@ class Program
                 inputJson = Encoding.UTF8.GetString(ms.ToArray()).Trim('\uFEFF');
             }
             if (string.IsNullOrWhiteSpace(inputJson)) return;
+            if (args.Any(a => a == "--inspect-source"))
+            {
+                WriteJsonResponse(InspectSource(inputJson), jsonStartMarker, jsonEndMarker);
+                return;
+            }
             var bp = JsonSerializer.Deserialize<Blueprint>(inputJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             if (bp == null) throw new Exception("Deserialization result is null.");
             ValidateBlueprint(bp);
@@ -149,6 +183,126 @@ class Program
             Console.WriteLine(JsonSerializer.Serialize(new { status = "error", message = ex.Message }));
             Console.WriteLine(jsonEndMarker);
         }
+    }
+
+    static void WriteJsonResponse(object payload, string startMarker, string endMarker)
+    {
+        Console.WriteLine(startMarker);
+        Console.WriteLine(JsonSerializer.Serialize(payload));
+        Console.WriteLine(endMarker);
+    }
+
+    static object InspectSource(string inputJson)
+    {
+        var request = JsonSerializer.Deserialize<SourceInspectionRequest>(
+            inputJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
+        if (request == null || string.IsNullOrWhiteSpace(request.SourceCode))
+        {
+            return new { status = "error", message = "source_code is required." };
+        }
+        if (string.IsNullOrWhiteSpace(request.MethodName))
+        {
+            return new { status = "error", message = "method_name is required." };
+        }
+
+        var tree = CSharpSyntaxTree.ParseText(request.SourceCode);
+        var diagnostics = tree.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Select(d => {
+                var lineSpan = d.Location.GetLineSpan();
+                return new {
+                    id = d.Id,
+                    message = d.GetMessage(),
+                    line = lineSpan.StartLinePosition.Line + 1
+                };
+            })
+            .ToList();
+        if (diagnostics.Any())
+        {
+            return new {
+                status = "error",
+                message = "Source code contains C# syntax errors.",
+                diagnostics = diagnostics
+            };
+        }
+
+        var root = tree.GetCompilationUnitRoot();
+        foreach (var classDecl in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
+        {
+            var methodDecl = classDecl.Members
+                .OfType<MethodDeclarationSyntax>()
+                .FirstOrDefault(m =>
+                    m.Identifier.ValueText == request.MethodName
+                    && m.Modifiers.Any(SyntaxKind.PublicKeyword)
+                );
+            if (methodDecl == null)
+            {
+                continue;
+            }
+
+            var ns = GetNamespace(classDecl);
+            var className = classDecl.Identifier.ValueText;
+            var qualifiedName = string.IsNullOrWhiteSpace(ns) ? className : $"{ns}.{className}";
+            var ctor = classDecl.Members
+                .OfType<ConstructorDeclarationSyntax>()
+                .Where(c => c.Modifiers.Any(SyntaxKind.PublicKeyword))
+                .OrderBy(c => c.ParameterList.Parameters.Count)
+                .FirstOrDefault();
+
+            return new {
+                status = "success",
+                inspection = new SourceInspection {
+                    Namespace = ns,
+                    ClassName = className,
+                    QualifiedName = qualifiedName,
+                    ConstructorParameters = InspectParameters(ctor?.ParameterList.Parameters),
+                    Method = new MethodInspection {
+                        Name = methodDecl.Identifier.ValueText,
+                        ReturnType = methodDecl.ReturnType.NormalizeWhitespace().ToFullString(),
+                        IsAsync = methodDecl.Modifiers.Any(SyntaxKind.AsyncKeyword),
+                        Parameters = InspectParameters(methodDecl.ParameterList.Parameters)
+                    }
+                }
+            };
+        }
+
+        return new {
+            status = "error",
+            message = "Public method was not found.",
+            method_name = request.MethodName
+        };
+    }
+
+    static string? GetNamespace(SyntaxNode node)
+    {
+        foreach (var ancestor in node.Ancestors())
+        {
+            if (ancestor is NamespaceDeclarationSyntax namespaceDecl)
+            {
+                return namespaceDecl.Name.NormalizeWhitespace().ToFullString();
+            }
+            if (ancestor is FileScopedNamespaceDeclarationSyntax fileScopedNamespace)
+            {
+                return fileScopedNamespace.Name.NormalizeWhitespace().ToFullString();
+            }
+        }
+        return null;
+    }
+
+    static List<ParameterInspection> InspectParameters(SeparatedSyntaxList<ParameterSyntax>? parameters)
+    {
+        if (parameters == null)
+        {
+            return new List<ParameterInspection>();
+        }
+        return parameters.Value
+            .Select(p => new ParameterInspection {
+                Name = p.Identifier.ValueText,
+                Type = p.Type?.NormalizeWhitespace().ToFullString() ?? "object"
+            })
+            .ToList();
     }
 
     static void ValidateBlueprint(Blueprint blueprint)

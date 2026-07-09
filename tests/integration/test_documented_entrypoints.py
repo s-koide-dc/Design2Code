@@ -20,6 +20,14 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.cache_dir = self.workspace_root / "cache"
         self.cache_dir.mkdir(exist_ok=True)
 
+    def _read_text_snapshot(self, path):
+        return path.read_text(encoding="utf-8"), path.stat()
+
+    def _restore_text_snapshot(self, path, snapshot):
+        original_text, original_stat = snapshot
+        path.write_text(original_text, encoding="utf-8")
+        os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+
     def _register_http_server_cleanup(self, server, thread):
         def _cleanup():
             server.shutdown()
@@ -1092,7 +1100,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
     def test_validate_project_consistency_returns_zero_when_only_warnings_exist(self):
         source_path = self.workspace_root / "src" / "advanced_tdd" / "knowledge_base.py"
-        original_text = source_path.read_text(encoding="utf-8")
+        original_text, _ = snapshot = self._read_text_snapshot(source_path)
         try:
             source_path.write_text(original_text + "\n# warning-only regression\n", encoding="utf-8")
             command = [
@@ -1115,7 +1123,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             self.assertIn("WARNINGS (should be reviewed):", completed.stderr)
             self.assertIn("[module:advanced_tdd]: Source files are newer than design documents.", completed.stderr)
         finally:
-            source_path.write_text(original_text, encoding="utf-8")
+            self._restore_text_snapshot(source_path, snapshot)
 
     def test_validate_project_consistency_reports_missing_map_to_stderr(self):
         map_path = self.workspace_root / "ai_project_map.json"
@@ -1148,8 +1156,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
     def test_validate_project_consistency_reports_missing_mapped_design_doc_to_stderr(self):
         map_path = self.workspace_root / "ai_project_map.json"
-        original = json.loads(map_path.read_text(encoding="utf-8"))
-        mutated = json.loads(map_path.read_text(encoding="utf-8"))
+        original_text, _ = snapshot = self._read_text_snapshot(map_path)
+        mutated = json.loads(original_text)
 
         target_module = next(
             module for module in mutated.get("modules", [])
@@ -1176,11 +1184,11 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             self.assertIn("ai_project_map.json の design_document.path が存在しません", completed.stderr)
             self.assertIn("missing_action_executor.design.md", completed.stderr)
         finally:
-            map_path.write_text(json.dumps(original, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._restore_text_snapshot(map_path, snapshot)
 
     def test_validate_project_consistency_reports_missing_readme_local_reference_to_stderr(self):
         readme_path = self.workspace_root / "README.md"
-        original = readme_path.read_text(encoding="utf-8")
+        original, _ = snapshot = self._read_text_snapshot(readme_path)
         mutated = (
             original
             + "\n\n<!-- validator regression -->\n"
@@ -1207,7 +1215,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             self.assertIn("[doc:README.md][mode:required]: ローカル参照が存在しません", completed.stderr)
             self.assertIn("docs/does_not_exist_for_validator.md", completed.stderr)
         finally:
-            readme_path.write_text(original, encoding="utf-8")
+            self._restore_text_snapshot(readme_path, snapshot)
 
     def test_validate_project_consistency_allows_missing_temporary_plan_doc(self):
         plan_path = self.workspace_root / "docs" / "README実装ギャップ段階改善計画.md"
@@ -1242,8 +1250,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
     def test_validate_project_consistency_uses_configured_required_docs(self):
         policy_path = self.workspace_root / "config" / "doc_reference_policy.json"
-        original = json.loads(policy_path.read_text(encoding="utf-8"))
-        mutated = json.loads(policy_path.read_text(encoding="utf-8"))
+        original_text, _ = snapshot = self._read_text_snapshot(policy_path)
+        mutated = json.loads(original_text)
         mutated["required_docs"] = ["README.md", "docs/README実装ギャップ段階改善計画.md"]
 
         plan_path = self.workspace_root / "docs" / "README実装ギャップ段階改善計画.md"
@@ -1274,11 +1282,11 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         finally:
             if backup_path.exists():
                 backup_path.replace(plan_path)
-            policy_path.write_text(json.dumps(original, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._restore_text_snapshot(policy_path, snapshot)
 
     def test_validate_project_consistency_reports_invalid_doc_reference_policy_to_stderr(self):
         policy_path = self.workspace_root / "config" / "doc_reference_policy.json"
-        original = policy_path.read_text(encoding="utf-8")
+        snapshot = self._read_text_snapshot(policy_path)
         mutated = {
             "required_docs": "README.md",
             "optional_reference_docs": ["docs/README実装ギャップ段階改善計画.md"],
@@ -1303,11 +1311,11 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             self.assertIn("Invalid document reference policy", completed.stderr)
             self.assertIn("'required_docs' must be a list of non-empty strings", completed.stderr)
         finally:
-            policy_path.write_text(original, encoding="utf-8")
+            self._restore_text_snapshot(policy_path, snapshot)
 
     def test_validate_project_consistency_reports_broken_optional_reference_doc_link(self):
         doc_path = self.workspace_root / "docs" / "README実装ギャップ段階改善計画.md"
-        original = doc_path.read_text(encoding="utf-8")
+        original, _ = snapshot = self._read_text_snapshot(doc_path)
         mutated = (
             original
             + "\n\n<!-- optional doc validator regression -->\n"
@@ -1334,7 +1342,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             self.assertIn("[doc:docs/README実装ギャップ段階改善計画.md][mode:optional-reference]: ローカル参照が存在しません", completed.stderr)
             self.assertIn("docs/not_there_for_optional_doc_check.md", completed.stderr)
         finally:
-            doc_path.write_text(original, encoding="utf-8")
+            self._restore_text_snapshot(doc_path, snapshot)
 
     def test_validate_project_consistency_reports_missing_required_project_overview_doc(self):
         doc_path = self.workspace_root / "docs" / "project_overview.md"
@@ -1424,7 +1432,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
 
     def test_validate_project_consistency_ignores_inventory_entries_in_resources_readme(self):
         doc_path = self.workspace_root / "resources" / "README.md"
-        original = doc_path.read_text(encoding="utf-8")
+        original, _ = snapshot = self._read_text_snapshot(doc_path)
         mutated = original + "\n- `this_file_does_not_exist.anything`\n"
 
         try:
@@ -1448,12 +1456,12 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             )
             self.assertNotIn("resources/README.md", completed.stderr)
         finally:
-            doc_path.write_text(original, encoding="utf-8")
+            self._restore_text_snapshot(doc_path, snapshot)
 
     def test_validate_project_consistency_reports_unknown_intent_in_intent_corpus(self):
         corpus_path = self.workspace_root / "resources" / "intent_corpus.json"
-        original = json.loads(corpus_path.read_text(encoding="utf-8"))
-        mutated = json.loads(corpus_path.read_text(encoding="utf-8"))
+        original_text, _ = snapshot = self._read_text_snapshot(corpus_path)
+        mutated = json.loads(original_text)
         mutated["intents"][0]["name"] = "UNKNOWN_VALIDATOR_INTENT"
 
         try:
@@ -1474,12 +1482,12 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             self.assertIn("intent_corpus.json:intents[0].name", completed.stderr)
             self.assertIn("UNKNOWN_VALIDATOR_INTENT", completed.stderr)
         finally:
-            corpus_path.write_text(json.dumps(original, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._restore_text_snapshot(corpus_path, snapshot)
 
     def test_validate_project_consistency_reports_unknown_subtask_intent_in_task_definitions(self):
         definitions_path = self.workspace_root / "resources" / "task_definitions.json"
-        original = json.loads(definitions_path.read_text(encoding="utf-8"))
-        mutated = json.loads(definitions_path.read_text(encoding="utf-8"))
+        original_text, _ = snapshot = self._read_text_snapshot(definitions_path)
+        mutated = json.loads(original_text)
         mutated["BACKUP_AND_DELETE"]["subtasks"][0]["name"] = "UNKNOWN_SUBTASK_INTENT"
 
         try:
@@ -1500,7 +1508,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             self.assertIn("task_definitions.json:BACKUP_AND_DELETE.subtasks[0].name", completed.stderr)
             self.assertIn("UNKNOWN_SUBTASK_INTENT", completed.stderr)
         finally:
-            definitions_path.write_text(json.dumps(original, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._restore_text_snapshot(definitions_path, snapshot)
 
     def test_sync_project_dependencies_warns_to_stderr_for_invalid_csproj(self):
         with tempfile.TemporaryDirectory(dir=self.cache_dir) as temp_root_str:

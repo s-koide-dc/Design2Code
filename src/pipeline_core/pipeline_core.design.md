@@ -26,7 +26,9 @@
 ### Core Logic
 1. `Pipeline.__init__` で任意の `workspace_root` を受け取り、そのrootで `ConfigManager` を構成して `MorphAnalyzer`、`SyntacticAnalyzer`、`SemanticAnalyzer`、`TaskManager`、`ClarificationManager`、`Planner`、`ActionExecutor`、`LogManager` を初期化する。未指定時は従来どおり現在のworkspaceを使用する。
 2. テスト実行時はキャッシュ（`<model>.v0.vocab.npy` / `<model>.v0.matrix.npy`）が無い場合、Pipeline内部の `skip_load` 状態でVectorEngineのロードを省略する。プロセス環境変数は変更しない。
-3. 起動時に `scripts.rotate_logs.rotate_logs` を呼び出し、ログのメンテナンスを実施する（失敗時は無視）。
+3. 起動時に `_rotate_expired_logs` 経由で `scripts.rotate_logs.rotate_logs` を呼び出し、`LogManager` の `log_dir` / `log_file_prefix` に従ってログのメンテナンスを実施する。
+   - `OSError` は運用上のローテーション失敗として `log_rotation_error` warning に記録する。
+   - 予期しないプログラミングエラーは握りつぶさず、初期化時の失敗として表面化させる。
 4. `VectorEngine` は `_start_vector_engine_loading` でバックグラウンドロードを開始し、`vector_engine` プロパティ初回アクセス時に完了待ち（タイムアウト 30 秒）または同期ロードへフォールバックする。
 5. `IntentDetector` と `ResponseGenerator` はプロパティで遅延生成され、必要時に `vector_engine` を注入する。`ResponseGenerator` には `config_manager` も渡し、Phase 3 の `response_rewriter` 設定を参照できるようにする。
 6. `AutonomousLearning` は遅延生成され、`LogManager`、`MorphAnalyzer`、`VectorEngine` を利用して学習イベントを受け取る。
@@ -74,3 +76,4 @@
 ## 7. Review Notes
 
 - 2026-06-30: `workspace_root` をConfigManagerとActionExecutorへ一貫して注入し、モデルskip判定で環境変数を変更しない構成へ更新。
+- 2026-07-08: ログローテーションを `_rotate_expired_logs` に分離し、`OSError` は warning 記録、予期しない例外は隠さない契約へ更新。

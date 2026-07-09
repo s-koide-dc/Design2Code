@@ -1,6 +1,6 @@
 ﻿# RefactoringAnalyzer Design Document
 
-## 1. Purpose (Updated 2026-04-14)
+## 1. Purpose (Updated 2026-07-08)
 
 `refactoring_analyzer`モジュールは、コードの品質向上を支援するため、コードスメルの検出、リファクタリング提案、品質メトリクスの計算を統合的に提供します。MyRoslynAnalyzerとの完全統合により、C#プロジェクトの深いAST解析を実現し、既存のCoverageAnalyzerと連携した包括的なコード改善支援を提供します。
 
@@ -11,6 +11,12 @@
 - **品質メトリクス**: 総合品質スコア、保守性指数、技術的負債時間、改善ポテンシャル評価
 - **プロファイル機能**: プロジェクト別設定、除外ルール、安全性チェック
 - **包括的レポート**: JSON・HTML形式での詳細分析レポート
+
+### 1.1 Implementation Sync Notes (2026-07-08)
+- 各 detector は `metrics.structural_facts` に検出根拠を保持し、単純なスコアや文字列一致だけでスメルを確定しない。
+- `ComplexConditionDetector` は Python AST または Roslyn の `conditionStructures` のような構造解析結果を要求し、非 Python ソースの生テキストだけでは `STRUCTURAL_ANALYSIS_REQUIRED` 診断を残して検出しない。
+- detector 例外はプロジェクト全体を失敗にせず、`analysis_diagnostics` に `file` / `operation` / `error_type` / `detector` を記録して partial success として返す。
+- `RefactoringAnalyzer.analyze_project` は言語別 analyzer から返った `analysis_diagnostics` を最終結果へ伝播する。
 
 ## 2. Architecture Overview
 
@@ -49,16 +55,17 @@
 - **LongMethodDetector**: メソッド長（行数）と複雑度に基づく検出。
     - **カウントロジック**: 空行を除くすべての行（コメント行を含む）をカウント対象とする。これは、過度なコメントもコードの保守性や可読性に影響を与えるためである。
     - **Roslyn統合**: `MyRoslynAnalyzer` から提供される `lineCount` メトリクスを直接使用する。
-- **DuplicateCodeDetector**: `bodyHash` 等を用いたコード重複の特定。
-- **ComplexConditionDetector**: 条件分岐の深さや論理演算子の多用を検出。
-- **GodClassDetector**: 責務過多な巨大クラスを検出。
+- **DuplicateCodeDetector**: `duplicateGroupId` / `bodyHash` 等、構造解析済みの重複グループを用いてコード重複を特定する。
+- **ComplexConditionDetector**: AST / Roslyn の条件構造から混在 boolean 演算子などを検出し、構造根拠がない非 Python 生テキストでは検出しない。
+- **GodClassDetector**: クラス行数・メソッド数・構造 facts から責務過多な巨大クラスを検出する。
 
 ### 2.2 Code Smell Detection Process
 
 #### 1. 静的解析フェーズ
 - ソースコードのAST解析
 - メトリクス収集（行数、複雑度、依存関係）
-- パターンマッチングによるスメル検出
+- AST / Roslyn / 構造化メトリクスに基づくスメル検出
+- 検出器単位の例外を `analysis_diagnostics` として収集
 
 #### 2. 品質評価フェーズ
 - 各スメルの重要度評価

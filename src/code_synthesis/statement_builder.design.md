@@ -41,6 +41,11 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
 1.  **Indentation**: Manage `path["indent_level"]`. Increment before entering blocks, decrement after.
 2.  **Foreach**: Generate `foreach (var {item} in {source}) { ... }`. Register loop variable in `path`.
 3.  **If/Else**: Generate `if ({condition}) { ... } else { ... }`.
+4.  **Resilient Try/Catch**:
+    - `DATABASE_QUERY` / `HTTP_REQUEST` / `FILE_IO` / `FETCH` / `PERSIST` / `JSON_DESERIALIZE` は resilient intent として `try/catch` で包む。
+    - `OperationCanceledException` は通常例外として握りつぶさず再throwする。
+    - `error_policy=continue` は catch 後に return せず継続、`error_policy=rethrow` は catch 内で `throw;`、既定の `return_default` は戻り値型に応じた安全な既定値を返す。
+    - `Task<T>` 戻り値は内部の `T` を有効戻り値型として扱い、hoisted result の型と一致する場合は catch から hoisted result を返す。
 
 #### 2.3.4 Variable Name Generation (`get_semantic_var_name`)
 1.  **Base Name**: Derive from entity name (e.g., "User" -> "user") or usage hint.
@@ -81,11 +86,13 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
     -   Result:
         ```csharp
         try { ... }
+        catch (OperationCanceledException) { throw; }
         catch (Exception ex) { _logger.LogError(...); return 0; }
         ```
     -   Reference-type result variables that are hoisted before the `try` block use nullable declarations when initialized from `null` (for example `HttpResponseMessage? response = null;`) so nullable-enabled compilation does not emit avoidable warnings.
     -   戻り値変数をhoistした呼び出しはcatch後も継続し、後から確定するメソッド戻り値に依存した不正な `return;` を生成しない。
     -   配列のhoisted既定値は `Array.Empty<T>()` とし、後続のLINQ処理でnullを参照しない。
+    -   `error_policy` が `continue` / `rethrow` の場合はそれぞれ継続 / 再throw の契約を優先し、戻り値既定値の生成で上書きしない。
 3.  **Complex Generic**:
     -   Input: `method="Query<T>"`, `target="User"`
     -   Result: `conn.Query<User>(...)`
@@ -95,4 +102,5 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
 - 2026-06-04: resilient intent の判定語彙を `src.utils.semantic_intents` の共通定数へ寄せた。
 - 2026-06-24: resilient wrap の hoisted reference-type locals は nullable declaration (`Type? x = null;`) を使い、nullable-enabled verifier で `CS8600` を出さない現在の方針へ同期。
 - 2026-06-29: 戻り値変数を持つresilient callの継続契約と、配列の空配列初期化を反映。
+- 2026-07-08: resilient try/catch の `error_policy`、`OperationCanceledException` 再throw、`Task<T>` 戻り値の有効型判定、catch から hoisted result を返す契約を反映。
 
