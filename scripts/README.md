@@ -53,6 +53,7 @@
   - 1 本の `.design.md` について、元の設計書、`.inferred.design.md`、最終生成コード、`SpecAuditor` の issue、compile 検証結果を 1 回で JSON とファイル出力へまとめる。
   - `quality` には compiler warning、spec issue、未解決 marker、blueprint placeholder fetch、生成コードの保守性メトリクスを見た生成品質ゲート結果を含む。
   - 保守性メトリクスは通常 CodeBuilder/Roslyn の AST 解析を使い、`quality.maintainability.analysis_source` に `roslyn` を出力する。
+  - `runtime_oracle` には Test Cases の `Expected` に書かれた明示 JSON oracle の集計を含む。自然文 expected は推測せず、`unverified` として残す。
   - `--fail-on-maintainability` を付けると、保守性しきい値の finding も snapshot の失敗条件にする。
   - 中間表現だけでなく、実際の `.cs` を見て authoring 削減の妥当性を確認したいときのレビュー入口。
   - `--assist-endpoint-url` を付けると `literal_roles_only` assist を含めたレビューもできる。
@@ -60,6 +61,7 @@
   - 複数の `.design.md` をまとめて `review_design_generation_snapshot` と同じ基準で回帰確認する。
   - 既定では `ComplexLinqSearch`, `CsvSalesAggregation`, `ProductApiFilteredCatalog`, `CustomerApiWithEntitySpec`, `DailyInventorySync`, `SecureOrderProcessing`, `AppModeEchoMinimal` を対象にし、`--design` を複数指定すると任意の組み合わせに差し替えられる。
   - 各ケースの `inference_status`, `verification_valid`, `quality_valid`, `quality_issue_count`, `spec_issue_count` と、元の詳細 payload を 1 つの JSON に集約する。
+  - `runtime_oracle_ready_count`, `runtime_oracle_unverified_count`, `runtime_oracle_invalid_count` で、意味検証 oracle の明示度をシナリオ別に確認できる。
   - `maintainability` には method 数、class 数、constructor 数、helper method 数、operation method 数、総行数、最大 method 行数、最大 try 数、最大 catch 数、最大 operation method 行数、最大 operation method try 数、最大 operation method catch 数、blueprint statement 数、analysis source、finding 一覧を観測値として出力する。
   - CI の generation-quality job は `--fail-on-maintainability` 付きで実行し、既定しきい値超過を失敗扱いにする。
   - `maintainability_finding_count` は保守性 finding の件数を示す。`--fail-on-maintainability` 付きの CI 実行では、1 件以上なら品質 NG として扱う。

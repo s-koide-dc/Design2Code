@@ -3,8 +3,8 @@
 
 ## 1. Purpose
 
-`code_verification` は生成コードのコンパイル検証、実行検証、生成品質ゲートを提供する。
-`CompilationVerifier`、`ExecutionVerifier`、`generation_quality` を入口として、C# のビルド/実行結果と品質判定を構造化して返す。
+`code_verification` は生成コードのコンパイル検証、実行検証、生成品質ゲート、明示 runtime oracle の集計を提供する。
+`CompilationVerifier`、`ExecutionVerifier`、`generation_quality`、`runtime_oracle` を入口として、C# のビルド/実行結果、品質判定、意味検証契約の有無を構造化して返す。
 
 ## 2. Structured Specification
 
@@ -22,7 +22,8 @@
 3. `generation_quality` が compiler warning、spec audit issue、unresolved marker、blueprint placeholder fetch を品質ゲートとして評価する。
 4. `generation_quality` は maintainability 観測値と finding も返す。これは operation method 行数、try 数、catch 数などの傾向把握用で、既定では品質 NG 条件ではない。
    - `fail_on_maintainability=True` の場合だけ finding を品質 NG に昇格する。
-5. 失敗時は例外情報または品質 issue を抽出して返す。
+5. `runtime_oracle` が StructuredSpec の Test Cases から JSON 形式の明示 oracle を抽出し、自然文 expected は推測せず `unverified` として可視化する。
+6. 失敗時は例外情報または品質 issue を抽出して返す。
 
 ### Test Cases
 - **Happy Path**:
@@ -35,5 +36,5 @@
   - **Expected Output / Behavior**: `CompilationVerifier.warnings` に diagnostic が入り、品質ゲートでは失敗扱いにできる。
 
 ## 3. Dependencies
-- **Internal**: `compilation_verifier`, `execution_verifier`, `generation_quality`, `semantic_assertions`
+- **Internal**: `compilation_verifier`, `execution_verifier`, `generation_quality`, `runtime_oracle`, `semantic_assertions`
 - **External**: `subprocess`, `tempfile`, `os`

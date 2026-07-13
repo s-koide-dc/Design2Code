@@ -19,6 +19,7 @@ from src.code_synthesis.method_store import MethodStore
 from src.code_synthesis.synthesis_pipeline import synthesize_structured_spec
 from src.code_verification.compilation_verifier import CompilationVerifier
 from src.code_verification.generation_quality import evaluate_generation_quality
+from src.code_verification.runtime_oracle import summarize_runtime_oracles
 from src.config.config_manager import ConfigManager
 from src.design_parser import StructuredDesignParser, infer_then_freeze_if_needed, validate_structured_spec_or_raise
 from src.replanner.replanner import Replanner
@@ -203,6 +204,7 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
 
     trace = result.get("trace", {}) if isinstance(result.get("trace"), dict) else {}
     source_metrics = CodeBuilderClient(config).analyze_source_metrics(generated_code)
+    runtime_oracle = summarize_runtime_oracles(spec)
     quality = evaluate_generation_quality(
         code=generated_code,
         verification=result.get("verification", {}),
@@ -228,6 +230,7 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
             "verification": result.get("verification", {}),
             "source_metrics": source_metrics,
             "quality": quality,
+            "runtime_oracle": runtime_oracle,
             "resolved_dependencies": result.get("resolved_dependencies", []),
             "trace_summary": {
                 "has_ir_tree": isinstance(trace.get("ir_tree"), dict),

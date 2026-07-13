@@ -104,6 +104,7 @@ def main() -> int:
                 failed += 1
             quality = payload.get("quality") or {}
             maintainability = quality.get("maintainability") or {}
+            runtime_oracle = payload.get("runtime_oracle") or {}
             results.append(
                 {
                     "design": payload.get("design"),
@@ -113,6 +114,9 @@ def main() -> int:
                     "verification_valid": bool((payload.get("verification") or {}).get("valid")),
                     "quality_valid": bool(quality.get("valid")),
                     "quality_issue_count": len(quality.get("issues") or []),
+                    "runtime_oracle_ready_count": runtime_oracle.get("ready_count", 0),
+                    "runtime_oracle_unverified_count": runtime_oracle.get("unverified_count", 0),
+                    "runtime_oracle_invalid_count": runtime_oracle.get("invalid_count", 0),
                     "maintainability_finding_count": len(maintainability.get("findings") or []),
                     "maintainability": {
                         "method_count": maintainability.get("method_count", 0),

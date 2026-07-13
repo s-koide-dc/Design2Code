@@ -210,6 +210,7 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 ## 1.2.1 設計書生成の標準確認手順
 - 設計書生成まわりを変更したら、まず `scripts/validate_project_consistency.py` で docs / 設計書 / テスト参照の同期を確認します。
 - 次に、単発レビューは `scripts/design/review_design_generation_snapshot.py`、複数シナリオの回帰は `scripts/design/run_design_generation_regression.py` を使います。
+- レビュー結果の `runtime_oracle` は、Test Cases の `Expected` に明示 JSON oracle があるかを集計します。自然文 expected は推測せず `unverified` として残すため、意味検証の不足を確認できます。
 - CI では `.github/workflows/python-ci.yml` の `generation-quality` ジョブで CodeBuilder を事前ビルドし、既定シナリオの品質ゲートと代表シナリオの実行時挙動を必須確認します。生成回帰は `--fail-on-maintainability` 付きで実行し、CodeBuilder/Roslyn の AST 解析で取得した保守性しきい値超過も失敗扱いにします。
 - 現在の既定回帰セットは `ComplexLinqSearch` / `CsvSalesAggregation` / `ProductApiFilteredCatalog` / `CustomerApiWithEntitySpec` / `DailyInventorySync` / `SecureOrderProcessing` / `AppModeEchoMinimal` です。
 
