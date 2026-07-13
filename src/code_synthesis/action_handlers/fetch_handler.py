@@ -32,23 +32,64 @@ def handle_fetch(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any])
                 "invalid_error_policy",
                 details={"error_policy": error_policy},
             )
-        stmt = {
-            "type": "raw",
-            "code": f"{out_var} = File.ReadAllText({params[0]});",
-            "node_id": node.get("id"),
-            "intent": INTENT_FETCH,
-            "out_var": out_var,
-            "var_type": "string",
-        }
-        new_p["statements"].append(
-            action_synthesizer.stmt_builder.wrap_with_try_catch(
-                stmt,
-                INTENT_FETCH,
-                "File.ReadAllText",
+        if error_policy == "return_default":
+            helper_name = action_synthesizer.stmt_builder.ensure_text_file_read_helper(new_p)
+            success_var = action_synthesizer.stmt_builder.get_semantic_var_name(
+                node,
+                "bool",
+                "fileReadSucceeded",
                 new_p,
-                error_policy=error_policy,
+                prefix=f"{out_var}Read",
+                role="status",
             )
-        )
+            new_p["statements"].append({
+                "type": "raw",
+                "code": f"bool {success_var} = true;",
+                "node_id": f"{node.get('id')}_read_status",
+                "intent": INTENT_FETCH,
+            })
+            new_p["statements"].append({
+                "type": "call",
+                "method": helper_name,
+                "call_expr": f"{helper_name}({params[0]}, out {success_var})",
+                "args": [params[0], f"out {success_var}"],
+                "node_id": node.get("id"),
+                "intent": INTENT_FETCH,
+                "out_var": out_var,
+                "var_type": "string",
+            })
+            failure_action = action_synthesizer.stmt_builder._catch_action_for_policy(
+                path=new_p,
+                error_policy=error_policy,
+                has_hoisted_result=True,
+                hoisted_result_var=out_var,
+                hoisted_result_type="string",
+            )
+            if failure_action:
+                new_p["statements"].append({
+                    "type": "raw",
+                    "code": f"if (!{success_var}) {failure_action}",
+                    "node_id": f"{node.get('id')}_read_failure",
+                    "intent": INTENT_FETCH,
+                })
+        else:
+            stmt = {
+                "type": "raw",
+                "code": f"{out_var} = File.ReadAllText({params[0]});",
+                "node_id": node.get("id"),
+                "intent": INTENT_FETCH,
+                "out_var": out_var,
+                "var_type": "string",
+            }
+            new_p["statements"].append(
+                action_synthesizer.stmt_builder.wrap_with_try_catch(
+                    stmt,
+                    INTENT_FETCH,
+                    "File.ReadAllText",
+                    new_p,
+                    error_policy=error_policy,
+                )
+            )
         new_p.setdefault("all_usings", set()).add("System.IO")
         new_p.setdefault("type_to_vars", {}).setdefault("string", []).append({
             "var_name": out_var,

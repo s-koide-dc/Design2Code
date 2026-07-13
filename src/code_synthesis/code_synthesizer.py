@@ -224,32 +224,85 @@ class CodeSynthesizer:
             if isinstance(last_step, dict) and last_step.get("intent") in [INTENT_FETCH, INTENT_JSON_DESERIALIZE, INTENT_TRANSFORM]:
                 return_type = last_step.get("output_type")
 
-        entity_schema = getattr(self.method_store, 'entity_schema', self.entity_schema)
-        ir_gen = IRGenerator(self.config, knowledge_base=self.ukb, method_store=self.method_store, morph_analyzer=self.morph_analyzer, entity_schema=copy.deepcopy(entity_schema), matcher=self.matcher)
-        ir_tree = ir_gen.from_structured_spec(structured_spec, intent_hint=intent)
+        entity_schema = self._merge_structured_entity_specs(
+            copy.deepcopy(getattr(self.method_store, 'entity_schema', self.entity_schema)),
+            structured_spec.get("entity_specs"),
+        )
+        previous_stmt_schema = self.stmt_builder.entity_schema
+        previous_entity_schema = self.entity_schema
+        self.stmt_builder.entity_schema = entity_schema
+        self.entity_schema = entity_schema
+        try:
+            ir_gen = IRGenerator(self.config, knowledge_base=self.ukb, method_store=self.method_store, morph_analyzer=self.morph_analyzer, entity_schema=copy.deepcopy(entity_schema), matcher=self.matcher)
+            ir_tree = ir_gen.from_structured_spec(structured_spec, intent_hint=intent)
 
-        # 27.405: CRITICAL - Propagate return type hint to IR tree for path initialization
-        if return_type:
-            ir_tree["return_type_hint"] = return_type
+            # 27.405: CRITICAL - Propagate return type hint to IR tree for path initialization
+            if return_type:
+                ir_tree["return_type_hint"] = return_type
 
-        def _is_void_input(inp: Dict[str, Any]) -> bool:
-            t = str(inp.get("type_format") or "").strip().lower()
-            desc = str(inp.get("description") or "").strip().lower()
-            return t in ["void", "none"] or (not t and desc in ["none", ""])
+            def _is_void_input(inp: Dict[str, Any]) -> bool:
+                t = str(inp.get("type_format") or "").strip().lower()
+                desc = str(inp.get("description") or "").strip().lower()
+                return t in ["void", "none"] or (not t and desc in ["none", ""])
 
-        input_defs = []
-        if inputs and isinstance(inputs, list):
-            for i, inp in enumerate(inputs, start=1):
-                if not isinstance(inp, dict):
-                    continue
-                if _is_void_input(inp):
-                    continue
-                name = inp.get("name") or f"input_{i}"
-                if not inp.get("type_format"):
-                    inp["type_format"] = inferred_input_type or "object"
-                input_defs.append({"name": name, "type": inp.get("type_format") or "object"})
+            input_defs = []
+            if inputs and isinstance(inputs, list):
+                for i, inp in enumerate(inputs, start=1):
+                    if not isinstance(inp, dict):
+                        continue
+                    if _is_void_input(inp):
+                        continue
+                    name = inp.get("name") or f"input_{i}"
+                    if not inp.get("type_format"):
+                        inp["type_format"] = inferred_input_type or "object"
+                    input_defs.append({"name": name, "type": inp.get("type_format") or "object"})
 
-        return self._synthesize_from_ir_tree(method_name=method_name, ir_tree=ir_tree, expected_steps=len(steps), return_type=return_type, input_type_hint=input_type_hint, input_defs=input_defs, **kwargs)
+            return self._synthesize_from_ir_tree(method_name=method_name, ir_tree=ir_tree, expected_steps=len(steps), return_type=return_type, input_type_hint=input_type_hint, input_defs=input_defs, **kwargs)
+        finally:
+            self.stmt_builder.entity_schema = previous_stmt_schema
+            self.entity_schema = previous_entity_schema
+
+    def _merge_structured_entity_specs(self, entity_schema: Dict[str, Any], entity_specs: Any) -> Dict[str, Any]:
+        if not isinstance(entity_schema, dict):
+            entity_schema = {}
+        if not isinstance(entity_specs, list) or not entity_specs:
+            return entity_schema
+
+        entities = list(entity_schema.get("entities") or [])
+        by_name: Dict[str, Dict[str, Any]] = {}
+        for entity in entities:
+            if isinstance(entity, dict) and entity.get("name"):
+                by_name[str(entity["name"])] = entity
+
+        for spec in entity_specs:
+            if not isinstance(spec, dict):
+                continue
+            name = str(spec.get("name") or "").strip()
+            properties = spec.get("properties")
+            if not name or not isinstance(properties, dict) or not properties:
+                continue
+            normalized_props: Dict[str, str] = {}
+            for prop_name, prop_type in properties.items():
+                clean_name = str(prop_name or "").strip()
+                clean_type = str(prop_type or "").strip()
+                if clean_name and clean_type:
+                    normalized_props[clean_name] = clean_type
+            if not normalized_props:
+                continue
+            by_name[name] = {
+                **by_name.get(name, {}),
+                "name": name,
+                "properties": normalized_props,
+            }
+
+        merged_entities = list(by_name.values())
+        entity_schema["entities"] = merged_entities
+        entity_schema["entities_map"] = {
+            entity["name"]: entity
+            for entity in merged_entities
+            if isinstance(entity, dict) and entity.get("name")
+        }
+        return entity_schema
 
     def _synthesize_from_ir_tree(self, method_name: str, ir_tree: Dict[str, Any], expected_steps: int, return_type: str = None, input_type_hint: str = None, **kwargs) -> Dict[Any, Any]:
         type_vars = {}
@@ -402,7 +455,7 @@ class CodeSynthesizer:
                             break
                     if has_reference:
                         break
-                    for body_key in ["body", "else_body"]:
+                    for body_key in ["body", "else_body", "catch_body"]:
                         if isinstance(stmt.get(body_key), list):
                             for inner in stmt[body_key]:
                                 for key in ["code", "method", "call_expr", "var_type"]:
@@ -573,6 +626,7 @@ class CodeSynthesizer:
 
                 if "body" in stmt: check_consumption(stmt["body"])
                 if "else_body" in stmt: check_consumption(stmt["else_body"])
+                if "catch_body" in stmt: check_consumption(stmt["catch_body"])
 
         check_consumption(path.get("statements", []))
 

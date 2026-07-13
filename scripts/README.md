@@ -51,12 +51,19 @@
   - `--skip-generate` を使うと inference 比較だけに絞れるため、JSON 契約確認や高速な境界観測に向く。
 - `scripts/design/review_design_generation_snapshot.py`
   - 1 本の `.design.md` について、元の設計書、`.inferred.design.md`、最終生成コード、`SpecAuditor` の issue、compile 検証結果を 1 回で JSON とファイル出力へまとめる。
+  - `quality` には compiler warning、spec issue、未解決 marker、blueprint placeholder fetch、生成コードの保守性メトリクスを見た生成品質ゲート結果を含む。
+  - 保守性メトリクスは通常 CodeBuilder/Roslyn の AST 解析を使い、`quality.maintainability.analysis_source` に `roslyn` を出力する。
+  - `--fail-on-maintainability` を付けると、保守性しきい値の finding も snapshot の失敗条件にする。
   - 中間表現だけでなく、実際の `.cs` を見て authoring 削減の妥当性を確認したいときのレビュー入口。
   - `--assist-endpoint-url` を付けると `literal_roles_only` assist を含めたレビューもできる。
 - `scripts/design/run_design_generation_regression.py`
   - 複数の `.design.md` をまとめて `review_design_generation_snapshot` と同じ基準で回帰確認する。
-  - 既定では `ComplexLinqSearch`, `CsvSalesAggregation`, `DailyInventorySync`, `SecureOrderProcessing`, `AppModeEchoMinimal` を対象にし、`--design` を複数指定すると任意の組み合わせに差し替えられる。
-  - 各ケースの `inference_status`, `verification_valid`, `spec_issue_count` と、元の詳細 payload を 1 つの JSON に集約する。
+  - 既定では `ComplexLinqSearch`, `CsvSalesAggregation`, `ProductApiFilteredCatalog`, `CustomerApiWithEntitySpec`, `DailyInventorySync`, `SecureOrderProcessing`, `AppModeEchoMinimal` を対象にし、`--design` を複数指定すると任意の組み合わせに差し替えられる。
+  - 各ケースの `inference_status`, `verification_valid`, `quality_valid`, `quality_issue_count`, `spec_issue_count` と、元の詳細 payload を 1 つの JSON に集約する。
+  - `maintainability` には method 数、class 数、constructor 数、helper method 数、operation method 数、総行数、最大 method 行数、最大 try 数、最大 catch 数、最大 operation method 行数、最大 operation method try 数、最大 operation method catch 数、blueprint statement 数、analysis source、finding 一覧を観測値として出力する。
+  - CI の generation-quality job は `--fail-on-maintainability` 付きで実行し、既定しきい値超過を失敗扱いにする。
+  - `maintainability_finding_count` は保守性 finding の件数を示す。`--fail-on-maintainability` 付きの CI 実行では、1 件以上なら品質 NG として扱う。
+  - GitHub Actions の `generation-quality` ジョブで必須実行し、品質ゲート失敗時は CI を失敗させる。
 - `scripts/design/audit_literal_tag_assist_coverage.py`
   - `scenarios/` 配下の `.design.md` を strip して `infer_then_freeze` に流し、`NO_CANDIDATE` で止まるケースと literal assist 推奨ケースを JSON で返す。
   - `assist_recommended` は、blocked 理由が `NO_CANDIDATE` で、かつ explicit literal-bearing candidate が残っているケースだけを示す。

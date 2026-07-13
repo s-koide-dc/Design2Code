@@ -18,6 +18,7 @@
 - `ComplexConditionDetector` は Python AST または Roslyn の `conditionStructures` のような構造解析結果を要求し、非 Python ソースの生テキストだけでは `STRUCTURAL_ANALYSIS_REQUIRED` 診断を残して検出しない。
 - detector 例外はプロジェクト全体を失敗にせず、`analysis_diagnostics` に `file` / `operation` / `error_type` / `detector` を記録して partial success として返す。
 - `RefactoringAnalyzer.analyze_project` は言語別 analyzer から返った `analysis_diagnostics` を最終結果へ伝播する。
+- `refactoring_analyzer.py` は facade module として、言語別 analyzer、detector、metrics/reporter クラスを再 export する。
 
 ## 2. Architecture Overview
 
@@ -34,6 +35,9 @@
     - `RefactoringSuggestionEngine`: 改善策の提示。
     - `ImpactScopeAnalyzer`: 変更による影響範囲の特定。
     - `RefactoringJSONReporter/HTMLReporter`: レポート出力。
+
+補足:
+- 既存の import 互換性のため、`LongMethodDetector`, `DuplicateCodeDetector`, `ComplexConditionDetector`, `GodClassDetector` は `src.refactoring_analyzer.refactoring_analyzer` からも import できる。
 
 ### 2.1 Core Components (Refactored)
 

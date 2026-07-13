@@ -142,6 +142,46 @@ Validate semantic_roles array parsing.
         self.assertEqual(spec["steps"][0]["semantic_roles"].get("ops"), ["trim_upper"])
         self.assertTrue(spec["steps"][0]["explicit_semantic_roles"])
 
+    def test_parse_entity_specs_as_explicit_schema(self):
+        sample_md = """
+# CustomerModule
+## 1. Purpose
+Validate inline entity specs.
+## 2. Structured Specification
+### Input
+- **Description**: None
+- **Type/Format**: void
+### Output
+- **Description**: status
+- **Type/Format**: bool
+### Entity Specs
+- Customer:
+  - Id: int
+  - Name: string
+  - Points: int
+### Core Logic
+1. [ACTION|DISPLAY|Customer|void|NONE] 顧客を表示する
+### Test Cases
+- **Scenario**: Entity specs
+- **Expected**: ok
+"""
+
+        spec = self.parser.parse_markdown(sample_md)
+
+        self.assertEqual(
+            spec["entity_specs"],
+            [
+                {
+                    "name": "Customer",
+                    "properties": {
+                        "Id": "int",
+                        "Name": "string",
+                        "Points": "int",
+                    },
+                }
+            ],
+        )
+
     def test_validator_reports_missing_required(self):
         bad_spec = {"module_name": "X"}
         errors = validate_structured_spec(bad_spec)

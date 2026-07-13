@@ -16,7 +16,7 @@ The `SemanticAssertions` module [Phase 23.4] provides a rule-based verification 
 ### 2.3 Core Logic
 
 #### 2.3.1 Pre-processing (`flatten_statements`)
--   Recursively traverses the statement tree (handling `if`, `foreach`, `while`, `try`) to produce a flat list of all statements for easier analysis.
+-   Recursively traverses the statement tree (handling `if`, `foreach`, `while`, `try`, `try_catch`, and `catch_body`) to produce a flat list of all statements for easier analysis.
 
 #### 2.3.2 Contract Validation (`evaluate_blueprint_contract`)
 1.  **Placeholder Check** (`disallow_placeholder_fetch`):

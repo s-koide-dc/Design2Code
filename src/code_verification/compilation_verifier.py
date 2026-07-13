@@ -201,19 +201,24 @@ class CompilationVerifier:
 
             # 5. 結果の解析
             is_valid = (result.returncode == 0)
-            errors = self._parse_errors(result.stdout + result.stderr)
+            diagnostics = self._parse_diagnostics(result.stdout + result.stderr)
+            errors = [d for d in diagnostics if d.get("severity") == "error"]
+            warnings = [d for d in diagnostics if d.get("severity") == "warning"]
 
-            # ビルド成功時はエラーがあっても（警告等）成功とみなす
             if is_valid:
                 return {
                     'valid': True,
                     'errors': [],
+                    'warnings': warnings,
+                    'diagnostics': diagnostics,
                     'stdout': result.stdout
                 }
 
             return {
                 'valid': False,
                 'errors': errors,
+                'warnings': warnings,
+                'diagnostics': diagnostics,
                 'stdout': result.stdout,
                 'stderr': result.stderr
             }
@@ -250,18 +255,49 @@ class CompilationVerifier:
     def _parse_errors(self, output: str) -> List[Dict[str, Any]]:
         """MSBuild のエラー出力をパースして構造化データにする"""
         errors = []
-        for raw_line in output.splitlines():
-            parsed = self._parse_msbuild_error_line(raw_line)
-            if parsed:
-                errors.append(parsed)
+        for diagnostic in self._parse_diagnostics(output):
+            if diagnostic.get("severity") != "error":
+                continue
+            item = dict(diagnostic)
+            item.pop("severity", None)
+            errors.append(item)
         return errors
+
+    def _parse_warnings(self, output: str) -> List[Dict[str, Any]]:
+        """MSBuild の warning 出力をパースして構造化データにする"""
+        return [d for d in self._parse_diagnostics(output) if d.get("severity") == "warning"]
+
+    def _parse_diagnostics(self, output: str) -> List[Dict[str, Any]]:
+        diagnostics = []
+        for raw_line in output.splitlines():
+            parsed = self._parse_msbuild_diagnostic_line(raw_line)
+            if parsed:
+                diagnostics.append(parsed)
+        return diagnostics
 
     def _parse_msbuild_error_line(self, raw_line: str) -> Optional[Dict[str, Any]]:
         """Parse 'file(line,column): error CSxxxx: message' without regex."""
+        parsed = self._parse_msbuild_diagnostic_line(raw_line)
+        if parsed and parsed.get("severity") == "error":
+            parsed.pop("severity", None)
+            return parsed
+        return None
+
+    def _parse_msbuild_diagnostic_line(self, raw_line: str) -> Optional[Dict[str, Any]]:
+        """Parse 'file(line,column): error|warning CSxxxx: message' without regex."""
         if not isinstance(raw_line, str):
             return None
 
-        location_separator = "): error "
+        severity = ""
+        location_separator = ""
+        for candidate in ["error", "warning"]:
+            separator = f"): {candidate} "
+            if raw_line.find(separator) >= 0:
+                severity = candidate
+                location_separator = separator
+                break
+        if not location_separator:
+            return None
         location_end = raw_line.find(location_separator)
         if location_end < 0:
             return None
@@ -296,6 +332,7 @@ class CompilationVerifier:
             "file": file_path,
             "line": int(line_text),
             "column": int(column_text),
+            "severity": severity,
             "code": code,
             "error_type": self._classify_error_code(code),
             "message": msg
@@ -359,7 +396,9 @@ class CompilationVerifier:
                 timeout=180
             )
             is_valid = (result.returncode == 0)
-            errors = self._parse_errors(result.stdout + result.stderr)
+            diagnostics = self._parse_diagnostics(result.stdout + result.stderr)
+            errors = [d for d in diagnostics if d.get("severity") == "error"]
+            warnings = [d for d in diagnostics if d.get("severity") == "warning"]
             if not is_valid and not errors:
                 msg = (result.stderr or result.stdout or "").strip()
                 if msg:
@@ -368,17 +407,22 @@ class CompilationVerifier:
                 "project": csproj,
                 "valid": is_valid,
                 "errors": errors,
+                "warnings": warnings,
+                "diagnostics": diagnostics,
                 "stdout": result.stdout,
                 "stderr": result.stderr
             })
 
         overall_valid = all(r["valid"] for r in results) if results else False
         all_errors = []
+        all_warnings = []
         for r in results:
             all_errors.extend(r.get("errors") or [])
+            all_warnings.extend(r.get("warnings") or [])
 
         return {
             "valid": overall_valid,
             "errors": all_errors,
+            "warnings": all_warnings,
             "projects": results
         }

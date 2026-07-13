@@ -65,8 +65,10 @@ public class StatementBlueprint
     [JsonPropertyName("var_type")] public string? VarType { get; set; } = null;
     [JsonPropertyName("value")] public string Value { get; set; } = "";
     [JsonPropertyName("method")] public string Method { get; set; } = "";
+    [JsonPropertyName("call_expr")] public string CallExpr { get; set; } = "";
     [JsonPropertyName("args")] public List<string> Args { get; set; } = new();
     [JsonPropertyName("out_var")] public string OutVar { get; set; } = "";
+    [JsonPropertyName("is_assignment_only")] public bool IsAssignmentOnly { get; set; } = false;
     [JsonPropertyName("condition")] public string Condition { get; set; } = "";
     [JsonPropertyName("source")] public string Source { get; set; } = "";
     [JsonPropertyName("collection")] public string Collection { get; set; } = "";
@@ -76,6 +78,7 @@ public class StatementBlueprint
     [JsonPropertyName("body")] public List<StatementBlueprint> Body { get; set; } = new();
     [JsonPropertyName("else_body")] public List<StatementBlueprint> ElseBody { get; set; } = new();
     [JsonPropertyName("catch_body")] public List<StatementBlueprint> CatchBody { get; set; } = new();
+    [JsonPropertyName("rethrow_operation_canceled")] public bool RethrowOperationCanceled { get; set; } = false;
     [JsonPropertyName("text")] public string Text { get; set; } = ""; 
     [JsonPropertyName("code")] public string Code { get; set; } = ""; 
     [JsonPropertyName("max_attempts")] public int MaxAttempts { get; set; } = 3;
@@ -115,6 +118,34 @@ public class SourceInspection
     [JsonPropertyName("method")] public MethodInspection Method { get; set; } = new();
 }
 
+public class SourceMetricsRequest
+{
+    [JsonPropertyName("source_code")] public string SourceCode { get; set; } = "";
+}
+
+public class MemberMetrics
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("kind")] public string Kind { get; set; } = "";
+    [JsonPropertyName("declaring_type")] public string DeclaringType { get; set; } = "";
+    [JsonPropertyName("declaring_type_kind")] public string DeclaringTypeKind { get; set; } = "";
+    [JsonPropertyName("accessibility")] public string Accessibility { get; set; } = "";
+    [JsonPropertyName("start_line")] public int StartLine { get; set; }
+    [JsonPropertyName("line_count")] public int LineCount { get; set; }
+    [JsonPropertyName("try_count")] public int TryCount { get; set; }
+    [JsonPropertyName("catch_count")] public int CatchCount { get; set; }
+    [JsonPropertyName("return_count")] public int ReturnCount { get; set; }
+}
+
+public class SourceMetrics
+{
+    [JsonPropertyName("class_count")] public int ClassCount { get; set; }
+    [JsonPropertyName("struct_count")] public int StructCount { get; set; }
+    [JsonPropertyName("type_count")] public int TypeCount { get; set; }
+    [JsonPropertyName("total_line_count")] public int TotalLineCount { get; set; }
+    [JsonPropertyName("members")] public List<MemberMetrics> Members { get; set; } = new();
+}
+
 class Program
 {
     static void Main(string[] args)
@@ -133,6 +164,11 @@ class Program
             if (args.Any(a => a == "--inspect-source"))
             {
                 WriteJsonResponse(InspectSource(inputJson), jsonStartMarker, jsonEndMarker);
+                return;
+            }
+            if (args.Any(a => a == "--analyze-source-metrics"))
+            {
+                WriteJsonResponse(AnalyzeSourceMetrics(inputJson), jsonStartMarker, jsonEndMarker);
                 return;
             }
             var bp = JsonSerializer.Deserialize<Blueprint>(inputJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
@@ -275,6 +311,119 @@ class Program
         };
     }
 
+    static object AnalyzeSourceMetrics(string inputJson)
+    {
+        var request = JsonSerializer.Deserialize<SourceMetricsRequest>(
+            inputJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
+        if (request == null || string.IsNullOrWhiteSpace(request.SourceCode))
+        {
+            return new { status = "error", message = "source_code is required." };
+        }
+
+        var tree = CSharpSyntaxTree.ParseText(request.SourceCode);
+        var diagnostics = tree.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Select(d => {
+                var lineSpan = d.Location.GetLineSpan();
+                return new {
+                    id = d.Id,
+                    message = d.GetMessage(),
+                    line = lineSpan.StartLinePosition.Line + 1
+                };
+            })
+            .ToList();
+        if (diagnostics.Any())
+        {
+            return new {
+                status = "error",
+                message = "Source code contains C# syntax errors.",
+                diagnostics = diagnostics
+            };
+        }
+
+        var root = tree.GetCompilationUnitRoot();
+        var types = root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>().ToList();
+        var metrics = new SourceMetrics {
+            ClassCount = types.OfType<ClassDeclarationSyntax>().Count(),
+            StructCount = types.OfType<StructDeclarationSyntax>().Count(),
+            TypeCount = types.Count,
+            TotalLineCount = tree.GetText().Lines.Count,
+            Members = new List<MemberMetrics>()
+        };
+
+        foreach (var typeDecl in types)
+        {
+            var typeName = typeDecl.Identifier.ValueText;
+            var typeKind = typeDecl.Kind() == SyntaxKind.StructDeclaration ? "struct" : "class";
+            if (typeDecl is not TypeDeclarationSyntax declaration)
+            {
+                continue;
+            }
+
+            foreach (var member in declaration.Members)
+            {
+                if (member is MethodDeclarationSyntax methodDecl)
+                {
+                    metrics.Members.Add(InspectMember(
+                        methodDecl,
+                        methodDecl.Identifier.ValueText,
+                        "method",
+                        typeName,
+                        typeKind
+                    ));
+                }
+                else if (member is ConstructorDeclarationSyntax constructorDecl)
+                {
+                    metrics.Members.Add(InspectMember(
+                        constructorDecl,
+                        constructorDecl.Identifier.ValueText,
+                        "constructor",
+                        typeName,
+                        typeKind
+                    ));
+                }
+            }
+        }
+
+        return new { status = "success", metrics = metrics };
+    }
+
+    static MemberMetrics InspectMember(
+        MemberDeclarationSyntax member,
+        string name,
+        string kind,
+        string declaringType,
+        string declaringTypeKind
+    )
+    {
+        var lineSpan = member.GetLocation().GetLineSpan();
+        var startLine = lineSpan.StartLinePosition.Line + 1;
+        var endLine = lineSpan.EndLinePosition.Line + 1;
+        return new MemberMetrics {
+            Name = name,
+            Kind = kind,
+            DeclaringType = declaringType,
+            DeclaringTypeKind = declaringTypeKind,
+            Accessibility = GetAccessibility(member.Modifiers),
+            StartLine = startLine,
+            LineCount = Math.Max(1, endLine - startLine + 1),
+            TryCount = member.DescendantNodes().OfType<TryStatementSyntax>().Count(),
+            CatchCount = member.DescendantNodes().OfType<CatchClauseSyntax>().Count(),
+            ReturnCount = member.DescendantNodes().OfType<ReturnStatementSyntax>().Count()
+        };
+    }
+
+    static string GetAccessibility(SyntaxTokenList modifiers)
+    {
+        if (modifiers.Any(SyntaxKind.PublicKeyword)) return "public";
+        if (modifiers.Any(SyntaxKind.PrivateKeyword)) return "private";
+        if (modifiers.Any(SyntaxKind.InternalKeyword)) return "internal";
+        if (modifiers.Any(SyntaxKind.ProtectedKeyword)) return "protected";
+        return "";
+    }
+
     static string? GetNamespace(SyntaxNode node)
     {
         foreach (var ancestor in node.Ancestors())
@@ -310,11 +459,11 @@ class Program
         var supportedTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "raw", "call", "assign", "comment", "foreach", "if",
-            "retry", "timeout", "transaction"
+            "try", "try_catch", "retry", "timeout", "transaction"
         };
         var bodyRequiredTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "foreach", "if", "retry", "timeout", "transaction"
+            "foreach", "if", "try", "try_catch", "retry", "timeout", "transaction"
         };
 
         void ValidateStatements(IEnumerable<StatementBlueprint> statements, string location)
@@ -342,6 +491,7 @@ class Program
                 }
                 ValidateStatements(statement.Body ?? new(), $"{statementLocation}.body");
                 ValidateStatements(statement.ElseBody ?? new(), $"{statementLocation}.else_body");
+                ValidateStatements(statement.CatchBody ?? new(), $"{statementLocation}.catch_body");
                 index++;
             }
         }
@@ -477,20 +627,32 @@ class Program
                             .AddVariables(VariableDeclarator(Identifier(s.VarName)).WithInitializer(EqualsValueClause(assignVal))));
                     }
                 case "call":
-                    ExpressionSyntax invoke = ParseRequiredExpression(s.Method, "method");
-
-                    if (s.Args?.Count > 0) 
+                    ExpressionSyntax invoke;
+                    if (!string.IsNullOrWhiteSpace(s.CallExpr))
                     {
-                        invoke = InvocationExpression(invoke).AddArgumentListArguments(
-                            s.Args.Select(a => Argument(ParseRequiredExpression(a, "argument"))).ToArray()
-                        );
+                        invoke = ParseRequiredExpression(s.CallExpr, "call expression");
                     }
-                    else if (!string.IsNullOrEmpty(s.Method) && !s.Method.Contains("(")) invoke = InvocationExpression(invoke); // Ensure it's a call
+                    else
+                    {
+                        invoke = ParseRequiredExpression(s.Method, "method");
+
+                        if (s.Args?.Count > 0)
+                        {
+                            invoke = InvocationExpression(invoke).AddArgumentListArguments(
+                                s.Args.Select(a => Argument(ParseRequiredExpression(a, "argument"))).ToArray()
+                            );
+                        }
+                        else if (!string.IsNullOrEmpty(s.Method) && !s.Method.Contains("(")) invoke = InvocationExpression(invoke); // Ensure it's a call
+                    }
                     
                     if (s.IsAsync) invoke = AwaitExpression(invoke);
                     
                     if (!string.IsNullOrEmpty(s.OutVar))
                     {
+                        if (s.IsAssignmentOnly)
+                        {
+                            return ExpressionStatement(AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, IdentifierName(s.OutVar), invoke));
+                        }
                         if (s.VarType == null)
                         {
                             return LocalDeclarationStatement(VariableDeclaration(IdentifierName("var"))
@@ -525,10 +687,22 @@ class Program
                 case "while":
                     return WhileStatement(ParseExpression(s.Condition), Block((s.Body ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>()));
                 case "try":
+                case "try_catch":
                     var tryBlock = Block((s.Body ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>());
-                    var catchBlock = Block((s.ElseBody ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>());
+                    var tryCatchStatements = (s.CatchBody != null && s.CatchBody.Count > 0) ? s.CatchBody : s.ElseBody;
+                    var catchBlock = Block((tryCatchStatements ?? new()).Select(sub => ConvertStatement(sub, isAsyncMethod)).OfType<StatementSyntax>());
                     var catchClause = CatchClause().WithDeclaration(CatchDeclaration(ParseTypeName("Exception")).WithIdentifier(Identifier("ex"))).WithBlock(catchBlock);
-                    return TryStatement().WithBlock(tryBlock).WithCatches(SingletonList(catchClause));
+                    var catchClauses = new List<CatchClauseSyntax>();
+                    if (s.RethrowOperationCanceled)
+                    {
+                        catchClauses.Add(
+                            CatchClause()
+                                .WithDeclaration(CatchDeclaration(ParseTypeName("OperationCanceledException")))
+                                .WithBlock(Block(ThrowStatement()))
+                        );
+                    }
+                    catchClauses.Add(catchClause);
+                    return TryStatement().WithBlock(tryBlock).WithCatches(List(catchClauses));
                 case "retry":
                     var maxAttempts = s.MaxAttempts < 1 ? 1 : s.MaxAttempts;
                     var lastAttempt = maxAttempts - 1;

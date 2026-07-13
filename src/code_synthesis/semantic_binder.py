@@ -375,6 +375,12 @@ class SemanticBinder:
             "Equal": "==", "NotEqual": "!=", "Contains": ".Contains", "StartsWith": ".StartsWith"
         }
 
+        def _string_method_expression(prop_access: str, method: str, value: Any, nullable: bool) -> str:
+            expr = f"{prop_access}{method}(\"{value}\")"
+            if nullable:
+                return f"{prop_access} != null && {expr}"
+            return expr
+
         # 27.123: Use actual loop variable name instead of hardcoded 'x'
         var_name = path.get("active_scope_item", "x")
 
@@ -429,7 +435,8 @@ class SemanticBinder:
                 p_type_lower = str(p_type).lower()
                 if p_type_lower == "string":
                     if op in ["Greater", "GreaterEqual"]:
-                        expressions.append(f"{prop_access}.StartsWith(\"{val}\")")
+                        is_nullable = str(p_type).strip().endswith("?") or str(p_type).strip() == "string"
+                        expressions.append(_string_method_expression(prop_access, ".StartsWith", val, is_nullable))
                     elif op == "NotEqual":
                         expressions.append(f"{prop_access} != \"{val}\"")
                     else:
@@ -446,7 +453,8 @@ class SemanticBinder:
                 elif op == "NotEqual": expressions.append(f"{prop_access} != \"{val}\"")
                 else:
                     method = op_map.get(op, ".Contains")
-                    expressions.append(f"{prop_access}{method}(\"{val}\")")
+                    is_nullable = str(p_type).strip().endswith("?") or str(p_type).strip() == "string"
+                    expressions.append(_string_method_expression(prop_access, method, val, is_nullable))
 
             elif g_type == "calculation":
                 expr = self._build_arithmetic_expr(goal, props, path)

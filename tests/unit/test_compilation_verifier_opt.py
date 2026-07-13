@@ -78,5 +78,27 @@ class TestCompilationVerifierOptimization(unittest.TestCase):
             errors,
         )
 
+    def test_parse_msbuild_warnings_without_regex(self):
+        output = (
+            r"C:\workspace\NLP\src\Example.cs(12,20): warning CS8602: Dereference of a possibly null reference."
+            "\n"
+            "noise line"
+        )
+
+        warnings = self.verifier._parse_warnings(output)
+
+        self.assertEqual(
+            [{
+                "file": r"C:\workspace\NLP\src\Example.cs",
+                "line": 12,
+                "column": 20,
+                "severity": "warning",
+                "code": "CS8602",
+                "error_type": "UNKNOWN",
+                "message": "Dereference of a possibly null reference.",
+            }],
+            warnings,
+        )
+
 if __name__ == '__main__':
     unittest.main()

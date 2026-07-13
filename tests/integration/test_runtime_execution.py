@@ -1,6 +1,10 @@
 import unittest
 import os
 import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+
+from scripts.design.review_design_generation_snapshot import build_review_snapshot
 from src.config.config_manager import ConfigManager
 from src.code_synthesis.code_synthesizer import CodeSynthesizer
 from src.code_verification.execution_verifier import ExecutionVerifier
@@ -69,6 +73,365 @@ namespace Common.Serialization {
             self.cm,
             method_store=self.synthesizer.method_store,
         )
+
+    def _build_review_snapshot_for_runtime(self, design_path: str) -> dict:
+        output_dir = Path(self.temp_dir.name) / "review_snapshots" / Path(design_path).stem
+        args = SimpleNamespace(
+            design=design_path,
+            output_dir=str(output_dir),
+            retry=False,
+            allow_fallback=False,
+            assist_endpoint_url=None,
+            assist_model_id="local-assist",
+            assist_timeout_seconds=60,
+            assist_max_new_tokens=384,
+            fail_on_maintainability=False,
+            assist_policy="on_blocked_only",
+        )
+        snapshot = build_review_snapshot(args)
+        self.assertEqual(0, snapshot["exit_code"], snapshot["payload"])
+        payload = snapshot["payload"]
+        self.assertTrue(payload["verification"]["valid"], payload)
+        self.assertTrue(payload["quality"]["valid"], payload)
+        return payload
+
+    def test_app_mode_echo_generated_code_runtime_behavior(self):
+        payload = self._build_review_snapshot_for_runtime(
+            "scenarios/AppModeEchoMinimal.design.md",
+        )
+        test_code = """
+using System;
+using System.IO;
+using System.Text.Json;
+using Xunit;
+
+public class AppModeEchoRuntimeTest
+{
+    [Fact]
+    public void EchoesConfiguredAppMode()
+    {
+        var previous = Environment.GetEnvironmentVariable("APP_MODE");
+        var writer = new StringWriter();
+        var originalOut = Console.Out;
+        try
+        {
+            Environment.SetEnvironmentVariable("APP_MODE", "runtime-test");
+            Console.SetOut(writer);
+
+            var result = new GeneratedProcessor().AppModeEchoMinimal();
+
+            Assert.True(result);
+            Assert.Contains("runtime-test", writer.ToString());
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Environment.SetEnvironmentVariable("APP_MODE", previous);
+        }
+    }
+}
+"""
+        runtime_result = self.verifier.verify_runtime(
+            payload["generated_code"],
+            test_code,
+            dependencies=[],
+        )
+        self.assertTrue(runtime_result["success"], runtime_result)
+        self.assertEqual(1, runtime_result["summary"]["passed"])
+
+    def test_csv_sales_aggregation_generated_code_runtime_behavior(self):
+        payload = self._build_review_snapshot_for_runtime(
+            "scenarios/CsvSalesAggregation.design.md",
+        )
+        test_code = """
+using System;
+using System.IO;
+using System.Text.Json;
+using Xunit;
+
+public class CsvSalesAggregationRuntimeTest
+{
+    [Fact]
+    public void AggregatesSalesByProductAndWritesOutput()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "csv-sales-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var inputPath = Path.Combine(root, "sales.csv");
+            var outputPath = Path.Combine(root, "totals.csv");
+            File.WriteAllText(inputPath, "A,10" + Environment.NewLine + "B,5" + Environment.NewLine + "A,20");
+
+            var result = new GeneratedProcessor().CsvSalesAggregation(inputPath, outputPath);
+
+            Assert.Equal(outputPath, result);
+            var output = File.ReadAllText(outputPath);
+            Assert.Contains("A,30", output);
+            Assert.Contains("B,5", output);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+}
+"""
+        runtime_result = self.verifier.verify_runtime(
+            payload["generated_code"],
+            test_code,
+            dependencies=[],
+        )
+        self.assertTrue(runtime_result["success"], runtime_result)
+        self.assertEqual(1, runtime_result["summary"]["passed"])
+
+    def test_complex_linq_search_generated_code_runtime_behavior(self):
+        payload = self._build_review_snapshot_for_runtime(
+            "scenarios/ComplexLinqSearch.design.md",
+        )
+        test_code = """
+using System;
+using System.IO;
+using System.Text.Json;
+using Xunit;
+
+public class ComplexLinqSearchRuntimeTest
+{
+    [Fact]
+    public void FiltersUsersByNamePrefixAndPriceBeforeDisplay()
+    {
+        var previous = Directory.GetCurrentDirectory();
+        var root = Path.Combine(Path.GetTempPath(), "complex-linq-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var writer = new StringWriter();
+        var originalOut = Console.Out;
+        try
+        {
+            Directory.SetCurrentDirectory(root);
+            var users = new[]
+            {
+                new { Id = 1, Name = "Alice", Age = 30, Email = "a@example.test", Points = 10, Price = 600m, LastLoginAt = DateTime.Parse("2026-01-01T00:00:00") },
+                new { Id = 2, Name = "Bob", Age = 25, Email = "b@example.test", Points = 20, Price = 900m, LastLoginAt = DateTime.Parse("2026-01-02T00:00:00") },
+                new { Id = 3, Name = "Anne", Age = 28, Email = "c@example.test", Points = 30, Price = 400m, LastLoginAt = DateTime.Parse("2026-01-03T00:00:00") },
+            };
+            File.WriteAllText("users.json", JsonSerializer.Serialize(users));
+            Console.SetOut(writer);
+
+            var result = new GeneratedProcessor().ComplexLinqSearch();
+
+            Assert.True(result);
+            var output = writer.ToString();
+            Assert.Contains("Alice", output);
+            Assert.DoesNotContain("Bob", output);
+            Assert.DoesNotContain("Anne", output);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Directory.SetCurrentDirectory(previous);
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+}
+"""
+        runtime_result = self.verifier.verify_runtime(
+            payload["generated_code"],
+            test_code,
+            dependencies=[],
+        )
+        self.assertTrue(runtime_result["success"], runtime_result)
+        self.assertEqual(1, runtime_result["summary"]["passed"])
+
+    def test_product_api_filtered_catalog_generated_code_runtime_behavior(self):
+        payload = self._build_review_snapshot_for_runtime(
+            "scenarios/ProductApiFilteredCatalog.design.md",
+        )
+        test_code = """
+using System;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Xunit;
+
+public sealed class ProductCatalogHandler : HttpMessageHandler
+{
+    public Uri? RequestUri { get; private set; }
+    public HttpMethod? Method { get; private set; }
+    public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
+    public string? RawBody { get; set; }
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        RequestUri = request.RequestUri;
+        Method = request.Method;
+        var products = new[]
+        {
+            new { Id = 1, Name = "Alpha", Price = 100, Quantity = 3, Stock = 3, Category = "Hardware", DiscountPrice = 90m },
+            new { Id = 2, Name = "Beta", Price = 200, Quantity = 4, Stock = 4, Category = "Hardware", DiscountPrice = 180m },
+            new { Id = 3, Name = "Atlas", Price = 150, Quantity = 0, Stock = 0, Category = "Hardware", DiscountPrice = 140m },
+        };
+        var response = new HttpResponseMessage(StatusCode)
+        {
+            Content = new StringContent(RawBody ?? JsonSerializer.Serialize(products))
+        };
+        return Task.FromResult(response);
+    }
+}
+
+public class ProductApiFilteredCatalogRuntimeTest
+{
+    [Fact]
+    public async Task FetchesProductsAndDisplaysOnlyMatchingRows()
+    {
+        var handler = new ProductCatalogHandler();
+        using var client = new HttpClient(handler);
+        var processor = new GeneratedProcessor(client);
+        var writer = new StringWriter();
+        var originalOut = Console.Out;
+        try
+        {
+            Console.SetOut(writer);
+
+            var result = await processor.ProductApiFilteredCatalog();
+
+            Assert.True(result);
+            Assert.Equal(HttpMethod.Get, handler.Method);
+            Assert.Equal("https://api.example.com/products", handler.RequestUri?.ToString());
+            var output = writer.ToString();
+            Assert.Contains("Alpha", output);
+            Assert.DoesNotContain("Beta", output);
+            Assert.DoesNotContain("Atlas", output);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact]
+    public async Task ReturnsFalseWhenHttpRequestFails()
+    {
+        var handler = new ProductCatalogHandler
+        {
+            StatusCode = HttpStatusCode.InternalServerError
+        };
+        using var client = new HttpClient(handler);
+        var processor = new GeneratedProcessor(client);
+
+        var result = await processor.ProductApiFilteredCatalog();
+
+        Assert.False(result);
+        Assert.Equal(HttpMethod.Get, handler.Method);
+    }
+
+    [Fact]
+    public async Task ReturnsFalseWhenJsonCannotBeParsed()
+    {
+        var handler = new ProductCatalogHandler
+        {
+            RawBody = "{not valid json"
+        };
+        using var client = new HttpClient(handler);
+        var processor = new GeneratedProcessor(client);
+
+        var result = await processor.ProductApiFilteredCatalog();
+
+        Assert.False(result);
+        Assert.Equal(HttpMethod.Get, handler.Method);
+    }
+}
+"""
+        runtime_result = self.verifier.verify_runtime(
+            payload["generated_code"],
+            test_code,
+            dependencies=[],
+        )
+        self.assertTrue(runtime_result["success"], runtime_result)
+        self.assertEqual(3, runtime_result["summary"]["passed"])
+
+    def test_customer_api_with_entity_spec_generated_code_runtime_behavior(self):
+        payload = self._build_review_snapshot_for_runtime(
+            "scenarios/CustomerApiWithEntitySpec.design.md",
+        )
+        test_code = """
+using System;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Xunit;
+
+public sealed class CustomerCatalogHandler : HttpMessageHandler
+{
+    public Uri? RequestUri { get; private set; }
+    public HttpMethod? Method { get; private set; }
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        RequestUri = request.RequestUri;
+        Method = request.Method;
+        var customers = new[]
+        {
+            new { Id = 1, Name = "Alice", Email = "alice@example.test", Points = 150 },
+            new { Id = 2, Name = "Bob", Email = "bob@example.test", Points = 300 },
+            new { Id = 3, Name = "Anne", Email = "anne@example.test", Points = 80 },
+        };
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(customers))
+        };
+        return Task.FromResult(response);
+    }
+}
+
+public class CustomerApiWithEntitySpecRuntimeTest
+{
+    [Fact]
+    public async Task UsesInlineEntitySpecForPocoAndFiltersResponse()
+    {
+        var handler = new CustomerCatalogHandler();
+        using var client = new HttpClient(handler);
+        var processor = new GeneratedProcessor(client);
+        var writer = new StringWriter();
+        var originalOut = Console.Out;
+        try
+        {
+            Console.SetOut(writer);
+
+            var result = await processor.CustomerApiWithEntitySpec();
+
+            Assert.True(result);
+            Assert.Equal(HttpMethod.Get, handler.Method);
+            Assert.Equal("https://customer.example.com/api/customers", handler.RequestUri?.ToString());
+            var output = writer.ToString();
+            Assert.Contains("Alice", output);
+            Assert.DoesNotContain("Bob", output);
+            Assert.DoesNotContain("Anne", output);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+}
+"""
+        runtime_result = self.verifier.verify_runtime(
+            payload["generated_code"],
+            test_code,
+            dependencies=[],
+        )
+        self.assertTrue(runtime_result["success"], runtime_result)
+        self.assertEqual(1, runtime_result["summary"]["passed"])
 
     def test_synthesize_and_run_test(self):
         print("\n--- Test: Runtime Execution Verification ---")

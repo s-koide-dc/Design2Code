@@ -13,6 +13,7 @@ The `CodeBuilderClient` [Phase 23.3] serves as the inter-process communication b
 - **Result** (`Dict[str, Any]`):
     -   `status`: "success" or "error".
     -   `code`: The generated C# source code string (if successful).
+    -   `metrics`: Roslyn-derived C# source metrics when `analyze_source_metrics` is used.
     -   `message`: Error details (if failed).
 
 ### 2.3 Core Logic
@@ -31,11 +32,19 @@ The `CodeBuilderClient` [Phase 23.3] serves as the inter-process communication b
 3.  **Deserialization**: Parse the extracted string as JSON.
 4.  **Failure Logging**: Non-JSON output is treated as an internal error and recorded via logger output, not unconditional stdout printing.
 
-#### 2.3.4 Fallback Rendering (`_render_fallback_code`)
+#### 2.3.4 Source Metrics (`analyze_source_metrics`)
+1.  **Invocation**: Call CodeBuilder with `--analyze-source-metrics` and pass `{"source_code": ...}` via stdin.
+2.  **Structural Analysis**: The .NET side uses Roslyn syntax nodes to return class/struct counts and method/constructor metrics.
+3.  **Consumer Contract**: `generation_quality` uses these metrics as the preferred maintainability source for generated code review and regression.
+
+#### 2.3.5 Fallback Rendering (`_render_fallback_code`)
 1.  **Purpose**: When the external `CodeBuilder` project is unavailable, render a minimal but structurally faithful C# fallback for tests.
-2.  **Statement Support**: Handle nested `call`, `assign`, `comment`, `foreach`, `if`, `retry`, `timeout`, and `transaction` statements.
+2.  **Statement Support**: Handle nested `call`, `assign`, `comment`, `foreach`, `if`, `try`, `try_catch`, `retry`, `timeout`, and `transaction` statements.
+    - `call_expr` がある `call` は式全体を使い、`method`/`args` からの再構成で null 合体や複合式を落とさない。
     - `call` に `out_var` がある場合は `var_type out_var = call(...)`、`is_assignment_only` の場合は `out_var = call(...)` として戻り値を保持する。
     - `is_async` のcallは代入式の右辺に `await` を付与する。
+    - `try_catch` は `body` を try block、`catch_body` を `catch (Exception ex)` block として保持する。旧 `try` 型は互換のため `catch_body` がなければ `else_body` を catch block として扱う。
+    - `rethrow_operation_canceled` が true の場合は通常 catch の前に `catch (OperationCanceledException) { throw; }` を出力する。
 3.  **Retry Semantics**: Render `retry` as deterministic `for + try/catch + break/rethrow`, matching the C# `CodeBuilder` statement contract instead of flattening wrapper bodies or injecting ad hoc raw code.
 4.  **Delay/Backoff Policy**: When explicit retry metadata includes `base_delay_ms`, `max_delay_ms`, or `backoff_multiplier`, preserve it in fallback rendering rather than inferring it from text.
 5.  **Timeout Semantics**: Render explicit `timeout` wrappers as sync `Task.Run(...).Wait(TimeSpan)` or async `CancellationTokenSource + WaitAsync`, preserving nested body structure and explicit `timeout_ms`.
@@ -59,6 +68,12 @@ The `CodeBuilderClient` [Phase 23.3] serves as the inter-process communication b
 3.  **Blueprint Save Fail**:
     -   Disk write fails.
     -   Result: Log error but proceed with execution (memory-only).
+4.  **Source Metrics**:
+    -   Input: C# source with public method, private helper, and struct constructor.
+    -   Result: `metrics.members` contains method/constructor entries with declaring type, accessibility, and try/catch counts.
 
 ## 3. Review Notes
 - 2026-06-29: fallback call rendererの戻り値代入とasync代入契約を反映。
+- 2026-07-10: `try` / `try_catch` statement validation and fallback rendering を追加し、C# CodeBuilder の構造化 try/catch contract と同期。
+- 2026-07-10: fallback call renderer が `call_expr`、`is_assignment_only`、`rethrow_operation_canceled` を保持する契約を明記。
+- 2026-07-13: `analyze_source_metrics` を追加し、生成品質ゲートが Roslyn ベースの保守性メトリクスを使えるようにした。

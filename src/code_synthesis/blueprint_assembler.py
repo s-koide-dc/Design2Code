@@ -105,6 +105,8 @@ class BlueprintAssembler:
                     _normalize_call_args(s.get("body", []))
                 if s.get("else_body"):
                     _normalize_call_args(s.get("else_body", []))
+                if s.get("catch_body"):
+                    _normalize_call_args(s.get("catch_body", []))
         _normalize_call_args(final_body)
 
         # 27.298: Final Return Strategy
@@ -179,6 +181,8 @@ class BlueprintAssembler:
                     found.update(_scan_refs(s.get("body", [])))
                 if s.get("else_body"):
                     found.update(_scan_refs(s.get("else_body", [])))
+                if s.get("catch_body"):
+                    found.update(_scan_refs(s.get("catch_body", [])))
             return found
         detected_refs = _scan_refs(final_body)
 
@@ -242,6 +246,8 @@ class BlueprintAssembler:
                     required.update(_collect_required_usings(s.get("body", []), [], "", False))
                 if s.get("else_body"):
                     required.update(_collect_required_usings(s.get("else_body", []), [], "", False))
+                if s.get("catch_body"):
+                    required.update(_collect_required_usings(s.get("catch_body", []), [], "", False))
             type_blob = " ".join([str(ret_type or "")] + [f"{p.get('type','')}" for p in (param_list or [])])
             blob = code_blob + " " + type_blob
 
@@ -283,6 +289,8 @@ class BlueprintAssembler:
                     types.update(_collect_used_types(s.get("body", [])))
                 if s.get("else_body"):
                     types.update(_collect_used_types(s.get("else_body", [])))
+                if s.get("catch_body"):
+                    types.update(_collect_used_types(s.get("catch_body", [])))
             return types
 
         used_types = _collect_used_types(final_body)

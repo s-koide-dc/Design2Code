@@ -37,17 +37,18 @@
 2. Core Logic の行に含まれる `[data_source|id|kind]` を抽出し、`data_sources` を形成する。
 3. 各ステップ行から `[KIND|INTENT|TARGET|OUTPUT|SIDE_EFFECT|SOURCE_REF|SOURCE_KIND]` メタデータ、`[refs:...]`、`[ops:...]`、`[semantic_roles:{...}]` を解析して `steps` に変換する。
 4. `source_ref` と `data_sources` を突合し、`source_kind` を補完する。`FETCH` で未指定の場合は `file` を既定値とする。
-5. `validate_structured_spec_or_raise` により構造の整合性を検証し、違反があれば例外を投げる。`kind` / `intent` の高頻度比較は `src.utils.semantic_intents` の共通語彙を使う。
-6. `StructuredDesignParser` は `test_cases` を構造化し、`StructuredSpec` の `test_cases` に格納する。
-7. `ProjectSpecParser.parse_file/parse_content` は、ヘッダで区切られたセクションを解析して `tech` / `architecture` / `modules` / `entities` / `dtos` / `validation` / `method_specs` / `generation_hints` を辞書化する。
-8. **Infer-Then-Freeze (補完→固定化)** を適用する場合、設計書に不足するメタデータを決定的推論で補完し、元文書は保持したまま `.inferred.design.md` を生成してから再パースする。以降の生成は固定化済み `.inferred.design.md` のメタデータのみを使用する。
-9. **推論の適用条件**: 明示メタデータが無い場合のみ補完し、既存タグは上書きしない。
-10. **推論の安定性**: 固定アセット/固定スコアルールで同一入力に対して同一出力になることを保証する。
-11. **推論結果の記録**: 推論を行った場合は `.inferred.design.md` に推論メタデータ（アセットパスと指紋）を記録する。
-12. **指紋の算出**: 正規化した設計書本文とアセットのハッシュを結合し、固定ルール版数を含めて SHA-256 を計算する。
-13. **補完の現在境界**: 決定的補完で強く扱う literal/source 系は主に `path` / `url` / `sql` と `stdin` / `env` の source 文脈であり、`env` は quoted literal を追加せず `data_source + plain fetch` だけで復元する。
-14. **モジュール公開境界**: `design_parser` モジュールは parser/validator だけでなく `infer_then_freeze_if_needed` も公開し、`generate_from_design` や review snapshot CLI から同じ推論入口を利用する。
-15. **遅延公開**: package-level export は `__getattr__` で必要時に読み込み、`design_inference -> code_generation -> synthesis_pipeline -> validator` の循環インポートを発生させない。
+5. `### Entity Specs` / `### Entities` は設計書内の明示 schema として解析し、`StructuredSpec.entity_specs` に `{name, properties}` として格納する。
+6. `validate_structured_spec_or_raise` により構造の整合性を検証し、違反があれば例外を投げる。`kind` / `intent` の高頻度比較は `src.utils.semantic_intents` の共通語彙を使う。
+7. `StructuredDesignParser` は `test_cases` を構造化し、`StructuredSpec` の `test_cases` に格納する。
+8. `ProjectSpecParser.parse_file/parse_content` は、ヘッダで区切られたセクションを解析して `tech` / `architecture` / `modules` / `entities` / `dtos` / `validation` / `method_specs` / `generation_hints` を辞書化する。
+9. **Infer-Then-Freeze (補完→固定化)** を適用する場合、設計書に不足するメタデータを決定的推論で補完し、元文書は保持したまま `.inferred.design.md` を生成してから再パースする。以降の生成は固定化済み `.inferred.design.md` のメタデータのみを使用する。
+10. **推論の適用条件**: 明示メタデータが無い場合のみ補完し、既存タグは上書きしない。
+11. **推論の安定性**: 固定アセット/固定スコアルールで同一入力に対して同一出力になることを保証する。
+12. **推論結果の記録**: 推論を行った場合は `.inferred.design.md` に推論メタデータ（アセットパスと指紋）を記録する。
+13. **指紋の算出**: 正規化した設計書本文とアセットのハッシュを結合し、固定ルール版数を含めて SHA-256 を計算する。
+14. **補完の現在境界**: 決定的補完で強く扱う literal/source 系は主に `path` / `url` / `sql` と `stdin` / `env` の source 文脈であり、`env` は quoted literal を追加せず `data_source + plain fetch` だけで復元する。
+15. **モジュール公開境界**: `design_parser` モジュールは parser/validator だけでなく `infer_then_freeze_if_needed` も公開し、`generate_from_design` や review snapshot CLI から同じ推論入口を利用する。
+16. **遅延公開**: package-level export は `__getattr__` で必要時に読み込み、`design_inference -> code_generation -> synthesis_pipeline -> validator` の循環インポートを発生させない。
 
 ### Responsibility Boundary
 - `StructuredDesignParser` / `validator` は **明示メタデータの解析と検証** を担当する。
@@ -79,3 +80,4 @@
 - 2026-06-04: `validator` 側の `ACTION/CONDITION/LOOP/ELSE/END` と `FETCH/DATABASE_QUERY` 検証を `src.utils.semantic_intents` の共通定数へ寄せた。
 - 2026-06-18: `.inferred.design.md` 固定化、`infer_then_freeze_if_needed` の module-level 公開境界、`env` plain fetch 補完、および literal/source 補完の現行境界を反映。
 - 2026-06-29: package-level exportの遅延ロードと循環依存回避を反映。
+- 2026-07-10: `Entity Specs` を `StructuredSpec.entity_specs` として保持し、既存 schema にない entity を設計書内の明示型定義で生成できる契約を反映。

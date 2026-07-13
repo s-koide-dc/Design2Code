@@ -16,6 +16,12 @@ from .analyzers import (
     PythonRefactoringAnalyzer,
     JavaScriptRefactoringAnalyzer
 )
+from .detectors import (
+    LongMethodDetector,
+    DuplicateCodeDetector,
+    ComplexConditionDetector,
+    GodClassDetector
+)
 from .metrics import (
     QualityMetricsCalculator,
     ImpactScopeAnalyzer,
