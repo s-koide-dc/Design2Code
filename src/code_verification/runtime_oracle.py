@@ -6,8 +6,10 @@ from typing import Any, Dict, List, Tuple
 
 
 _ASSERTION_KEYS = {
+    "await",
     "method_args",
     "fixtures",
+    "http_responses",
     "return",
     "stdout",
     "stderr",
@@ -168,6 +170,40 @@ def _normalize_http_requests(value: Any) -> Tuple[List[Dict[str, Any]], List[str
     return normalized, issues
 
 
+def _normalize_http_responses(value: Any) -> Tuple[List[Dict[str, Any]], List[str]]:
+    if value is None:
+        return [], []
+    if not isinstance(value, list):
+        return [], ["http_responses must be a list"]
+    normalized: List[Dict[str, Any]] = []
+    issues: List[str] = []
+    for index, item in enumerate(value):
+        path = f"http_responses[{index}]"
+        if not isinstance(item, dict):
+            issues.append(f"{path} must be an object")
+            continue
+        body = item.get("body")
+        if not isinstance(body, str):
+            issues.append(f"{path}.body must be a string")
+            continue
+        status_code = item.get("status_code", 200)
+        if isinstance(status_code, bool) or not isinstance(status_code, int):
+            issues.append(f"{path}.status_code must be an integer")
+            continue
+        response = {
+            "status_code": status_code,
+            "body": body,
+        }
+        content_type = item.get("content_type")
+        if isinstance(content_type, str) and content_type.strip():
+            response["content_type"] = content_type.strip()
+        normalized.append(response)
+        unknown = sorted(k for k in item if k not in {"status_code", "body", "content_type"})
+        for key in unknown:
+            issues.append(f"{path}.{key} is not supported")
+    return normalized, issues
+
+
 def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[str]]:
     if not isinstance(value, dict):
         return {}, ["runtime_oracle must be an object"]
@@ -175,6 +211,11 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
     issues: List[str] = []
     contract: Dict[str, Any] = {}
 
+    if "await" in value:
+        if isinstance(value["await"], bool):
+            contract["await"] = value["await"]
+        else:
+            issues.append("await must be a boolean")
     method_args, method_arg_issues = _normalize_method_args(value.get("method_args"))
     fixtures, fixture_issues = _normalize_fixtures(value.get("fixtures"))
     if "return" in value:
@@ -183,12 +224,15 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
     stdout, stdout_issues = _normalize_text_assertion(value.get("stdout"), "stdout")
     stderr, stderr_issues = _normalize_text_assertion(value.get("stderr"), "stderr")
     files, file_issues = _normalize_files(value.get("files"))
+    http_responses, http_response_issues = _normalize_http_responses(value.get("http_responses"))
     http_requests, http_issues = _normalize_http_requests(value.get("http_requests"))
 
     if method_args:
         contract["method_args"] = method_args
     if fixtures:
         contract["fixtures"] = fixtures
+    if http_responses:
+        contract["http_responses"] = http_responses
     if stdout:
         contract["stdout"] = stdout
     if stderr:
@@ -200,6 +244,7 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
 
     issues.extend(method_arg_issues)
     issues.extend(fixture_issues)
+    issues.extend(http_response_issues)
     issues.extend(stdout_issues)
     issues.extend(stderr_issues)
     issues.extend(file_issues)
@@ -240,32 +285,102 @@ def _render_text_assertions(expression: str, assertion: Dict[str, Any]) -> List[
     return lines
 
 
+def _render_http_handler(responses: List[Dict[str, Any]]) -> List[str]:
+    if not responses:
+        return []
+    response_items = []
+    for response in responses:
+        response_items.append(
+            "        new RuntimeOracleHttpResponse("
+            f"{int(response['status_code'])}, "
+            f"{_csharp_string_literal(response['body'])}, "
+            f"{_csharp_string_literal(response.get('content_type', 'application/json'))})"
+        )
+    return [
+        "public sealed record RuntimeOracleHttpResponse(int StatusCode, string Body, string ContentType);",
+        "",
+        "public sealed class RuntimeOracleHttpHandler : HttpMessageHandler",
+        "{",
+        "    private readonly Queue<RuntimeOracleHttpResponse> _responses;",
+        "    public RuntimeOracleHttpHandler(IEnumerable<RuntimeOracleHttpResponse> responses)",
+        "    {",
+        "        _responses = new Queue<RuntimeOracleHttpResponse>(responses);",
+        "    }",
+        "",
+        "    public List<HttpRequestMessage> Requests { get; } = new List<HttpRequestMessage>();",
+        "",
+        "    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)",
+        "    {",
+        "        Requests.Add(request);",
+        '        var responseSpec = _responses.Count > 0 ? _responses.Dequeue() : new RuntimeOracleHttpResponse(500, "No runtime oracle response configured.", "text/plain");',
+        "        var response = new HttpResponseMessage((HttpStatusCode)responseSpec.StatusCode)",
+        "        {",
+        "            Content = new StringContent(responseSpec.Body)",
+        "        };",
+        "        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(responseSpec.ContentType);",
+        "        return Task.FromResult(response);",
+        "    }",
+        "}",
+        "",
+        "public static class RuntimeOracleHttpFixtures",
+        "{",
+        "    public static IReadOnlyList<RuntimeOracleHttpResponse> Responses { get; } = new List<RuntimeOracleHttpResponse>",
+        "    {",
+        ",\n".join(response_items),
+        "    };",
+        "}",
+        "",
+    ]
+
+
 def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -> str:
     method_args = ", ".join(_csharp_literal(arg) for arg in contract.get("method_args", []) or [])
     fixtures = contract.get("fixtures", []) or []
+    http_responses = contract.get("http_responses", []) or []
+    http_requests = contract.get("http_requests", []) or []
+    uses_http = bool(http_responses or http_requests)
     file_assertions = contract.get("files", []) or []
     has_stdout = bool(contract.get("stdout"))
+    awaits_call = bool(contract.get("await"))
     call_prefix = "var result = " if "return" in contract else ""
+    test_signature = "public async Task ExplicitRuntimeOraclePasses()" if awaits_call else "public void ExplicitRuntimeOraclePasses()"
+    await_prefix = "await " if awaits_call else ""
+    processor_expr = "new GeneratedProcessor(httpClient)" if uses_http else "new GeneratedProcessor()"
     lines: List[str] = [
         "using System;",
+        "using System.Collections.Generic;",
         "using System.Globalization;",
         "using System.IO;",
+        "using System.Net;",
+        "using System.Net.Http;",
+        "using System.Threading;",
+        "using System.Threading.Tasks;",
         "using Xunit;",
         "",
+    ]
+    lines.extend(_render_http_handler(http_responses if http_responses else [{"status_code": 500, "body": ""}] if uses_http else []))
+    lines.extend([
         "public class RuntimeOracleTest",
         "{",
         "    [Fact]",
-        "    public void ExplicitRuntimeOraclePasses()",
+        f"    {test_signature}",
         "    {",
         '        var root = Path.Combine(Path.GetTempPath(), "runtime-oracle-" + Guid.NewGuid().ToString("N"));',
         "        Directory.CreateDirectory(root);",
         "        var previousDirectory = Directory.GetCurrentDirectory();",
         "        var originalOut = Console.Out;",
         "        using var capturedOut = new StringWriter(CultureInfo.InvariantCulture);",
+    ])
+    if uses_http:
+        lines.extend([
+            "        var handler = new RuntimeOracleHttpHandler(RuntimeOracleHttpFixtures.Responses);",
+            "        using var httpClient = new HttpClient(handler);",
+        ])
+    lines.extend([
         "        try",
         "        {",
         "            Directory.SetCurrentDirectory(root);",
-    ]
+    ])
     for fixture in fixtures:
         lines.append(
             f"            File.WriteAllText({_csharp_string_literal(fixture['path'])}, {_csharp_string_literal(fixture['content'])});"
@@ -274,7 +389,7 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
         lines.append("            Console.SetOut(capturedOut);")
     lines.extend([
         "",
-        f"            {call_prefix}new GeneratedProcessor().{module_name}({method_args});",
+        f"            {call_prefix}{await_prefix}{processor_expr}.{module_name}({method_args});",
     ])
     if "return" in contract:
         lines.append(f"            Assert.Equal({_csharp_literal(contract['return'])}, result);")
@@ -288,6 +403,17 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
             file_var = f"fileText{len(lines)}"
             lines.append(f"            var {file_var} = File.ReadAllText({file_path});")
             lines.extend(_render_text_assertions(file_var, file_assertion))
+    if http_requests:
+        lines.append(f"            Assert.Equal({len(http_requests)}, handler.Requests.Count);")
+        for index, request in enumerate(http_requests):
+            if request.get("method"):
+                lines.append(
+                    f"            Assert.Equal({_csharp_string_literal(request['method'].upper())}, handler.Requests[{index}].Method.Method);"
+                )
+            if request.get("url"):
+                lines.append(
+                    f"            Assert.Equal({_csharp_string_literal(request['url'])}, handler.Requests[{index}].RequestUri?.ToString());"
+                )
     lines.extend([
         "        }",
         "        finally",

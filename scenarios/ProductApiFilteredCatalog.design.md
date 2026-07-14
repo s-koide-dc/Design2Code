@@ -17,4 +17,4 @@
 5. [ACTION|DISPLAY|Product|void|NONE] [refs:step_4] 条件に合致した商品一覧を表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"await":true,"http_responses":[{"status_code":200,"body":"[{\"Id\":1,\"Name\":\"Alpha\",\"Price\":100,\"Quantity\":3,\"Stock\":3,\"Category\":\"Hardware\",\"DiscountPrice\":90},{\"Id\":2,\"Name\":\"Beta\",\"Price\":200,\"Quantity\":4,\"Stock\":4,\"Category\":\"Hardware\",\"DiscountPrice\":180},{\"Id\":3,\"Name\":\"Atlas\",\"Price\":150,\"Quantity\":0,\"Stock\":0,\"Category\":\"Hardware\",\"DiscountPrice\":140}]"}],"return":true,"stdout":{"contains":["Alpha"],"not_contains":["Beta","Atlas"]},"http_requests":[{"method":"GET","url":"https://api.example.com/products"}]}}

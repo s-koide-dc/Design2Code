@@ -20,6 +20,7 @@ class TestRuntimeOracle(unittest.TestCase):
                         '{"runtime_oracle":{'
                         '"method_args":["sales.csv","totals.csv"],'
                         '"fixtures":[{"path":"sales.csv","content":"A,10\\nA,20"}],'
+                        '"http_responses":[{"status_code":200,"body":"[]"}],'
                         '"return":true,'
                         '"stdout":{"contains":["Alice"],"not_contains":["Bob"]},'
                         '"files":[{"path":"totals.csv","contains":["A,30"]}],'
@@ -44,6 +45,7 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertEqual(["Bob"], contract["stdout"]["not_contains"])
         self.assertEqual("totals.csv", contract["files"][0]["path"])
         self.assertEqual("GET", contract["http_requests"][0]["method"])
+        self.assertEqual(200, contract["http_responses"][0]["status_code"])
 
     def test_natural_language_expected_is_visible_as_unverified(self):
         spec = {
@@ -111,6 +113,31 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertIn('new GeneratedProcessor().CsvSalesAggregation("sales.csv", "totals.csv")', test_code)
         self.assertIn('Assert.Equal("totals.csv", result)', test_code)
         self.assertIn('Assert.Contains("A,30"', test_code)
+
+    def test_build_runtime_oracle_test_code_renders_http_contract(self):
+        test_code = build_runtime_oracle_test_code(
+            "ProductApiFilteredCatalog",
+            {
+                "await": True,
+                "http_responses": [{
+                    "status_code": 200,
+                    "body": '[{"Name":"Alpha","Stock":3}]',
+                }],
+                "return": True,
+                "stdout": {"contains": ["Alpha"]},
+                "http_requests": [{
+                    "method": "GET",
+                    "url": "https://api.example.com/products",
+                }],
+            },
+        )
+
+        self.assertIn("public async Task ExplicitRuntimeOraclePasses()", test_code)
+        self.assertIn("public sealed class RuntimeOracleHttpHandler : HttpMessageHandler", test_code)
+        self.assertIn("using var httpClient = new HttpClient(handler);", test_code)
+        self.assertIn("await new GeneratedProcessor(httpClient).ProductApiFilteredCatalog()", test_code)
+        self.assertIn('Assert.Equal("GET", handler.Requests[0].Method.Method)', test_code)
+        self.assertIn('Assert.Equal("https://api.example.com/products", handler.Requests[0].RequestUri?.ToString())', test_code)
 
     def test_structured_parser_preserves_explicit_oracle_json(self):
         markdown = """
