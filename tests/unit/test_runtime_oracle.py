@@ -2,6 +2,7 @@
 import unittest
 
 from src.code_verification.runtime_oracle import (
+    build_runtime_oracle_test_code,
     normalize_runtime_oracle_contract,
     summarize_runtime_oracles,
 )
@@ -17,6 +18,8 @@ class TestRuntimeOracle(unittest.TestCase):
                     "scenario": "filters output",
                     "expected": (
                         '{"runtime_oracle":{'
+                        '"method_args":["sales.csv","totals.csv"],'
+                        '"fixtures":[{"path":"sales.csv","content":"A,10\\nA,20"}],'
                         '"return":true,'
                         '"stdout":{"contains":["Alice"],"not_contains":["Bob"]},'
                         '"files":[{"path":"totals.csv","contains":["A,30"]}],'
@@ -34,6 +37,8 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertEqual(0, summary["invalid_count"])
         self.assertEqual(0, summary["unverified_count"])
         contract = summary["cases"][0]["contract"]
+        self.assertEqual(["sales.csv", "totals.csv"], contract["method_args"])
+        self.assertEqual("sales.csv", contract["fixtures"][0]["path"])
         self.assertTrue(contract["return"])
         self.assertEqual(["Alice"], contract["stdout"]["contains"])
         self.assertEqual(["Bob"], contract["stdout"]["not_contains"])
@@ -90,6 +95,22 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertEqual({"return": True, "stdout": {"contains": ["ok"]}}, contract)
         self.assertIn("stdout.count is not a supported assertion", issues)
         self.assertIn("database is not a supported runtime_oracle assertion", issues)
+
+    def test_build_runtime_oracle_test_code_renders_explicit_contract(self):
+        test_code = build_runtime_oracle_test_code(
+            "CsvSalesAggregation",
+            {
+                "method_args": ["sales.csv", "totals.csv"],
+                "fixtures": [{"path": "sales.csv", "content": "A,10\nA,20"}],
+                "return": "totals.csv",
+                "files": [{"path": "totals.csv", "contains": ["A,30"]}],
+            },
+        )
+
+        self.assertIn('File.WriteAllText("sales.csv", "A,10\\nA,20")', test_code)
+        self.assertIn('new GeneratedProcessor().CsvSalesAggregation("sales.csv", "totals.csv")', test_code)
+        self.assertIn('Assert.Equal("totals.csv", result)', test_code)
+        self.assertIn('Assert.Contains("A,30"', test_code)
 
     def test_structured_parser_preserves_explicit_oracle_json(self):
         markdown = """

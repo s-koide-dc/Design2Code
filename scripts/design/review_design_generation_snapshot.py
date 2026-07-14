@@ -18,8 +18,9 @@ from src.code_synthesis.code_synthesizer import CodeSynthesizer
 from src.code_synthesis.method_store import MethodStore
 from src.code_synthesis.synthesis_pipeline import synthesize_structured_spec
 from src.code_verification.compilation_verifier import CompilationVerifier
+from src.code_verification.execution_verifier import ExecutionVerifier
 from src.code_verification.generation_quality import evaluate_generation_quality
-from src.code_verification.runtime_oracle import summarize_runtime_oracles
+from src.code_verification.runtime_oracle import execute_runtime_oracles, summarize_runtime_oracles
 from src.config.config_manager import ConfigManager
 from src.design_parser import StructuredDesignParser, infer_then_freeze_if_needed, validate_structured_spec_or_raise
 from src.replanner.replanner import Replanner
@@ -46,6 +47,11 @@ def _parse_args() -> argparse.Namespace:
         "--fail-on-maintainability",
         action="store_true",
         help="Fail the snapshot when generated-code maintainability thresholds are exceeded.",
+    )
+    parser.add_argument(
+        "--run-runtime-oracles",
+        action="store_true",
+        help="Execute explicit JSON runtime_oracle contracts from design test cases.",
     )
     parser.add_argument(
         "--assist-policy",
@@ -205,6 +211,33 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
     trace = result.get("trace", {}) if isinstance(result.get("trace"), dict) else {}
     source_metrics = CodeBuilderClient(config).analyze_source_metrics(generated_code)
     runtime_oracle = summarize_runtime_oracles(spec)
+    runtime_oracle_execution = {
+        "requested": bool(getattr(args, "run_runtime_oracles", False)),
+        "case_count": 0,
+        "passed": 0,
+        "failed": 0,
+        "valid": True,
+        "results": [],
+    }
+    if getattr(args, "run_runtime_oracles", False):
+        if not runtime_oracle.get("valid", True):
+            runtime_oracle_execution = {
+                "requested": True,
+                "case_count": 0,
+                "passed": 0,
+                "failed": runtime_oracle.get("invalid_count", 0),
+                "valid": False,
+                "results": [],
+                "issues": runtime_oracle.get("issues", []),
+            }
+        else:
+            runtime_oracle_execution = execute_runtime_oracles(
+                source_code=generated_code,
+                module_name=module_name,
+                oracle_summary=runtime_oracle,
+                verifier=ExecutionVerifier(config),
+                dependencies=result.get("resolved_dependencies", []),
+            )
     quality = evaluate_generation_quality(
         code=generated_code,
         verification=result.get("verification", {}),
@@ -214,8 +247,9 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
         fail_on_warnings=True,
         fail_on_maintainability=bool(getattr(args, "fail_on_maintainability", False)),
     )
+    exit_code = 0 if quality.get("valid") and runtime_oracle_execution.get("valid", True) else 1
     return {
-        "exit_code": 0 if quality.get("valid") else 1,
+        "exit_code": exit_code,
         "payload": {
             "design": str(design_path),
             "module_name": module_name,
@@ -231,6 +265,7 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
             "source_metrics": source_metrics,
             "quality": quality,
             "runtime_oracle": runtime_oracle,
+            "runtime_oracle_execution": runtime_oracle_execution,
             "resolved_dependencies": result.get("resolved_dependencies", []),
             "trace_summary": {
                 "has_ir_tree": isinstance(trace.get("ir_tree"), dict),

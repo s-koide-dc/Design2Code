@@ -210,19 +210,19 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 ## 1.2.1 設計書生成の標準確認手順
 - 設計書生成まわりを変更したら、まず `scripts/validate_project_consistency.py` で docs / 設計書 / テスト参照の同期を確認します。
 - 次に、単発レビューは `scripts/design/review_design_generation_snapshot.py`、複数シナリオの回帰は `scripts/design/run_design_generation_regression.py` を使います。
-- レビュー結果の `runtime_oracle` は、Test Cases の `Expected` に明示 JSON oracle があるかを集計します。自然文 expected は推測せず `unverified` として残すため、意味検証の不足を確認できます。
-- CI では `.github/workflows/python-ci.yml` の `generation-quality` ジョブで CodeBuilder を事前ビルドし、既定シナリオの品質ゲートと代表シナリオの実行時挙動を必須確認します。生成回帰は `--fail-on-maintainability` 付きで実行し、CodeBuilder/Roslyn の AST 解析で取得した保守性しきい値超過も失敗扱いにします。
+- レビュー結果の `runtime_oracle` は、Test Cases の `Expected` に明示 JSON oracle があるかを集計します。自然文 expected は推測せず `unverified` として残すため、意味検証の不足を確認できます。`--run-runtime-oracles` 付きでは ready な oracle を xUnit assertion に変換して実行します。
+- CI では `.github/workflows/python-ci.yml` の `generation-quality` ジョブで CodeBuilder を事前ビルドし、既定シナリオの品質ゲートと代表シナリオの実行時挙動を必須確認します。生成回帰は `--fail-on-maintainability --run-runtime-oracles` 付きで実行し、CodeBuilder/Roslyn の AST 解析で取得した保守性しきい値超過と明示 oracle 失敗も失敗扱いにします。
 - 現在の既定回帰セットは `ComplexLinqSearch` / `CsvSalesAggregation` / `ProductApiFilteredCatalog` / `CustomerApiWithEntitySpec` / `DailyInventorySync` / `SecureOrderProcessing` / `AppModeEchoMinimal` です。
 
 ```bash
 # docs / 設計書 / テスト参照の整合性確認
 python scripts/validate_project_consistency.py
 
-# 1 本の設計書について、元設計・inferred 設計・生成コード・compile 結果を確認
-python scripts/design/review_design_generation_snapshot.py --design scenarios/DailyInventorySync.design.md
+# 1 本の設計書について、元設計・inferred 設計・生成コード・compile 結果・明示 oracle を確認
+python scripts/design/review_design_generation_snapshot.py --design scenarios/CsvSalesAggregation.design.md --run-runtime-oracles
 
-# 既定の主要シナリオをまとめて回帰確認し、保守性しきい値も失敗条件にする
-python scripts/design/run_design_generation_regression.py --fail-on-maintainability
+# 既定の主要シナリオをまとめて回帰確認し、保守性しきい値と明示 oracle 失敗を失敗条件にする
+python scripts/design/run_design_generation_regression.py --fail-on-maintainability --run-runtime-oracles
 ```
 
 ## 1.2.2 設計書を書くときの境界

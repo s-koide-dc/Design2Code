@@ -8,6 +8,7 @@ from scripts.design.review_design_generation_snapshot import build_review_snapsh
 from src.config.config_manager import ConfigManager
 from src.code_synthesis.code_synthesizer import CodeSynthesizer
 from src.code_verification.execution_verifier import ExecutionVerifier
+from src.code_verification.runtime_oracle import execute_runtime_oracles
 from src.design_parser.structured_parser import StructuredDesignParser
 
 class TestRuntimeExecution(unittest.TestCase):
@@ -74,7 +75,7 @@ namespace Common.Serialization {
             method_store=self.synthesizer.method_store,
         )
 
-    def _build_review_snapshot_for_runtime(self, design_path: str) -> dict:
+    def _build_review_snapshot_for_runtime(self, design_path: str, run_runtime_oracles: bool = False) -> dict:
         output_dir = Path(self.temp_dir.name) / "review_snapshots" / Path(design_path).stem
         args = SimpleNamespace(
             design=design_path,
@@ -86,6 +87,7 @@ namespace Common.Serialization {
             assist_timeout_seconds=60,
             assist_max_new_tokens=384,
             fail_on_maintainability=False,
+            run_runtime_oracles=run_runtime_oracles,
             assist_policy="on_blocked_only",
         )
         snapshot = build_review_snapshot(args)
@@ -94,6 +96,27 @@ namespace Common.Serialization {
         self.assertTrue(payload["verification"]["valid"], payload)
         self.assertTrue(payload["quality"]["valid"], payload)
         return payload
+
+    def test_csv_sales_aggregation_runtime_oracle_executes(self):
+        payload = self._build_review_snapshot_for_runtime(
+            "scenarios/CsvSalesAggregation.design.md",
+            run_runtime_oracles=True,
+        )
+
+        self.assertEqual(1, payload["runtime_oracle"]["ready_count"], payload["runtime_oracle"])
+        self.assertTrue(payload["runtime_oracle_execution"]["valid"], payload["runtime_oracle_execution"])
+        self.assertEqual(1, payload["runtime_oracle_execution"]["passed"])
+        self.assertEqual(0, payload["runtime_oracle_execution"]["failed"])
+
+        manual_result = execute_runtime_oracles(
+            source_code=payload["generated_code"],
+            module_name=payload["module_name"],
+            oracle_summary=payload["runtime_oracle"],
+            verifier=self.verifier,
+            dependencies=payload.get("resolved_dependencies", []),
+        )
+        self.assertTrue(manual_result["valid"], manual_result)
+        self.assertEqual(1, manual_result["passed"])
 
     def test_app_mode_echo_generated_code_runtime_behavior(self):
         payload = self._build_review_snapshot_for_runtime(

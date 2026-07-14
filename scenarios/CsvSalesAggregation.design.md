@@ -21,4 +21,4 @@
 8. 出力ファイルパスを返す
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: output file path
+- **Expected**: {"runtime_oracle":{"method_args":["sales.csv","totals.csv"],"fixtures":[{"path":"sales.csv","content":"A,10\nB,5\nA,20"}],"return":"totals.csv","files":[{"path":"totals.csv","contains":["A,30","B,5"]}]}}

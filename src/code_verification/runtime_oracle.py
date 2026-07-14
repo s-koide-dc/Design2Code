@@ -6,12 +6,17 @@ from typing import Any, Dict, List, Tuple
 
 
 _ASSERTION_KEYS = {
+    "method_args",
+    "fixtures",
     "return",
     "stdout",
     "stderr",
     "files",
     "http_requests",
 }
+
+
+_SUPPORTED_ARG_TYPES = (str, int, float, bool)
 
 
 def _parse_json_object(value: Any) -> Tuple[Dict[str, Any] | None, str | None]:
@@ -94,6 +99,48 @@ def _normalize_files(value: Any) -> Tuple[List[Dict[str, Any]], List[str]]:
     return normalized, issues
 
 
+def _normalize_method_args(value: Any) -> Tuple[List[Any], List[str]]:
+    if value is None:
+        return [], []
+    if not isinstance(value, list):
+        return [], ["method_args must be a list"]
+    args: List[Any] = []
+    issues: List[str] = []
+    for index, item in enumerate(value):
+        if item is None or isinstance(item, _SUPPORTED_ARG_TYPES):
+            args.append(item)
+        else:
+            issues.append(f"method_args[{index}] must be a string, number, boolean, or null")
+    return args, issues
+
+
+def _normalize_fixtures(value: Any) -> Tuple[List[Dict[str, str]], List[str]]:
+    if value is None:
+        return [], []
+    if not isinstance(value, list):
+        return [], ["fixtures must be a list"]
+    fixtures: List[Dict[str, str]] = []
+    issues: List[str] = []
+    for index, item in enumerate(value):
+        path = f"fixtures[{index}]"
+        if not isinstance(item, dict):
+            issues.append(f"{path} must be an object")
+            continue
+        fixture_path = item.get("path")
+        content = item.get("content")
+        if not isinstance(fixture_path, str) or not fixture_path.strip():
+            issues.append(f"{path}.path must be a non-empty string")
+            continue
+        if not isinstance(content, str):
+            issues.append(f"{path}.content must be a string")
+            continue
+        fixtures.append({"path": fixture_path.strip(), "content": content})
+        unknown = sorted(k for k in item if k not in {"path", "content"})
+        for key in unknown:
+            issues.append(f"{path}.{key} is not supported")
+    return fixtures, issues
+
+
 def _normalize_http_requests(value: Any) -> Tuple[List[Dict[str, Any]], List[str]]:
     if value is None:
         return [], []
@@ -128,6 +175,8 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
     issues: List[str] = []
     contract: Dict[str, Any] = {}
 
+    method_args, method_arg_issues = _normalize_method_args(value.get("method_args"))
+    fixtures, fixture_issues = _normalize_fixtures(value.get("fixtures"))
     if "return" in value:
         contract["return"] = value["return"]
 
@@ -136,6 +185,10 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
     files, file_issues = _normalize_files(value.get("files"))
     http_requests, http_issues = _normalize_http_requests(value.get("http_requests"))
 
+    if method_args:
+        contract["method_args"] = method_args
+    if fixtures:
+        contract["fixtures"] = fixtures
     if stdout:
         contract["stdout"] = stdout
     if stderr:
@@ -145,6 +198,8 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
     if http_requests:
         contract["http_requests"] = http_requests
 
+    issues.extend(method_arg_issues)
+    issues.extend(fixture_issues)
     issues.extend(stdout_issues)
     issues.extend(stderr_issues)
     issues.extend(file_issues)
@@ -156,6 +211,136 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
     if not contract and not issues:
         issues.append("runtime_oracle has no assertions")
     return contract, issues
+
+
+def _csharp_string_literal(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _csharp_literal(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return repr(value)
+    if isinstance(value, str):
+        return _csharp_string_literal(value)
+    raise TypeError(f"Unsupported oracle literal type: {type(value).__name__}")
+
+
+def _render_text_assertions(expression: str, assertion: Dict[str, Any]) -> List[str]:
+    lines: List[str] = []
+    for expected in assertion.get("contains", []) or []:
+        lines.append(f"        Assert.Contains({_csharp_string_literal(expected)}, {expression});")
+    for expected in assertion.get("not_contains", []) or []:
+        lines.append(f"        Assert.DoesNotContain({_csharp_string_literal(expected)}, {expression});")
+    return lines
+
+
+def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -> str:
+    method_args = ", ".join(_csharp_literal(arg) for arg in contract.get("method_args", []) or [])
+    fixtures = contract.get("fixtures", []) or []
+    file_assertions = contract.get("files", []) or []
+    has_stdout = bool(contract.get("stdout"))
+    call_prefix = "var result = " if "return" in contract else ""
+    lines: List[str] = [
+        "using System;",
+        "using System.Globalization;",
+        "using System.IO;",
+        "using Xunit;",
+        "",
+        "public class RuntimeOracleTest",
+        "{",
+        "    [Fact]",
+        "    public void ExplicitRuntimeOraclePasses()",
+        "    {",
+        '        var root = Path.Combine(Path.GetTempPath(), "runtime-oracle-" + Guid.NewGuid().ToString("N"));',
+        "        Directory.CreateDirectory(root);",
+        "        var previousDirectory = Directory.GetCurrentDirectory();",
+        "        var originalOut = Console.Out;",
+        "        using var capturedOut = new StringWriter(CultureInfo.InvariantCulture);",
+        "        try",
+        "        {",
+        "            Directory.SetCurrentDirectory(root);",
+    ]
+    for fixture in fixtures:
+        lines.append(
+            f"            File.WriteAllText({_csharp_string_literal(fixture['path'])}, {_csharp_string_literal(fixture['content'])});"
+        )
+    if has_stdout:
+        lines.append("            Console.SetOut(capturedOut);")
+    lines.extend([
+        "",
+        f"            {call_prefix}new GeneratedProcessor().{module_name}({method_args});",
+    ])
+    if "return" in contract:
+        lines.append(f"            Assert.Equal({_csharp_literal(contract['return'])}, result);")
+    if has_stdout:
+        lines.append("            var stdout = capturedOut.ToString();")
+        lines.extend(_render_text_assertions("stdout", contract["stdout"]))
+    for file_assertion in file_assertions:
+        file_path = _csharp_string_literal(file_assertion["path"])
+        lines.append(f"            Assert.True(File.Exists({file_path}), \"Expected output file to exist: {file_assertion['path']}\");")
+        if file_assertion.get("contains") or file_assertion.get("not_contains"):
+            file_var = f"fileText{len(lines)}"
+            lines.append(f"            var {file_var} = File.ReadAllText({file_path});")
+            lines.extend(_render_text_assertions(file_var, file_assertion))
+    lines.extend([
+        "        }",
+        "        finally",
+        "        {",
+        "            Console.SetOut(originalOut);",
+        "            Directory.SetCurrentDirectory(previousDirectory);",
+        "            if (Directory.Exists(root))",
+        "                Directory.Delete(root, recursive: true);",
+        "        }",
+        "    }",
+        "}",
+    ])
+    return "\n".join(lines)
+
+
+def execute_runtime_oracles(
+    *,
+    source_code: str,
+    module_name: str,
+    oracle_summary: Dict[str, Any],
+    verifier: Any,
+    dependencies: List[Dict[str, str]] | None = None,
+) -> Dict[str, Any]:
+    cases = oracle_summary.get("cases", []) if isinstance(oracle_summary, dict) else []
+    results: List[Dict[str, Any]] = []
+    ready_cases = [case for case in cases if isinstance(case, dict) and case.get("status") == "ready"]
+    for case in ready_cases:
+        contract = case.get("contract") if isinstance(case.get("contract"), dict) else {}
+        test_code = build_runtime_oracle_test_code(module_name, contract)
+        runtime_result = verifier.verify_runtime(
+            source_code,
+            test_code,
+            dependencies=dependencies or [],
+        )
+        results.append({
+            "id": case.get("id"),
+            "scenario": case.get("scenario"),
+            "success": bool(runtime_result.get("success")),
+            "summary": runtime_result.get("summary", {}),
+            "failures": runtime_result.get("failures", []),
+            "error_type": runtime_result.get("error_type"),
+            "message": runtime_result.get("message") or runtime_result.get("error"),
+        })
+
+    failed = [result for result in results if not result.get("success")]
+    return {
+        "requested": True,
+        "case_count": len(ready_cases),
+        "passed": len(results) - len(failed),
+        "failed": len(failed),
+        "valid": not failed,
+        "results": results,
+    }
 
 
 def summarize_runtime_oracles(spec: Dict[str, Any]) -> Dict[str, Any]:

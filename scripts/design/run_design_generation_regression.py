@@ -50,6 +50,11 @@ def _parse_args() -> argparse.Namespace:
         help="Fail scenarios when generated-code maintainability thresholds are exceeded.",
     )
     parser.add_argument(
+        "--run-runtime-oracles",
+        action="store_true",
+        help="Execute explicit JSON runtime_oracle contracts from design test cases.",
+    )
+    parser.add_argument(
         "--assist-policy",
         choices=["on_blocked_only", "always"],
         default="on_blocked_only",
@@ -74,6 +79,7 @@ def _build_snapshot_args(args: argparse.Namespace, design_path: Path, output_dir
         assist_timeout_seconds=args.assist_timeout_seconds,
         assist_max_new_tokens=args.assist_max_new_tokens,
         fail_on_maintainability=args.fail_on_maintainability,
+        run_runtime_oracles=args.run_runtime_oracles,
         assist_policy=args.assist_policy,
     )
 
@@ -105,6 +111,7 @@ def main() -> int:
             quality = payload.get("quality") or {}
             maintainability = quality.get("maintainability") or {}
             runtime_oracle = payload.get("runtime_oracle") or {}
+            runtime_oracle_execution = payload.get("runtime_oracle_execution") or {}
             results.append(
                 {
                     "design": payload.get("design"),
@@ -117,6 +124,9 @@ def main() -> int:
                     "runtime_oracle_ready_count": runtime_oracle.get("ready_count", 0),
                     "runtime_oracle_unverified_count": runtime_oracle.get("unverified_count", 0),
                     "runtime_oracle_invalid_count": runtime_oracle.get("invalid_count", 0),
+                    "runtime_oracle_execution_valid": runtime_oracle_execution.get("valid", True),
+                    "runtime_oracle_execution_passed": runtime_oracle_execution.get("passed", 0),
+                    "runtime_oracle_execution_failed": runtime_oracle_execution.get("failed", 0),
                     "maintainability_finding_count": len(maintainability.get("findings") or []),
                     "maintainability": {
                         "method_count": maintainability.get("method_count", 0),
