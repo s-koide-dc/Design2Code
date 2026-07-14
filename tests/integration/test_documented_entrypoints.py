@@ -2904,6 +2904,44 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertTrue(all(item["spec_issue_count"] == 0 for item in payload["results"]))
         self.assertEqual(completed.stderr.strip(), "")
 
+    def test_run_design_generation_regression_summary_only_omits_payload(self):
+        command = [
+            sys.executable,
+            "scripts/design/run_design_generation_regression.py",
+            "--fail-on-maintainability",
+            "--run-runtime-oracles",
+            "--summary-only",
+            "--design",
+            "scenarios/CsvSalesAggregation.design.md",
+            "--design",
+            "scenarios/ProductApiFilteredCatalog.design.md",
+            "--design",
+            "scenarios/StateUpdatePersist.design.md",
+        ]
+        completed = subprocess.run(
+            command,
+            cwd=self.workspace_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
+        )
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["scenario_count"], 3)
+        self.assertEqual(payload["passed"], 3)
+        self.assertEqual(payload["failed"], 0)
+        self.assertTrue(all("payload" not in item for item in payload["results"]))
+        self.assertTrue(all(item["quality_valid"] for item in payload["results"]))
+        self.assertTrue(all(item["runtime_oracle_execution_valid"] for item in payload["results"]))
+        self.assertTrue(all(item["runtime_oracle_execution_passed"] == 1 for item in payload["results"]))
+        self.assertTrue(all(item["maintainability"]["analysis_source"] == "roslyn" for item in payload["results"]))
+        self.assertEqual(completed.stderr.strip(), "")
+
     def test_inspect_design_tag_suggestion_quality_http_mode_writes_json_result_to_stdout(self):
         class _Handler(BaseHTTPRequestHandler):
             def do_POST(self):

@@ -56,6 +56,11 @@ def _parse_args() -> argparse.Namespace:
         help="Execute explicit JSON runtime_oracle contracts from design test cases.",
     )
     parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Omit the detailed per-scenario payload from stdout.",
+    )
+    parser.add_argument(
         "--assist-policy",
         choices=["on_blocked_only", "always"],
         default="on_blocked_only",
@@ -113,44 +118,44 @@ def main() -> int:
             maintainability = quality.get("maintainability") or {}
             runtime_oracle = payload.get("runtime_oracle") or {}
             runtime_oracle_execution = payload.get("runtime_oracle_execution") or {}
-            results.append(
-                {
-                    "design": payload.get("design"),
-                    "success": success,
-                    "module_name": payload.get("module_name"),
-                    "inference_status": (payload.get("inference") or {}).get("status"),
-                    "verification_valid": bool((payload.get("verification") or {}).get("valid")),
-                    "quality_valid": bool(quality.get("valid")),
-                    "quality_issue_count": len(quality.get("issues") or []),
-                    "runtime_oracle_ready_count": runtime_oracle.get("ready_count", 0),
-                    "runtime_oracle_unverified_count": runtime_oracle.get("unverified_count", 0),
-                    "runtime_oracle_invalid_count": runtime_oracle.get("invalid_count", 0),
-                    "runtime_oracle_execution_valid": runtime_oracle_execution.get("valid", True),
-                    "runtime_oracle_execution_passed": runtime_oracle_execution.get("passed", 0),
-                    "runtime_oracle_execution_failed": runtime_oracle_execution.get("failed", 0),
-                    "maintainability_finding_count": len(maintainability.get("findings") or []),
-                    "maintainability": {
-                        "method_count": maintainability.get("method_count", 0),
-                        "class_count": maintainability.get("class_count", 0),
-                        "constructor_count": maintainability.get("constructor_count", 0),
-                        "helper_method_count": maintainability.get("helper_method_count", 0),
-                        "operation_method_count": maintainability.get("operation_method_count", 0),
-                        "total_line_count": maintainability.get("total_line_count", 0),
-                        "max_method_line_count": maintainability.get("max_method_line_count", 0),
-                        "max_method_try_count": maintainability.get("max_method_try_count", 0),
-                        "max_method_catch_count": maintainability.get("max_method_catch_count", 0),
-                        "max_operation_method_line_count": maintainability.get("max_operation_method_line_count", 0),
-                        "max_operation_method_try_count": maintainability.get("max_operation_method_try_count", 0),
-                        "max_operation_method_catch_count": maintainability.get("max_operation_method_catch_count", 0),
-                        "blueprint_statement_count": maintainability.get("blueprint_statement_count", 0),
-                        "analysis_source": maintainability.get("analysis_source"),
-                        "findings": maintainability.get("findings") or [],
-                    },
-                    "spec_issue_count": len(payload.get("spec_issues", [])),
-                    "generated_code_path": payload.get("generated_code_path"),
-                    "payload": payload,
-                }
-            )
+            result_entry = {
+                "design": payload.get("design"),
+                "success": success,
+                "module_name": payload.get("module_name"),
+                "inference_status": (payload.get("inference") or {}).get("status"),
+                "verification_valid": bool((payload.get("verification") or {}).get("valid")),
+                "quality_valid": bool(quality.get("valid")),
+                "quality_issue_count": len(quality.get("issues") or []),
+                "runtime_oracle_ready_count": runtime_oracle.get("ready_count", 0),
+                "runtime_oracle_unverified_count": runtime_oracle.get("unverified_count", 0),
+                "runtime_oracle_invalid_count": runtime_oracle.get("invalid_count", 0),
+                "runtime_oracle_execution_valid": runtime_oracle_execution.get("valid", True),
+                "runtime_oracle_execution_passed": runtime_oracle_execution.get("passed", 0),
+                "runtime_oracle_execution_failed": runtime_oracle_execution.get("failed", 0),
+                "maintainability_finding_count": len(maintainability.get("findings") or []),
+                "maintainability": {
+                    "method_count": maintainability.get("method_count", 0),
+                    "class_count": maintainability.get("class_count", 0),
+                    "constructor_count": maintainability.get("constructor_count", 0),
+                    "helper_method_count": maintainability.get("helper_method_count", 0),
+                    "operation_method_count": maintainability.get("operation_method_count", 0),
+                    "total_line_count": maintainability.get("total_line_count", 0),
+                    "max_method_line_count": maintainability.get("max_method_line_count", 0),
+                    "max_method_try_count": maintainability.get("max_method_try_count", 0),
+                    "max_method_catch_count": maintainability.get("max_method_catch_count", 0),
+                    "max_operation_method_line_count": maintainability.get("max_operation_method_line_count", 0),
+                    "max_operation_method_try_count": maintainability.get("max_operation_method_try_count", 0),
+                    "max_operation_method_catch_count": maintainability.get("max_operation_method_catch_count", 0),
+                    "blueprint_statement_count": maintainability.get("blueprint_statement_count", 0),
+                    "analysis_source": maintainability.get("analysis_source"),
+                    "findings": maintainability.get("findings") or [],
+                },
+                "spec_issue_count": len(payload.get("spec_issues", [])),
+                "generated_code_path": payload.get("generated_code_path"),
+            }
+            if not args.summary_only:
+                result_entry["payload"] = payload
+            results.append(result_entry)
     finally:
         logging.disable(previous_disable)
 
