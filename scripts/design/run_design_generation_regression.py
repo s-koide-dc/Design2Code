@@ -23,6 +23,7 @@ DEFAULT_DESIGNS = [
     "scenarios/CustomerApiWithEntitySpec.design.md",
     "scenarios/DailyInventorySync.design.md",
     "scenarios/SecureOrderProcessing.design.md",
+    "scenarios/StateUpdatePersist.design.md",
     "scenarios/AppModeEchoMinimal.design.md",
 ]
 

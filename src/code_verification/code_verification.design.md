@@ -23,7 +23,7 @@
 4. `generation_quality` は maintainability 観測値と finding も返す。これは operation method 行数、try 数、catch 数などの傾向把握用で、既定では品質 NG 条件ではない。
    - `fail_on_maintainability=True` の場合だけ finding を品質 NG に昇格する。
 5. `runtime_oracle` が StructuredSpec の Test Cases から JSON 形式の明示 oracle を抽出し、自然文 expected は推測せず `unverified` として可視化する。
-6. 明示 oracle 実行が要求された場合は、file fixture、HTTP response fixture、method args、async await、return、stdout、file assertions、HTTP method/url assertions を xUnit test code に変換し、`ExecutionVerifier` で生成コードを実行する。
+6. 明示 oracle 実行が要求された場合は、file fixture、HTTP response fixture、SQLite schema/seed、method args、async await、return、stdout、file assertions、HTTP method/url assertions、DB scalar assertions を xUnit test code に変換し、`ExecutionVerifier` で生成コードを実行する。
 7. 失敗時は例外情報、品質 issue、または oracle 実行失敗を抽出して返す。
 
 ### Test Cases

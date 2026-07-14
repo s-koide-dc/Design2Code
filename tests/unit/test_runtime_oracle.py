@@ -139,6 +139,32 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertIn('Assert.Equal("GET", handler.Requests[0].Method.Method)', test_code)
         self.assertIn('Assert.Equal("https://api.example.com/products", handler.Requests[0].RequestUri?.ToString())', test_code)
 
+    def test_build_runtime_oracle_test_code_renders_sqlite_contract(self):
+        test_code = build_runtime_oracle_test_code(
+            "StateUpdatePersist",
+            {
+                "await": True,
+                "method_args": [1],
+                "sqlite": {
+                    "schema": ["CREATE TABLE Users (Id INTEGER PRIMARY KEY, LastLoginAt TEXT)"],
+                    "seed": ["INSERT INTO Users (Id, LastLoginAt) VALUES (1, NULL)"],
+                },
+                "return": True,
+                "db_assertions": [{
+                    "query": "SELECT LastLoginAt FROM Users WHERE Id = 1",
+                    "not_null": True,
+                }],
+            },
+        )
+
+        self.assertIn("using Dapper;", test_code)
+        self.assertIn("using Microsoft.Data.Sqlite;", test_code)
+        self.assertIn('await using var connection = new SqliteConnection("Data Source=:memory:")', test_code)
+        self.assertIn("await connection.ExecuteAsync", test_code)
+        self.assertIn("await new GeneratedProcessor(connection).StateUpdatePersist(1)", test_code)
+        self.assertIn("await connection.QuerySingleOrDefaultAsync<object>", test_code)
+        self.assertIn("Assert.NotNull(dbValue0)", test_code)
+
     def test_structured_parser_preserves_explicit_oracle_json(self):
         markdown = """
 # OracleModule

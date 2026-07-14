@@ -2854,6 +2854,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             "--design",
             "scenarios/SecureOrderProcessing.design.md",
             "--design",
+            "scenarios/StateUpdatePersist.design.md",
+            "--design",
             "scenarios/AppModeEchoMinimal.design.md",
         ]
         completed = subprocess.run(
@@ -2870,8 +2872,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
         )
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload["scenario_count"], 7)
-        self.assertEqual(payload["passed"], 7)
+        self.assertEqual(payload["scenario_count"], 8)
+        self.assertEqual(payload["passed"], 8)
         self.assertEqual(payload["failed"], 0)
         self.assertEqual(
             [item["module_name"] for item in payload["results"]],
@@ -2882,6 +2884,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
                 "CustomerApiWithEntitySpec",
                 "DailyInventorySync",
                 "SecureOrderProcessing",
+                "StateUpdatePersist",
                 "AppModeEchoMinimal",
             ],
         )

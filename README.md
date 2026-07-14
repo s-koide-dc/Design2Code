@@ -210,9 +210,9 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 ## 1.2.1 設計書生成の標準確認手順
 - 設計書生成まわりを変更したら、まず `scripts/validate_project_consistency.py` で docs / 設計書 / テスト参照の同期を確認します。
 - 次に、単発レビューは `scripts/design/review_design_generation_snapshot.py`、複数シナリオの回帰は `scripts/design/run_design_generation_regression.py` を使います。
-- レビュー結果の `runtime_oracle` は、Test Cases の `Expected` に明示 JSON oracle があるかを集計します。自然文 expected は推測せず `unverified` として残すため、意味検証の不足を確認できます。`--run-runtime-oracles` 付きでは ready な oracle を xUnit assertion に変換し、file fixture、HTTP response fixture、return、stdout、file output、HTTP request を実行確認します。
+- レビュー結果の `runtime_oracle` は、Test Cases の `Expected` に明示 JSON oracle があるかを集計します。自然文 expected は推測せず `unverified` として残すため、意味検証の不足を確認できます。`--run-runtime-oracles` 付きでは ready な oracle を xUnit assertion に変換し、file fixture、HTTP response fixture、SQLite schema/seed、return、stdout、file output、HTTP request、DB scalar assertion を実行確認します。
 - CI では `.github/workflows/python-ci.yml` の `generation-quality` ジョブで CodeBuilder を事前ビルドし、既定シナリオの品質ゲートと代表シナリオの実行時挙動を必須確認します。生成回帰は `--fail-on-maintainability --run-runtime-oracles` 付きで実行し、CodeBuilder/Roslyn の AST 解析で取得した保守性しきい値超過と明示 oracle 失敗も失敗扱いにします。
-- 現在の既定回帰セットは `ComplexLinqSearch` / `CsvSalesAggregation` / `ProductApiFilteredCatalog` / `CustomerApiWithEntitySpec` / `DailyInventorySync` / `SecureOrderProcessing` / `AppModeEchoMinimal` です。
+- 現在の既定回帰セットは `ComplexLinqSearch` / `CsvSalesAggregation` / `ProductApiFilteredCatalog` / `CustomerApiWithEntitySpec` / `DailyInventorySync` / `SecureOrderProcessing` / `StateUpdatePersist` / `AppModeEchoMinimal` です。
 
 ```bash
 # docs / 設計書 / テスト参照の整合性確認

@@ -1014,6 +1014,17 @@ public class GeneratedDatabaseRuntimeTest
         )
         self.assertEqual(2, runtime_result["summary"]["passed"])
 
+    def test_state_update_persist_runtime_oracle_executes(self):
+        payload = self._build_review_snapshot_for_runtime(
+            "scenarios/StateUpdatePersist.design.md",
+            run_runtime_oracles=True,
+        )
+
+        self.assertEqual(1, payload["runtime_oracle"]["ready_count"], payload["runtime_oracle"])
+        self.assertTrue(payload["runtime_oracle_execution"]["valid"], payload["runtime_oracle_execution"])
+        self.assertEqual(1, payload["runtime_oracle_execution"]["passed"])
+        self.assertEqual(0, payload["runtime_oracle_execution"]["failed"])
+
     def test_generated_aggregation_runtime_semantics(self):
         parser = StructuredDesignParser()
         spec = parser.parse_design_file(

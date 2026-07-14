@@ -54,13 +54,13 @@
   - `quality` には compiler warning、spec issue、未解決 marker、blueprint placeholder fetch、生成コードの保守性メトリクスを見た生成品質ゲート結果を含む。
   - 保守性メトリクスは通常 CodeBuilder/Roslyn の AST 解析を使い、`quality.maintainability.analysis_source` に `roslyn` を出力する。
   - `runtime_oracle` には Test Cases の `Expected` に書かれた明示 JSON oracle の集計を含む。自然文 expected は推測せず、`unverified` として残す。
-  - `--run-runtime-oracles` を付けると、`runtime_oracle.ready` なケースを xUnit assertion に変換し、`ExecutionVerifier` で生成コードを実行する。現在は file fixture、HTTP response fixture、method args、async await、return、stdout、file output、HTTP method/url assertion を扱う。
+  - `--run-runtime-oracles` を付けると、`runtime_oracle.ready` なケースを xUnit assertion に変換し、`ExecutionVerifier` で生成コードを実行する。現在は file fixture、HTTP response fixture、SQLite schema/seed、method args、async await、return、stdout、file output、HTTP method/url assertion、DB scalar assertion を扱う。
   - `--fail-on-maintainability` を付けると、保守性しきい値の finding も snapshot の失敗条件にする。
   - 中間表現だけでなく、実際の `.cs` を見て authoring 削減の妥当性を確認したいときのレビュー入口。
   - `--assist-endpoint-url` を付けると `literal_roles_only` assist を含めたレビューもできる。
 - `scripts/design/run_design_generation_regression.py`
   - 複数の `.design.md` をまとめて `review_design_generation_snapshot` と同じ基準で回帰確認する。
-  - 既定では `ComplexLinqSearch`, `CsvSalesAggregation`, `ProductApiFilteredCatalog`, `CustomerApiWithEntitySpec`, `DailyInventorySync`, `SecureOrderProcessing`, `AppModeEchoMinimal` を対象にし、`--design` を複数指定すると任意の組み合わせに差し替えられる。
+  - 既定では `ComplexLinqSearch`, `CsvSalesAggregation`, `ProductApiFilteredCatalog`, `CustomerApiWithEntitySpec`, `DailyInventorySync`, `SecureOrderProcessing`, `StateUpdatePersist`, `AppModeEchoMinimal` を対象にし、`--design` を複数指定すると任意の組み合わせに差し替えられる。
   - 各ケースの `inference_status`, `verification_valid`, `quality_valid`, `quality_issue_count`, `spec_issue_count` と、元の詳細 payload を 1 つの JSON に集約する。
   - `runtime_oracle_ready_count`, `runtime_oracle_unverified_count`, `runtime_oracle_invalid_count` で、意味検証 oracle の明示度をシナリオ別に確認できる。
   - `--run-runtime-oracles` 付きでは `runtime_oracle_execution_valid`, `runtime_oracle_execution_passed`, `runtime_oracle_execution_failed` も出力し、明示 oracle の失敗をシナリオ失敗として扱う。

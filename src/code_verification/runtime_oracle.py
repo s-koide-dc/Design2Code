@@ -10,6 +10,8 @@ _ASSERTION_KEYS = {
     "method_args",
     "fixtures",
     "http_responses",
+    "sqlite",
+    "db_assertions",
     "return",
     "stdout",
     "stderr",
@@ -204,6 +206,78 @@ def _normalize_http_responses(value: Any) -> Tuple[List[Dict[str, Any]], List[st
     return normalized, issues
 
 
+def _normalize_sqlite(value: Any) -> Tuple[Dict[str, Any], List[str]]:
+    if value is None:
+        return {}, []
+    if not isinstance(value, dict):
+        return {}, ["sqlite must be an object"]
+    normalized: Dict[str, Any] = {}
+    issues: List[str] = []
+    for key in ("schema", "seed"):
+        statements = value.get(key)
+        if statements is None:
+            continue
+        if not isinstance(statements, list):
+            issues.append(f"sqlite.{key} must be a list")
+            continue
+        normalized_statements: List[str] = []
+        for index, statement in enumerate(statements):
+            if isinstance(statement, str) and statement.strip():
+                normalized_statements.append(statement)
+            else:
+                issues.append(f"sqlite.{key}[{index}] must be a non-empty string")
+        if normalized_statements:
+            normalized[key] = normalized_statements
+    unknown = sorted(k for k in value if k not in {"schema", "seed"})
+    for key in unknown:
+        issues.append(f"sqlite.{key} is not supported")
+    if not normalized and not issues:
+        issues.append("sqlite must include schema or seed statements")
+    return normalized, issues
+
+
+def _normalize_db_assertions(value: Any) -> Tuple[List[Dict[str, Any]], List[str]]:
+    if value is None:
+        return [], []
+    if not isinstance(value, list):
+        return [], ["db_assertions must be a list"]
+    assertions: List[Dict[str, Any]] = []
+    issues: List[str] = []
+    for index, item in enumerate(value):
+        path = f"db_assertions[{index}]"
+        if not isinstance(item, dict):
+            issues.append(f"{path} must be an object")
+            continue
+        query = item.get("query")
+        if not isinstance(query, str) or not query.strip():
+            issues.append(f"{path}.query must be a non-empty string")
+            continue
+        assertion: Dict[str, Any] = {"query": query.strip()}
+        if "equals" in item:
+            if item["equals"] is None or isinstance(item["equals"], _SUPPORTED_ARG_TYPES):
+                assertion["equals"] = item["equals"]
+            else:
+                issues.append(f"{path}.equals must be a string, number, boolean, or null")
+        if "not_null" in item:
+            if isinstance(item["not_null"], bool):
+                assertion["not_null"] = item["not_null"]
+            else:
+                issues.append(f"{path}.not_null must be a boolean")
+        if "contains" in item:
+            if isinstance(item["contains"], str):
+                assertion["contains"] = item["contains"]
+            else:
+                issues.append(f"{path}.contains must be a string")
+        if len(assertion) == 1:
+            issues.append(f"{path} must include equals, not_null, or contains")
+            continue
+        assertions.append(assertion)
+        unknown = sorted(k for k in item if k not in {"query", "equals", "not_null", "contains"})
+        for key in unknown:
+            issues.append(f"{path}.{key} is not supported")
+    return assertions, issues
+
+
 def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[str]]:
     if not isinstance(value, dict):
         return {}, ["runtime_oracle must be an object"]
@@ -226,6 +300,8 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
     files, file_issues = _normalize_files(value.get("files"))
     http_responses, http_response_issues = _normalize_http_responses(value.get("http_responses"))
     http_requests, http_issues = _normalize_http_requests(value.get("http_requests"))
+    sqlite, sqlite_issues = _normalize_sqlite(value.get("sqlite"))
+    db_assertions, db_assertion_issues = _normalize_db_assertions(value.get("db_assertions"))
 
     if method_args:
         contract["method_args"] = method_args
@@ -233,6 +309,10 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
         contract["fixtures"] = fixtures
     if http_responses:
         contract["http_responses"] = http_responses
+    if sqlite:
+        contract["sqlite"] = sqlite
+    if db_assertions:
+        contract["db_assertions"] = db_assertions
     if stdout:
         contract["stdout"] = stdout
     if stderr:
@@ -245,6 +325,8 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
     issues.extend(method_arg_issues)
     issues.extend(fixture_issues)
     issues.extend(http_response_issues)
+    issues.extend(sqlite_issues)
+    issues.extend(db_assertion_issues)
     issues.extend(stdout_issues)
     issues.extend(stderr_issues)
     issues.extend(file_issues)
@@ -333,19 +415,58 @@ def _render_http_handler(responses: List[Dict[str, Any]]) -> List[str]:
     ]
 
 
+def _render_sqlite_setup(sqlite: Dict[str, Any]) -> List[str]:
+    if not sqlite:
+        return []
+    lines = [
+        '        await using var connection = new SqliteConnection("Data Source=:memory:");',
+        "        await connection.OpenAsync();",
+    ]
+    for statement in sqlite.get("schema", []) or []:
+        lines.append(f"        await connection.ExecuteAsync({_csharp_string_literal(statement)});")
+    for statement in sqlite.get("seed", []) or []:
+        lines.append(f"        await connection.ExecuteAsync({_csharp_string_literal(statement)});")
+    return lines
+
+
+def _render_db_assertions(assertions: List[Dict[str, Any]]) -> List[str]:
+    lines: List[str] = []
+    for index, assertion in enumerate(assertions):
+        value_var = f"dbValue{index}"
+        query_literal = _csharp_string_literal(assertion["query"])
+        lines.append(f"            var {value_var} = await connection.QuerySingleOrDefaultAsync<object>({query_literal});")
+        if assertion.get("not_null"):
+            lines.append(f"            Assert.NotNull({value_var});")
+        if "equals" in assertion:
+            lines.append(f"            Assert.Equal({_csharp_literal(assertion['equals'])}, {value_var});")
+        if "contains" in assertion:
+            lines.append(f"            Assert.Contains({_csharp_string_literal(assertion['contains'])}, {value_var}?.ToString());")
+    return lines
+
+
 def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -> str:
     method_args = ", ".join(_csharp_literal(arg) for arg in contract.get("method_args", []) or [])
     fixtures = contract.get("fixtures", []) or []
     http_responses = contract.get("http_responses", []) or []
     http_requests = contract.get("http_requests", []) or []
     uses_http = bool(http_responses or http_requests)
+    sqlite = contract.get("sqlite", {}) or {}
+    db_assertions = contract.get("db_assertions", []) or []
+    uses_sqlite = bool(sqlite or db_assertions)
     file_assertions = contract.get("files", []) or []
     has_stdout = bool(contract.get("stdout"))
     awaits_call = bool(contract.get("await"))
     call_prefix = "var result = " if "return" in contract else ""
-    test_signature = "public async Task ExplicitRuntimeOraclePasses()" if awaits_call else "public void ExplicitRuntimeOraclePasses()"
+    test_signature = "public async Task ExplicitRuntimeOraclePasses()" if awaits_call or uses_sqlite else "public void ExplicitRuntimeOraclePasses()"
     await_prefix = "await " if awaits_call else ""
-    processor_expr = "new GeneratedProcessor(httpClient)" if uses_http else "new GeneratedProcessor()"
+    if uses_sqlite and uses_http:
+        processor_expr = "new GeneratedProcessor(connection, httpClient)"
+    elif uses_sqlite:
+        processor_expr = "new GeneratedProcessor(connection)"
+    elif uses_http:
+        processor_expr = "new GeneratedProcessor(httpClient)"
+    else:
+        processor_expr = "new GeneratedProcessor()"
     lines: List[str] = [
         "using System;",
         "using System.Collections.Generic;",
@@ -358,6 +479,9 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
         "using Xunit;",
         "",
     ]
+    if uses_sqlite:
+        lines.insert(-2, "using Dapper;")
+        lines.insert(-2, "using Microsoft.Data.Sqlite;")
     lines.extend(_render_http_handler(http_responses if http_responses else [{"status_code": 500, "body": ""}] if uses_http else []))
     lines.extend([
         "public class RuntimeOracleTest",
@@ -376,6 +500,7 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
             "        var handler = new RuntimeOracleHttpHandler(RuntimeOracleHttpFixtures.Responses);",
             "        using var httpClient = new HttpClient(handler);",
         ])
+    lines.extend(_render_sqlite_setup(sqlite))
     lines.extend([
         "        try",
         "        {",
@@ -414,6 +539,8 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
                 lines.append(
                     f"            Assert.Equal({_csharp_string_literal(request['url'])}, handler.Requests[{index}].RequestUri?.ToString());"
                 )
+    if db_assertions:
+        lines.extend(_render_db_assertions(db_assertions))
     lines.extend([
         "        }",
         "        finally",
@@ -446,7 +573,7 @@ def execute_runtime_oracles(
         runtime_result = verifier.verify_runtime(
             source_code,
             test_code,
-            dependencies=dependencies or [],
+            dependencies=_merge_runtime_oracle_dependencies(dependencies or [], contract),
         )
         results.append({
             "id": case.get("id"),
@@ -467,6 +594,21 @@ def execute_runtime_oracles(
         "valid": not failed,
         "results": results,
     }
+
+
+def _merge_runtime_oracle_dependencies(
+    dependencies: List[Dict[str, str]],
+    contract: Dict[str, Any],
+) -> List[Dict[str, str]]:
+    merged = list(dependencies)
+    existing = {str(dep.get("name") or "") for dep in merged if isinstance(dep, dict)}
+    if contract.get("sqlite") or contract.get("db_assertions"):
+        if "Dapper" not in existing:
+            merged.append({"name": "Dapper", "version": "2.1.35"})
+            existing.add("Dapper")
+        if "Microsoft.Data.Sqlite" not in existing:
+            merged.append({"name": "Microsoft.Data.Sqlite", "version": "10.0.0"})
+    return merged
 
 
 def summarize_runtime_oracles(spec: Dict[str, Any]) -> Dict[str, Any]:
