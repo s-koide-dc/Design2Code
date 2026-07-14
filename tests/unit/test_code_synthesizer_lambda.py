@@ -355,9 +355,9 @@ class TestReproLambda(unittest.TestCase):
             cancellation_catch:general_catch
         ]
         self.assertIn("throw;", cancellation_block)
-        general_catch_block = code[general_catch:code.index("return result0;")]
-        self.assertNotIn("return;", general_catch_block)
-        self.assertIn("return result0;", code)
+        general_catch_block = code[general_catch:]
+        self.assertIn("return;", general_catch_block)
+        self.assertNotIn("return result0;", general_catch_block)
 
     def test_invalid_error_policy_is_rejected(self):
         result = self.synthesizer.synthesize(
