@@ -45,16 +45,19 @@ class StructuredDesignParser:
 
         inputs = self._io_block_to_structured(spec.get("input"), "input")
         outputs = self._io_block_to_structured(spec.get("output"), "output")
+        entity_specs = self._parse_entity_specs(
+            self._extract_markdown_section(content, ["Entity Specs", "Entities"])
+        )
 
         core_logic = spec.get("core_logic") or []
         data_sources: List[Dict[str, str]] = []
         steps: List[Dict[str, Any]] = []
-        
+
         # First pass: Extract all data sources
         for raw in core_logic:
             normalized_raw = str(raw).strip()
             normalized_raw = self._strip_leading_numbering(normalized_raw)
-                
+
             ds = self._extract_data_source_declaration(normalized_raw)
             if ds:
                 if not any(existing.get("id") == ds["id"] for existing in data_sources):
@@ -86,6 +89,7 @@ class StructuredDesignParser:
             "constraints": [],
             "test_cases": structured_cases,
             "data_sources": data_sources,
+            "entity_specs": entity_specs,
         }
 
         # DEBUG LOG
@@ -98,16 +102,97 @@ class StructuredDesignParser:
 
         return result
 
+    def _extract_markdown_section(self, content: str, names: List[str]) -> str:
+        accepted = {name.strip().lower() for name in names if name.strip()}
+        current_header = ""
+        current_content: List[str] = []
+
+        def _simplify(header: str) -> str:
+            return self._strip_leading_numbering(header).strip().lower()
+
+        for line in content.splitlines():
+            stripped = line.lstrip()
+            if stripped.startswith("#"):
+                marker_len = 0
+                while marker_len < len(stripped) and stripped[marker_len] == "#":
+                    marker_len += 1
+                if 1 <= marker_len <= 4 and marker_len < len(stripped) and stripped[marker_len] == " ":
+                    if _simplify(current_header) in accepted:
+                        return "\n".join(current_content).strip()
+                    current_header = stripped[marker_len + 1:].strip()
+                    current_content = []
+                    continue
+            if current_header:
+                current_content.append(line)
+
+        if _simplify(current_header) in accepted:
+            return "\n".join(current_content).strip()
+        return ""
+
+    def _parse_entity_specs(self, content: str) -> List[Dict[str, Any]]:
+        if not content:
+            return []
+
+        entities: List[Dict[str, Any]] = []
+        current: Dict[str, Any] | None = None
+
+        def _clean(value: str) -> str:
+            return value.replace("`", "").strip()
+
+        def _add_property(entity: Dict[str, Any], raw: str) -> None:
+            text = _clean(raw)
+            if not text or ":" not in text:
+                return
+            name, prop_type = text.split(":", 1)
+            prop_name = _clean(name)
+            prop_type = _clean(prop_type)
+            if prop_name and prop_type:
+                entity.setdefault("properties", {})[prop_name] = prop_type
+
+        for line in content.splitlines():
+            if not line.strip():
+                continue
+            indent = len(line) - len(line.lstrip(" "))
+            stripped = line.strip()
+            if not stripped.startswith("-"):
+                continue
+            item = stripped[1:].strip()
+            if not item:
+                continue
+
+            if indent == 0:
+                entity_name = item
+                inline_props = ""
+                if ":" in item:
+                    before, after = item.split(":", 1)
+                    entity_name = before.strip()
+                    inline_props = after.strip()
+                entity_name = _clean(entity_name)
+                if not entity_name:
+                    current = None
+                    continue
+                current = {"name": entity_name, "properties": {}}
+                entities.append(current)
+                if inline_props:
+                    for raw_prop in inline_props.split(","):
+                        _add_property(current, raw_prop)
+                continue
+
+            if current is not None:
+                _add_property(current, item)
+
+        return [entity for entity in entities if entity.get("name") and entity.get("properties")]
+
     def _resolve_source_info(self, steps: List[Dict[str, Any]], data_sources: List[Dict[str, str]]) -> None:
         source_map = {ds["id"]: ds["kind"] for ds in data_sources}
         for step in steps:
             source_ref = step.get("source_ref")
             source_kind = step.get("source_kind")
-            
+
             if source_ref and not source_kind:
                 if source_ref in source_map:
                     step["source_kind"] = source_map[source_ref]
-            
+
             # Default for FETCH if still missing
             if step["intent"] == INTENT_FETCH and not step.get("source_kind"):
                 step["source_kind"] = "file"
@@ -242,7 +327,7 @@ class StructuredDesignParser:
         if kind in [NODE_ELSE, NODE_END]:
             # Special handling for simple blocks
             return parts, remainder
-            
+
         if len(parts) not in [4, 5, 6, 7]:
             return [], text
 

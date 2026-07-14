@@ -19,29 +19,29 @@ class TestQualityGateChecker(unittest.TestCase):
         # Mock finding TRX file
         with patch.object(self.checker, '_find_files', return_value=['results.trx']), \
              patch('xml.etree.ElementTree.parse') as mock_parse:
-            
+
             # Mock XML structure for Failed TRX
             mock_tree = MagicMock()
             mock_root = MagicMock()
             mock_parse.return_value = mock_tree
             mock_tree.getroot.return_value = mock_root
-            
+
             # Setup Results element with Failed result
             mock_result = MagicMock()
             mock_result.get.return_value = 'Failed'
             mock_results_container = [mock_result]
-            
+
             # Mock find behavior for namespace
             def side_effect_find(path, ns):
                 if 'Results' in path:
                     return mock_results_container
                 return None
-            
+
             mock_root.find.side_effect = side_effect_find
-            
+
             # Act
             result = self.checker._check_test_results()
-            
+
             # Assert
             self.assertFalse(result['all_tests_pass'])
 
@@ -54,15 +54,15 @@ class TestQualityGateChecker(unittest.TestCase):
 
         with patch.object(self.checker, '_find_files', side_effect=side_effect_find_files), \
              patch('xml.etree.ElementTree.parse') as mock_parse:
-            
+
             mock_tree = MagicMock()
             mock_root = MagicMock()
             mock_parse.return_value = mock_tree
             mock_tree.getroot.return_value = mock_root
-            
+
             # <testsuite failures="1" ...>
             mock_root.get.side_effect = lambda key, default: '1' if key == 'failures' else '0'
-            
+
             result = self.checker._check_test_results()
             self.assertFalse(result['all_tests_pass'])
 
@@ -74,15 +74,15 @@ class TestQualityGateChecker(unittest.TestCase):
 
         with patch.object(self.checker, '_find_files', side_effect=side_effect_find_files), \
              patch('xml.etree.ElementTree.parse') as mock_parse:
-            
+
             mock_tree = MagicMock()
             mock_root = MagicMock()
             mock_parse.return_value = mock_tree
             mock_tree.getroot.return_value = mock_root
-            
+
             # <coverage line-rate="0.85">
             mock_root.get.return_value = '0.85'
-            
+
             result = self.checker._check_coverage_results()
             self.assertEqual(result['coverage'], 85.0)
 
@@ -94,7 +94,7 @@ class TestQualityGateChecker(unittest.TestCase):
 
         with patch.object(self.checker, '_find_files', side_effect=side_effect_find_files), \
              patch('builtins.open', mock_open(read_data='{"summary": {"line_coverage": 75.5}}')):
-            
+
             result = self.checker._check_coverage_results()
             self.assertEqual(result['coverage'], 75.5)
 
@@ -106,7 +106,7 @@ class TestQualityGateChecker(unittest.TestCase):
 
         with patch.object(self.checker, '_find_files', side_effect=side_effect_find_files), \
              patch('builtins.open', mock_open(read_data='{"totals": {"percent_covered": 92.0}}')):
-            
+
             result = self.checker._check_coverage_results()
             self.assertEqual(result['coverage'], 92.0)
 
@@ -115,9 +115,9 @@ class TestQualityGateChecker(unittest.TestCase):
         with patch.object(self.checker, '_check_test_results', return_value={'all_tests_pass': True}), \
              patch.object(self.checker, '_check_coverage_results', return_value={'coverage': 80.0}), \
              patch.object(self.checker, '_check_quality_results', return_value={'quality_score': 8.5}):
-            
+
             metrics = self.checker._collect_metrics()
-            
+
             self.assertTrue(metrics['all_tests_pass'])
             self.assertEqual(metrics['coverage'], 80.0)
             self.assertEqual(metrics['quality_score'], 8.5)

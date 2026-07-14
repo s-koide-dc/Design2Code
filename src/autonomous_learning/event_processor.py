@@ -23,7 +23,7 @@ class EventProcessor:
         try:
             timestamp = datetime.now().isoformat()
             event_id = f"{event_type}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
-            
+
             # イベントをキューに保存（後続のバッチ処理や分析のため）
             self._save_event(event_id, event_type, data, timestamp)
 

@@ -3,8 +3,7 @@
 
 from enum import Enum
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
-import json
+from typing import Dict, Any
 import os
 import shlex
 from src.utils.action_intents import (
@@ -49,7 +48,7 @@ class SafetyPolicyValidator:
         """
         self.action_executor = action_executor
         self.config_manager = config_manager
-        
+
         # Load from config if available
         if config_manager:
             policy = config_manager.get_safety_policy()
@@ -93,7 +92,7 @@ class SafetyPolicyValidator:
         Returns:
             SafetyCheckResult
         """
-        
+
         # 0. アクションメソッドの存在確認はPlannerでするが、念のため
         if not action_method:
              return SafetyCheckResult(SafetyCheckStatus.BLOCK, "アクションメソッドが未指定です。", RiskLevel.HIGH)
@@ -104,7 +103,7 @@ class SafetyPolicyValidator:
             command_str = parameters.get("command", "")
             if not command_str:
                 return SafetyCheckResult(SafetyCheckStatus.BLOCK, "コマンドが空です。", RiskLevel.HIGH)
-            
+
             # コマンド名と引数を安全に分割
             try:
                 cmd_parts = shlex.split(command_str)
@@ -115,7 +114,7 @@ class SafetyPolicyValidator:
                 return SafetyCheckResult(SafetyCheckStatus.BLOCK, "コマンドが空です。", RiskLevel.HIGH)
 
             cmd_name = cmd_parts[0]
-            
+
             # メタ文字のチェック（インジェクション対策）
             # 許可されたコマンドであっても、&& や | などのチェーンが含まれる場合はリスクを高める
             if any(char in command_str for char in self.blocked_metacharacters):
@@ -206,15 +205,15 @@ class SafetyPolicyValidator:
                             "一覧取得対象のパスが禁止されています。",
                             RiskLevel.HIGH
                         )
-            
+
             # ActionExecutorのリストを参照
             # Note: ActionExecutorの実装に依存するが、ここではsafe_commands属性があると仮定
             if hasattr(self.action_executor, "safe_commands"):
                 safe_cmds = [c.lower() for c in self.action_executor.safe_commands]
                 if cmd_name.lower() not in safe_cmds:
                     return SafetyCheckResult(
-                        SafetyCheckStatus.BLOCK, 
-                        f"コマンド '{cmd_name}' は許可されていません（ホワイトリスト外）。", 
+                        SafetyCheckStatus.BLOCK,
+                        f"コマンド '{cmd_name}' は許可されていません（ホワイトリスト外）。",
                         RiskLevel.HIGH
                     )
 
@@ -236,7 +235,7 @@ class SafetyPolicyValidator:
 
         # 3. 特殊なパラメータチェック（将来的な拡張ポイント）
         # 例：重要なファイルへのアクセスなど
-        
+
         return SafetyCheckResult(status, message, risk_level)
 
     def _extract_non_option_args(self, cmd_parts: list[str]) -> list[str]:

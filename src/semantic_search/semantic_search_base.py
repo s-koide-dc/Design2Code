@@ -14,20 +14,20 @@ class SemanticSearchBase:
         self.vector_engine = vector_engine
         self.morph_analyzer = morph_analyzer
         self.logger = logging.getLogger(f"SemanticSearch.{name}")
-        
+
         from src.semantic_search.light_vector_db import LightVectorDB
         self.db = LightVectorDB(storage_dir)
         self.collection = self.db.get_collection(name)
         self.items = []
-        
+
         # metadata_path の解決順序:
         # 1. kwargs["metadata_path"]
         # 2. kwargs["config"].{name}_path
         # 3. kwargs["config"].method_store_path (if name is method_store)
         # 4. デフォルト (resources/{name}.json)
-        
+
         config = kwargs.get("config") or kwargs.get("config_manager")
-        
+
         if "metadata_path" in kwargs and kwargs["metadata_path"]:
             self.metadata_path = kwargs["metadata_path"]
         elif config and hasattr(config, f"{name}_path"):
@@ -36,17 +36,17 @@ class SemanticSearchBase:
             self.metadata_path = config.method_store_path
         else:
             self.metadata_path = os.path.join(os.getcwd(), "resources", f"{name}.json")
-            
+
         self.old_vector_path = os.path.join(storage_dir, f"{name}_vectors.pkl")
 
     def load(self):
         """メタデータとベクトルをロードする"""
         if not os.path.exists(self.storage_dir):
             os.makedirs(self.storage_dir, exist_ok=True)
-        
+
         # DBファイルのパス
         db_meta_path = os.path.join(self.storage_dir, f"{self.name}_meta.json")
-        
+
         # 1. JSONマスタの更新確認
         should_sync = False
         if os.path.exists(self.metadata_path):
@@ -54,7 +54,7 @@ class SemanticSearchBase:
             db_mtime = 0
             if os.path.exists(db_meta_path):
                 db_mtime = os.path.getmtime(db_meta_path)
-            
+
             # JSONの方が新しい、またはDBがない場合は同期フラグをON
             if json_mtime > db_mtime:
                 self.logger.info(f"Metadata JSON is newer than DB. Syncing {self.name}...")
@@ -82,33 +82,33 @@ class SemanticSearchBase:
                                 break
                     else:
                         new_items = data
-                
+
                 if new_items:
                     self.logger.info(f"Syncing {len(new_items)} items from JSON to LightVectorDB.")
-                    
+
                     ids, vectors, metadatas = [], [], []
                     for item in new_items:
                         item_id = str(item.get("id", item.get("name")))
                         text = item.get("name", "") + " " + " ".join(item.get("tags", []))
                         if "description" in item: text += " " + item["description"]
-                        
+
                         vec = None
                         if self.vector_engine:
                             raw_tokens = self.morph_analyzer.tokenize(text) if self.morph_analyzer else list(text)
                             tokens = [t["surface"] if isinstance(t, dict) else str(t) for t in raw_tokens]
                             vec = self.vector_engine.get_sentence_vector(tokens)
-                        
+
                         if vec is None:
                             # フォールバック: ベクトルエンジンがない場合や失敗した場合はゼロベクトルを使用
                             vec = np.zeros(300)
-                            
+
                         ids.append(item_id)
                         vectors.append(vec)
                         metadatas.append(item)
-                    
+
                     if ids:
                         self.collection.upsert(ids, vectors, metadatas)
-                    
+
                     self.items = self.collection.items
                     self.logger.info(f"Sync complete. {len(self.items)} items indexed.")
             except Exception as e:
@@ -162,7 +162,7 @@ class SemanticSearchBase:
         if not self.vector_engine: return 1.0
         vec1 = self.vector_engine.get_sentence_vector(list(str1))
         vec2 = self.vector_engine.get_sentence_vector(list(str2))
-        
+
         if vec1 is None or vec2 is None: return 1.0
         sim = self.vector_engine.vector_similarity(vec1, vec2)
         return 1.0 - sim

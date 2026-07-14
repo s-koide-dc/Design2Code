@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import os
-import json
 import sys
 import subprocess
 import logging
@@ -11,24 +10,24 @@ from .knowledge_base import RepairKnowledgeBase
 
 class TestFailureAnalyzer:
     """テスト失敗分析を担当するクラス"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.config_manager = config.get("config_manager")
         self.logger = logging.getLogger(__name__)
         self.knowledge_base = RepairKnowledgeBase(config_manager=self.config_manager)
-        
+
         self.test_frameworks = {
             'csharp': {'command': 'dotnet test', 'result_parser': self._parse_dotnet_test_result},
             'python': {'command': 'pytest --tb=short', 'result_parser': self._parse_pytest_result},
             'javascript': {'command': 'npm test', 'result_parser': self._parse_jest_result}
         }
-    
+
     def execute_test_and_analyze(self, test_file: str, language: str, project_path: str = ".") -> Dict[str, Any]:
         """テストを実行して失敗を分析"""
         try:
             test_result = self._execute_test(test_file, language, project_path)
-            
+
             if test_result['status'] == 'success':
                 return {
                     'status': 'success',
@@ -41,10 +40,10 @@ class TestFailureAnalyzer:
                         'failed_tests': 0
                     }
                 }
-            
+
             failed_tests = test_result.get('failed_tests', [])
             analyses = []
-            
+
             for failed_test in failed_tests:
                 test_failure = TestFailure(
                     test_file=failed_test.get('file', test_file),
@@ -54,10 +53,10 @@ class TestFailureAnalyzer:
                     stack_trace=failed_test.get('stack_trace', ''),
                     line_number=failed_test.get('line_number')
                 )
-                
+
                 analysis = self.analyze_test_failure(test_failure)
                 analyses.append(analysis)
-            
+
             return {
                 'status': 'failure_analyzed',
                 'test_results': test_result,
@@ -70,16 +69,16 @@ class TestFailureAnalyzer:
                     'success_rate': (test_result.get('total_tests', 0) - len(failed_tests)) / max(test_result.get('total_tests', 1), 1)
                 }
             }
-            
+
         except Exception as e:
             self.logger.error(f"テスト実行・分析中にエラーが発生: {e}")
             return {'status': 'error', 'error': str(e)}
-    
+
     def _execute_test(self, test_file: str, language: str, project_path: str) -> Dict[str, Any]:
         """実際のテスト実行"""
         framework = self.test_frameworks.get(language)
         if not framework: raise ValueError(f"サポートされていない言語: {language}")
-        
+
         start_time = datetime.now()
         try:
             if language == 'csharp':
@@ -104,7 +103,7 @@ class TestFailureAnalyzer:
                     '--outputFile=temp_test_results.json',
                     '--verbose',
                 ]
-            
+
             self.logger.info(f"テスト実行コマンド: {command}")
             env = os.environ.copy()
             env['DOTNET_CLI_UI_LANGUAGE'] = 'en-US'
@@ -125,7 +124,7 @@ class TestFailureAnalyzer:
             return parsed_result
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
-    
+
     def _parse_dotnet_test_result(self, result: subprocess.CompletedProcess, project_path: str) -> Dict[str, Any]:
         output = result.stdout + '\n' + result.stderr
         if result.returncode == 0:
@@ -133,7 +132,7 @@ class TestFailureAnalyzer:
 
         failed_test_names = self._extract_failed_test_names(output)
         failed_tests = []
-        
+
         for test_name in failed_test_names:
             current_test = {
                 'file': test_name.split('.')[-2] if '.' in test_name else test_name,
@@ -199,7 +198,7 @@ class TestFailureAnalyzer:
                 explicit_root_cause = analysis_context.get('root_cause')
                 if isinstance(explicit_root_cause, str) and explicit_root_cause:
                     root_cause = explicit_root_cause
-            
+
             semantic_mismatch = None
             if expected_intent and analysis_context:
                 semantic_mismatch = self._detect_semantic_mismatch(
@@ -236,11 +235,11 @@ class TestFailureAnalyzer:
                 logic_analysis=logic_analysis,
                 semantic_mismatch=semantic_mismatch,
             )
-            
+
             return {
-                'status': 'success', 
-                'error_type': error_type, 
-                'root_cause': root_cause, 
+                'status': 'success',
+                'error_type': error_type,
+                'root_cause': root_cause,
                 'fix_direction': fix_direction,
                 'confidence': 0.9,
                 'logic_analysis': logic_analysis,
@@ -295,7 +294,7 @@ class TestFailureAnalyzer:
         # 1. スタックトレースから全フレームを取得
         stack_info = self._analyze_stack_trace(test_failure.stack_trace)
         frames = stack_info.get('file_locations', [])
-        
+
         if not frames: return None
 
         input_values = analysis_context.get('input_values')
@@ -305,7 +304,7 @@ class TestFailureAnalyzer:
         # 各スタックフレームを走査 (上から下へ)
         for frame in frames:
             target_method = self._find_method_for_frame(frame, roslyn_data)
-            
+
             if not target_method or not target_method.get('branches'):
                 continue
 
@@ -313,14 +312,14 @@ class TestFailureAnalyzer:
             best_match = None
             for branch in target_method['branches']:
                 condition = branch.get('condition', '')
-                
+
                 # 複合条件 (&&, ||) を優先順位 (&& > ||) を考慮して評価
                 evaluation_result = self._evaluate_complex_condition(
                     condition,
                     input_values,
                     roslyn_data,
                 )
-                
+
                 if not evaluation_result['evaluated']: continue
 
                 res = {
@@ -331,13 +330,13 @@ class TestFailureAnalyzer:
                     'refined_root_cause': 'logic_mismatch_with_branch',
                     'blamed_frame': frame # 原因と特定されたフレーム情報を付与
                 }
-                
+
                 if not evaluation_result['is_satisfied']:
                     return res
                 best_match = res
-            
+
             # このフレームで不一致が見つからなければ、次のフレーム(呼び出し元)へ
-        
+
         return best_match
 
     def _find_method_for_frame(
@@ -375,26 +374,26 @@ class TestFailureAnalyzer:
         """複合条件式 (A && B || C) を評価する"""
         # 1. OR (||) で分割
         or_groups = condition.split('||')
-        
+
         or_results = []
         all_failed_parts = []
-        
+
         for group in or_groups:
             # 2. AND (&&) で分割
             and_parts = group.split('&&')
-            
+
             group_satisfied = True
             group_failed_parts = []
-            
+
             for part in and_parts:
                 part = part.strip()
                 # カッコ除去 (簡易対応)
                 clean_part = part.strip('()')
-                
+
                 parsed_condition = self._parse_condition_part(clean_part)
                 if parsed_condition:
                     var_name, op, threshold_str = parsed_condition
-                    
+
                     current_input = self._resolve_explicit_input(input_val, var_name)
                     if current_input is None:
                         group_satisfied = False
@@ -402,7 +401,7 @@ class TestFailureAnalyzer:
                         continue
 
                     is_satisfied = self._evaluate_condition(current_input, op, threshold_str, roslyn_data)
-                    
+
                     if not is_satisfied:
                         group_satisfied = False
                         group_failed_parts.append(clean_part)
@@ -411,31 +410,31 @@ class TestFailureAnalyzer:
                     bool_condition = self._parse_boolean_condition(clean_part)
                     if bool_condition:
                         is_negated, var_name = bool_condition
-                        
+
                         current_input = self._resolve_explicit_input(input_val, var_name)
                         if current_input is None:
                             group_satisfied = False
                             group_failed_parts.append(clean_part)
                             continue
-                        
+
                         # ブール値としての評価
                         # inputが 'true'/'false' 文字列や Python bool の場合を考慮
                         val_str = str(current_input).lower()
                         is_true = val_str == 'true'
-                        
+
                         is_satisfied = (not is_true) if is_negated else is_true
-                        
+
                         if not is_satisfied:
                             group_satisfied = False
                             group_failed_parts.append(clean_part)
-            
+
             or_results.append(group_satisfied)
             if not group_satisfied:
                 all_failed_parts.extend(group_failed_parts)
-        
+
         # 全体の充足判定 (ORなので、どれか一つでもTrueならTrue)
         is_satisfied_overall = any(or_results)
-        
+
         return {
             'evaluated': True,
             'is_satisfied': is_satisfied_overall,
@@ -477,7 +476,7 @@ class TestFailureAnalyzer:
         """単一の条件式を評価"""
         # 値の解決 (Enumや定数の場合)
         threshold_val = self._resolve_identifier_value(threshold_str, roslyn_data)
-        
+
         if isinstance(threshold_val, str) and (threshold_val.startswith('"') or threshold_val.startswith("'")):
             threshold = threshold_val[1:-1]
             if op == '==': return str(input_val) == threshold
@@ -501,7 +500,7 @@ class TestFailureAnalyzer:
         """識別子 (Enum.Value や Constants.Max) を実際の値に解決する"""
         if not roslyn_data:
             return identifier
-            
+
         # 既に数値や文字列リテラルの場合はそのまま返す
         if self._is_integer_literal(identifier) or identifier.startswith('"') or identifier.startswith("'"):
             return identifier
@@ -510,15 +509,15 @@ class TestFailureAnalyzer:
         # 簡易実装: 完全修飾名または末尾一致で検索
         # 注: 実際のRoslynデータの構造に依存します。ここでは details_by_id 内の Enum/Class を想定
         details = roslyn_data.get('details_by_id', {})
-        
+
         # identifier が ClassName.Member 形式であることを期待
         parts = identifier.split('.')
         if len(parts) < 2:
             return identifier
-            
+
         target_member = parts[-1]
         target_container = parts[-2] # Class or Enum name
-        
+
         for detail in details.values():
             # コンテナ名が一致するか (Namespace込みのFullNameの末尾、またはNameそのもの)
             if detail.get('name') == target_container or detail.get('fullName', '').endswith(target_container):
@@ -527,7 +526,7 @@ class TestFailureAnalyzer:
                     for member in detail.get('members', []): # 仮: Enumメンバー構造
                         if member.get('name') == target_member:
                             return member.get('value')
-                
+
                 # Class/Structの定数フィールドの場合
                 if detail.get('properties'):
                     for prop in detail.get('properties'):
@@ -542,14 +541,14 @@ class TestFailureAnalyzer:
         if explicit_type in known_types:
             return explicit_type
         return 'unknown_error'
-    
+
     def analyze_compilation_failure(self, code: str, errors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """MSBuildのエラー内容から型不一致などの詳細な原因を分析する"""
         results = []
         for err in errors:
             msg = err.get("message", "")
             code_num = err.get("code", "")
-            
+
             # CS1503: Argument 1: cannot convert from 'source_type' to 'target_type'
             # CS0029: Cannot implicitly convert type 'source_type' to 'target_type'
             if code_num in ["CS1503", "CS0029", "CS0266"]:
@@ -562,7 +561,7 @@ class TestFailureAnalyzer:
                     recommendation = None
                     if src_t == "int" and tgt_t == "string":
                         recommendation = "ToString"
-                    
+
                     results.append({
                         "type": "negative_feedback",
                         "error_code": code_num,
@@ -572,7 +571,7 @@ class TestFailureAnalyzer:
                         "line": err.get("line"),
                         "message": msg
                     })
-            
+
             # CS0246: The type or namespace name '...' could not be found
             elif code_num == "CS0246":
                 symbol = self._extract_first_quoted_segment(msg)
@@ -591,7 +590,7 @@ class TestFailureAnalyzer:
         results = []
         ex_type = exception_info.get("type", "")
         msg = exception_info.get("message", "")
-        
+
         recommendation = None
         if "FileNotFoundException" in ex_type:
             recommendation = "AddFileCheck"
@@ -601,7 +600,7 @@ class TestFailureAnalyzer:
             recommendation = "AddNetworkRetry"
         elif "[ASSERTION_FAILURE]" in msg or ex_type == "AssertionFailure":
             recommendation = "FixLogicMismatch"
-            
+
         results.append({
             "type": "runtime_feedback",
             "exception_type": ex_type,
@@ -620,7 +619,7 @@ class TestFailureAnalyzer:
         elif test_failure.error_type == 'null_reference': return 'null_reference'
         elif test_failure.error_type == 'not_implemented': return 'not_implemented'
         return 'unknown_cause'
-    
+
     def _determine_fix_direction(self, root_cause: str, test_failure: TestFailure) -> str:
         # 1. 知識ベース(学習データ)からの統計的判断
         stats = self.knowledge_base.fix_stats.get(root_cause)
@@ -631,7 +630,7 @@ class TestFailureAnalyzer:
             return best_fix
 
         # 2. ルールベースのフォールバック
-        if root_cause == 'logic_error' or root_cause == 'logic_mismatch_with_branch': 
+        if root_cause == 'logic_error' or root_cause == 'logic_mismatch_with_branch':
             return 'self_healing_test'
         fix_directions = {
             'method_returns_default_value': 'implement_method_logic',
@@ -836,4 +835,4 @@ class TestFailureAnalyzer:
             ),
         }
 
-    
+

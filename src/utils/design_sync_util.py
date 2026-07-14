@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-import os
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from pathlib import Path
 
 class DesignSyncUtil:
@@ -40,7 +39,7 @@ class DesignSyncUtil:
             # Input/Output のメタデータ部分を特定し更新を試みる
             # (設計書が JSON ブロックまたは特定のマーカーを持っている前提)
             new_content = self._update_interface_metadata(content, code_structure)
-            
+
             if new_content != content:
                 with open(design_file, 'w', encoding='utf-8') as f:
                     f.write(new_content)
@@ -98,7 +97,7 @@ class DesignSyncUtil:
                 if any(marker in line.lower() for marker in core_logic_markers):
                     in_logic = True
                     continue
-                
+
                 if in_logic:
                     # ステップ（箇条書き）を探す
                     if self._is_list_item(line):
@@ -124,14 +123,14 @@ class DesignSyncUtil:
         """ユーザーからの修正フィードバックを記録"""
         feedback_file = self.workspace_root / 'logs' / 'user_feedback.jsonl'
         feedback_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         record = {
             "timestamp": "now", # 本来は datetime
             "finding_id": finding_id,
             "feedback": feedback,
             "status": "pending_analysis"
         }
-        
+
         with open(feedback_file, 'a', encoding='utf-8') as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 

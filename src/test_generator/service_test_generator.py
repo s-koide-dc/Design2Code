@@ -1,6 +1,3 @@
-from typing import List
-
-
 def _sanitize_identifier(text: str) -> str:
     if not isinstance(text, str):
         return "Case"

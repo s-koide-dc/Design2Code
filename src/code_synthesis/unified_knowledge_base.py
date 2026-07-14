@@ -2,7 +2,6 @@
 import os
 import json
 import copy
-import numpy as np
 import logging
 from typing import List, Dict, Any, Optional
 
@@ -43,7 +42,7 @@ class UnifiedKnowledgeBase:
     MethodStore (External/Standard Libs) と StructuralMemory (Internal Project Code) を
     統合的に検索・管理するファサードクラス。
     """
-    
+
     # 意図（Intent）と能力（Capability）の論理的整合性マップ
     INTENT_CAPABILITY_MAP = {
         INTENT_FETCH: ["DATA_FETCH", INTENT_FETCH, "READ", INTENT_FILE_IO, INTENT_HTTP_REQUEST, "DATABASE_ACCESS", INTENT_DATABASE_QUERY, INTENT_JSON_DESERIALIZE],
@@ -69,7 +68,7 @@ class UnifiedKnowledgeBase:
         self.canonical_data = self._load_canonical_knowledge()
         # Disable keyword-based ontology boosting by default
         self.DOMAIN_ONTOLOGY = {}
-        
+
     def _load_patterns(self) -> List[Dict[str, Any]]:
         """定石パターンをロードする"""
         path = os.path.join(getattr(self.config, 'workspace_root', os.getcwd()), "resources", "action_patterns.json")
@@ -116,11 +115,11 @@ class UnifiedKnowledgeBase:
 
         # 2. External methods
         m = self.method_store.methods.get(m_id)
-        if m: 
+        if m:
             m_copy = copy.deepcopy(m)
             m_copy['origin'] = 'external'
             return m_copy
-        
+
         # 3. Internal components (AST memory)
         for comp in self.structural_memory.components:
             if comp.get('id') == m_id or comp.get('full_name') == m_id:
@@ -129,9 +128,9 @@ class UnifiedKnowledgeBase:
                 return m_copy
         return None
 
-    def search(self, query: str, limit: int = 10, 
-               intent: str = None, 
-               target_entity: str = None, 
+    def search(self, query: str, limit: int = 10,
+               intent: str = None,
+               target_entity: str = None,
                return_type: str = None,
                input_type: str = None,
                exclude_patterns: bool = False,
@@ -150,7 +149,7 @@ class UnifiedKnowledgeBase:
         internal_capabilities = None
         if not internal_role and intent and intent != INTENT_GENERAL:
             internal_capabilities = [intent]
-        
+
         internal_candidates = self.structural_memory.search_component(
             query,
             top_k=limit * 2,
@@ -158,7 +157,7 @@ class UnifiedKnowledgeBase:
             capabilities=internal_capabilities,
             return_type=return_type,
         )
-        
+
         # 2. パターンのマッチング
         pattern_candidates = []
         if intent and not exclude_patterns:
@@ -185,15 +184,15 @@ class UnifiedKnowledgeBase:
         for item in external_candidates:
             item['origin'] = 'external'
             unified_candidates.append(item)
-            
+
         for item in internal_candidates:
             item['origin'] = 'internal'
             if 'return_type' not in item and 'returnType' in item:
                 item['return_type'] = item['returnType']
             if 'capabilities' not in item:
-                item['capabilities'] = [] 
+                item['capabilities'] = []
             unified_candidates.append(item)
-            
+
         filtered_results = self._filter_candidates(
             unified_candidates,
             intent=intent,

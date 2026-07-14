@@ -47,10 +47,10 @@ public class TestClass {
             'manifest': {
                 'objects': [
                     {
-                        'id': '1', 
-                        'fullName': 'MyNs.Calculator', 
-                        'type': 'Class', 
-                        'startLine': 1, 
+                        'id': '1',
+                        'fullName': 'MyNs.Calculator',
+                        'type': 'Class',
+                        'startLine': 1,
                         'endLine': 10,
                         'accessibility': 'Public'
                     }
@@ -62,9 +62,9 @@ public class TestClass {
                     'metrics': {'cyclomaticComplexity': 5, 'lineCount': 10, 'maxComplexity': 3},
                     'methods': [
                         {
-                            'name': 'Add', 
-                            'parameters': [], 
-                            'startLine': 3, 
+                            'name': 'Add',
+                            'parameters': [],
+                            'startLine': 3,
                             'endLine': 5,
                             'returnType': 'int',
                             'metrics': {'cyclomaticComplexity': 3, 'lineCount': 3}
@@ -78,7 +78,7 @@ public class TestClass {
         clz = result['structure']['classes'][0]
         self.assertEqual(clz['name'], 'MyNs.Calculator')
         self.assertEqual(clz['metrics']['cyclomaticComplexity'], 5)
-        
+
         mth = result['structure']['methods'][0]
         self.assertEqual(mth['name'], 'Add')
         self.assertEqual(mth['metrics']['cyclomaticComplexity'], 3)
@@ -110,7 +110,7 @@ public class TestClass {
 
 
 
-        
+
 class TestTestFailureAnalyzer(unittest.TestCase):
     def setUp(self):
         self.analyzer = TestFailureAnalyzer({})
@@ -235,10 +235,10 @@ class TestAdvancedTDDIntegration(unittest.TestCase):
         self.workspace_root = os.getcwd()
         # Mock dependencies
         self.mock_config = MagicMock()
-        
+
         # Instantiate AdvancedTDDSupport
         self.tdd_support = AdvancedTDDSupport(self.workspace_root)
-        
+
         # Mock the internal engine (AutonomousSynthesizer) to avoid complex setup
         self.tdd_support.tdd_engine = MagicMock()
 
@@ -249,7 +249,7 @@ class TestAdvancedTDDIntegration(unittest.TestCase):
             'acceptance_criteria': ['Add numbers'],
             'priority': 'High'
         }
-        
+
         # Setup mock return from decompose_and_synthesize
         self.tdd_support.tdd_engine.decompose_and_synthesize.return_value = {
             "status": "success",
@@ -260,14 +260,14 @@ class TestAdvancedTDDIntegration(unittest.TestCase):
                 }
             ]
         }
-        
+
         result = self.tdd_support.execute_goal_driven_tdd(goal_data)
-        
+
         # Verify delegation
         self.tdd_support.tdd_engine.decompose_and_synthesize.assert_called_once()
         args, _ = self.tdd_support.tdd_engine.decompose_and_synthesize.call_args
         self.assertEqual(args[0].description, 'Create calculator')
-        
+
         # Verify result mapping
         self.assertEqual(result['status'], 'success')
         self.assertEqual(result['tdd_cycle_results']['total'], 1)

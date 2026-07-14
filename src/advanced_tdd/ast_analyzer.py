@@ -6,10 +6,10 @@ from typing import Dict, List, Any, Optional
 
 class ASTAnalyzer:
     """AST解析を担当するクラス"""
-    
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-    
+
     def analyze_code_structure(self, code: str, language: str = 'python', roslyn_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """コード構造を解析"""
         try:
@@ -26,7 +26,7 @@ class ASTAnalyzer:
                 }
             else:
                 return self._analyze_generic_structure(code)
-                
+
         except Exception as e:
             self.logger.error(f"AST解析中にエラーが発生: {e}")
             return {'error': str(e), 'structure': {}}
@@ -35,10 +35,10 @@ class ASTAnalyzer:
         """ファイルを読み込んで構造を解析"""
         if not os.path.exists(file_path):
             return {"error": "File not found"}
-        
+
         ext = os.path.splitext(file_path)[1].lower()
         lang = 'python' if ext == '.py' else 'csharp' if ext == '.cs' else 'generic'
-        
+
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
@@ -61,7 +61,7 @@ class ASTAnalyzer:
             'all_identifiers': set(),
             'files_analyzed': 0
         }
-        
+
         if not os.path.exists(dir_path):
             return {'error': f"Directory not found: {dir_path}", 'structure': {}}
 
@@ -69,12 +69,12 @@ class ASTAnalyzer:
             for file in files:
                 if (language == 'python' and file.endswith('.py')) or \
                    (language == 'csharp' and file.endswith('.cs')):
-                    
+
                     file_path = os.path.join(root, file)
                     try:
                         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                             content = f.read()
-                        
+
                         if language == 'csharp':
                             self.logger.warning(
                                 "Skipping C# file without Roslyn data: %s",
@@ -91,7 +91,7 @@ class ASTAnalyzer:
                                 self._collect_python_identifiers(content)
                             )
                             combined_structure['files_analyzed'] += 1
-                            
+
                             # メソッド名のフラット化
                             for cls in struct.get('classes', []):
                                 if 'methods' in cls:
@@ -103,13 +103,13 @@ class ASTAnalyzer:
 
         # JSON変換のためにセットをリストに戻す
         combined_structure['all_identifiers'] = sorted(combined_structure['all_identifiers'])
-        
+
         return {
             'status': 'success',
             'language': language,
             'structure': combined_structure
             }
-    
+
     @staticmethod
     def _empty_csharp_structure() -> Dict[str, Any]:
         return {
@@ -129,16 +129,16 @@ class ASTAnalyzer:
                 'properties': [],
                 'using_statements': []
             }
-            
+
             manifest = roslyn_data.get('manifest', {})
             details = roslyn_data.get('details_by_id', {})
-            
+
             objects = manifest.get('objects', [])
             for obj in objects:
                 obj_id = obj.get('id')
                 detail = details.get(obj_id, {})
                 obj_type = obj.get('type')
-                
+
                 if obj_type in ['Class', 'Struct', 'Interface']:
                     structure['classes'].append({
                         'name': obj.get('fullName'),
@@ -147,7 +147,7 @@ class ASTAnalyzer:
                         'access_modifier': obj.get('accessibility', 'public'),
                         'metrics': detail.get('metrics', {}) if detail else {}
                     })
-                
+
                 # 詳細データがある場合はメソッド等を追加
                 if detail:
                     # 依存関係の抽出
@@ -176,7 +176,7 @@ class ASTAnalyzer:
                             m_end_line = 0
                             m_return = 'dynamic'
                             m_metrics = {}
-                            
+
                         structure['methods'].append({
                             'name': m_name,
                             'parameters': m_params,
@@ -187,7 +187,7 @@ class ASTAnalyzer:
                             'branches': method.get('branches', []),
                             'class_id': obj_id
                         })
-            
+
             return {
                 'status': 'success',
                 'language': 'csharp',
@@ -197,12 +197,12 @@ class ASTAnalyzer:
         except Exception as e:
             self.logger.error(f"RoslynデータからのC#構造解析中にエラーが発生: {e}")
             return {'error': str(e), 'structure': {}}
-    
+
     def _analyze_python_ast(self, code: str) -> Dict[str, Any]:
         """PythonコードのAST解析"""
         try:
             tree = ast.parse(code)
-            
+
             structure = {
                 'classes': [],
                 'functions': [],
@@ -211,14 +211,14 @@ class ASTAnalyzer:
                 'complexity': 0,
                 'namespace': 'global'
             }
-            
+
             for node in ast.walk(tree):
                 if isinstance(node, ast.ClassDef):
                     methods = []
                     for item in node.body:
                         if isinstance(item, ast.FunctionDef):
                             methods.append(item.name)
-                    
+
                     structure['classes'].append({
                         'name': node.name,
                         'line': node.lineno,
@@ -226,7 +226,7 @@ class ASTAnalyzer:
                         'docstring': ast.get_docstring(node),
                         'access_modifier': 'public'
                     })
-                
+
                 elif isinstance(node, ast.FunctionDef):
                     structure['functions'].append({
                         'name': node.name,
@@ -236,7 +236,7 @@ class ASTAnalyzer:
                         'complexity': self._calculate_complexity(node),
                         'docstring': ast.get_docstring(node)
                     })
-                
+
                 elif isinstance(node, ast.Assign):
                     for target in node.targets:
                         if isinstance(target, ast.Name):
@@ -245,7 +245,7 @@ class ASTAnalyzer:
                                 'line': node.lineno,
                                 'type': self._infer_type(node.value)
                             })
-                
+
                 elif isinstance(node, (ast.Import, ast.ImportFrom)):
                     if isinstance(node, ast.Import):
                         for alias in node.names:
@@ -262,16 +262,16 @@ class ASTAnalyzer:
                                 'alias': alias.asname,
                                 'line': node.lineno
                             })
-            
+
             # 全体の複雑度計算
             structure['complexity'] = sum(f['complexity'] for f in structure['functions'])
-            
+
             return {
                 'status': 'success',
                 'language': 'python',
                 'structure': structure
             }
-            
+
         except SyntaxError as e:
             return {
                 'status': 'syntax_error',
@@ -279,7 +279,7 @@ class ASTAnalyzer:
                 'line': e.lineno,
                 'structure': {}
             }
-    
+
     def _analyze_csharp_structure(self, code: str) -> Dict[str, Any]:
         """C#コードの直接解析は行わない。Roslyn解析結果を使用する。"""
         return {
@@ -288,11 +288,11 @@ class ASTAnalyzer:
             'diagnostic': 'CSharp analysis requires Roslyn data.',
             'structure': self._empty_csharp_structure(),
         }
-    
+
     def _analyze_generic_structure(self, code: str) -> Dict[str, Any]:
         """汎用的なコード構造解析"""
         lines = code.split('\n')
-        
+
         structure = {
             'total_lines': len(lines),
             'non_empty_lines': len([line for line in lines if line.strip()]),
@@ -329,7 +329,7 @@ class ASTAnalyzer:
                 for alias in node.names:
                     identifiers.add((alias.asname or alias.name).split('.')[0].lower())
         return identifiers
-    
+
     def _extract_return_type(self, node: ast.FunctionDef) -> Optional[str]:
         """関数の戻り値型を抽出"""
         if node.returns:
@@ -341,7 +341,7 @@ class ASTAnalyzer:
         """スタックトレースからファイルパスと行番号を抽出"""
         if not stack_trace:
             return {'stack_depth': 0, 'file_locations': [], 'primary_location': None, 'test_context': {}}
-            
+
         lines = stack_trace.split('\n')
         matches = []
         for line in lines:
@@ -446,19 +446,19 @@ class ASTAnalyzer:
         if len(parts) == 1:
             return parts[0]
         return None
-    
+
     def _calculate_complexity(self, node: ast.FunctionDef) -> int:
         """関数の循環複雑度を計算"""
         complexity = 1  # 基本複雑度
-        
+
         for child in ast.walk(node):
             if isinstance(child, (ast.If, ast.While, ast.For, ast.Try)):
                 complexity += 1
             elif isinstance(child, ast.BoolOp):
                 complexity += len(child.values) - 1
-        
+
         return complexity
-    
+
     def _infer_type(self, node: ast.AST) -> str:
         """変数の型を推論"""
         if isinstance(node, ast.Constant):
@@ -471,7 +471,7 @@ class ASTAnalyzer:
             if isinstance(node.func, ast.Name):
                 return f'result_of_{node.func.id}'
         return 'unknown'
-    
+
     def _extract_access_modifier(self, line: str) -> str:
         """アクセス修飾子を抽出"""
         modifiers = ['public', 'private', 'protected', 'internal']
@@ -479,15 +479,15 @@ class ASTAnalyzer:
             if modifier in line:
                 return modifier
         return 'default'
-    
+
     def find_method_dependencies(self, code: str, method_name: str, language: str = 'python') -> List[str]:
         """メソッドの依存関係を特定"""
         dependencies = []
-        
+
         try:
             if language == 'python':
                 tree = ast.parse(code)
-                
+
                 for node in ast.walk(tree):
                     if isinstance(node, ast.FunctionDef) and node.name == method_name:
                         for child in ast.walk(node):
@@ -495,14 +495,14 @@ class ASTAnalyzer:
                                 dependencies.append(child.func.id)
                             elif isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load):
                                 dependencies.append(child.id)
-            
+
             elif language == 'csharp':
                 self.logger.warning(
                     "C# dependency analysis requires Roslyn data for method %s",
                     method_name,
                 )
-        
+
         except Exception as e:
             self.logger.error(f"依存関係分析中にエラー: {e}")
-        
+
         return list(set(dependencies))  # 重複を除去

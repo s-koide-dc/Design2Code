@@ -65,7 +65,7 @@ class CodeBuilderClient:
         run_id = f"{ts}_{os.getpid()}"
         blueprint_dir = os.path.join(root, "cache", "blueprints", run_id)
         blueprint_path = os.path.abspath(os.path.join(blueprint_dir, "blueprint.json"))
-        
+
         try:
             os.makedirs(os.path.dirname(blueprint_path), exist_ok=True)
             with open(blueprint_path, "w", encoding="utf-8") as f:
@@ -74,7 +74,7 @@ class CodeBuilderClient:
             logging.error(f"Failed to save blueprint: {e}")
 
         json_input = json.dumps(blueprint, ensure_ascii=False)
-        
+
         try:
             if self.use_dotnet_run:
                 cmd = ["dotnet", "run", "--project", self.project_path, "--quiet", "--nologo", "--"]
@@ -113,13 +113,57 @@ class CodeBuilderClient:
             logging.exception("Failed to communicate with CodeBuilder")
             return {"status": "error", "message": str(e)}
 
+    def analyze_source_metrics(self, source_code: str) -> dict:
+        """Use Roslyn-backed CodeBuilder inspection to collect C# source metrics."""
+        if not os.path.exists(self.project_path):
+            return {"status": "error", "message": "CodeBuilder project was not found."}
+
+        json_input = json.dumps({"source_code": source_code or ""}, ensure_ascii=False)
+        try:
+            if self.use_dotnet_run:
+                cmd = [
+                    "dotnet",
+                    "run",
+                    "--project",
+                    self.project_path,
+                    "--quiet",
+                    "--nologo",
+                    "--",
+                    "--analyze-source-metrics",
+                ]
+            else:
+                cmd = [self.exe_path, "--analyze-source-metrics"]
+            process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+            )
+            stdout, stderr = process.communicate(input=json_input)
+            if process.returncode != 0:
+                logging.error("CodeBuilder metrics failed with return code %s", process.returncode)
+                logging.error("Stderr: %s", stderr)
+                return {"status": "error", "message": stderr}
+
+            json_str = self._extract_json_payload(stdout)
+            try:
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                logging.error("CodeBuilder metrics output was not JSON: %s", stdout)
+                return {"status": "error", "message": "Non-JSON output from CodeBuilder metrics"}
+        except Exception as e:
+            logging.exception("Failed to request CodeBuilder source metrics")
+            return {"status": "error", "message": str(e)}
+
     @staticmethod
     def _validate_blueprint(blueprint: dict) -> list[dict]:
         supported_types = {
             "raw", "call", "assign", "comment", "foreach", "if",
-            "retry", "timeout", "transaction",
+            "try", "try_catch", "retry", "timeout", "transaction",
         }
-        body_required_types = {"foreach", "if", "retry", "timeout", "transaction"}
+        body_required_types = {"foreach", "if", "try", "try_catch", "retry", "timeout", "transaction"}
         errors = []
 
         def validate_statements(statements, location):
@@ -151,6 +195,9 @@ class CodeBuilderClient:
                 else_body = statement.get("else_body")
                 if isinstance(else_body, list):
                     validate_statements(else_body, f"{statement_location}.else_body")
+                catch_body = statement.get("catch_body")
+                if isinstance(catch_body, list):
+                    validate_statements(catch_body, f"{statement_location}.catch_body")
 
         for method_index, method in enumerate(blueprint.get("methods", []) or []):
             validate_statements(
@@ -285,6 +332,36 @@ class CodeBuilderClient:
                 else_block = "\n".join(else_lines)
                 code += f"\nelse\n{{\n{else_block}\n}}"
             return code
+        if s_type in {"try", "try_catch"}:
+            body_lines = []
+            for b in stmt.get("body", []) or []:
+                rendered = self._render_stmt(b, is_async=is_async)
+                for line in rendered.splitlines():
+                    body_lines.append(f"    {line}")
+            catch_source = stmt.get("catch_body") or stmt.get("else_body") or []
+            catch_lines = []
+            for b in catch_source:
+                rendered = self._render_stmt(b, is_async=is_async)
+                for line in rendered.splitlines():
+                    catch_lines.append(f"    {line}")
+            return (
+                "try\n"
+                "{\n"
+                + "\n".join(body_lines) + "\n"
+                "}\n"
+                + (
+                    "catch (OperationCanceledException)\n"
+                    "{\n"
+                    "    throw;\n"
+                    "}\n"
+                    if stmt.get("rethrow_operation_canceled")
+                    else ""
+                )
+                + "catch (Exception ex)\n"
+                "{\n"
+                + "\n".join(catch_lines) + "\n"
+                "}"
+            )
         if s_type == "retry":
             max_attempts = stmt.get("max_attempts", 3)
             try:

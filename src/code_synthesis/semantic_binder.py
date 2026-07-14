@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 from typing import List, Dict, Any, Optional, Tuple
 
-import json
-import os
 from src.utils.text_parser import extract_first_quoted_literal
 from src.utils.semantic_intents import (
     INTENT_DATABASE_QUERY,
@@ -51,17 +49,17 @@ class SemanticBinder:
     def bind_parameters(self, method: Dict[str, Any], node: Dict[str, Any], path: Dict[str, Any]) -> Optional[List[str]]:
         expected_params = method.get("params", [])
         if not expected_params: return []
-        
+
         param_values = []
         semantic_roles = node.get("semantic_map", {}).get("semantic_roles", {})
         path.setdefault("last_literal_map", {})
         disallow_null_roles = {"data", "content", "predicate", "logic", "selector", "source", "keySelector"}
-        
+
         for p in expected_params:
             pn, pt, prole = p.get("name"), p.get("type"), p.get("role")
             constraints = p.get("constraints", [])
             val = None
-            
+
             if prole in semantic_roles:
                 raw = semantic_roles[prole]
                 if raw == "{context}":
@@ -135,13 +133,13 @@ class SemanticBinder:
                     val = f"new {{ {param_name} = {input_name} }}"
                 elif input_vars:
                     val = input_vars[0]["var_name"]
-            
+
             if val is None:
                 res = self._resolve_source_var(node, path, pt, role_hint=prole)
                 if res and res[0]:
                     v_name, bridge = res
                     val = bridge.replace("{var}", v_name) if bridge else v_name
-            
+
             if val is None:
                 if "literal_only" in constraints and pt == "string":
                     val = "\"\""
@@ -174,7 +172,7 @@ class SemanticBinder:
 
             if val is None: return None
             param_values.append(val)
-            
+
         # 27.295: Phase 3 B-4 Strong Typing for Dapper Parameters
         is_sql_method = "Dapper.SqlMapper" in method.get("class", "") or "IDbConnection" in method.get("class", "") or method.get("name", "").startswith("Query") or method.get("name", "").startswith("Execute")
         if is_sql_method and param_values:
@@ -327,7 +325,7 @@ class SemanticBinder:
         check_expr = self._build_check_expression(semantic_map, target_entity, path, node=node)
         if check_expr:
             return check_expr
-        
+
         if node and node.get("intent") == INTENT_EXISTS:
             s_roles = semantic_map.get("semantic_roles", {})
             if "path" in s_roles:
@@ -358,7 +356,7 @@ class SemanticBinder:
                 return expr
             if "url" in s_roles: return "true"
             return "true"
-        
+
         if not logic_goals:
             # 27.380: Phase 6 E-3 Case: Falling back to existing boolean variable (e.g. from EXISTS)
             bool_vars = path.get("type_to_vars", {}).get("bool", [])
@@ -369,24 +367,30 @@ class SemanticBinder:
                         return v["var_name"]
                 return bool_vars[-1]["var_name"]
             return "true"
-        
+
         props = path.get("poco_defs", {}).get(target_entity, {})
         expressions = []
         op_map = {
             "Greater": ">", "Less": "<", "GreaterEqual": ">=", "LessEqual": "<=",
             "Equal": "==", "NotEqual": "!=", "Contains": ".Contains", "StartsWith": ".StartsWith"
         }
-        
+
+        def _string_method_expression(prop_access: str, method: str, value: Any, nullable: bool) -> str:
+            expr = f"{prop_access}{method}(\"{value}\")"
+            if nullable:
+                return f"{prop_access} != null && {expr}"
+            return expr
+
         # 27.123: Use actual loop variable name instead of hardcoded 'x'
         var_name = path.get("active_scope_item", "x")
-        
+
         current_conjunction = " && "
         for goal in logic_goals:
             g_type = goal.get("type")
             if g_type == "conjunction":
                 current_conjunction = " || " if goal.get("value") == "OR" else " && "
                 continue
-                
+
             op, val, hint = goal.get("operator"), goal.get("expected_value"), goal.get("variable_hint", "")
             target_hint = goal.get("target_hint")
             if not props and target_entity == "string":
@@ -414,7 +418,7 @@ class SemanticBinder:
             p_type = props.get(prop_name, "object")
             # 27.124: Dynamic loop variable access
             prop_access = f"{var_name}.{prop_name}" if path.get("in_loop") else prop_name
-            
+
             if g_type == "numeric":
                 csharp_op = op_map.get(op, "==")
                 if val == "{input}":
@@ -431,7 +435,8 @@ class SemanticBinder:
                 p_type_lower = str(p_type).lower()
                 if p_type_lower == "string":
                     if op in ["Greater", "GreaterEqual"]:
-                        expressions.append(f"{prop_access}.StartsWith(\"{val}\")")
+                        is_nullable = str(p_type).strip().endswith("?") or str(p_type).strip() == "string"
+                        expressions.append(_string_method_expression(prop_access, ".StartsWith", val, is_nullable))
                     elif op == "NotEqual":
                         expressions.append(f"{prop_access} != \"{val}\"")
                     else:
@@ -439,17 +444,18 @@ class SemanticBinder:
                     continue
                 if not numeric_literal and not is_identifier:
                     val = "0"
-                
+
                 suffix = "m" if "decimal" in p_type.lower() or "decimal" in str(val) else ""
                 expressions.append(f"{prop_access} {csharp_op} {val}{suffix}")
-                
+
             elif g_type == "string":
                 if op == "Equal": expressions.append(f"{prop_access} == \"{val}\"")
                 elif op == "NotEqual": expressions.append(f"{prop_access} != \"{val}\"")
                 else:
                     method = op_map.get(op, ".Contains")
-                    expressions.append(f"{prop_access}{method}(\"{val}\")")
-            
+                    is_nullable = str(p_type).strip().endswith("?") or str(p_type).strip() == "string"
+                    expressions.append(_string_method_expression(prop_access, method, val, is_nullable))
+
             elif g_type == "calculation":
                 expr = self._build_arithmetic_expr(goal, props, path)
                 if expr: expressions.append(expr)
@@ -539,7 +545,7 @@ class SemanticBinder:
         hint = goal.get("variable_hint", "")
         target_hint = goal.get("target_hint")
         target_prop = self._resolve_prop(hint, "numeric", props, None, target_hint=target_hint)
-        
+
         if not target_prop:
             return None
         if props and target_prop not in props:
@@ -551,7 +557,7 @@ class SemanticBinder:
                 target_prop = "Total"
             if target_prop not in props:
                 target_prop = list(props.keys())[0] if props else "TotalAmount"
-            
+
         var_name = path.get("active_scope_item", "x")
         prop_access = f"{var_name}.{target_prop}" if path.get("in_loop") else target_prop
         raw_val = goal.get("value") or goal.get("expected_value")

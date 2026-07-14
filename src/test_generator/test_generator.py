@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 # src/test_generator/test_generator.py
 
 import os
@@ -17,7 +17,7 @@ class TestGenerationError(Exception):
 
 class TestGenerator:
     """テストケース生成を支援するクラス (解説コメント・ブリッジ対応版)"""
-    
+
     def __init__(self, workspace_root: str = ".", knowledge_base=None):
         self.workspace_root = workspace_root
         self.ukb = knowledge_base
@@ -57,7 +57,7 @@ class TestGenerator:
     def _looks_like_json_container(value: str) -> bool:
         stripped = str(value or "").lstrip()
         return stripped.startswith("{") or stripped.startswith("[")
-    
+
     def _load_templates(self) -> Dict[str, str]:
         t = {}
         # プレースホルダーを含むテンプレート
@@ -170,20 +170,20 @@ class TestGenerator:
     def _generate_test_cases_impl(self, source_file: str, language: str = 'csharp', analysis_output_path: str = None, output_dir: str = None) -> Dict[str, Any]:
         try:
             if not os.path.exists(source_file): return {'status': 'error', 'message': 'Source not found'}
-            
+
             if language == 'csharp' and analysis_output_path:
                 analysis = self._analyze_from_roslyn(source_file, analysis_output_path)
             else:
                 analysis = self._analyze_source_code(source_file, language)
-            
+
             if analysis['status'] != 'success': return analysis
-            
+
             if not output_dir: output_dir = os.path.join(self.workspace_root, 'tests', 'generated')
             os.makedirs(output_dir, exist_ok=True)
-            
+
             test_cases = []
             generated_files = []
-            
+
             for class_info in analysis.get('classes', []):
                 # 名前空間の決定 (クラスの FullName から取得)
                 full_name = class_info.get('full_name', f"Generated.{class_info['name']}")
@@ -203,13 +203,13 @@ class TestGenerator:
                                 'scenario_type': scenario.get('type', 'happy_path'),
                                 'description': f"Test for {m['name']} with condition {scenario['condition']}"
                             })
-                
+
                 if method_codes:
                     if language == 'csharp':
                         full_code = self.templates['csharp_file'].format(
                             namespace=ns,
                             extra_usings=f"using {ns};" if ns != "Generated" and ns != "Generated.Tests" else "",
-                            class_name=class_info['name'], 
+                            class_name=class_info['name'],
                             test_methods=''.join(method_codes)
                         )
                         output_file = os.path.join(output_dir, f"Test_{class_info['name']}.cs")
@@ -220,15 +220,15 @@ class TestGenerator:
                     with open(output_file, 'w', encoding='utf-8') as f:
                         f.write(full_code)
                     generated_files.append(output_file)
-                    
+
                     # 統合テストは 'code' フィールドにファイル全体が含まれていることを期待している場合がある
                     for tc in class_test_cases:
                         tc['code'] = full_code
                     test_cases.extend(class_test_cases)
-            
+
             return {
-                'status': 'success', 
-                'test_cases': test_cases, 
+                'status': 'success',
+                'test_cases': test_cases,
                 'generated_files': generated_files,
                 'analysis': analysis,
                 'message': f"{len(generated_files)} 個のオブジェクトに対して汎用テストを生成しました。"
@@ -251,11 +251,11 @@ class TestGenerator:
             from src.advanced_tdd.dummy_factory import DummyDataFactory
             # 解析データを渡してファクトリを初期化
             factory = DummyDataFactory(analysis_results=self.current_analysis_data)
-            
+
             is_property = m_info.get('is_property', False)
             params = self._parse_parameters(m_info['parameters'])
             is_static = 'static' in class_info.get('modifiers', [])
-            
+
             # コンストラクタ引数/インスタンス化の準備
             arrange = []
             if not is_static:
@@ -269,18 +269,18 @@ class TestGenerator:
                     ctor_args.append(p_name)
                 # インスタンス化
                 arrange.append(f"var target = new {class_info['name']}({', '.join(ctor_args)});")
-            
+
             # メソッドパラメータの準備
             param_names = []
             for p_name, p_type in params:
                 val = self._guess_value_by_type(p_type, p_name, scenario.get('original_condition'))
                 arrange.append(f"var {p_name} = {val};")
                 param_names.append(p_name)
-            
+
             # Act (静的かインスタンスか、プロパティかメソッドかで切り分け)
             is_method_static = 'static' in m_info.get('modifiers', [])
             call_target = class_info['name'] if (is_static or is_method_static) else "target"
-            
+
             # 非同期判定
             return_type = m_info.get('return_type', '')
             is_async = 'Task' in return_type
@@ -290,18 +290,18 @@ class TestGenerator:
                 act_call = f"{call_target}.{m_info['name']}"
             else:
                 act_call = f"{call_target}.{m_info['name']}({', '.join(param_names)})"
-            
+
             # 統一された Act コード生成 (二重定義を防止)
             if act_call.startswith("var result ="):
                 act_code = f"{await_prefix}{act_call};"
             else:
                 act_code = f"var result = {await_prefix}{act_call};"
-            
+
             expected = scenario.get('expected_behavior', 'Success')
             expected_val = f'"{expected}"' if isinstance(expected, str) and not expected.isdigit() and expected not in ['true', 'false', 'null'] else str(expected)
-            
+
             assert_code = 'Assert.NotNull(result);' if scenario['type'] == 'property_access' else f'Assert.Equal({expected_val}, result);'
-            
+
             # テンプレートの Fact を必要に応じて async Task に変換
             method_template = self.templates['csharp_method']
             if is_async:
@@ -310,11 +310,11 @@ class TestGenerator:
             cfg = self._load_test_config()
             default_original = cfg.get("default_original_condition", "デフォルト動作または外部呼び出し")
             return method_template.format(
-                method_name=m_info['name'], 
+                method_name=m_info['name'],
                 condition=scenario['condition'],
                 original_condition=scenario.get('original_condition', default_original),
-                arrange_code='\n            '.join(arrange), 
-                act_code=act_code, 
+                arrange_code='\n            '.join(arrange),
+                act_code=act_code,
                 assert_code=assert_code
             )
         elif lang == 'python':
@@ -335,13 +335,13 @@ class TestGenerator:
         # C#の属性のみを除去
         clean_p = re.sub(r'\[[A-Z]\w*(\([^)]*\))?\]', '', p_str).strip()
         if not clean_p: return []
-        
+
         params = []
         for p in clean_p.split(','):
             parts = p.strip().split()
             if len(parts) >= 2:
                 name = parts[-1]
-                type_name = " ".join(parts[:-1]) 
+                type_name = " ".join(parts[:-1])
                 params.append((name, type_name))
         return params
 
@@ -353,13 +353,13 @@ class TestGenerator:
         null_or_empty_markers = cfg.get("string_null_or_empty_markers", ["string.IsNullOrEmpty"])
         non_empty_markers = cfg.get("non_empty_markers", [">", "!=", "!"])
         empty_markers = cfg.get("empty_markers", ["==", "string.IsNullOrEmpty"])
-        
+
         # 1. 分岐条件 (cond) に基づく推論
         if cond:
             # 文字列の直接比較 (e.g., input == "target")
             m_str = re.search(fr'{{{p_name}}}\s*==\s*["](.*?)["]', cond)
             if m_str: return f'"{m_str.group(1)}"'
-            
+
             # 数値比較
             m_num = re.search(fr'{{{p_name}}}\s*(>=|<=|>|<|==)\s*(\d+)', cond)
             if m_num:
@@ -374,7 +374,7 @@ class TestGenerator:
                 if any(m in cond for m in non_empty_markers): # !string.IsNullOrEmpty(x)
                     if 'string' in p_type.lower(): return '"non-empty"'
                     if '[]' in p_type or 'List' in p_type:
-                        return factory.generate_instantiation(p_type) 
+                        return factory.generate_instantiation(p_type)
                 if any(m in cond for m in empty_markers): # string.IsNullOrEmpty(x)
                     if 'string' in p_type.lower(): return '""'
                     if '[]' in p_type or 'List' in p_type:
@@ -387,24 +387,24 @@ class TestGenerator:
 
     def _analyze_from_roslyn(self, source_file, output_path):
         try:
-            with open(os.path.join(output_path, 'manifest.json'), 'r', encoding='utf-8') as f: 
+            with open(os.path.join(output_path, 'manifest.json'), 'r', encoding='utf-8') as f:
                 manifest = json.load(f)
-            
+
             source_abs = os.path.normpath(os.path.abspath(source_file).lower())
             analysis_classes = []
-            
+
             for obj in manifest.get('objects', []):
                 obj_file = os.path.normpath(os.path.abspath(obj.get('filePath', '')).lower())
                 if obj.get('type') in ['Class', 'Record', 'Struct'] and obj_file == source_abs:
-                    with open(os.path.join(output_path, 'details', f"{obj['id']}.json"), 'r', encoding='utf-8') as df: 
+                    with open(os.path.join(output_path, 'details', f"{obj['id']}.json"), 'r', encoding='utf-8') as df:
                         detail = json.load(df)
-                    
+
                     methods = []
                     # 1. メソッドの処理 (Publicのみ)
                     for m in detail.get('methods', []):
                         if m.get('accessibility', '').lower() != 'public':
                             continue
-                            
+
                         params = ", ".join([f"{p['type']} {p['name']}" for p in m.get('parameters', [])])
                         scenarios = []
                         cfg = self._load_test_config()
@@ -419,16 +419,16 @@ class TestGenerator:
                         if not scenarios:
                             fallback = cfg.get("fallback_scenario", {'type': 'happy_path', 'condition': 'Default', 'expected_behavior': 'Success'})
                             scenarios.append(fallback.copy())
-                        
+
                         methods.append({
-                            'name': m['name'], 
-                            'return_type': m['returnType'], 
-                            'parameters': params, 
+                            'name': m['name'],
+                            'return_type': m['returnType'],
+                            'parameters': params,
                             'test_scenarios': scenarios,
                             'is_property': False,
                             'modifiers': m.get('modifiers', [])
                         })
-                    
+
                     # 2. プロパティの処理
                     for prop in detail.get('properties', []):
                         cfg = self._load_test_config()
@@ -449,13 +449,13 @@ class TestGenerator:
                             ctor_params = public_ctor.get('parameters', [])
 
                         analysis_classes.append({
-                            'name': obj['fullName'].split('.')[-1], 
+                            'name': obj['fullName'].split('.')[-1],
                             'full_name': obj['fullName'],
                             'methods': methods,
                             'constructor_parameters': ctor_params,
                             'modifiers': detail.get('modifiers', [])
                         })
-            
+
             if analysis_classes:
                 return {'status': 'success', 'classes': analysis_classes, 'language': 'csharp'}
             return {'status': 'error', 'message': f'No relevant objects found in {source_file}'}
@@ -464,18 +464,18 @@ class TestGenerator:
     def _analyze_source_code(self, source_file, language):
         from src.advanced_tdd.ast_analyzer import ASTAnalyzer
         analyzer = ASTAnalyzer()
-        
+
         with open(source_file, 'r', encoding='utf-8') as f:
             code = f.read()
-            
+
         result = analyzer.analyze_code_structure(code, language)
         if 'error' in result:
             return {'status': 'error', 'message': result['error']}
-            
+
         structure = result.get('structure', {})
         # TestGenerator が期待する形式に変換
         analysis_classes = []
-        
+
         # Python の場合は 'classes', C# の場合は 'classes'
         classes = structure.get('classes', [])
         for cls in classes:
@@ -527,7 +527,7 @@ class TestGenerator:
                         'is_property': False,
                         'modifiers': []
                     })
-            
+
             analysis_classes.append({
                 'name': cls['name'],
                 'full_name': f"{cls.get('namespace')}.{cls['name']}" if cls.get('namespace') else cls['name'],
@@ -536,10 +536,10 @@ class TestGenerator:
                 'constructor_parameters': [],
                 'modifiers': [cls.get('access_modifier', 'public')]
             })
-            
+
         if analysis_classes:
             return {'status': 'success', 'classes': analysis_classes, 'language': language}
-            
+
     def generate_tests_from_design(self, design_path: str, source_path: str = None) -> Dict[str, Any]:
         return self.generate_tests(mode="design", design_path=design_path, source_file=source_path)
 
@@ -550,24 +550,24 @@ class TestGenerator:
             from ..utils.design_doc_parser import DesignDocParser
             parser = DesignDocParser(knowledge_base=self.ukb)
             design_data = parser.parse_file(design_path)
-            
+
             test_cases = design_data.get('test_cases', [])
             if not test_cases:
                 return {'status': 'warning', 'message': 'No test cases found in design document.'}
-            
+
             module_name = design_data.get('module_name', 'UnknownModule')
             # クラス名の決定ロジック
             # 1. ヘッダーに (Class: Name) があればそれを使う
             # 2. ファイル名から推測
             base_name = os.path.basename(design_path).replace('.design.md', '')
             class_name = "".join(x.title() for x in base_name.split('_'))
-            
+
             class_name = self._extract_class_name_from_module(module_name, class_name)
-            
+
             # ソースパスが指定されていない場合、同じディレクトリの.pyを探す
             if not source_path:
                 source_path = design_path.replace('.design.md', '.py')
-            
+
             # Pythonコード生成
             lines = [
                 "# -*- coding: utf-8 -*-",
@@ -610,14 +610,14 @@ class TestGenerator:
                 "                self.assertEqual(actual, expected)",
                 ""
             ]
-            
+
             for i, case in enumerate(test_cases):
                 scenario = case.get('scenario', f'Scenario{i}')
                 safe_scenario = self._normalize_identifier(scenario)
-                
+
                 input_str = case.get('input', '').strip()
                 expected_str = case.get('expected', '').strip()
-                
+
                 # JSON判定
                 input_json = None
                 input_json_invalid = False
@@ -636,15 +636,15 @@ class TestGenerator:
 
                 lines.append(f"    def test_{safe_scenario}(self):")
                 lines.append(f"        # Scenario: {scenario}")
-                
+
                 if input_json:
                     # 汎用 JSON 形式の場合
                     init_args = input_json.get('init_args', {})
                     method_name = input_json.get('target_method', 'calculate')
                     method_args = input_json.get('args', {})
-                    
+
                     lines.append(f"        # Arrange")
-                    
+
                     # 1. Prepare Mocks
                     mock_config = input_json.get('mocks', {})
                     mock_arg_names = []
@@ -659,14 +659,14 @@ class TestGenerator:
                     # Convention: if init_args contains "key": "$mock:name", we use the mock variable.
                     # Or simpler: if we rely on specific init signature, we might need more metadata.
                     # For now, let's mix: init_args (primitives) + mocks (implicit/explicit).
-                    
+
                     # 2. Build Init Args
                     # init_args in JSON should contain primitives, AND potentially references to mocks
                     # Convention: if init_args contains "key": "$mock:name", we use the mock variable.
-                    
+
                     # Generic dependency resolution
                     final_init_args = []
-                    
+
                     # Try to get constructor info from source if available
                     constructor_params = []
                     if source_path and os.path.exists(source_path):
@@ -735,16 +735,16 @@ class TestGenerator:
                                 included_mocks.add(k)
                             else:
                                 init_parts.append(f"{k}={repr(v)}")
-                        
+
                         # Add remaining mocks that might be expected as positional or keyword args
                         for m_name in mock_arg_names:
                             if m_name not in included_mocks:
                                 init_parts.append(f"{m_name}={m_name}")
-                                
+
                         final_init_code = ", ".join(init_parts)
-                    
+
                     lines.append(f"        self.target = {class_name}({final_init_code})")
-                    
+
                     # Setup Code Injection
                     setup_code = input_json.get('setup_code', [])
                     if setup_code:
@@ -756,7 +756,7 @@ class TestGenerator:
                     lines.append(f"        # Act")
                     args_code = ", ".join([f"{k}={repr(v)}" for k, v in method_args.items()])
                     lines.append(f"        result = self.target.{method_name}({args_code})")
-                    
+
                     lines.append(f"        ")
                     lines.append(f"        # Assert")
                     # Expected も JSON か判定
@@ -780,16 +780,16 @@ class TestGenerator:
                     # レガシー形式 (ConditionEvaluator用)
                     lines.append(f"        # Input: {input_str}")
                     lines.append(f"        # Expected: {expected_str}")
-                    
+
                     condition_val = "None"
                     context_val = "{}"
-                    
+
                     m_cond = re.search(r"condition=(.+?)(?:, context=|$)", input_str)
                     if m_cond: condition_val = m_cond.group(1).strip()
-                    
+
                     m_ctx = re.search(r"context=(.+)$", input_str)
                     if m_ctx: context_val = m_ctx.group(1).strip()
-                    
+
                     if context_val.count('{') > context_val.count('}'):
                         context_val += '}' * (context_val.count('{') - context_val.count('}'))
 
@@ -800,7 +800,7 @@ class TestGenerator:
                     lines.append(f"        for k, v in context.items():")
                     lines.append(f"            setattr(mock_context, k, v)")
                     lines.append(f"        if self.target is None: self.target = {class_name}()")
-                    
+
                     lines.append(f"        # Act")
                     lines.append(f"        if isinstance(context, dict):")
                     lines.append(f"             result = self.target.evaluate(condition, context)")
@@ -813,23 +813,23 @@ class TestGenerator:
                     lines.append(f"        self.assertEqual(result, expected)")
 
                 lines.append("")
-            
+
             output_code = "\n".join(lines)
-            
+
             # 出力ファイル保存
             output_dir = os.path.join(self.workspace_root, 'tests', 'generated')
             os.makedirs(output_dir, exist_ok=True)
             output_file = os.path.join(output_dir, f"test_{base_name}_spec.py")
-            
+
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(output_code)
-                
+
             return {
                 'status': 'warning' if generation_diagnostics else 'success',
                 'output_file': output_file,
                 'test_count': len(test_cases),
                 'generation_diagnostics': generation_diagnostics,
             }
-            
+
         except Exception as e:
             return {'status': 'error', 'message': str(e)}

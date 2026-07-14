@@ -21,12 +21,12 @@ class LearningPattern:
 
 class LogAnalyzer:
     """ログ分析を担当するクラス"""
-    
+
     def __init__(self, log_directory: str):
         self.log_directory = Path(log_directory)
         self.logger = logging.getLogger(__name__)
         self.collection_diagnostics: List[Dict[str, Any]] = []
-    
+
     def collect_logs(self, days_back: int = 7) -> List[Dict[str, Any]]:
         """指定期間のログを収集し、トランザクションごとに集約"""
         if not isinstance(days_back, int) or isinstance(days_back, bool):
@@ -99,7 +99,7 @@ class LogAnalyzer:
             'timestamp': ''
         })
 
-        current_tx_id = {} 
+        current_tx_id = {}
 
         for event in raw_events:
             data = event.get('data', {})
@@ -112,14 +112,14 @@ class LogAnalyzer:
                 continue
             session_id = data.get('session_id', 'unknown')
             event_type = event.get('event_type')
-            
+
             if event_type == 'pipeline_start':
                 tx_key = f"{session_id}_{event.get('timestamp')}"
                 current_tx_id[session_id] = tx_key
                 transactions[tx_key]['original_text'] = data.get('original_text', '')
                 transactions[tx_key]['session_id'] = session_id
                 transactions[tx_key]['timestamp'] = event.get('timestamp')
-            
+
             tx_key = current_tx_id.get(session_id)
             if not tx_key: continue
 
@@ -150,12 +150,12 @@ class LogAnalyzer:
                     if status == 'error' and summary.get('errors'):
                         msg = summary.get('errors')[0].get('message', 'Unknown error')
                         transactions[tx_key]['errors'].append(msg)
-            
+
             elif event_type == 'clarification_needed':
                 transactions[tx_key]['clarification_needed'] = True
                 if data.get('reason') == 'low_intent_confidence':
                     transactions[tx_key]['suggested_intent'] = data.get('intent')
-            
+
             elif event_type == 'action_execution_error' or event_type == 'test_failed':
                 transactions[tx_key]['action_result']['status'] = 'error'
                 msg = data.get('message') or data.get('error_message') or (data.get('errors', [{}])[0].get('message') if data.get('errors') else 'Unknown error')
@@ -163,7 +163,7 @@ class LogAnalyzer:
                 transactions[tx_key]['errors'].append(msg)
 
         return [tx for tx in transactions.values() if tx['original_text']]
-    
+
     def extract_patterns(self, logs: List[Dict[str, Any]]) -> Dict[str, List[LearningPattern]]:
         """ログからパターンを抽出"""
         self.logger.info(f"Processing {len(logs)} aggregated transactions")
@@ -173,12 +173,12 @@ class LogAnalyzer:
             'improvement': [],
             'clarification_fix': []
         }
-        
+
         patterns['success'] = self._extract_success_patterns(logs)
         patterns['error'] = self._extract_error_patterns(logs)
         patterns['improvement'] = self._identify_improvement_opportunities(logs)
         patterns['clarification_fix'] = self._extract_clarification_fix_patterns(logs)
-        
+
         return patterns
 
     def _extract_clarification_fix_patterns(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
@@ -206,7 +206,7 @@ class LogAnalyzer:
                     examples=[log],
                 ))
         return patterns
-    
+
     def _extract_success_patterns(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
         """明示承認された意図例だけを抽出する。"""
         success_logs = [log for log in logs if self._is_successful_interaction(log)]
@@ -223,7 +223,7 @@ class LogAnalyzer:
                     "log": log,
                     "evidence": evidence,
                 })
-        
+
         patterns = []
         for (intent, pattern), entries in intent_patterns.items():
             patterns.append(LearningPattern(
@@ -244,7 +244,7 @@ class LogAnalyzer:
                 ],
             ))
         return patterns
-    
+
     def _extract_error_patterns(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
         """明示されたエラーコードだけを学習候補として抽出する。"""
         error_logs = [log for log in logs if self._has_error(log)]
@@ -254,7 +254,7 @@ class LogAnalyzer:
                 error_code = evidence.get("error_code")
                 if isinstance(error_code, str) and error_code:
                     error_types[error_code].append(log)
-        
+
         patterns = []
         for error_type, examples in error_types.items():
             patterns.append(LearningPattern(
@@ -282,7 +282,7 @@ class LogAnalyzer:
                 examples=examples[:5],
             ))
         return patterns
-    
+
     def _identify_improvement_opportunities(self, logs: List[Dict[str, Any]]) -> List[LearningPattern]:
         """明示承認された改善根拠だけを抽出する。"""
         patterns = []
@@ -324,13 +324,13 @@ class LogAnalyzer:
             and evidence.get("type") == evidence_type
             and evidence.get("approved") is True
         ]
-    
+
     def _is_successful_interaction(self, log: Dict[str, Any]) -> bool:
         """成功した対話かどうかを判定"""
         if 'action_result' in log:
             return log['action_result'].get('status') == 'success'
         return not self._has_error(log) and not log.get('clarification_needed', False)
-    
+
     def _has_error(self, log: Dict[str, Any]) -> bool:
         """エラーがあるかどうかを判定"""
         if 'errors' in log and log['errors']:
@@ -338,4 +338,4 @@ class LogAnalyzer:
         if 'action_result' in log:
             return log['action_result'].get('status') == 'error'
         return False
-    
+

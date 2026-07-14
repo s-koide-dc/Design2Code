@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import json
+import logging
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,10 +18,14 @@ from src.code_synthesis.code_synthesizer import CodeSynthesizer
 from src.code_synthesis.method_store import MethodStore
 from src.code_synthesis.synthesis_pipeline import synthesize_structured_spec
 from src.code_verification.compilation_verifier import CompilationVerifier
+from src.code_verification.execution_verifier import ExecutionVerifier
+from src.code_verification.generation_quality import evaluate_generation_quality
+from src.code_verification.runtime_oracle import execute_runtime_oracles, summarize_runtime_oracles
 from src.config.config_manager import ConfigManager
 from src.design_parser import StructuredDesignParser, infer_then_freeze_if_needed, validate_structured_spec_or_raise
 from src.replanner.replanner import Replanner
 from src.utils.cli_output import emit_error, emit_json_stdout
+from src.utils.code_builder_client import CodeBuilderClient
 from src.utils.nuget_client import NuGetClient
 from src.utils.spec_auditor import SpecAuditor
 from src.vector_engine.vector_engine import VectorEngine
@@ -39,6 +43,16 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--assist-model-id", default="local-assist", help="Model id for optional literal assistance")
     parser.add_argument("--assist-timeout-seconds", type=int, default=60, help="Timeout in seconds for optional literal assistance")
     parser.add_argument("--assist-max-new-tokens", type=int, default=384, help="Generation cap for optional literal assistance")
+    parser.add_argument(
+        "--fail-on-maintainability",
+        action="store_true",
+        help="Fail the snapshot when generated-code maintainability thresholds are exceeded.",
+    )
+    parser.add_argument(
+        "--run-runtime-oracles",
+        action="store_true",
+        help="Execute explicit JSON runtime_oracle contracts from design test cases.",
+    )
     parser.add_argument(
         "--assist-policy",
         choices=["on_blocked_only", "always"],
@@ -195,8 +209,47 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
     generated_code_path.write_text(generated_code, encoding="utf-8")
 
     trace = result.get("trace", {}) if isinstance(result.get("trace"), dict) else {}
+    source_metrics = CodeBuilderClient(config).analyze_source_metrics(generated_code)
+    runtime_oracle = summarize_runtime_oracles(spec)
+    runtime_oracle_execution = {
+        "requested": bool(getattr(args, "run_runtime_oracles", False)),
+        "case_count": 0,
+        "passed": 0,
+        "failed": 0,
+        "valid": True,
+        "results": [],
+    }
+    if getattr(args, "run_runtime_oracles", False):
+        if not runtime_oracle.get("valid", True):
+            runtime_oracle_execution = {
+                "requested": True,
+                "case_count": 0,
+                "passed": 0,
+                "failed": runtime_oracle.get("invalid_count", 0),
+                "valid": False,
+                "results": [],
+                "issues": runtime_oracle.get("issues", []),
+            }
+        else:
+            runtime_oracle_execution = execute_runtime_oracles(
+                source_code=generated_code,
+                module_name=module_name,
+                oracle_summary=runtime_oracle,
+                verifier=ExecutionVerifier(config),
+                dependencies=result.get("resolved_dependencies", []),
+            )
+    quality = evaluate_generation_quality(
+        code=generated_code,
+        verification=result.get("verification", {}),
+        blueprint=trace.get("blueprint", {}) if isinstance(trace.get("blueprint"), dict) else {},
+        spec_issues=result.get("spec_issues", []),
+        source_metrics=source_metrics,
+        fail_on_warnings=True,
+        fail_on_maintainability=bool(getattr(args, "fail_on_maintainability", False)),
+    )
+    exit_code = 0 if quality.get("valid") and runtime_oracle_execution.get("valid", True) else 1
     return {
-        "exit_code": 0,
+        "exit_code": exit_code,
         "payload": {
             "design": str(design_path),
             "module_name": module_name,
@@ -209,6 +262,10 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
             "generated_code": generated_code,
             "spec_issues": result.get("spec_issues", []),
             "verification": result.get("verification", {}),
+            "source_metrics": source_metrics,
+            "quality": quality,
+            "runtime_oracle": runtime_oracle,
+            "runtime_oracle_execution": runtime_oracle_execution,
             "resolved_dependencies": result.get("resolved_dependencies", []),
             "trace_summary": {
                 "has_ir_tree": isinstance(trace.get("ir_tree"), dict),
@@ -225,7 +282,12 @@ def main() -> int:
     if not design_path.is_file():
         emit_error(f"design file not found: {design_path}")
         return 1
-    snapshot = build_review_snapshot(args)
+    previous_disable = logging.root.manager.disable
+    logging.disable(logging.CRITICAL)
+    try:
+        snapshot = build_review_snapshot(args)
+    finally:
+        logging.disable(previous_disable)
     emit_json_stdout(snapshot["payload"])
     return int(snapshot["exit_code"])
 

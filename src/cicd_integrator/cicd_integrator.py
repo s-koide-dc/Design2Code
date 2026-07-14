@@ -6,17 +6,15 @@ CI/CD統合機能モジュール
 GitHub Actions、品質ゲート、パイプライン設定の統合管理を提供
 """
 
-import os
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-from collections import defaultdict
+from typing import Dict, List, Any
 
 
 class CICDIntegrator:
     """CI/CD統合の中心的なコントローラー"""
-    
+
     def __init__(self, workspace_root: str = ".", log_manager=None):
         self.workspace_root = Path(workspace_root)
         self.log_manager = log_manager
@@ -28,11 +26,11 @@ class CICDIntegrator:
         }
         self.quality_gate_manager = QualityGateManager(self.config)
         self.report_integrator = QualityReportIntegrator(self.config)
-    
+
     def _load_cicd_config(self) -> Dict[str, Any]:
         """CI/CD設定を読み込む"""
         config_path = self.workspace_root / "resources" / "cicd_config.json"
-        
+
         # デフォルト設定
         default_config = {
             "platforms": {
@@ -87,7 +85,7 @@ class CICDIntegrator:
                 "quality_gate_checker": "python -m src.cicd_integrator.quality_gate_checker"
             }
         }
-        
+
         try:
             if config_path.exists():
                 with config_path.open('r', encoding='utf-8') as f:
@@ -97,9 +95,9 @@ class CICDIntegrator:
         except Exception as e:
             if self.log_manager:
                 self.log_manager.log_event("cicd_config_error", {"error": str(e)}, "WARNING")
-        
+
         return default_config
-    
+
     def _deep_merge_config(self, base_config: Dict[str, Any], override_config: Dict[str, Any]) -> None:
         """設定の深いマージを実行"""
         for key, value in override_config.items():
@@ -107,11 +105,11 @@ class CICDIntegrator:
                 self._deep_merge_config(base_config[key], value)
             else:
                 base_config[key] = value
-    
+
     def generate_pipeline(self, project_info: Dict[str, Any], options: Dict[str, Any] = None) -> Dict[str, Any]:
         """CI/CDパイプラインを生成"""
         options = options or {}
-        
+
         try:
             if self.log_manager:
                 self.log_manager.log_event("pipeline_generation_start", {
@@ -119,7 +117,7 @@ class CICDIntegrator:
                     "language": project_info.get("language", "unknown"),
                     "platform": project_info.get("ci_platform", "github_actions")
                 })
-            
+
             # プロジェクト情報の検証
             validation_result = self._validate_project_info(project_info)
             if not validation_result["valid"]:
@@ -127,28 +125,28 @@ class CICDIntegrator:
                     "status": "error",
                     "message": f"プロジェクト情報が無効です: {validation_result['errors']}"
                 }
-            
+
             platform = project_info.get("ci_platform", "github_actions")
-            
+
             if platform not in self.generators:
                 return {
                     "status": "error",
                     "message": f"サポートされていないCI/CDプラットフォームです: {platform}"
                 }
-            
+
             # パイプライン生成
             generator = self.generators[platform]
             pipeline_config = generator.generate_pipeline(project_info, options)
-            
+
             # 品質ゲート設定
             quality_gates = self.quality_gate_manager.setup_gates(
-                project_info.get("quality_gates", {}), 
+                project_info.get("quality_gates", {}),
                 project_info.get("language")
             )
-            
+
             # 設定ファイル生成
             config_files = self._generate_config_files(platform, pipeline_config, project_info)
-            
+
             # 結果統合
             result = {
                 "status": "success",
@@ -159,16 +157,16 @@ class CICDIntegrator:
                 "config_files": config_files,
                 "generated_at": datetime.now().isoformat()
             }
-            
+
             if self.log_manager:
                 self.log_manager.log_event("pipeline_generation_complete", {
                     "platform": platform,
                     "config_files_count": len(config_files),
                     "quality_gates_count": len(quality_gates)
                 })
-            
+
             return result
-            
+
         except Exception as e:
             error_result = {
                 "status": "error",
@@ -176,16 +174,16 @@ class CICDIntegrator:
                 "project_info": project_info,
                 "error_type": type(e).__name__
             }
-            
+
             if self.log_manager:
                 self.log_manager.log_event("pipeline_generation_error", {
                     "project_name": project_info.get("name", "unknown"),
                     "error": str(e),
                     "error_type": type(e).__name__
                 }, "ERROR")
-            
+
             return error_result
-    
+
     def setup_quality_gates(self, quality_config: Dict[str, Any], language: str = "csharp") -> Dict[str, Any]:
         """品質ゲートを設定"""
         try:
@@ -194,9 +192,9 @@ class CICDIntegrator:
                     "language": language,
                     "config_keys": list(quality_config.keys())
                 })
-            
+
             gates = self.quality_gate_manager.setup_gates(quality_config, language)
-            
+
             result = {
                 "status": "success",
                 "language": language,
@@ -205,16 +203,16 @@ class CICDIntegrator:
                 "blocking_gates": len([g for g in gates if g.get("type") == "blocking"]),
                 "warning_gates": len([g for g in gates if g.get("type") == "warning"])
             }
-            
+
             if self.log_manager:
                 self.log_manager.log_event("quality_gates_setup_complete", {
                     "total_gates": result["total_gates"],
                     "blocking_gates": result["blocking_gates"],
                     "warning_gates": result["warning_gates"]
                 })
-            
+
             return result
-            
+
         except Exception as e:
             error_result = {
                 "status": "error",
@@ -222,33 +220,33 @@ class CICDIntegrator:
                 "language": language,
                 "error_type": type(e).__name__
             }
-            
+
             if self.log_manager:
                 self.log_manager.log_event("quality_gates_setup_error", {
                     "language": language,
                     "error": str(e),
                     "error_type": type(e).__name__
                 }, "ERROR")
-            
+
             return error_result
-    
+
     def integrate_quality_reports(self, reports: List[Dict[str, Any]], options: Dict[str, Any] = None) -> Dict[str, Any]:
         """品質レポートを統合"""
         options = options or {}
-        
+
         try:
             if self.log_manager:
                 self.log_manager.log_event("report_integration_start", {
                     "reports_count": len(reports),
                     "report_types": [r.get("type", "unknown") for r in reports]
                 })
-            
+
             integrated_report = self.report_integrator.integrate_reports(reports, options)
-            
+
             # 統合レポートファイルの生成
             output_formats = options.get("output_formats", ["json", "html"])
             report_files = self._generate_integrated_reports(integrated_report, output_formats)
-            
+
             result = {
                 "status": "success",
                 "integrated_report": integrated_report,
@@ -259,15 +257,15 @@ class CICDIntegrator:
                     "quality_trend": integrated_report.get("quality_trend", "stable")
                 }
             }
-            
+
             if self.log_manager:
                 self.log_manager.log_event("report_integration_complete", {
                     "overall_score": result["summary"]["overall_score"],
                     "report_files_count": len(report_files)
                 })
-            
+
             return result
-            
+
         except Exception as e:
             error_result = {
                 "status": "error",
@@ -275,65 +273,65 @@ class CICDIntegrator:
                 "reports_count": len(reports),
                 "error_type": type(e).__name__
             }
-            
+
             if self.log_manager:
                 self.log_manager.log_event("report_integration_error", {
                     "reports_count": len(reports),
                     "error": str(e),
                     "error_type": type(e).__name__
                 }, "ERROR")
-            
+
             return error_result
-    
+
     def _validate_project_info(self, project_info: Dict[str, Any]) -> Dict[str, Any]:
         """プロジェクト情報を検証"""
         errors = []
-        
+
         required_fields = ["name", "language"]
         for field in required_fields:
             if field not in project_info or not project_info[field]:
                 errors.append(f"必須フィールド '{field}' が不足しています")
-        
+
         # 言語サポートチェック
         language = project_info.get("language")
         if language and language not in self.config.get("language_configs", {}):
             errors.append(f"サポートされていない言語です: {language}")
-        
+
         # CI/CDプラットフォームチェック
         platform = project_info.get("ci_platform", "github_actions")
         if platform not in self.generators:
             errors.append(f"サポートされていないCI/CDプラットフォームです: {platform}")
-        
+
         return {
             "valid": len(errors) == 0,
             "errors": errors
         }
-    
+
     def _generate_config_files(self, platform: str, pipeline_config: Dict[str, Any], project_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """設定ファイルを生成"""
         config_files = []
-        
+
         try:
             generator = self.generators[platform]
             files = generator.generate_config_files(pipeline_config, project_info)
             config_files.extend(files)
-            
+
         except Exception as e:
             if self.log_manager:
                 self.log_manager.log_event("config_file_generation_error", {
                     "platform": platform,
                     "error": str(e)
                 }, "ERROR")
-        
+
         return config_files
-    
+
     def _generate_integrated_reports(self, integrated_report: Dict[str, Any], output_formats: List[str]) -> List[Dict[str, str]]:
         """統合レポートファイルを生成"""
         report_files = []
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_dir = self.workspace_root / "cicd_reports"
         report_dir.mkdir(exist_ok=True)
-        
+
         # JSON レポート
         if "json" in output_formats:
             json_path = report_dir / f"integrated_report_{timestamp}.json"
@@ -344,7 +342,7 @@ class CICDIntegrator:
             except Exception as e:
                 if self.log_manager:
                     self.log_manager.log_event("json_report_error", {"error": str(e)}, "ERROR")
-        
+
         # HTML レポート
         if "html" in output_formats:
             html_path = report_dir / f"integrated_report_{timestamp}.html"
@@ -356,9 +354,9 @@ class CICDIntegrator:
             except Exception as e:
                 if self.log_manager:
                     self.log_manager.log_event("html_report_error", {"error": str(e)}, "ERROR")
-        
+
         return report_files
-    
+
     def _generate_html_report(self, integrated_report: Dict[str, Any]) -> str:
         """HTML統合レポートを生成"""
         return f"""<!DOCTYPE html>
@@ -387,7 +385,7 @@ class CICDIntegrator:
         <h1>CI/CD統合品質レポート</h1>
         <p>生成日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
     </div>
-    
+
     <div class="summary">
         <h2>総合品質スコア</h2>
         <div class="metric">
@@ -409,20 +407,20 @@ class CICDIntegrator:
             <div>品質問題</div>
         </div>
     </div>
-    
+
     <div class="section">
         <h3>品質トレンド</h3>
         <p>トレンド: <strong>{integrated_report.get('quality_trend', 'stable')}</strong></p>
         <p>前回比較: {integrated_report.get('trend_description', '初回分析のため比較データなし')}</p>
     </div>
-    
+
     <div class="section">
         <h3>推奨アクション</h3>
         <ul>
             {''.join([f'<li>{action}</li>' for action in integrated_report.get('recommended_actions', [])])}
         </ul>
     </div>
-    
+
     <p><small>このレポートはCI/CD統合機能により自動生成されました</small></p>
 </body>
 </html>"""
@@ -430,15 +428,15 @@ class CICDIntegrator:
 
 class GitHubActionsGenerator:
     """GitHub Actionsワークフロー生成器"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-    
+
     def generate_pipeline(self, project_info: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         """GitHub Actionsパイプラインを生成"""
         language = project_info.get("language", "csharp")
         language_config = self.config.get("language_configs", {}).get(language, {})
-        
+
         workflow = {
             "name": f"CI/CD Pipeline - {project_info.get('name', 'Project')}",
             "on": {
@@ -452,19 +450,19 @@ class GitHubActionsGenerator:
                 }
             }
         }
-        
+
         return {
             "workflow": workflow,
             "language": language,
             "steps_count": len(workflow["jobs"]["quality-check"]["steps"])
         }
-    
+
     def _generate_quality_steps(self, language: str, language_config: Dict[str, Any], project_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """品質チェックステップを生成"""
         steps = [
             {"name": "Checkout code", "uses": "actions/checkout@v3"},
         ]
-        
+
         # 言語固有のセットアップ
         if language == "csharp":
             steps.extend([
@@ -502,7 +500,7 @@ class GitHubActionsGenerator:
                     "run": language_config.get("package_restore", "npm install")
                 }
             ])
-        
+
         # 品質チェックステップ
         quality_analyzer_cmd = self.config.get("quality_tool_commands", {}).get("refactoring_analyzer", "echo 'Refactoring analyzer command not configured'")
         quality_gate_cmd = self.config.get("quality_tool_commands", {}).get("quality_gate_checker", "echo 'Quality gate checker command not configured'")
@@ -529,9 +527,9 @@ class GitHubActionsGenerator:
                 "run": quality_gate_cmd
             }
         ])
-        
+
         return steps
-    
+
     def _get_coverage_command(self, language: str, language_config: Dict[str, Any]) -> str:
         """カバレッジコマンドを取得"""
         coverage_commands = {
@@ -540,29 +538,29 @@ class GitHubActionsGenerator:
             "javascript": "npm run test -- --coverage"
         }
         return coverage_commands.get(language, "echo 'Coverage not configured'")
-    
+
     def generate_config_files(self, pipeline_config: Dict[str, Any], project_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """設定ファイルを生成"""
         config_files = []
-        
+
         # GitHub Actionsワークフローファイル
         workflow_path = ".github/workflows/ci-cd.yml"
         workflow_content = self._dict_to_yaml(pipeline_config["workflow"])
-        
+
         config_files.append({
             "path": workflow_path,
             "content": workflow_content,
             "type": "yaml",
             "description": "GitHub Actions CI/CDワークフロー"
         })
-        
+
         return config_files
-    
+
     def _dict_to_yaml(self, data: Dict[str, Any], indent: int = 0) -> str:
         """辞書をYAML形式の文字列に変換（再帰的実装）"""
         lines = []
         indent_str = "  " * indent
-        
+
         for key, value in data.items():
             if isinstance(value, dict):
                 lines.append(f"{indent_str}{key}:")
@@ -595,7 +593,7 @@ class GitHubActionsGenerator:
                         lines.append(f"{indent_str}- {self._format_value(item)}")
             else:
                 lines.append(f"{indent_str}{key}: {self._format_value(value)}")
-        
+
         return "\n".join(lines)
 
     def _format_value(self, value: Any) -> str:
@@ -610,15 +608,15 @@ class GitHubActionsGenerator:
 
 class AzureDevOpsGenerator:
     """Azure DevOpsパイプライン生成器"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-    
+
     def generate_pipeline(self, project_info: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         """Azure DevOpsパイプラインを生成"""
         language = project_info.get("language", "csharp")
         language_config = self.config.get("language_configs", {}).get(language, {})
-        
+
         # 基本構成
         pipeline = {
             "trigger": ["main"],
@@ -627,10 +625,10 @@ class AzureDevOpsGenerator:
             },
             "steps": []
         }
-        
+
         # 言語固有のステップ生成
         steps = []
-        
+
         if language == "csharp":
             steps.append({
                 "task": "UseDotNet@2",
@@ -649,7 +647,7 @@ class AzureDevOpsGenerator:
                 "script": language_config.get("test_command", "dotnet test --no-build --configuration Release --collect 'XPlat Code Coverage'"),
                 "displayName": "Test"
             })
-            
+
         elif language == "python":
             steps.append({
                 "task": "UsePythonVersion@0",
@@ -667,7 +665,7 @@ class AzureDevOpsGenerator:
                 "script": language_config.get("test_command", "python -m pytest"),
                 "displayName": "Test"
             })
-            
+
         elif language == "javascript":
             steps.append({
                 "task": "NodeTool@0",
@@ -685,26 +683,26 @@ class AzureDevOpsGenerator:
                 "script": language_config.get("test_command", "npm test"),
                 "displayName": "Test"
             })
-            
+
         # Quality Gate Check
         quality_gate_cmd = self.config.get("quality_tool_commands", {}).get("quality_gate_checker", "echo 'Quality gate checker command not configured'")
         steps.append({
             "script": quality_gate_cmd,
             "displayName": "Check Quality Gates"
         })
-        
+
         pipeline["steps"] = steps
-        
+
         return {
             "pipeline": pipeline,
             "language": language
         }
-    
+
     def generate_config_files(self, pipeline_config: Dict[str, Any], project_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """設定ファイルを生成"""
         config_files = []
         yaml_content = self._dict_to_yaml_simple(pipeline_config["pipeline"])
-        
+
         config_files.append({
             "path": "azure-pipelines.yml",
             "content": yaml_content,
@@ -717,7 +715,7 @@ class AzureDevOpsGenerator:
         """簡易的なYAML変換"""
         lines = []
         indent_str = "  " * indent
-        
+
         for key, value in data.items():
             if isinstance(value, dict):
                 lines.append(f"{indent_str}{key}:")
@@ -743,15 +741,15 @@ class AzureDevOpsGenerator:
 
 class JenkinsGenerator:
     """Jenkinsパイプライン生成器"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-    
+
     def generate_pipeline(self, project_info: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         """Jenkinsパイプラインを生成"""
         language = project_info.get("language", "csharp")
         language_config = self.config.get("language_configs", {}).get(language, {})
-        
+
         pipeline = {
             "agent": "any",
             "stages": [
@@ -769,20 +767,20 @@ class JenkinsGenerator:
                 }
             ]
         }
-        
+
         return {
             "pipeline": pipeline,
             "language": language
         }
-    
+
     def generate_config_files(self, pipeline_config: Dict[str, Any], project_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """設定ファイルを生成"""
         pipeline = pipeline_config["pipeline"]
-        
+
         jenkinsfile_content = "pipeline {\n"
         jenkinsfile_content += f"    agent {pipeline['agent']}\n"
         jenkinsfile_content += "    stages {\n"
-        
+
         for stage in pipeline["stages"]:
             jenkinsfile_content += f"        stage('{stage['name']}') {{'\n"
             jenkinsfile_content += "            steps {\n"
@@ -791,10 +789,10 @@ class JenkinsGenerator:
                 jenkinsfile_content += f"                sh '{step}'\n"
             jenkinsfile_content += "            }\n"
             jenkinsfile_content += "        }\n"
-            
+
         jenkinsfile_content += "    }\n"
         jenkinsfile_content += "}\n"
-        
+
         return [{
             "path": "Jenkinsfile",
             "content": jenkinsfile_content,
@@ -805,15 +803,15 @@ class JenkinsGenerator:
 
 class QualityGateManager:
     """品質ゲート管理器"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-    
+
     def setup_gates(self, quality_config: Dict[str, Any], language: str) -> List[Dict[str, Any]]:
         """品質ゲートを設定"""
         base_config = self.config.get("quality_gates", {})
         merged_config = {**base_config, **quality_config}
-        
+
         gates = [
             {
                 "name": "test_execution",
@@ -851,19 +849,19 @@ class QualityGateManager:
                 "metric": "medium_priority_smell_count"
             }
         ]
-        
+
         return gates
-    
+
     def evaluate_gate(self, gate_config: Dict[str, Any], metrics: Dict[str, Any]) -> Dict[str, Any]:
         """品質ゲートを評価"""
         gate_name = gate_config.get("name", "unknown")
         condition = gate_config.get("condition", "")
         gate_type = gate_config.get("type", "warning")
-        
+
         try:
             # 簡易的な条件評価（実際の実装では安全な評価器を使用）
             result = self._evaluate_condition(condition, metrics)
-            
+
             return {
                 "gate_name": gate_name,
                 "type": gate_type,
@@ -872,7 +870,7 @@ class QualityGateManager:
                 "status": "passed" if result else "failed",
                 "message": f"ゲート '{gate_name}' {"通過" if result else "失敗"}"
             }
-            
+
         except Exception as e:
             return {
                 "gate_name": gate_name,
@@ -882,7 +880,7 @@ class QualityGateManager:
                 "status": "error",
                 "message": f"ゲート評価エラー: {str(e)}"
             }
-    
+
     def _evaluate_condition(self, condition: str, metrics: Dict[str, Any]) -> bool:
         """条件を安全に評価"""
         try:
@@ -891,11 +889,11 @@ class QualityGateManager:
             parts = condition.split()
             if len(parts) != 3:
                 return False
-                
+
             metric_key = parts[0]
             operator = parts[1]
             threshold_str = parts[2]
-            
+
             # メトリクス値の取得
             metric_val = metrics.get(metric_key)
             if metric_val is None:
@@ -903,7 +901,7 @@ class QualityGateManager:
                 if metric_key == "all_tests_pass" and condition == "all_tests_pass":
                     return metrics.get("all_tests_pass", False)
                 return False
-            
+
             # 数値変換の試行
             try:
                 threshold = float(threshold_str)
@@ -912,11 +910,11 @@ class QualityGateManager:
                 # ブール値または文字列比較
                 if threshold_str.lower() == "true": threshold = True
                 elif threshold_str.lower() == "false": threshold = False
-                else: 
+                else:
                     # クォート除去 ('foo' -> foo)
                     threshold = threshold_str.strip("'" ).strip('"')
                 val = metric_val
-                
+
             # 比較演算
             if operator == ">=": return val >= threshold
             elif operator == ">": return val > threshold
@@ -924,24 +922,24 @@ class QualityGateManager:
             elif operator == "<": return val < threshold
             elif operator == "==": return val == threshold
             elif operator == "!=": return val != threshold
-            
+
             return False
-            
+
         except Exception:
             # フォールバック: 元の簡易実装ロジックの一部を再利用
             if "coverage >=" in condition:
                 t = float(condition.split(">=")[1].strip())
                 return metrics.get("coverage", 0) >= t
-            
+
             return False
 
 
 class QualityReportIntegrator:
     """品質レポート統合器"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-    
+
     def integrate_reports(self, reports: List[Dict[str, Any]], options: Dict[str, Any]) -> Dict[str, Any]:
         """複数の品質レポートを統合"""
         integrated = {
@@ -954,45 +952,45 @@ class QualityReportIntegrator:
             "report_details": {},
             "integration_timestamp": datetime.now().isoformat()
         }
-        
+
         # レポートタイプ別の処理
         test_reports = [r for r in reports if r.get("type") == "test"]
         coverage_reports = [r for r in reports if r.get("type") == "coverage"]
         refactoring_reports = [r for r in reports if r.get("type") == "refactoring"]
-        
+
         # テストレポートの統合
         if test_reports:
             integrated["report_details"]["test"] = self._integrate_test_reports(test_reports)
             integrated["all_tests_pass"] = all(r.get("all_tests_pass", False) for r in test_reports)
-        
+
         # カバレッジレポートの統合
         if coverage_reports:
             integrated["report_details"]["coverage"] = self._integrate_coverage_reports(coverage_reports)
             integrated["test_coverage"] = max(r.get("line_coverage", 0) for r in coverage_reports)
-        
+
         # リファクタリングレポートの統合
         if refactoring_reports:
             integrated["report_details"]["refactoring"] = self._integrate_refactoring_reports(refactoring_reports)
             integrated["overall_score"] = max(r.get("quality_metrics", {}).get("overall_score", 0) for r in refactoring_reports)
             integrated["quality_issues"] = sum(len(r.get("code_smells", [])) for r in refactoring_reports)
-        
+
         # 推奨アクションの生成
         integrated["recommended_actions"] = self._generate_recommendations(integrated)
-        
+
         return integrated
-    
+
     def _integrate_test_reports(self, test_reports: List[Dict[str, Any]]) -> Dict[str, Any]:
         """テストレポートを統合"""
         total_tests = sum(r.get("total_tests", 0) for r in test_reports)
         passed_tests = sum(r.get("passed_tests", 0) for r in test_reports)
-        
+
         return {
             "total_tests": total_tests,
             "passed_tests": passed_tests,
             "failed_tests": total_tests - passed_tests,
             "success_rate": (passed_tests / total_tests * 100) if total_tests > 0 else 0
         }
-    
+
     def _integrate_coverage_reports(self, coverage_reports: List[Dict[str, Any]]) -> Dict[str, Any]:
         """カバレッジレポートを統合"""
         return {
@@ -1000,17 +998,17 @@ class QualityReportIntegrator:
             "branch_coverage": max(r.get("branch_coverage", 0) for r in coverage_reports),
             "method_coverage": max(r.get("method_coverage", 0) for r in coverage_reports)
         }
-    
+
     def _integrate_refactoring_reports(self, refactoring_reports: List[Dict[str, Any]]) -> Dict[str, Any]:
         """リファクタリングレポートを統合"""
         all_smells = []
         for report in refactoring_reports:
             all_smells.extend(report.get("code_smells", []))
-        
+
         high_priority = len([s for s in all_smells if s.get("severity") == "high"])
         medium_priority = len([s for s in all_smells if s.get("severity") == "medium"])
         low_priority = len([s for s in all_smells if s.get("severity") == "low"])
-        
+
         return {
             "total_smells": len(all_smells),
             "high_priority_smells": high_priority,
@@ -1018,31 +1016,31 @@ class QualityReportIntegrator:
             "low_priority_smells": low_priority,
             "overall_score": max(r.get("quality_metrics", {}).get("overall_score", 0) for r in refactoring_reports)
         }
-    
+
     def _generate_recommendations(self, integrated_report: Dict[str, Any]) -> List[str]:
         """推奨アクションを生成"""
         recommendations = []
-        
+
         # テストカバレッジの推奨
         coverage = integrated_report.get("test_coverage", 0)
         if coverage < 80:
             recommendations.append(f"テストカバレッジを{coverage:.1f}%から80%以上に向上させてください")
-        
+
         # 品質スコアの推奨
         quality_score = integrated_report.get("overall_score", 0)
         if quality_score < 7.0:
             recommendations.append(f"品質スコアを{quality_score:.1f}から7.0以上に向上させてください")
-        
+
         # コードスメルの推奨
         quality_issues = integrated_report.get("quality_issues", 0)
         if quality_issues > 0:
             recommendations.append(f"{quality_issues}個の品質問題を修正してください")
-        
+
         # テスト失敗の推奨
         if not integrated_report.get("all_tests_pass", True):
             recommendations.append("失敗したテストを修正してください")
-        
+
         if not recommendations:
             recommendations.append("品質基準を満たしています。現在の品質を維持してください")
-        
+
         return recommendations

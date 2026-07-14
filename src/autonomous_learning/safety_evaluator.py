@@ -7,12 +7,12 @@ from .pattern_learner import RuleSuggestion
 
 class SafetyEvaluator:
     """安全性評価を担当するクラス"""
-    
+
     def __init__(self, safety_config: Dict[str, Any]):
         self.safety_config = safety_config
         self.logger = logging.getLogger(__name__)
         self.evaluation_diagnostics: List[Dict[str, Any]] = []
-    
+
     def evaluate_suggestions(self, suggestions: List[RuleSuggestion]) -> List[RuleSuggestion]:
         """ルール提案の安全性を評価"""
         self.evaluation_diagnostics = []

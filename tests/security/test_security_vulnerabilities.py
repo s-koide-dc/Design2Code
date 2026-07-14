@@ -31,17 +31,17 @@ class TestSecurityVulnerabilities(unittest.TestCase):
                 "filename": "nested_secret.py"
             }
         }
-        
+
         # 直接サニタイズメソッドをテスト
         sanitized = self.log_manager.sanitize_log_data(sensitive_data)
-        
+
         # 機密情報が伏せられていること
         self.assertEqual(sanitized["filename"], "***")
         self.assertEqual(sanitized["command"], "***")
         self.assertEqual(sanitized["content"], "***")
         self.assertEqual(sanitized["api_token"], "***")
         self.assertEqual(sanitized["nested"]["filename"], "***")
-        
+
         # 元のデータが壊れていないこと（非機密フィールドがあれば）
         sensitive_data["public"] = "hello"
         sanitized_2 = self.log_manager.sanitize_log_data(sensitive_data)
@@ -51,18 +51,18 @@ class TestSecurityVulnerabilities(unittest.TestCase):
         """正規表現 ReDoS 対策の有効性検証"""
         from src.semantic_analyzer.semantic_analyzer import SemanticAnalyzer
         analyzer = SemanticAnalyzer(task_manager=None)
-        
+
         # 極端に長い、悪意のある入力（ReDoSを誘発しやすいパターン）
         # もし対策がなければ、この解析に数秒〜数分かかる
         malicious_input = "「" + "あ" * 1000 + "」を" + "い" * 1000 + "にコピーして"
-        
+
         start_time = time.time()
         # 内部メソッドを直接呼ぶ
         # 実際には chunks 等が必要だが、抽出ロジックのみをテスト
         history = []
         context = {"original_text": malicious_input}
         analyzer._extract_entities(malicious_input, history, context, "FILE_COPY")
-        
+
         duration = time.time() - start_time
         # 過度に厳しい閾値は環境依存で不安定になるため、実用上の上限を設定
         max_duration_seconds = 0.5
@@ -73,7 +73,7 @@ class TestSecurityVulnerabilities(unittest.TestCase):
         secret_file = os.path.join(os.path.dirname(self.test_dir), "secret.txt")
         with open(secret_file, "w") as f:
             f.write("sensitive data")
-        
+
         try:
             # Try to access using ..
             traversal_path = os.path.join("..", "secret.txt")
@@ -100,7 +100,7 @@ class TestSecurityVulnerabilities(unittest.TestCase):
             absolute_path = "C:\\Windows\\System32\\drivers\\etc\\hosts"
         else:
             absolute_path = "/etc/passwd"
-            
+
         result_path = self.executor._safe_join(absolute_path)
         self.assertIsNone(result_path, f"Should have blocked absolute path: {absolute_path}")
 
@@ -114,17 +114,17 @@ class TestSecurityVulnerabilities(unittest.TestCase):
         self.assertIsNone(result_path, f"Should have blocked UNC path: {unc_path}")
 
     def test_command_injection_shell_metacharacters(self):
-        # On Windows, 'echo' is in safe_commands. 
+        # On Windows, 'echo' is in safe_commands.
         # Check if we can chain commands.
         context = {"plan": {"action_method": "_run_command", "parameters": {"command": "echo hello & dir"}}}
         context = self.executor.execute(context)
-        
+
         # If it executed 'dir', the message will contain directory listing
         # In a secure implementation, 'echo' should only echo.
         # However, currently _run_command just checks if the first part is in safe_commands.
         # "echo hello & dir" might be split by shlex into ["echo", "hello", "&", "dir"]
         # Then it's passed to cmd /c which WILL execute dir.
-        
+
         # Should be blocked due to metacharacters in arguments
         self.assertEqual(context["action_result"].get("status"), "error")
         self.assertEqual(context["action_result"].get("message"), "コマンド引数に不正な文字が含まれています。")

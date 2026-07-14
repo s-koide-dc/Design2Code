@@ -328,10 +328,12 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
         )
         generated_code = output_path.read_text(encoding="utf-8")
-        self.assertIn("File.ReadAllText(input_path)", generated_code)
+        self.assertIn("ReadGeneratedTextFileOrDefault(input_path, out", generated_code)
+        self.assertIn("System.IO.File.ReadAllText(path)", generated_code)
         self.assertIn("Split(new[] { \"\\r\\n\", \"\\n\" }", generated_code)
         self.assertIn("new Dictionary<string, decimal>()", generated_code)
-        self.assertIn("File.WriteAllText(output_path, csv)", generated_code)
+        self.assertIn("WriteGeneratedTextFile(output_path, csv)", generated_code)
+        self.assertIn("System.IO.File.WriteAllText(path, contents)", generated_code)
         self.assertIn("return output_path;", generated_code)
 
     def test_generate_from_design_accepts_stripped_complex_linq_search_design(self):
@@ -390,8 +392,10 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertIn("[ACTION|LINQ|User|List<User>|NONE]", inferred_text)
         self.assertIn("[ACTION|DISPLAY|User|void|NONE]", inferred_text)
         generated_code = output_path.read_text(encoding="utf-8")
-        self.assertIn('File.ReadAllText("users.json")', generated_code)
-        self.assertIn("JsonSerializer.Deserialize<List<User>>(content)", generated_code)
+        self.assertIn('ReadGeneratedTextFileOrDefault("users.json", out', generated_code)
+        self.assertIn("System.IO.File.ReadAllText(path)", generated_code)
+        self.assertIn("DeserializeListUserOrDefault(content, out", generated_code)
+        self.assertIn("JsonSerializer.Deserialize<List<User>>(json)", generated_code)
         self.assertIn('item.Name.StartsWith("A")', generated_code)
         self.assertIn("item1.Price > 500m", generated_code)
 
@@ -455,7 +459,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertIn('[semantic_roles:{"return_value":"true"}]', inferred_text)
         generated_code = output_path.read_text(encoding="utf-8")
         self.assertIn('_httpClient.GetStringAsync("https://api.example.com/products")', generated_code)
-        self.assertIn("JsonSerializer.Deserialize<List<Product>>(product)", generated_code)
+        self.assertIn("DeserializeListProductOrDefault(product, out", generated_code)
+        self.assertIn("JsonSerializer.Deserialize<List<Product>>(json)", generated_code)
         self.assertIn('_dbConnection.ExecuteAsync("INSERT INTO Products (Name, Price) VALUES (@Name, @Price)", items)', generated_code)
         self.assertIn("return true;", generated_code)
 
@@ -1681,7 +1686,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
         )
         self.assertIn("tests.unit.test_design_doc_parser.TestDesignDocParser.test_parse_content_basic", completed.stdout)
-        self.assertIn("tests.unit.test_json_deserialize_guard.TestJsonDeserializeGuard.test_json_deserialize_is_wrapped_with_try_catch", completed.stdout)
+        self.assertIn("tests.unit.test_json_deserialize_guard.TestJsonDeserializeGuard.test_json_deserialize_return_default_uses_helper_with_guard", completed.stdout)
         self.assertNotIn("tests.unit.test_code_synthesizer_integration", completed.stdout)
         self.assertIn("OK", completed.stdout)
         self.assertEqual(completed.stderr.strip(), "")
@@ -2344,12 +2349,20 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertEqual(Path(payload["design"]), Path("scenarios/ComplexLinqSearch.design.md"))
         self.assertEqual(payload["module_name"], "ComplexLinqSearch")
         self.assertIn('[semantic_roles:{"path":"users.json"}]', payload["inferred_design_text"])
-        self.assertIn('File.ReadAllText("users.json")', payload["generated_code"])
+        self.assertIn('ReadGeneratedTextFileOrDefault("users.json", out', payload["generated_code"])
+        self.assertIn("System.IO.File.ReadAllText(path)", payload["generated_code"])
         self.assertIn("JsonSerializer.Deserialize<List<User>>", payload["generated_code"])
         self.assertIn('item.Name.StartsWith("A")', payload["generated_code"])
         self.assertIn("Price > 500", payload["generated_code"])
         self.assertEqual(payload["spec_issues"], [])
         self.assertTrue(payload["verification"]["valid"])
+        self.assertEqual(payload["verification"].get("warnings"), [])
+        self.assertTrue(payload["quality"]["valid"])
+        self.assertEqual(payload["quality"]["warning_count"], 0)
+        self.assertEqual(payload["quality"]["issues"], [])
+        self.assertTrue(payload["runtime_oracle"]["valid"])
+        self.assertEqual(payload["runtime_oracle"]["ready_count"], 1)
+        self.assertEqual(payload["runtime_oracle"]["unverified_count"], 0)
         self.assertEqual(completed.stderr.strip(), "")
 
     def test_validate_design_authoring_accepts_new_minimal_template_scenario(self):
@@ -2404,8 +2417,10 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
         )
         generated_code = output_path.read_text(encoding="utf-8")
-        self.assertIn('File.ReadAllText("users.json")', generated_code)
-        self.assertIn("JsonSerializer.Deserialize<List<User>>(content)", generated_code)
+        self.assertIn('ReadGeneratedTextFileOrDefault("users.json", out', generated_code)
+        self.assertIn("System.IO.File.ReadAllText(path)", generated_code)
+        self.assertIn("DeserializeListUserOrDefault(content, out", generated_code)
+        self.assertIn("JsonSerializer.Deserialize<List<User>>(json)", generated_code)
         self.assertIn('item.Name.StartsWith("A")', generated_code)
         self.assertIn("Console.WriteLine", generated_code)
 
@@ -2543,8 +2558,10 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertEqual(Path(payload["design"]), Path("scenarios/CsvSalesAggregation.design.md"))
         self.assertEqual(payload["module_name"], "CsvSalesAggregation")
-        self.assertIn("File.ReadAllText(input_path)", payload["generated_code"])
-        self.assertIn("File.WriteAllText(output_path, csv)", payload["generated_code"])
+        self.assertIn("ReadGeneratedTextFileOrDefault(input_path, out", payload["generated_code"])
+        self.assertIn("System.IO.File.ReadAllText(path)", payload["generated_code"])
+        self.assertIn("WriteGeneratedTextFile(output_path, csv)", payload["generated_code"])
+        self.assertIn("System.IO.File.WriteAllText(path, contents)", payload["generated_code"])
         self.assertEqual(payload["spec_issues"], [])
         self.assertTrue(payload["verification"]["valid"])
         self.assertNotIn("CS8632", payload["verification"].get("stdout", ""))
@@ -2607,10 +2624,12 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertEqual(payload["module_name"], "DailyInventorySync")
         self.assertIn("Inventory API Endpoint", payload["inferred_design_text"])
         self.assertIn("[ACTION|JSON_DESERIALIZE|Inventory|List<Inventory>|NONE]", payload["inferred_design_text"])
-        self.assertIn('new HttpRequestMessage(HttpMethod.Get, "https://inventory.example.com/api/current")', payload["generated_code"])
-        self.assertIn('request.Headers.Add("X-API-Key", input_1)', payload["generated_code"])
-        self.assertIn("await _httpClient.SendAsync(request, requestTimeout.Token)", payload["generated_code"])
-        self.assertIn('JsonSerializer.Deserialize<List<Inventory>>(inventory)', payload["generated_code"])
+        self.assertIn('SendGeneratedHttpGetStringAsync(_httpClient, "https://inventory.example.com/api/current", "X-API-Key", input_1, 30000)', payload["generated_code"])
+        self.assertIn("new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url)", payload["generated_code"])
+        self.assertIn("request.Headers.Add(headerName, headerValue)", payload["generated_code"])
+        self.assertIn("await httpClient.SendAsync(request, requestTimeout.Token)", payload["generated_code"])
+        self.assertIn("DeserializeListInventoryOrDefault(inventory, out", payload["generated_code"])
+        self.assertIn("JsonSerializer.Deserialize<List<Inventory>>(json)", payload["generated_code"])
         self.assertIn('ExecuteAsync("UPDATE Inventory SET Stock = @Stock WHERE Id = @Id", items)', payload["generated_code"])
         self.assertEqual(payload["spec_issues"], [])
         self.assertTrue(payload["verification"]["valid"])
@@ -2699,6 +2718,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertIn("環境変数 APP_MODE", payload["inferred_design_text"])
         self.assertIn("[ACTION|FETCH|string|string|IO|APP_MODE|env]", payload["inferred_design_text"])
         self.assertIn('Environment.GetEnvironmentVariable("APP_MODE")', payload["generated_code"])
+        self.assertIn("?? string.Empty", payload["generated_code"])
         self.assertIn("Console.WriteLine", payload["generated_code"])
         self.assertEqual(payload["spec_issues"], [])
         self.assertTrue(payload["verification"]["valid"])
@@ -2729,7 +2749,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertEqual(payload["module_name"], "UserNamePrefixSearch")
         self.assertIn("'users.json' を読み込む", payload["original_design_text"])
         self.assertIn('[semantic_roles:{"path":"users.json"}]', payload["inferred_design_text"])
-        self.assertIn('File.ReadAllText("users.json")', payload["generated_code"])
+        self.assertIn('ReadGeneratedTextFileOrDefault("users.json", out', payload["generated_code"])
+        self.assertIn("System.IO.File.ReadAllText(path)", payload["generated_code"])
         self.assertIn('item.Name.StartsWith("A")', payload["generated_code"])
         self.assertTrue(Path(payload["inferred_design_path"]).exists())
         self.assertTrue(Path(payload["generated_code_path"]).exists())
@@ -2789,10 +2810,28 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             self.assertEqual(len(payload["results"]), 2)
             self.assertEqual(payload["results"][0]["module_name"], "DailyInventorySync")
             self.assertTrue(payload["results"][0]["verification_valid"])
+            self.assertTrue(payload["results"][0]["quality_valid"])
+            self.assertEqual(payload["results"][0]["quality_issue_count"], 0)
+            self.assertEqual(payload["results"][0]["runtime_oracle_invalid_count"], 0)
+            self.assertGreaterEqual(payload["results"][0]["runtime_oracle_unverified_count"], 0)
+            self.assertEqual(payload["results"][0]["maintainability_finding_count"], 0)
+            self.assertIn("maintainability", payload["results"][0])
+            self.assertGreaterEqual(payload["results"][0]["maintainability"]["method_count"], 1)
+            self.assertGreaterEqual(payload["results"][0]["maintainability"]["operation_method_count"], 1)
+            self.assertEqual(payload["results"][0]["maintainability"]["analysis_source"], "roslyn")
             self.assertEqual(payload["results"][0]["spec_issue_count"], 0)
             self.assertTrue(Path(payload["results"][0]["generated_code_path"]).exists())
             self.assertEqual(payload["results"][1]["module_name"], "SecureOrderProcessing")
             self.assertTrue(payload["results"][1]["verification_valid"])
+            self.assertTrue(payload["results"][1]["quality_valid"])
+            self.assertEqual(payload["results"][1]["quality_issue_count"], 0)
+            self.assertEqual(payload["results"][1]["runtime_oracle_invalid_count"], 0)
+            self.assertGreaterEqual(payload["results"][1]["runtime_oracle_unverified_count"], 0)
+            self.assertEqual(payload["results"][1]["maintainability_finding_count"], 0)
+            self.assertIn("maintainability", payload["results"][1])
+            self.assertGreaterEqual(payload["results"][1]["maintainability"]["method_count"], 1)
+            self.assertGreaterEqual(payload["results"][1]["maintainability"]["operation_method_count"], 1)
+            self.assertEqual(payload["results"][1]["maintainability"]["analysis_source"], "roslyn")
             self.assertEqual(payload["results"][1]["spec_issue_count"], 0)
             self.assertTrue(Path(payload["results"][1]["generated_code_path"]).exists())
             self.assertEqual(completed.stderr.strip(), "")
@@ -2801,14 +2840,21 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         command = [
             sys.executable,
             "scripts/design/run_design_generation_regression.py",
+            "--fail-on-maintainability",
             "--design",
             "scenarios/ComplexLinqSearch.design.md",
             "--design",
             "scenarios/CsvSalesAggregation.design.md",
             "--design",
+            "scenarios/ProductApiFilteredCatalog.design.md",
+            "--design",
+            "scenarios/CustomerApiWithEntitySpec.design.md",
+            "--design",
             "scenarios/DailyInventorySync.design.md",
             "--design",
             "scenarios/SecureOrderProcessing.design.md",
+            "--design",
+            "scenarios/StateUpdatePersist.design.md",
             "--design",
             "scenarios/AppModeEchoMinimal.design.md",
         ]
@@ -2826,21 +2872,70 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
         )
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload["scenario_count"], 5)
-        self.assertEqual(payload["passed"], 5)
+        self.assertEqual(payload["scenario_count"], 8)
+        self.assertEqual(payload["passed"], 8)
         self.assertEqual(payload["failed"], 0)
         self.assertEqual(
             [item["module_name"] for item in payload["results"]],
             [
                 "ComplexLinqSearch",
                 "CsvSalesAggregation",
+                "ProductApiFilteredCatalog",
+                "CustomerApiWithEntitySpec",
                 "DailyInventorySync",
                 "SecureOrderProcessing",
+                "StateUpdatePersist",
                 "AppModeEchoMinimal",
             ],
         )
         self.assertTrue(all(item["verification_valid"] for item in payload["results"]))
+        self.assertTrue(all(item["quality_valid"] for item in payload["results"]))
+        self.assertTrue(all(item["payload"]["quality"]["checks"]["maintainability_thresholds"] for item in payload["results"]))
+        self.assertTrue(all(item["quality_issue_count"] == 0 for item in payload["results"]))
+        self.assertTrue(all(item["runtime_oracle_invalid_count"] == 0 for item in payload["results"]))
+        self.assertTrue(all(item["payload"]["runtime_oracle"]["valid"] for item in payload["results"]))
+        self.assertTrue(all(item["maintainability_finding_count"] == 0 for item in payload["results"]))
+        self.assertTrue(all(item["maintainability"]["method_count"] >= 1 for item in payload["results"]))
+        self.assertTrue(all(item["maintainability"]["operation_method_count"] >= 1 for item in payload["results"]))
+        self.assertTrue(all(item["maintainability"]["max_method_line_count"] >= 1 for item in payload["results"]))
+        self.assertTrue(all(item["maintainability"]["max_operation_method_line_count"] >= 1 for item in payload["results"]))
+        self.assertTrue(all(item["maintainability"]["max_operation_method_try_count"] >= 0 for item in payload["results"]))
+        self.assertTrue(all(item["maintainability"]["analysis_source"] == "roslyn" for item in payload["results"]))
         self.assertTrue(all(item["spec_issue_count"] == 0 for item in payload["results"]))
+        self.assertEqual(completed.stderr.strip(), "")
+
+    def test_run_design_generation_regression_summary_only_omits_payload(self):
+        command = [
+            sys.executable,
+            "scripts/design/run_design_generation_regression.py",
+            "--fail-on-maintainability",
+            "--run-runtime-oracles",
+            "--summary-only",
+        ]
+        completed = subprocess.run(
+            command,
+            cwd=self.workspace_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
+        )
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["scenario_count"], 8)
+        self.assertEqual(payload["passed"], 8)
+        self.assertEqual(payload["failed"], 0)
+        self.assertTrue(all("payload" not in item for item in payload["results"]))
+        self.assertTrue(all(item["quality_valid"] for item in payload["results"]))
+        self.assertTrue(all(item["runtime_oracle_execution_valid"] for item in payload["results"]))
+        self.assertTrue(all(item["runtime_oracle_execution_passed"] == 1 for item in payload["results"]))
+        self.assertTrue(all(item["runtime_oracle_failure_count"] == 0 for item in payload["results"]))
+        self.assertTrue(all(item["runtime_oracle_failures"] == [] for item in payload["results"]))
+        self.assertTrue(all(item["maintainability"]["analysis_source"] == "roslyn" for item in payload["results"]))
         self.assertEqual(completed.stderr.strip(), "")
 
     def test_inspect_design_tag_suggestion_quality_http_mode_writes_json_result_to_stdout(self):

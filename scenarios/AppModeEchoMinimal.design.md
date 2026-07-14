@@ -14,4 +14,4 @@
 2. 取得したモードを表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"environment":{"APP_MODE":"runtime-test"},"return":true,"stdout":{"contains":["runtime-test"]}}}

@@ -2,7 +2,7 @@ import os
 import json
 import shutil
 import numpy as np
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from src.symbol_matching.symbol_matcher import SymbolMatcher
 from src.semantic_search.semantic_search_base import SemanticSearchBase
 from src.code_synthesis.method_store_policy import MethodStorePolicy
@@ -30,16 +30,16 @@ class MethodStore(SemanticSearchBase):
         self.config_manager = config
         self.policy = MethodStorePolicy(workspace_root=str(getattr(config, "workspace_root", os.getcwd())))
         self.matcher = SymbolMatcher(config_manager=config, morph_analyzer=morph_analyzer, vector_engine=vector_engine)
-        
+
         root = getattr(config, 'workspace_root', getattr(config, 'root_dir', os.getcwd()))
-        
+
         # Load Scoring Rules
         self.scoring_rules = {}
         rules_path = os.path.join(root, "config", "scoring_rules.json")
         if os.path.exists(rules_path):
             with open(rules_path, 'r', encoding='utf-8') as f:
                 self.scoring_rules = json.load(f)
-        
+
         self.metadata_by_id = {}
         self.load()
 
@@ -120,15 +120,15 @@ class MethodStore(SemanticSearchBase):
                 continue
             m_name = item.get("name", "")
             m_class = item.get("class", "")
-            
+
             # 内部シンボル、ジェネリックメタ表記、特殊なアクセサを排除 (Synthesizable Member Policy)
             if '`' in m_name or '`' in m_class or '$' in m_name:
                 continue
             if m_name.startswith('get_') or m_name.startswith('set_'):
                 continue
-            
+
             valid_items.append(item)
-            
+
         self.items = valid_items
         self.metadata_by_id = {str(item.get("id", item.get("name"))): item for item in self.items}
 
@@ -138,7 +138,7 @@ class MethodStore(SemanticSearchBase):
         if method_data is None:
             return
         m_id = str(method_data.get("id", method_data.get("name")))
-        
+
         if m_id in self.metadata_by_id:
             if not overwrite: return
             # 既存メタデータの継承 (Tier等の手動設定を保護)
@@ -146,9 +146,9 @@ class MethodStore(SemanticSearchBase):
             for field in ["tier", "capability", "role", "intent"]:
                 if field in existing and field not in method_data:
                     method_data[field] = existing[field]
-        
+
         vec = self._vectorize_method(method_data)
-            
+
         self.add_item(method_data, vec)
         self.metadata_by_id[m_id] = method_data
 
@@ -228,7 +228,7 @@ class MethodStore(SemanticSearchBase):
                 self.collection.id_to_index = {str(item.get("id", item.get("name"))): idx for idx, item in enumerate(self.items)}
         # 1. ベクトルDB (cache/) の保存
         super().save()
-        
+
         # 2. ソースJSON (resources/method_store.json) の保存
         try:
             # 常に最新の self.items を書き出す
@@ -288,7 +288,7 @@ class MethodStore(SemanticSearchBase):
                     ),
                 )[:limit]
             ]
-        
+
         # 2. 基本検索
         raw_results = self.hybrid_search(
             query,
@@ -298,7 +298,7 @@ class MethodStore(SemanticSearchBase):
             str(item.get("id", item.get("name")))
             for item in candidates
         }
-        
+
         ranked_results = []
         for item, score in raw_results:
             item_id = item.get("id")
@@ -311,7 +311,7 @@ class MethodStore(SemanticSearchBase):
             for field in ["tier", "capability", "capabilities", "role", "intent", "params", "return_type"]:
                 if field in meta:
                     item_copy[field] = meta[field]
-            
+
             item_copy["score"] = score
             ranked_results.append(item_copy)
             if len(ranked_results) == limit:

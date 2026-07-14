@@ -1,4 +1,5 @@
 # RefactoringOperations Design Document
+<!-- metadata-sync: 2026-07-09T00:00:00+09:00 -->
 
 ## 1. Purpose
 `RefactoringOperations` は、独立したモジュールとして、コードベースのリファクタリング分析、提案の生成、および適用（現在は手動適用の案内）を担当します。`RefactoringAnalyzer` と連携し、コードの保守性と品質の向上を支援します。

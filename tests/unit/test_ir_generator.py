@@ -16,7 +16,7 @@ class TestIRGenerator(unittest.TestCase):
             "結果を 'active_users.txt' に保存する"
         ]
         ir = self.generator.generate(steps)
-        
+
         self.assertEqual(len(ir["logic_tree"]), 2)
         # 決定論的解析により、最初のステップは FETCH 意図を持つ ACTION
         self.assertEqual(ir["logic_tree"][0]["type"], "ACTION")
@@ -34,7 +34,7 @@ class TestIRGenerator(unittest.TestCase):
             "を終えて。"
         ]
         ir = self.generator.generate(steps)
-        
+
         # Structure: ACTION(Retry) -> children: [ACTION(GetUsers), LOOP -> children: [ACTION(Display)]]
         self.assertEqual(ir["logic_tree"][0]["type"], "ACTION")
         self.assertEqual(ir["logic_tree"][0].get("semantic_map", {}).get("spec_role"), "WRAP")
@@ -279,7 +279,7 @@ class TestIRGenerator(unittest.TestCase):
             "を終えて。"
         ]
         ir = self.generator.generate(steps)
-        
+
         self.assertEqual(ir["logic_tree"][0]["type"], "CONDITION")
         self.assertEqual(len(ir["logic_tree"][0].get("children", [])), 1)
         self.assertEqual(len(ir["logic_tree"][0].get("else_children", [])), 1)
@@ -308,11 +308,11 @@ class TestIRGenerator(unittest.TestCase):
             "ユーザー一覧をコンソールに表示する。"
         ]
         ir = self.generator.generate(steps)
-        
+
         self.assertEqual(len(ir["logic_tree"]), 3)
         first_node = ir["logic_tree"][0]
         display_node = ir["logic_tree"][2]
-        
+
         self.assertEqual(first_node.get("cardinality"), "COLLECTION")
         self.assertEqual(display_node.get("intent"), "DISPLAY")
         self.assertEqual(display_node.get("input_link"), first_node.get("id"))

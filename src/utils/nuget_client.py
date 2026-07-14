@@ -44,7 +44,7 @@ class NuGetClient:
             return self._cache[namespace_or_name]
 
         query = namespace_or_name
-        
+
         url = f"{self.search_url}?q={urllib.parse.quote(query)}&prerelease=false&take=1"
         try:
             with urllib.request.urlopen(url, timeout=10) as response:
@@ -91,13 +91,13 @@ class NuGetClient:
         """ローカルの NuGet キャッシュから指定されたパッケージの DLL パスを取得する"""
         user_profile = os.environ.get("USERPROFILE") or os.path.expanduser("~")
         package_root = os.path.join(user_profile, ".nuget", "packages", package_name.lower(), version)
-        
+
         if not os.path.exists(package_root):
             # Try original case if lower case fails
             package_root = os.path.join(user_profile, ".nuget", "packages", package_name, version)
             if not os.path.exists(package_root):
                 return []
-        
+
         # lib フォルダ配下の DLL を探索
         lib_path = os.path.join(package_root, "lib")
         if not os.path.exists(lib_path):
@@ -107,7 +107,7 @@ class NuGetClient:
         frameworks = [d for d in os.listdir(lib_path) if os.path.isdir(os.path.join(lib_path, d))]
         if not frameworks:
             return []
-        
+
         # 優先順位: net10.0 > net9.0 > net8.0 > net7.0 > net6.0 > net5.0 > netcoreapp... > net48 > net47... > netstandard...
         # 簡易的にソート (netX.0 が上位に来るように)
         def fw_score(fw):
@@ -125,17 +125,17 @@ class NuGetClient:
             if fw.startswith("net47"): return 15
             if fw.startswith("net46"): return 10
             return 0
-        
+
         frameworks.sort(key=fw_score, reverse=True)
         best_fw = frameworks[0]
-        
+
         dlls = []
         target_path = os.path.join(lib_path, best_fw)
         for root, dirs, files in os.walk(target_path):
             for file in files:
                 if file.endswith(".dll") and not file.endswith(".resources.dll"):
                     dlls.append(os.path.abspath(os.path.join(root, file)))
-        
+
         return dlls
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 # src/coverage_analyzer/coverage_analyzer.py
 
 """
@@ -10,16 +10,15 @@ import os
 import json
 import sys
 import subprocess
-import shlex
 import ast  # For Python complexity calculation
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 
 
 class CoverageAnalyzer:
     """カバレッジ分析の中心的なコントローラー"""
-    
+
     def __init__(self, workspace_root: str = ".", log_manager=None):
         self.workspace_root = workspace_root
         self.log_manager = log_manager
@@ -29,11 +28,11 @@ class CoverageAnalyzer:
             "python": PythonCoverageCollector(self.config.get("python", {})),
             "javascript": JavaScriptCoverageCollector(self.config.get("javascript", {}))
         }
-    
+
     def _load_coverage_config(self) -> Dict[str, Any]:
         """カバレッジ設定を読み込む"""
         config_path = os.path.join(self.workspace_root, "resources", "coverage_config.json")
-        
+
         default_config = {
             "csharp": {
                 "tool": "coverlet",
@@ -54,7 +53,7 @@ class CoverageAnalyzer:
                 "thresholds": {"line": 80, "branch": 70, "function": 85}
             }
         }
-        
+
         try:
             if os.path.exists(config_path):
                 with open(config_path, 'r', encoding='utf-8') as f:
@@ -66,14 +65,14 @@ class CoverageAnalyzer:
         except Exception as e:
             if self.log_manager:
                 self.log_manager.log_event("coverage_config_error", {"error": str(e)}, "WARNING")
-        
+
         return default_config
-    
+
     def analyze_project(self, project_path: str, language: str, options: Dict[str, Any] = None) -> Dict[str, Any]:
         """プロジェクトのカバレッジ分析を実行"""
         options = options or {}
         roslyn_data = options.get("roslyn_data")
-        
+
         try:
             if self.log_manager:
                 self.log_manager.log_event("coverage_analysis_start", {
@@ -81,18 +80,18 @@ class CoverageAnalyzer:
                     "language": language,
                     "has_roslyn_data": roslyn_data is not None
                 })
-            
+
             coverage_result = self._measure_coverage(project_path, language, options)
             if coverage_result["status"] != "success":
                 return coverage_result
-            
+
             # ギャップ分析に roslyn_data を渡す
             gap_analysis = self._analyze_gaps(coverage_result["coverage_data"], project_path, language, roslyn_data)
-            
+
             quality_metrics = self._analyze_quality(coverage_result["coverage_data"], gap_analysis)
             recommendations = self._generate_recommendations(gap_analysis, quality_metrics, language)
             reports = self._generate_reports(coverage_result, gap_analysis, quality_metrics, recommendations, options)
-            
+
             result = {
                 "status": "success",
                 "project_path": project_path,
@@ -104,61 +103,61 @@ class CoverageAnalyzer:
                 "quality_metrics": quality_metrics,
                 "timestamp": datetime.now().isoformat()
             }
-            
+
             return result
         except Exception as e:
             return {"status": "error", "message": f"カバレッジ分析中にエラーが発生しました: {str(e)}"}
-    
+
     def _measure_coverage(self, project_path: str, language: str, options: Dict[str, Any]) -> Dict[str, Any]:
         if language not in self.collectors:
             return {"status": "error", "message": f"サポートされていない言語です: {language}"}
         return self.collectors[language].collect_coverage(project_path, options)
-    
+
     def _analyze_gaps(self, coverage_data: Dict[str, Any], project_path: str, language: str, roslyn_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         gap_analyzer = GapAnalyzer(language)
         return gap_analyzer.analyze(coverage_data, project_path, roslyn_data)
-    
+
     def _analyze_quality(self, coverage_data: Dict[str, Any], gap_analysis: Dict[str, Any]) -> Dict[str, Any]:
         quality_analyzer = QualityAnalyzer()
         return quality_analyzer.analyze(coverage_data, gap_analysis)
-    
+
     def _generate_recommendations(self, gap_analysis: Dict[str, Any], quality_metrics: Dict[str, Any], language: str) -> List[Dict[str, Any]]:
         recommendation_engine = RecommendationEngine(language)
         return recommendation_engine.generate(gap_analysis, quality_metrics)
-    
-    def _generate_reports(self, coverage_result: Dict[str, Any], gap_analysis: Dict[str, Any], 
-                         quality_metrics: Dict[str, Any], recommendations: List[Dict[str, Any]], 
+
+    def _generate_reports(self, coverage_result: Dict[str, Any], gap_analysis: Dict[str, Any],
+                         quality_metrics: Dict[str, Any], recommendations: List[Dict[str, Any]],
                          options: Dict[str, Any]) -> Dict[str, str]:
         output_formats = options.get("output_formats", ["json", "text"])
         reports = {}
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_dir = os.path.join(self.workspace_root, "coverage_reports")
         os.makedirs(report_dir, exist_ok=True)
-        
+
         if "json" in output_formats:
             json_path = os.path.join(report_dir, f"coverage_{timestamp}.json")
             JSONReporter().generate(json_path, coverage_result, gap_analysis, quality_metrics, recommendations)
             reports["json_report"] = json_path
-        
+
         if "html" in output_formats:
             html_path = os.path.join(report_dir, f"coverage_{timestamp}.html")
             HTMLReporter().generate(html_path, coverage_result, gap_analysis, quality_metrics, recommendations)
             reports["html_report"] = html_path
-            
+
         return reports
 
 
 class GapAnalyzer:
     """カバレッジギャップ分析クラス"""
-    
+
     def __init__(self, language: str):
         self.language = language
-    
+
     def analyze(self, coverage_data: Dict[str, Any], project_path: str, roslyn_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """カバレッジギャップを分析"""
         uncovered_files = self._find_uncovered_files(coverage_data, project_path, roslyn_data)
         missing_scenarios = self._identify_missing_scenarios(coverage_data, project_path)
-        
+
         return {
             "uncovered_files": uncovered_files,
             "missing_test_scenarios": missing_scenarios,
@@ -255,16 +254,16 @@ class GapAnalyzer:
         ):
             return "medium"
         return "low"
-    
+
     def _find_uncovered_files(self, coverage_data: Dict[str, Any], project_path: str, roslyn_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         uncovered_files_list = []
-        
+
         if self.language == "csharp":
             for file_path_abs, file_data in coverage_data.items():
                 uncovered_lines_in_file = []
                 uncovered_methods_in_file = set()
                 file_has_uncovered_lines = False
-                
+
                 for class_name, class_data in file_data.items():
                     for method_signature, method_data in class_data.items():
                         method_name = method_signature.split('::')[-1].split('(')[0]
@@ -278,7 +277,7 @@ class GapAnalyzer:
                                 uncovered_lines_in_file.append(int(line_number))
                                 file_has_uncovered_lines = True
                                 method_fully_covered = False
-                        
+
                         if method_has_code and not method_fully_covered:
                             uncovered_methods_in_file.add(method_name)
 
@@ -312,7 +311,7 @@ class GapAnalyzer:
                     uncovered_files_list.append({
                         "file": rel_file_path,
                         "uncovered_lines": file_info["missing_lines"],
-                        "uncovered_methods": [], 
+                        "uncovered_methods": [],
                         "complexity_score": calculated_complexity_score,
                         "priority": calculated_priority
                     })
@@ -331,13 +330,13 @@ class GapAnalyzer:
                         uncovered_files_list.append({
                             "file": rel_file_path,
                             "uncovered_lines": sorted(uncovered_lines_in_file),
-                            "uncovered_methods": [], 
+                            "uncovered_methods": [],
                             "complexity_score": calculated_complexity_score,
                             "priority": calculated_priority
                         })
 
         return uncovered_files_list
-    
+
     def _identify_missing_scenarios(self, coverage_data: Dict[str, Any], project_path: str) -> List[Dict[str, Any]]:
         missing_scenarios = []
         if self.language == "csharp":
@@ -411,16 +410,16 @@ class CSharpCoverageCollector(BaseCoverageCollector):
             result = subprocess.run(
                 command, capture_output=True, text=True, cwd=project_path, check=False
             )
-            
+
             # Restore error handling: check return code!
             if result.returncode != 0:
                 return {"status": "error", "message": f"dotnet test failed: {result.stderr}"}
-                
+
             if not os.path.exists(output_path): return {"status": "error", "message": "Coverage file not generated"}
             with open(output_path, 'r', encoding='utf-8') as f: coverage_data = json.load(f)
             return {"status": "success", "coverage_data": coverage_data, "summary": self._calculate_summary(coverage_data)}
         except Exception as e: return {"status": "error", "message": str(e)}
-        
+
     def _calculate_summary(self, data: Dict[str, Any]) -> Dict[str, Any]:
         tl, cl, tm, cm, tb, cb = 0, 0, 0, 0, 0, 0
         for f, fd in data.items():
@@ -473,19 +472,19 @@ class PythonCoverageCollector(BaseCoverageCollector):
                     "status": "error",
                     "message": f"coverage report failed: {report_result.stderr}",
                 }
-            
+
             if not os.path.exists(out):
                 return {"status": "error", "message": "Coverage JSON file not generated"}
-                
+
             with open(out, 'r') as f:
                 data = json.load(f)
             t = data.get("totals", {})
             return {
-                "status": "success", 
-                "coverage_data": data, 
+                "status": "success",
+                "coverage_data": data,
                 "summary": {
-                    "line_coverage": t.get("percent_covered", 0), 
-                    "total_lines": t.get("num_statements", 0), 
+                    "line_coverage": t.get("percent_covered", 0),
+                    "total_lines": t.get("num_statements", 0),
                     "covered_lines": t.get("covered_lines", 0)
                 }
             }
@@ -520,14 +519,14 @@ class JavaScriptCoverageCollector(BaseCoverageCollector):
 
 class RecommendationEngine:
     """改善提案生成クラス"""
-    
+
     def __init__(self, language: str):
         self.language = language
-    
+
     def generate(self, gap_analysis: Dict[str, Any], quality_metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
         """改善提案を生成"""
         recommendations = []
-        
+
         # 未カバーメソッドのテスト追加提案
         for file_info in gap_analysis.get("uncovered_files", []):
             for method in file_info.get("uncovered_methods", []):
@@ -538,7 +537,7 @@ class RecommendationEngine:
                     "suggested_test_code": self._generate_test_template(method, file_info["file"]),
                     "estimated_effort": "medium"
                 })
-        
+
         # 不足シナリオのテスト追加提案
         for scenario in gap_analysis.get("missing_test_scenarios", []):
             recommendations.append({
@@ -548,7 +547,7 @@ class RecommendationEngine:
                 "suggested_test_name": scenario["suggested_test"],
                 "estimated_effort": "low"
             })
-        
+
         # 品質改善提案
         if quality_metrics.get("technical_debt") == "high":
             recommendations.append({
@@ -557,9 +556,9 @@ class RecommendationEngine:
                 "description": "技術的負債が高いため、コードのリファクタリングを検討してください",
                 "estimated_effort": "high"
             })
-        
+
         return recommendations
-    
+
     def _generate_test_template(self, method_name: str, file_name: str) -> str:
         """テストテンプレートを生成"""
         if self.language == "csharp":
@@ -568,10 +567,10 @@ public void {method_name}_ShouldReturnExpectedResult_WhenValidInput()
 {{
     // Arrange
     var target = new {Path(file_name).stem}();
-    
+
     // Act
     var result = target.{method_name}();
-    
+
     // Assert
     Assert.NotNull(result);
 }}"""
@@ -579,20 +578,20 @@ public void {method_name}_ShouldReturnExpectedResult_WhenValidInput()
             return f"""def test_{method_name.lower()}_should_return_expected_result_when_valid_input(self):
     # Arrange
     target = {Path(file_name).stem}()
-    
+
     # Act
     result = target.{method_name}()
-    
+
     # Assert
     self.assertIsNotNone(result)"""
         else:
             return f"""test('{method_name} should return expected result when valid input', () => {{
     // Arrange
     const target = new {Path(file_name).stem}();
-    
+
     // Act
     const result = target.{method_name}();
-    
+
     // Assert
     expect(result).toBeDefined();
 }});"""

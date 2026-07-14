@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any
 from src.utils.semantic_intents import (
     INTENT_ACTION,
     INTENT_DATABASE_QUERY,
@@ -27,7 +27,7 @@ class IRValidator:
         from src.code_synthesis.type_system import TypeSystem
         self.config_manager = config_manager
         self.type_system = type_system or TypeSystem()
-        
+
         root = getattr(config_manager, 'workspace_root', getattr(config_manager, 'root_dir', os.getcwd()))
         entity_path = os.path.join(root, "resources", "entity_schema.json")
         self.entity_schema = {}
@@ -38,13 +38,13 @@ class IRValidator:
     def validate(self, ir_tree: Dict[str, Any]) -> Dict[str, Any]:
         errors = []
         warnings = []
-        
+
         # 初期スコープ (Root)
         # 形式: [{"name": str, "type": str, "is_collection": bool}]
         symbol_table = []
-        
+
         self._traverse_and_validate(ir_tree.get("logic_tree", []), symbol_table, errors, warnings)
-        
+
         return {
             "is_valid": len(errors) == 0,
             "errors": errors,
@@ -55,7 +55,7 @@ class IRValidator:
         for node in nodes:
             node_type = node.get("type")
             intent = str(node.get("intent") or "").upper()
-            
+
             if node_type in [NODE_ACTION, INTENT_TRANSFORM]:
                 self._validate_action(node, symbol_table, errors, warnings)
                 # 仮の出力登録 (本来はメソッドストアの戻り値型を見る必要があるが、ここではエンティティ名から推論)
@@ -73,16 +73,16 @@ class IRValidator:
                     if sym["type"] == target and sym["is_collection"]:
                         found = True
                         break
-                
+
                 if not found:
                     # 警告レベル（直前のアクションで取得しているはずだが、明示的なリストがない場合）
                     warnings.append(f"LOOP target '{target}' might not be a collection in current scope.")
-                
+
                 # ループ内スコープ
                 inner_symbol_table = list(symbol_table)
                 # ループ変数を追加
                 inner_symbol_table.append({"name": "item", "type": target or "Item", "is_collection": False})
-                
+
                 children = self._get_children(node)
                 if not children:
                     warnings.append(f"Empty LOOP body for {target}")
@@ -94,7 +94,7 @@ class IRValidator:
                 else_children = self._get_else_children(node)
                 if not children and not else_children:
                     warnings.append("CONDITION block has no body or else_body.")
-                
+
                 # If body scope
                 if children:
                     self._traverse_and_validate(children, list(symbol_table), errors, warnings)
@@ -114,7 +114,7 @@ class IRValidator:
     def _validate_action(self, node: Dict[str, Any], symbol_table: List[Dict[str, Any]], errors: List[str], warnings: List[str]):
         target = node.get("target_entity")
         intent = str(node.get("intent") or "").upper()
-        
+
         # 依存関係の欠落チェック (intent ベース)
         if intent in [INTENT_PERSIST, "WRITE"]:
             if target and not any(sym["type"] == target for sym in symbol_table):

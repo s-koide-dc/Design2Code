@@ -10,7 +10,7 @@ class TestDirectoryOperations(unittest.TestCase):
         if os.path.exists(self.test_ws):
             shutil.rmtree(self.test_ws)
         os.makedirs(self.test_ws)
-        
+
         self.mock_log = MagicMock()
         self.executor = ActionExecutor(log_manager=self.mock_log)
         self.executor.workspace_root = self.test_ws
@@ -25,14 +25,14 @@ class TestDirectoryOperations(unittest.TestCase):
         os.makedirs(src_dir)
         with open(os.path.join(src_dir, "file1.txt"), "w") as f:
             f.write("content1")
-        
+
         dest_dir = "dest_dir"
-        
+
         context = {"analysis": {"intent": "FILE_COPY"}}
         parameters = {"source_filename": "src_dir", "destination_filename": dest_dir}
-        
+
         result_context = self.executor._copy_file(context, parameters)
-        
+
         self.assertEqual(result_context["action_result"]["status"], "success")
         self.assertTrue(os.path.isdir(os.path.join(self.test_ws, dest_dir)))
         self.assertTrue(os.path.exists(os.path.join(self.test_ws, dest_dir, "file1.txt")))
@@ -43,12 +43,12 @@ class TestDirectoryOperations(unittest.TestCase):
         os.makedirs(target_dir)
         with open(os.path.join(target_dir, "file1.txt"), "w") as f:
             f.write("content1")
-            
+
         context = {"analysis": {"intent": "FILE_DELETE"}}
         parameters = {"filename": "delete_me"}
-        
+
         result_context = self.executor._delete_file(context, parameters)
-        
+
         self.assertEqual(result_context["action_result"]["status"], "success")
         self.assertFalse(os.path.exists(target_dir))
 
@@ -58,14 +58,14 @@ class TestDirectoryOperations(unittest.TestCase):
         os.makedirs(src_dir)
         with open(os.path.join(src_dir, "file1.txt"), "w") as f:
             f.write("content1")
-            
+
         dest_dir = "move_dest"
-        
+
         context = {"analysis": {"intent": "FILE_MOVE"}}
         parameters = {"source_filename": "move_src", "destination_filename": dest_dir}
-        
+
         result_context = self.executor._move_file(context, parameters)
-        
+
         self.assertEqual(result_context["action_result"]["status"], "success")
         self.assertFalse(os.path.exists(src_dir))
         self.assertTrue(os.path.isdir(os.path.join(self.test_ws, dest_dir)))

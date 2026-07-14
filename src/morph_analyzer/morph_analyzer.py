@@ -1,4 +1,3 @@
-import os
 from typing import Any, Dict, List
 
 from janome.tokenizer import Tokenizer
@@ -50,7 +49,7 @@ class MorphAnalyzer:
 
         if "original_text" not in context or not isinstance(context["original_text"], str):
             context["errors"].append({
-                "module": "morph_analyzer", 
+                "module": "morph_analyzer",
                 "message": "original_textがcontextに存在しないか、文字列ではありません。"
             })
             return context
@@ -82,7 +81,7 @@ class MorphAnalyzer:
 if __name__ == '__main__':
     # 単体テスト用の簡易実行
     analyzer = MorphAnalyzer()
-    
+
     # ハッピーパス
     context1 = {"original_text": "猫が歩く", "pipeline_history": [], "analysis": {}}
     result1 = analyzer.analyze(context1)

@@ -57,7 +57,7 @@ class TestRobustness(unittest.TestCase):
         """不正なファイル名（OS依存の予約語や文字）でのエラーハンドリングを検証"""
         # Windowsで不正な文字 '|' を含む
         invalid_filename = "invalid|file.txt"
-        
+
         # 正しい実行形式: context["plan"]["action_method"]
         context = {
             "plan": {
@@ -82,7 +82,7 @@ class TestRobustness(unittest.TestCase):
             }
         }
         self.executor.execute(context)
-        
+
         # 読み込み
         read_context = {
             "plan": {

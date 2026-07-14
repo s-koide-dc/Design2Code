@@ -57,7 +57,7 @@ class TestTaskManager(unittest.TestCase):
         self.mock_persistence = MagicMock()
         self.mock_persistence_class.return_value = self.mock_persistence
 
-        self.tm = TaskManager(action_executor=self.mock_action_executor, 
+        self.tm = TaskManager(action_executor=self.mock_action_executor,
                               task_definitions_path="ignored_path.json",
                               config_manager=self.mock_config_manager)
 
@@ -142,7 +142,7 @@ class TestTaskManager(unittest.TestCase):
         result = self.tm.manage_task_state(context)
         self.assertEqual(result["task"]["parameters"]["filename"]["value"], "reset.txt")
         self.assertIn("test_session_4", self.tm.active_tasks)
-        
+
         self.tm.reset_task("test_session_4")
         self.assertNotIn("test_session_4", self.tm.active_tasks)
 
@@ -221,7 +221,7 @@ class TestTaskManager(unittest.TestCase):
         self.assertEqual(task["type"], "COMPOUND_TASK")
         self.assertEqual(len(task["subtasks"]), 2)
         self.assertEqual(task["current_subtask_index"], 0)
-        
+
         sub_task_1 = task["subtasks"][0]
         self.assertEqual(sub_task_1["name"], "FILE_COPY")
         self.assertEqual(sub_task_1["state"], "READY_FOR_EXECUTION")
@@ -231,13 +231,13 @@ class TestTaskManager(unittest.TestCase):
         # 4. Execute the first subtask and update state
         context["action_result"] = {"status": "success"}
         result = self.tm.update_task_after_execution(context)
-        
+
         # 5. Verify the second subtask (FILE_DELETE) is now ready
         # The task is still active, so we call manage_task_state again
         # Clear the entities from the previous user input
         context["analysis"]["entities"] = {}
-        result = self.tm.manage_task_state(context) 
-        
+        result = self.tm.manage_task_state(context)
+
         task = result["task"]
         self.assertEqual(task["current_subtask_index"], 1)
         sub_task_2 = task["subtasks"][1]
@@ -328,7 +328,7 @@ class TestTaskManager(unittest.TestCase):
             "session_id": "compound_subtask_approval_session",
             "analysis": {"intent": "BACKUP_AND_DELETE", "entities": {}} # No new input, just re-evaluating task state
         }
-        
+
         result = self.tm.manage_task_state(context)
 
 
@@ -337,7 +337,7 @@ class TestTaskManager(unittest.TestCase):
         self.assertEqual(result["task"]["current_subtask_index"], 1)
         self.assertEqual(result["task"]["subtasks"][1]["name"], "FILE_DELETE")
         self.assertEqual(result["task"]["subtasks"][1]["state"], "READY_FOR_EXECUTION")
-        
+
         # Current specification: skip subtask approval if overall task is IN_PROGRESS
         self.assertFalse(result["clarification_needed"])
         self.assertIsNone(result["task"]["subtasks"][1].get("clarification_message"))
@@ -369,7 +369,7 @@ class TestTaskManager(unittest.TestCase):
             }
         }
         result = self.tm.manage_task_state(agree_context)
-        
+
         # 3. Assert that the task is now in progress and the first subtask is ready
         self.assertFalse(result.get("clarification_needed", True)) # Clarification should be resolved
         self.assertIn("task", result)
@@ -406,7 +406,7 @@ class TestTaskManager(unittest.TestCase):
             }
         }
         result = self.tm.manage_task_state(disagree_context)
-        
+
         # 3. Assert that the task is cancelled
         self.assertIn("task_cancelled", result)
         self.assertTrue(result["task_cancelled"])
@@ -446,7 +446,7 @@ class TestTaskManager(unittest.TestCase):
                 {"name": "FILE_DELETE", "state": "READY_FOR_EXECUTION", "parameters": {"filename": {"value": "sub_agree.txt", "confidence": 0.9}}, "clarification_needed": False, "clarification_message": None}
             ],
             "current_subtask_index": 1,
-            "clarification_needed": False, 
+            "clarification_needed": False,
             "clarification_message": None
         }
         self.tm.active_tasks["subtask_approval_agree_session"] = in_progress_task
@@ -457,16 +457,16 @@ class TestTaskManager(unittest.TestCase):
         }
         result = self.tm.manage_task_state(context)
         self.assertFalse(result["clarification_needed"])
-        
+
         # Since no clarification was needed, it should be ready for execution
         self.assertEqual(result["task"]["subtasks"][1]["state"], "READY_FOR_EXECUTION")
 
-        # 2. Re-evaluate task state. Since it's already IN_PROGRESS and subtask is READY, 
-        # it should proceed to execution if ActionExecutor was involved, 
+        # 2. Re-evaluate task state. Since it's already IN_PROGRESS and subtask is READY,
+        # it should proceed to execution if ActionExecutor was involved,
         # or remain IN_PROGRESS/READY until execution.
         # In this unit test, we just check if it correctly skips clarification.
         result = self.tm.manage_task_state(context)
-        
+
         self.assertFalse(result.get("clarification_needed", True))
         self.assertEqual(result["task"]["state"], "IN_PROGRESS") # Still in progress until ActionExecutor finishes it
         self.assertEqual(result["task"]["subtasks"][1]["state"], "READY_FOR_EXECUTION")
@@ -479,11 +479,11 @@ class TestTaskManager(unittest.TestCase):
             "FILE_COPY": {"states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"], "required_entities": ["source_filename", "destination_filename"], "transitions": {"INIT": [{"condition": {"type": "all_of", "predicates": [{"type": "entity_exists", "key": "source_filename"}, {"type": "entity_exists", "key": "destination_filename"}]}, "next_state": "READY_FOR_EXECUTION"}]}},
             "FILE_DELETE": {"states": ["INIT", "READY_FOR_EXECUTION", "COMPLETED", "FAILED"], "required_entities": ["filename"], "transitions": {"INIT": [{"condition": {"type": "entity_exists", "key": "filename"}, "next_state": "READY_FOR_EXECUTION"}]}},
             "BACKUP_AND_DELETE": {
-                "type": "COMPOUND_TASK", 
+                "type": "COMPOUND_TASK",
                 "subtasks": [
-                    {"name": "FILE_COPY", "parameter_mapping": {"source_filename": "source_filename", "destination_filename": "destination_filename"}}, 
+                    {"name": "FILE_COPY", "parameter_mapping": {"source_filename": "source_filename", "destination_filename": "destination_filename"}},
                     {"name": "FILE_DELETE", "parameter_mapping": {"filename": "source_filename"}}
-                ], 
+                ],
                 "required_entities": ["source_filename", "destination_filename"],
                 "templates": {
                     "overall_approval": "複合タスク「BACKUP_AND_DELETE」を開始します。ファイル '{source_filename}' を '{destination_filename}' にバックアップして削除します。よろしいですか？"
@@ -516,7 +516,7 @@ class TestTaskManager(unittest.TestCase):
             "analysis": {"intent": "BACKUP_AND_DELETE", "entities": {}} # Re-evaluating task state
         }
         result = self.tm.manage_task_state(context)
-        
+
         # Should skip clarification because parent task is IN_PROGRESS
         self.assertFalse(result.get("clarification_needed", True))
         self.assertEqual(result["task"]["state"], "IN_PROGRESS")
@@ -584,7 +584,7 @@ class TestTaskManager(unittest.TestCase):
         stats = self.tm.get_session_stats()
         self.assertIn("active_sessions", stats)
         self.assertIn("max_sessions", stats)
-        
+
         # Create a task
         context = {
             "session_id": "cleanup_test_session",
@@ -594,17 +594,17 @@ class TestTaskManager(unittest.TestCase):
             }
         }
         self.tm.manage_task_state(context)
-        
+
         # Test task state retrieval
         task_state = self.tm.get_task_state("cleanup_test_session")
         self.assertEqual(task_state["status"], "active")
         self.assertEqual(task_state["task_name"], "FILE_CREATE")
-        
+
         # Test force cleanup
         cleaned = self.tm.force_cleanup_session("cleanup_test_session")
         self.assertTrue(cleaned)
         self.assertNotIn("cleanup_test_session", self.tm.active_tasks)
-        
+
         # Test cleanup of non-existent session
         cleaned = self.tm.force_cleanup_session("non_existent")
         self.assertFalse(cleaned)
@@ -621,7 +621,7 @@ class TestTaskManager(unittest.TestCase):
                 }
             }
             self.tm.manage_task_state(context)
-        
+
         stats = self.tm.get_memory_usage_stats()
         self.assertEqual(stats["active_tasks_count"], 3)
         self.assertIn("estimated_task_memory_bytes", stats)
@@ -633,7 +633,7 @@ class TestTaskManager(unittest.TestCase):
         result = self.tm.validate_task_integrity("non_existent")
         self.assertTrue(result["valid"])
         self.assertEqual(result["message"], "No active task")
-        
+
         # Create a valid task
         context = {
             "session_id": "integrity_test_session",
@@ -643,16 +643,16 @@ class TestTaskManager(unittest.TestCase):
             }
         }
         self.tm.manage_task_state(context)
-        
+
         # Test validation of valid task
         result = self.tm.validate_task_integrity("integrity_test_session")
         self.assertTrue(result["valid"])
         self.assertEqual(len(result["issues"]), 0)
-        
+
         # Corrupt the task and test validation
         task = self.tm.active_tasks["integrity_test_session"]
         del task["id"]  # Remove required field
-        
+
         result = self.tm.validate_task_integrity("integrity_test_session")
         self.assertFalse(result["valid"])
         self.assertIn("Missing required field: id", result["issues"])
@@ -663,7 +663,7 @@ class TestTaskManager(unittest.TestCase):
         self.tm.config.debug_mode = True
         self.tm.metrics = self.mock_metrics
         self.mock_metrics.cleanup_stale_tasks.return_value = 0
-        
+
         # Create a task (should record start_task)
         context = {
             "session_id": "metrics_test_session",
@@ -673,10 +673,10 @@ class TestTaskManager(unittest.TestCase):
             }
         }
         self.tm.manage_task_state(context)
-        
+
         # Verify metrics were called
         self.mock_metrics.start_task.assert_called_with("metrics_test_session", "FILE_CREATE", "SIMPLE_TASK")
-        
+
         # Reset task (should record completion)
         self.tm.reset_task("metrics_test_session")
         self.mock_metrics.complete_task.assert_called()
@@ -685,19 +685,19 @@ class TestTaskManager(unittest.TestCase):
         """Test persistence integration"""
         # Test that persistence is initialized when enabled
         self.mock_config_manager.get_section.return_value["enable_persistence"] = True
-        tm_with_persistence = TaskManager(action_executor=self.mock_action_executor, 
+        tm_with_persistence = TaskManager(action_executor=self.mock_action_executor,
                                           task_definitions_path="ignored_path.json",
                                           config_manager=self.mock_config_manager)
-        
+
         # Verify persistence was initialized
         self.assertIsNotNone(tm_with_persistence.persistence)
-        
+
         # Test that persistence is None when disabled
         self.mock_config_manager.get_section.return_value["enable_persistence"] = False
-        tm_without_persistence = TaskManager(action_executor=self.mock_action_executor, 
+        tm_without_persistence = TaskManager(action_executor=self.mock_action_executor,
                                              task_definitions_path="ignored_path.json",
                                              config_manager=self.mock_config_manager)
-        
+
         # Verify persistence was not initialized
         self.assertIsNone(tm_without_persistence.persistence)
 
@@ -705,10 +705,10 @@ class TestTaskManager(unittest.TestCase):
         """Test improved error handling"""
         # Test with invalid configuration (type error during int conversion)
         self.mock_config_manager.get_section.return_value["max_state_age_hours"] = "invalid"
-        
+
         with self.assertRaises(ValueError):
             TaskManager(action_executor=self.mock_action_executor, config_manager=self.mock_config_manager)
-        
+
         # Reset for other tests
         self.mock_config_manager.get_section.return_value["max_state_age_hours"] = 24
 
@@ -716,7 +716,7 @@ class TestTaskManager(unittest.TestCase):
         """Test session limit enforcement"""
         # Set low session limit
         self.tm.config.max_active_sessions = 2
-        
+
         # Create tasks up to limit
         for i in range(2):
             context = {
@@ -731,7 +731,7 @@ class TestTaskManager(unittest.TestCase):
             if "errors" in result:
                 session_limit_errors = [e for e in result["errors"] if "最大セッション数" in e.get("message", "")]
                 self.assertEqual(len(session_limit_errors), 0, f"Unexpected session limit error for session {i}")
-        
+
         # Try to create one more (should be rejected)
         context = {
             "session_id": "limit_test_session_overflow",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,8 +19,11 @@ from src.utils.cli_output import emit_error, emit_json_stdout
 DEFAULT_DESIGNS = [
     "scenarios/ComplexLinqSearch.design.md",
     "scenarios/CsvSalesAggregation.design.md",
+    "scenarios/ProductApiFilteredCatalog.design.md",
+    "scenarios/CustomerApiWithEntitySpec.design.md",
     "scenarios/DailyInventorySync.design.md",
     "scenarios/SecureOrderProcessing.design.md",
+    "scenarios/StateUpdatePersist.design.md",
     "scenarios/AppModeEchoMinimal.design.md",
 ]
 
@@ -41,6 +45,21 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--assist-model-id", default="local-assist", help="Model id for optional literal assistance")
     parser.add_argument("--assist-timeout-seconds", type=int, default=60, help="Timeout in seconds for optional literal assistance")
     parser.add_argument("--assist-max-new-tokens", type=int, default=384, help="Generation cap for optional literal assistance")
+    parser.add_argument(
+        "--fail-on-maintainability",
+        action="store_true",
+        help="Fail scenarios when generated-code maintainability thresholds are exceeded.",
+    )
+    parser.add_argument(
+        "--run-runtime-oracles",
+        action="store_true",
+        help="Execute explicit JSON runtime_oracle contracts from design test cases.",
+    )
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Omit the detailed per-scenario payload from stdout.",
+    )
     parser.add_argument(
         "--assist-policy",
         choices=["on_blocked_only", "always"],
@@ -65,8 +84,59 @@ def _build_snapshot_args(args: argparse.Namespace, design_path: Path, output_dir
         assist_model_id=args.assist_model_id,
         assist_timeout_seconds=args.assist_timeout_seconds,
         assist_max_new_tokens=args.assist_max_new_tokens,
+        fail_on_maintainability=args.fail_on_maintainability,
+        run_runtime_oracles=args.run_runtime_oracles,
         assist_policy=args.assist_policy,
     )
+
+
+def _first_non_empty_line(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    for line in value.splitlines():
+        text = line.strip()
+        if text:
+            return text
+    return None
+
+
+def summarize_runtime_oracle_failures(runtime_oracle_execution: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Return compact oracle failure diagnostics suitable for regression summaries."""
+    failures: List[Dict[str, Any]] = []
+    results = runtime_oracle_execution.get("results") if isinstance(runtime_oracle_execution, dict) else []
+    if not isinstance(results, list):
+        results = []
+    for result in results:
+        if not isinstance(result, dict) or result.get("success", True):
+            continue
+        case_failures = result.get("failures") if isinstance(result.get("failures"), list) else []
+        normalized_case_failures: List[Dict[str, Any]] = []
+        for failure in case_failures:
+            if not isinstance(failure, dict):
+                continue
+            normalized_case_failures.append({
+                "test_name": failure.get("test_name"),
+                "message": _first_non_empty_line(failure.get("message")),
+                "stack_trace": _first_non_empty_line(failure.get("stack_trace")),
+            })
+        failures.append({
+            "id": result.get("id"),
+            "scenario": result.get("scenario"),
+            "error_type": result.get("error_type"),
+            "message": _first_non_empty_line(result.get("message")),
+            "failures": normalized_case_failures,
+        })
+    issues = runtime_oracle_execution.get("issues") if isinstance(runtime_oracle_execution, dict) else None
+    if isinstance(issues, list):
+        for issue in issues:
+            failures.append({
+                "id": None,
+                "scenario": None,
+                "error_type": "RUNTIME_ORACLE_CONTRACT_INVALID",
+                "message": str(issue),
+                "failures": [],
+            })
+    return failures
 
 
 def main() -> int:
@@ -81,27 +151,65 @@ def main() -> int:
     results: List[Dict[str, Any]] = []
     failed = 0
 
-    for design_path in design_paths:
-        scenario_output_dir = None
-        if root_output_dir:
-            scenario_output_dir = root_output_dir / design_path.stem
-        snapshot = build_review_snapshot(_build_snapshot_args(args, design_path, scenario_output_dir))
-        payload = snapshot["payload"]
-        success = int(snapshot["exit_code"]) == 0
-        if not success:
-            failed += 1
-        results.append(
-            {
+    previous_disable = logging.root.manager.disable
+    logging.disable(logging.CRITICAL)
+    try:
+        for design_path in design_paths:
+            scenario_output_dir = None
+            if root_output_dir:
+                scenario_output_dir = root_output_dir / design_path.stem
+            snapshot = build_review_snapshot(_build_snapshot_args(args, design_path, scenario_output_dir))
+            payload = snapshot["payload"]
+            success = int(snapshot["exit_code"]) == 0
+            if not success:
+                failed += 1
+            quality = payload.get("quality") or {}
+            maintainability = quality.get("maintainability") or {}
+            runtime_oracle = payload.get("runtime_oracle") or {}
+            runtime_oracle_execution = payload.get("runtime_oracle_execution") or {}
+            runtime_oracle_failures = summarize_runtime_oracle_failures(runtime_oracle_execution)
+            result_entry = {
                 "design": payload.get("design"),
                 "success": success,
                 "module_name": payload.get("module_name"),
                 "inference_status": (payload.get("inference") or {}).get("status"),
                 "verification_valid": bool((payload.get("verification") or {}).get("valid")),
+                "quality_valid": bool(quality.get("valid")),
+                "quality_issue_count": len(quality.get("issues") or []),
+                "runtime_oracle_ready_count": runtime_oracle.get("ready_count", 0),
+                "runtime_oracle_unverified_count": runtime_oracle.get("unverified_count", 0),
+                "runtime_oracle_invalid_count": runtime_oracle.get("invalid_count", 0),
+                "runtime_oracle_execution_valid": runtime_oracle_execution.get("valid", True),
+                "runtime_oracle_execution_passed": runtime_oracle_execution.get("passed", 0),
+                "runtime_oracle_execution_failed": runtime_oracle_execution.get("failed", 0),
+                "runtime_oracle_failure_count": len(runtime_oracle_failures),
+                "runtime_oracle_failures": runtime_oracle_failures,
+                "maintainability_finding_count": len(maintainability.get("findings") or []),
+                "maintainability": {
+                    "method_count": maintainability.get("method_count", 0),
+                    "class_count": maintainability.get("class_count", 0),
+                    "constructor_count": maintainability.get("constructor_count", 0),
+                    "helper_method_count": maintainability.get("helper_method_count", 0),
+                    "operation_method_count": maintainability.get("operation_method_count", 0),
+                    "total_line_count": maintainability.get("total_line_count", 0),
+                    "max_method_line_count": maintainability.get("max_method_line_count", 0),
+                    "max_method_try_count": maintainability.get("max_method_try_count", 0),
+                    "max_method_catch_count": maintainability.get("max_method_catch_count", 0),
+                    "max_operation_method_line_count": maintainability.get("max_operation_method_line_count", 0),
+                    "max_operation_method_try_count": maintainability.get("max_operation_method_try_count", 0),
+                    "max_operation_method_catch_count": maintainability.get("max_operation_method_catch_count", 0),
+                    "blueprint_statement_count": maintainability.get("blueprint_statement_count", 0),
+                    "analysis_source": maintainability.get("analysis_source"),
+                    "findings": maintainability.get("findings") or [],
+                },
                 "spec_issue_count": len(payload.get("spec_issues", [])),
                 "generated_code_path": payload.get("generated_code_path"),
-                "payload": payload,
             }
-        )
+            if not args.summary_only:
+                result_entry["payload"] = payload
+            results.append(result_entry)
+    finally:
+        logging.disable(previous_disable)
 
     emit_json_stdout(
         {

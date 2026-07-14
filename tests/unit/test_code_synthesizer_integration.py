@@ -22,15 +22,15 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         from unittest.mock import MagicMock
         import tempfile
         import shutil
-        
+
         self.test_dir = tempfile.TemporaryDirectory()
         self.store_path = os.path.join(self.test_dir.name, "test_method_store.json")
         self.dd_path = os.path.join(self.test_dir.name, "domain_dictionary.json")
-        
+
         # Create an empty store file
         with open(self.store_path, "w", encoding="utf-8") as f:
             json.dump([], f)
-            
+
         # Create a dummy domain dictionary
         with open(self.dd_path, "w", encoding="utf-8") as f:
             json.dump({
@@ -85,9 +85,9 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.ms = MethodStore(self.cm, morph_analyzer=self.ma, vector_engine=self.vector_engine)
         self.ms.items = []
         self.ms.metadata_by_id = {}
-        
+
         self.synthesizer = CodeSynthesizer(self.cm, method_store=self.ms, morph_analyzer=self.ma)
-        
+
         # Mock builder_client to return code based on blueprint
         def mock_build_code(blueprint):
             methods = blueprint.get("methods", [])
@@ -175,19 +175,19 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
                         code_lines.append(f"{indent}}}")
             render(body)
             code_lines.append("}")
-            
+
             # Simple DI injection representation
             full_code = []
             for field in blueprint.get("fields", []):
                 full_code.append(f"private readonly {field['type']} {field['name']};")
-            
+
             return {"status": "success", "code": "\n".join(full_code + code_lines)}
-            
+
         self.synthesizer.builder_client.build_code = MagicMock(side_effect=mock_build_code)
-        
+
         # Inject required methods for testing
         store = self.ms
-        
+
         store.add_method({
             "id": "validate_email_test",
             "name": "ValidateEmail",
@@ -200,7 +200,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "capabilities": ["TRANSFORM"],
             "tags": ["validation"]
         }, overwrite=True)
-        
+
         store.add_method({
             "id": "get_user_test",
             "name": "GetUser",
@@ -213,7 +213,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "capabilities": ["FETCH"],
             "tags": ["data"]
         }, overwrite=True)
-        
+
         store.add_method({
             "id": "save_data_test",
             "name": "SaveData",
@@ -283,6 +283,16 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         codes.extend(self._collect_raw_codes(path.get("statements", [])))
         codes.extend(self._collect_raw_codes(path.get("hoisted_statements", [])))
         return codes
+
+    def _collect_statements(self, statements):
+        collected = []
+        for statement in statements or []:
+            if not isinstance(statement, dict):
+                continue
+            collected.append(statement)
+            for key in ("body", "else_body", "catch_body"):
+                collected.extend(self._collect_statements(statement.get(key, [])))
+        return collected
 
     def _collect_call_methods(self, statements):
         methods = []
@@ -459,7 +469,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         }
         result = self.synthesizer.synthesize_from_structured_spec("ProcessAndSave", spec)
         code = result["code"]
-        
+
         # 生成コードが得られていることを確認
         self.assertTrue(isinstance(code, str) and len(code) > 0)
         self.assertIn("ProcessAndSave", code)
@@ -472,7 +482,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "火星にロケットを飛ばす",
             "データを保存する"
         ]
-        
+
         spec = self._build_spec("SpaceMission", design_steps)
         result = self.synthesizer.synthesize_from_structured_spec("SpaceMission", spec)
         self.assertEqual("error", result.get("status"))
@@ -525,7 +535,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         }
         result = self.synthesizer.synthesize_from_structured_spec("GetAndSaveUser", spec)
         code = result["code"]
-        
+
         # 生成コードが得られていることを確認
         self.assertTrue(isinstance(code, str) and len(code) > 0)
         self.assertIn("GetAndSaveUser", code)
@@ -537,11 +547,11 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         save_method = store.get_method_by_id("save_data_test")
         if save_method:
             save_method["has_side_effects"] = True
-            
+
         design_steps = ["データを保存する"]
         spec = self._build_spec("SaveAction", design_steps)
         result = self.synthesizer.synthesize_from_structured_spec("SaveAction", spec, return_trace=True)
-        
+
         # Now check if it's in trace
         self.assertTrue(result.get("status") != "FAILED")
 
@@ -562,7 +572,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "tags": ["di"]
         }
         store.add_method(di_method, overwrite=True)
-        
+
         spec = {
             "module_name": "DoBusiness",
             "purpose": "DI call",
@@ -588,7 +598,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         result = self.synthesizer.synthesize_from_structured_spec("DoBusiness", spec)
         code = result["code"]
         self._debug_dump_generated_code("DI Generated Code", code)
-        
+
         # 生成コードが得られていることを確認
         self.assertTrue(isinstance(code, str) and len(code) > 0)
         self.assertIn("DoBusiness", code)
@@ -852,6 +862,9 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             any("Environment.GetEnvironmentVariable" in c for c in raw_codes)
             or "Environment.GetEnvironmentVariable" in result.get("code", "")
         )
+        statements = self._collect_statements(best_path.get("statements", []))
+        call_exprs = [s.get("call_expr", "") for s in statements if s.get("type") == "call"]
+        self.assertTrue(any("?? string.Empty" in expr for expr in call_exprs))
         self.assertTrue(any("MODE=" in c and "REGION=" in c for c in raw_codes))
 
     def test_ops_linq_filter_points_gt_input(self):
@@ -995,8 +1008,9 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         trace = result.get("trace", {})
         best_path = trace.get("best_path", {})
         raw_codes = self._collect_all_raw_codes(best_path)
-        self.assertTrue(any("File.ReadAllText" in c for c in raw_codes))
-        self.assertTrue(any("File.WriteAllText" in c for c in raw_codes))
+        generated_code = result.get("code", "")
+        self.assertIn("ReadGeneratedTextFileOrDefault", generated_code)
+        self.assertIn("WriteGeneratedTextFile", generated_code)
         self.assertTrue(any("Split(new[] { \"\\r\\n\", \"\\n\" }" in c for c in raw_codes))
         self.assertTrue(any("ToList()" in c for c in raw_codes))
         self.assertTrue(any("Dictionary<string, decimal>" in c for c in raw_codes))
@@ -1021,8 +1035,16 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         results = self.synthesizer.action_synthesizer.process_node(node, path)
 
         self.assertTrue(results)
-        raw_codes = self._collect_all_raw_codes(results[0])
-        self.assertTrue(any("JsonSerializer.Deserialize<List<User>>(jsonText)" in c for c in raw_codes))
+        statements = self._collect_statements(results[0].get("statements", []))
+        json_calls = [
+            s for s in statements
+            if s.get("intent") == "JSON_DESERIALIZE" and s.get("type") == "call"
+        ]
+        self.assertTrue(json_calls)
+        self.assertTrue(any("DeserializeListUserOrDefault(jsonText, out " in s.get("call_expr", "") for s in json_calls))
+        extra_code = "\n".join(results[0].get("extra_code", []))
+        self.assertIn("JsonSerializer.Deserialize<List<User>>(json)", extra_code)
+        self.assertIn("GeneratedErrorLog.Write", extra_code)
 
     def test_spec_role_filter_dispatches_linq_handler(self):
         node = {
@@ -1720,6 +1742,41 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             result.get("errors", [{}])[0].get("reason"),
         )
 
+    def test_code_builder_accepts_structured_try_catch_statement(self):
+        real_cm = MagicMock()
+        real_cm.workspace_root = os.getcwd()
+        client = CodeBuilderClient(real_cm)
+        blueprint = {
+            "usings": ["System"],
+            "methods": [{
+                "name": "TryCatchSample",
+                "return_type": "bool",
+                "body": [{
+                    "type": "try_catch",
+                    "body": [{
+                        "type": "raw",
+                        "code": "Console.WriteLine(\"ok\");",
+                    }],
+                    "catch_body": [{
+                        "type": "raw",
+                        "code": "return false;",
+                    }],
+                }, {
+                    "type": "raw",
+                    "code": "return true;",
+                }],
+            }],
+        }
+
+        result = client.build_code(blueprint)
+
+        self.assertEqual("success", result.get("status"), result)
+        code = result.get("code", "")
+        self.assertIn("try", code)
+        self.assertIn("catch (Exception ex)", code)
+        self.assertIn("return false;", code)
+        self.assertIn("return true;", code)
+
     def test_code_builder_rejects_invalid_call_argument_expression(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()
@@ -1759,6 +1816,60 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertEqual("error", result.get("status"))
         self.assertTrue(result.get("diagnostics"))
         self.assertNotIn("code", result)
+
+    def test_code_builder_analyzes_source_metrics_with_roslyn(self):
+        real_cm = MagicMock()
+        real_cm.workspace_root = os.getcwd()
+        client = CodeBuilderClient(real_cm)
+        source = """namespace Generated
+{
+    public partial class GeneratedProcessor
+    {
+        public bool Run()
+        {
+            return true;
+        }
+
+        private string ReadGeneratedTextFileOrDefault(string path)
+        {
+            try
+            {
+                return System.IO.File.ReadAllText(path);
+            }
+            catch (System.Exception)
+            {
+                return string.Empty;
+            }
+        }
+    }
+
+    internal readonly struct GeneratedOperationResult<T>
+    {
+        public GeneratedOperationResult(T value)
+        {
+            Value = value;
+        }
+
+        public T Value { get; }
+    }
+}"""
+
+        result = client.analyze_source_metrics(source)
+
+        self.assertEqual("success", result.get("status"), result)
+        metrics = result.get("metrics", {})
+        self.assertEqual(1, metrics.get("class_count"))
+        self.assertEqual(1, metrics.get("struct_count"))
+        members = metrics.get("members", [])
+        self.assertEqual(3, len(members))
+        run = [member for member in members if member.get("name") == "Run"][0]
+        helper = [member for member in members if member.get("name") == "ReadGeneratedTextFileOrDefault"][0]
+        constructor = [member for member in members if member.get("kind") == "constructor"][0]
+        self.assertEqual("GeneratedProcessor", run.get("declaring_type"))
+        self.assertEqual("private", helper.get("accessibility"))
+        self.assertEqual(1, helper.get("try_count"))
+        self.assertEqual(1, helper.get("catch_count"))
+        self.assertEqual("GeneratedOperationResult", constructor.get("declaring_type"))
 
     def test_async_retry_blueprint_uses_task_delay_for_backoff(self):
         real_cm = MagicMock()

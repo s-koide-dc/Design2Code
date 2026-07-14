@@ -29,7 +29,7 @@ from src.vector_engine.vector_engine import VectorEngine
 
 class AutonomousLearning:
     """自律学習のメインクラス"""
-    
+
     def __init__(self, workspace_root: str, log_manager=None, intent_detector=None, vector_engine=None, morph_analyzer=None):
         self.workspace_root = Path(workspace_root)
         self.log_manager = log_manager
@@ -51,10 +51,10 @@ class AutonomousLearning:
         self.morph_analyzer = morph_analyzer
         self.logger = logging.getLogger(__name__)
         self.learning_diagnostics: List[Dict[str, Any]] = []
-        
+
         # 設定の読み込み
         self.config = self._load_config()
-        
+
         # 既存コンポーネントの初期化
         self.repair_kb = RepairKnowledgeBase(
             str(self.workspace_root),
@@ -73,7 +73,7 @@ class AutonomousLearning:
             morph_analyzer=morph_analyzer
         )
         self.compliance_auditor = ComplianceAuditor(str(self.workspace_root), structural_memory=self.structural_memory)
-        
+
         # 新規サブコンポーネントの初期化
         log_directory = self.workspace_root / 'logs'
         self.log_analyzer = LogAnalyzer(str(log_directory))
@@ -82,7 +82,7 @@ class AutonomousLearning:
         self.event_processor = EventProcessor(self.workspace_root, repair_kb=self.repair_kb)
         self._event_threads = []
         self._event_threads_lock = threading.Lock()
-        
+
         # ConfigManager と Planner が参照する config/retry_rules.json に統一
         self.retry_rules_path = self.workspace_root / 'config' / 'retry_rules.json'
 
@@ -163,7 +163,7 @@ class AutonomousLearning:
             if rule.get('error_type') == error_type:
                 if 'message_pattern' in rule and rule['message_pattern'] not in error_msg:
                     continue
-                
+
                 return {
                     'action': 'RETRY_WITH_ADJUSTMENT',
                     'parameters': rule.get('parameters', {}),
@@ -200,7 +200,7 @@ class AutonomousLearning:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             self.logger.error(f"Failed to save retry rules: {e}")
-    
+
     def _load_config(self) -> Dict[str, Any]:
         config_path = self.workspace_root / 'config' / 'autonomous_learning.json'
         default_config = {
@@ -325,7 +325,7 @@ class AutonomousLearning:
                 "error_type": type(exc).__name__,
             })
             return
-        
+
         if not learned: return
 
         dict_path = self.workspace_root / 'resources' / 'domain_dictionary.json'
@@ -356,13 +356,13 @@ class AutonomousLearning:
                     elif en not in mappings[jp]:
                         mappings[jp].append(en)
                         updated = True
-            
+
             if updated:
                 data["mappings"] = mappings
                 with open(dict_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
                 self.logger.info(f"Updated domain_dictionary.json with learned mappings.")
-                
+
                 processed_path = mappings_path.with_name('learned_mappings.jsonl.processed')
                 if processed_path.exists(): processed_path.unlink()
                 mappings_path.rename(processed_path)
@@ -372,7 +372,7 @@ class AutonomousLearning:
                 "file": str(dict_path),
                 "error_type": type(exc).__name__,
             })
-    
+
     def generate_knowledge_summary(self) -> Dict[str, Any]:
         summary = {
             "timestamp": datetime.now().isoformat(),
@@ -430,10 +430,10 @@ class AutonomousLearning:
             self.logger.info("自律学習サイクルを開始")
             days_back = self.config['learning']['days_back']
             logs = self.log_analyzer.collect_logs(days_back)
-            
+
             if len(logs) < 10:
                 return {'status': 'skipped', 'reason': 'insufficient_data', 'log_count': len(logs)}
-            
+
             patterns = self.log_analyzer.extract_patterns(logs)
             total_patterns = sum(len(p) for p in patterns.values())
             suggestions = self.pattern_learner.learn_from_patterns(patterns)
@@ -449,7 +449,7 @@ class AutonomousLearning:
 
             report = self._generate_report(logs, patterns, safe_suggestions)
             report['applied_count'] = applied_count
-            
+
             return {
                 'status': 'success',
                 'log_count': len(logs),
@@ -485,7 +485,7 @@ class AutonomousLearning:
                     self._save_retry_rules(current_rules)
                     applied_count += 1
         return applied_count
-    
+
     def _generate_report(self, logs: List[Dict[str, Any]], patterns: Dict[str, List[LearningPattern]], suggestions: List[RuleSuggestion]) -> Dict[str, Any]:
         return {
             'timestamp': datetime.now().isoformat(),
@@ -504,7 +504,7 @@ class AutonomousLearning:
             'suggestions': [self._suggestion_to_dict(s) for s in suggestions],
             'recommendations': self._generate_recommendations(suggestions)
         }
-    
+
     def _pattern_to_dict(self, pattern: LearningPattern) -> Dict[str, Any]:
         return {
             'pattern_type': pattern.pattern_type,
@@ -514,7 +514,7 @@ class AutonomousLearning:
             'context': pattern.context,
             'example_count': len(pattern.examples)
         }
-    
+
     def _suggestion_to_dict(self, suggestion: RuleSuggestion) -> Dict[str, Any]:
         return {
             'rule_type': suggestion.rule_type,
@@ -525,16 +525,16 @@ class AutonomousLearning:
             'explanation': suggestion.explanation,
             'supporting_evidence': suggestion.supporting_evidence
         }
-    
+
     def _generate_recommendations(self, suggestions: List[RuleSuggestion]) -> List[str]:
         recommendations = []
         if not suggestions:
             recommendations.append("新しいルール提案はありません。より多くのデータが必要です。")
             return recommendations
-        
+
         low_risk = [s for s in suggestions if s.risk_level == 'low']
         medium_risk = [s for s in suggestions if s.risk_level == 'medium']
-        
+
         if low_risk: recommendations.append(f"{len(low_risk)}個の低リスクルールは自動適用を推奨します。")
         if medium_risk: recommendations.append(f"{len(medium_risk)}個の中リスクルールは慎重な検討後の適用を推奨します。")
         return recommendations

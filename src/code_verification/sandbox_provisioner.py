@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import tempfile
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict
 from pathlib import Path
 
 class SandboxProvisioner:
@@ -26,20 +26,20 @@ class SandboxProvisioner:
         if self.temp_dir.exists():
             shutil.rmtree(self.temp_dir)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # 1. Create .csproj
         csproj_content = self._generate_csproj(dependencies)
         csproj_path = self.temp_dir / f"{project_name}.csproj"
         with open(csproj_path, "w", encoding="utf-8") as f:
             f.write(csproj_content)
-        
+
         # 2. Restore packages
         try:
-            subprocess.run(["dotnet", "restore", str(csproj_path)], 
+            subprocess.run(["dotnet", "restore", str(csproj_path)],
                            capture_output=True, check=True, timeout=30)
         except Exception as e:
             self.logger.warning("Sandbox restore failed: %s", e)
-            
+
         return self.temp_dir
 
     def _generate_csproj(self, dependencies: List[Dict[str, str]]) -> str:
@@ -49,9 +49,9 @@ class SandboxProvisioner:
             version = dep.get("version", "*")
             if name:
                 pkg_refs.append(f'    <PackageReference Include="{name}" Version="{version}" />')
-        
+
         refs_str = "\n".join(pkg_refs)
-        
+
         return f"""<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>

@@ -6,21 +6,21 @@ from typing import Dict, List, Any, Optional
 
 class ImpactScopeAnalyzer:
     """影響範囲分析器"""
-    
+
     def __init__(self, language: str, roslyn_analysis_results: Optional[Dict[str, Any]] = None):
         self.language = language
         self.roslyn_analysis_results = roslyn_analysis_results
         self.manifest = roslyn_analysis_results.get("manifest", {}).get("objects", []) if roslyn_analysis_results else []
         self.details_by_id = roslyn_analysis_results.get("details_by_id", {}) if roslyn_analysis_results else {}
         self.all_roslyn_objects_by_id = {obj["id"]: obj for obj in self.manifest}
-    
+
     def analyze(self, suggestions: List[Dict[str, Any]], project_path: str) -> Dict[str, Any]:
         """影響範囲を分析"""
         affected_files = set()
         affected_classes = set()
         affected_methods = set()
         total_dependencies = 0
-        
+
         for suggestion in suggestions:
             target = suggestion.get("target", {})
             target_file = target.get("file")
@@ -41,12 +41,12 @@ class ImpactScopeAnalyzer:
                 # およびクラスレベルの依存関係 (dependencies) を包括的にトラバースします。
                 # 真に「完全な」依存グラフ解析のためには、インターフェースの実装、ジェネリック型の使用など、
                 # さらなる種類の依存関係を考慮する強化が必要となる場合があります。
-                
+
                 # 提案のターゲットから直接影響を受けるオブジェクトを特定
                 initial_affected_ids = set()
                 for obj_id, detail in self.details_by_id.items():
                     rel_file_path = os.path.relpath(detail["filePath"], project_path)
-                    
+
                     if target_file and rel_file_path == target_file:
                         if target_class and detail.get("fullName") == target_class:
                             initial_affected_ids.add(obj_id)
@@ -63,7 +63,7 @@ class ImpactScopeAnalyzer:
 
                     if not current_detail:
                         continue
-                    
+
                     if current_detail["type"] == "Method":
                         # メソッドが呼び出しているメソッドを追加
                         for dep_info in current_detail.get("calls", []):
@@ -108,14 +108,14 @@ class ImpactScopeAnalyzer:
                                 queue.append(dep_info["id"])
 
                 total_dependencies = len(visited)
-                
+
                 # 影響範囲のファイル、クラス、メソッドを収集
                 for id_in_visited in visited:
                     detail = self.details_by_id.get(id_in_visited)
                     if detail:
                         rel_file_path = os.path.relpath(detail["filePath"], project_path)
                         affected_files.add(rel_file_path)
-                        
+
                         if detail["type"] in ["Class", "Struct"]:
                             affected_classes.add(detail["fullName"])
                         elif detail["type"] == "Method":
@@ -130,7 +130,7 @@ class ImpactScopeAnalyzer:
         elif len(affected_files) > 2 or total_dependencies > 3:
             risk_level = "medium"
             estimated_test_impact = "medium"
-        
+
         return {
             "total_affected_files": len(affected_files),
             "affected_files": list(affected_files),

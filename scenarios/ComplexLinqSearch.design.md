@@ -17,4 +17,4 @@
 5. [ACTION|DISPLAY|User|void|NONE] [refs:step_4] 条件に合致したユーザー一覧を表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"fixtures":[{"path":"users.json","content":"[{\"Id\":1,\"Name\":\"Alice\",\"Age\":30,\"Email\":\"a@example.test\",\"Points\":10,\"Price\":600,\"LastLoginAt\":\"2026-01-01T00:00:00\"},{\"Id\":2,\"Name\":\"Bob\",\"Age\":25,\"Email\":\"b@example.test\",\"Points\":20,\"Price\":900,\"LastLoginAt\":\"2026-01-02T00:00:00\"},{\"Id\":3,\"Name\":\"Anne\",\"Age\":28,\"Email\":\"c@example.test\",\"Points\":30,\"Price\":400,\"LastLoginAt\":\"2026-01-03T00:00:00\"}]"}],"return":true,"stdout":{"contains":["Alice"],"not_contains":["Bob","Anne"]}}}

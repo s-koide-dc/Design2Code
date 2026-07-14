@@ -18,7 +18,7 @@ class TestIRGeneratorV2(unittest.TestCase):
         steps = ["全ユーザーを取得する"]
         ir = self.ir_gen.generate(steps)
         node = ir["logic_tree"][0]
-        
+
         self.assertEqual(node["type"], "ACTION")
         # 決定論的解析により FETCH または GENERAL にマッピングされる
         self.assertTrue(node["role"] in ["FETCH", "GENERAL"])
@@ -28,7 +28,7 @@ class TestIRGeneratorV2(unittest.TestCase):
         steps = ["IDが1のユーザーを取得する"]
         ir = self.ir_gen.generate(steps)
         node = ir["logic_tree"][0]
-        
+
         self.assertEqual(node["type"], "ACTION")
         self.assertTrue(node["role"] in ["FETCH", "GENERAL"])
         self.assertEqual(node["cardinality"], "SINGLE")
@@ -37,16 +37,16 @@ class TestIRGeneratorV2(unittest.TestCase):
         steps = ["結果を 'report.txt' に保存する"]
         ir = self.ir_gen.generate(steps)
         node = ir["logic_tree"][0]
-        
+
         self.assertEqual(node["type"], "ACTION")
         self.assertTrue(node["role"] in ["PERSIST", "GENERAL"])
-        self.assertEqual(node["cardinality"], "SINGLE") 
+        self.assertEqual(node["cardinality"], "SINGLE")
 
     def test_loop_structure(self):
         steps = ["取得した各アイテムに対して", "表示する", "を終えて"]
         ir = self.ir_gen.generate(steps)
         loop_node = ir["logic_tree"][0]
-        
+
         self.assertEqual(loop_node["type"], "LOOP")
         self.assertEqual(len(loop_node.get("children", [])), 1)
         body_node = loop_node.get("children", [])[0]

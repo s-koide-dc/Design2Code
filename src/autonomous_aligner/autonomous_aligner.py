@@ -26,7 +26,7 @@ class AutonomousAligner:
         self.project_root = Path(project_root)
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
-        
+
         # 依存関係の注入
         if vector_engine is None:
             try:
@@ -39,7 +39,7 @@ class AutonomousAligner:
         self.morph_analyzer = morph_analyzer
         self.structural_patch_builder = structural_patch_builder
         self.post_change_validator = post_change_validator
-        
+
         self.auditor = LogicAuditor(
             vector_engine=self.vector_engine,
             morph_analyzer=self.morph_analyzer,
@@ -54,12 +54,12 @@ class AutonomousAligner:
         results = []
         # デザインドキュメントを検索
         design_docs = list(self.project_root.rglob("*.design.md"))
-        
+
         for doc_path in design_docs:
             res = self.align_module(doc_path)
             if res:
                 results.append(res)
-        
+
         report = {
             "timestamp": datetime.now().isoformat(),
             "total_modules_processed": len(results),
@@ -184,10 +184,10 @@ class AutonomousAligner:
                 "source_file": str(source_file),
                 "language": source_file.suffix.lstrip("."),
             }
-            
+
             audit_result = self.auditor.audit(design_data, source_structure, code_content)
             initial_score = audit_result["consistency_score"]
-            
+
             if audit_result["status"] == "consistent":
                 return {
                     "module": module_name,

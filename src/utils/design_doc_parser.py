@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 from src.utils.stdout_guard import debug_print
 
@@ -21,17 +21,17 @@ class DesignDocParser:
         """ファイルを読み込んでパースする"""
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Design document not found: {file_path}")
-        
+
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        
+
         return self.parse_content(content)
 
     def parse_content(self, content: str) -> Dict[str, Any]:
         """文字列としての設計書内容をパースする"""
         # セクションごとに分割
         sections = self._split_sections(content)
-        
+
         cfg = self._load_parser_config()
         aliases = cfg.get("section_aliases", {}) if isinstance(cfg.get("section_aliases"), dict) else {}
 
@@ -59,29 +59,29 @@ class DesignDocParser:
             },
             "test_cases": self._parse_test_cases(test_info)
         }
-        
+
         return result
 
     def _split_sections(self, content: str) -> Dict[str, str]:
         """Markdownの見出しに基づいて内容を辞書に分割 (重複見出しの統合をサポート)"""
         sections = {}
         lines = content.splitlines()
-        
+
         current_header = None
         current_content = []
-        
+
         def save_current():
             if current_header:
                 val = "\n".join(current_content).strip()
                 # 簡略化名 (e.g. "1. Purpose" -> "Purpose")
                 simple_name = self._strip_leading_numbering(current_header)
-                
+
                 # 完全な見出し名
                 if current_header in sections:
                     sections[current_header] += "\n\n" + val
                 else:
                     sections[current_header] = val
-                
+
                 # 簡略化名 (重複時は統合)
                 if simple_name != current_header:
                     if simple_name in sections:
@@ -102,7 +102,7 @@ class DesignDocParser:
                     continue
             if current_header is not None:
                 current_content.append(line)
-        
+
         save_current()
         return sections
 
@@ -156,7 +156,7 @@ class DesignDocParser:
                     "example": ""
                 })
             return items
-            
+
         # Description / Format / Example (simple line scan)
         desc_val = ""
         fmt_val = ""
@@ -207,7 +207,7 @@ class DesignDocParser:
     def _parse_list_items(self, content: str) -> List[str]:
         """Core Logicなどのリスト項目を抽出 (階層や複数のリストを考慮)"""
         if not content: return []
-        
+
         items = []
         # 行ごとに見て、リストマーカー(1. or -)で始まるものを全て抽出
         for line in content.splitlines():
@@ -228,18 +228,18 @@ class DesignDocParser:
                     marker = stripped[:i+1]
                     item_text = stripped[i+2:].strip()
                     items.append(f"{marker} {item_text}")
-        
+
         # もしリストが見つからなかったがテキストがある場合は、段落ごとに分割して返す
         if not items and content.strip():
             paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
             return paragraphs
-            
+
         return items
 
     def _parse_test_cases(self, content: str) -> List[Dict[str, Any]]:
         """Test Casesセクションを構造化"""
         if not content: return []
-        
+
         cases = []
         cfg = self._load_parser_config()
         type_map = cfg.get("test_case_types", {"happy_path": ["Happy Path"], "edge_case": ["Edge Case"]})
@@ -251,7 +251,7 @@ class DesignDocParser:
         current_type = "general"
         lines = content.splitlines()
         current_case = None
-        
+
         for line in lines:
             line = line.strip()
             if not line:
@@ -304,7 +304,7 @@ class DesignDocParser:
                         if current_case:
                             cases.append(current_case)
                         current_case = {"type": current_type, "scenario": title, "input": "", "expected": value}
-        
+
         if current_case: cases.append(current_case)
         return cases
 

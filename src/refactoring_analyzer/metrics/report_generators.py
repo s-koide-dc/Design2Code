@@ -7,8 +7,8 @@ from typing import Dict, List, Any
 
 class RefactoringJSONReporter:
     """JSON形式リファクタリングレポート生成器"""
-    
-    def generate(self, output_path: str, smell_result: Dict[str, Any], suggestions: List[Dict[str, Any]], 
+
+    def generate(self, output_path: str, smell_result: Dict[str, Any], suggestions: List[Dict[str, Any]],
                 quality_metrics: Dict[str, Any], recommendations: List[Dict[str, Any]]) -> None:
         """JSONレポートを生成"""
         report_data = {
@@ -18,27 +18,27 @@ class RefactoringJSONReporter:
             "recommendations": recommendations,
             "generated_at": datetime.now().isoformat()
         }
-        
+
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(report_data, f, ensure_ascii=False, indent=2)
 
 
 class RefactoringHTMLReporter:
     """HTML形式リファクタリングレポート生成器"""
-    
-    def generate(self, output_path: str, smell_result: Dict[str, Any], suggestions: List[Dict[str, Any]], 
+
+    def generate(self, output_path: str, smell_result: Dict[str, Any], suggestions: List[Dict[str, Any]],
                 quality_metrics: Dict[str, Any], recommendations: List[Dict[str, Any]]) -> None:
         """HTMLレポートを生成"""
         html_content = self._generate_html_template(smell_result, suggestions, quality_metrics, recommendations)
-        
+
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
-    
-    def _generate_html_template(self, smell_result: Dict[str, Any], suggestions: List[Dict[str, Any]], 
+
+    def _generate_html_template(self, smell_result: Dict[str, Any], suggestions: List[Dict[str, Any]],
                                quality_metrics: Dict[str, Any], recommendations: List[Dict[str, Any]]) -> str:
         """HTMLテンプレートを生成"""
         code_smells = smell_result.get("code_smells", [])
-        
+
         # Helper to format code smells
         smells_html = ""
         for smell in code_smells:
@@ -46,7 +46,7 @@ class RefactoringHTMLReporter:
             smells_html += f"""
             <div class="card smell-card border-{severity}">
                 <div class="card-header bg-{severity} text-white">
-                    <strong>{smell.get('type', 'unknown').upper()}</strong> 
+                    <strong>{smell.get('type', 'unknown').upper()}</strong>
                     <span class="badge badge-light float-right">{severity}</span>
                 </div>
                 <div class="card-body">
@@ -147,4 +147,3 @@ class RefactoringHTMLReporter:
 
         </html>"""
 
-        

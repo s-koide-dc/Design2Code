@@ -1,5 +1,3 @@
-import os
-
 def normalize_path(path: str) -> str:
     """パスを標準化する（Windowsの区切り文字、重複するスラッシュなどを解消）"""
     if not path: return ""
@@ -89,11 +87,11 @@ def _get_context_summary(context: dict | None) -> dict:
             "response_text_preview": "Context was None",
             "errors": [{"module": "pipeline_core", "message": "Context object was None"}]
         }
-        
+
     plan = context.get("plan", {})
     if plan is None:
         plan = {}
-        
+
     summary = {
         "intent": context.get("analysis", {}).get("intent"),
         "intent_confidence": context.get("analysis", {}).get("intent_confidence"),

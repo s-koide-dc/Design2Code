@@ -5,30 +5,30 @@ from typing import Dict, List, Any
 
 class RefactoringSuggestionEngine:
     """リファクタリング提案エンジン"""
-    
+
     def __init__(self, language: str, config: Dict[str, Any]):
         self.language = language
         self.config = config
-    
+
     def generate_suggestions(self, code_smells: List[Dict[str, Any]], options: Dict[str, Any]) -> List[Dict[str, Any]]:
         """リファクタリング提案を生成"""
         suggestions = []
-        
+
         for smell in code_smells:
             smell_suggestions = self._generate_suggestions_for_smell(smell)
             suggestions.extend(smell_suggestions)
-        
+
         # 優先度でソート
         suggestions.sort(key=lambda x: self._get_priority_score(x["priority"]), reverse=True)
-        
+
         # 最大提案数の制限
         max_suggestions = options.get("max_suggestions", 10)
         return suggestions[:max_suggestions]
-    
+
     def _generate_suggestions_for_smell(self, smell: Dict[str, Any]) -> List[Dict[str, Any]]:
         """特定のスメルに対する提案を生成"""
         smell_type = smell["type"]
-        
+
         if smell_type == "long_method":
             return self._suggest_extract_method(smell)
         elif smell_type == "duplicate_code":
@@ -37,9 +37,9 @@ class RefactoringSuggestionEngine:
             return self._suggest_simplify_condition(smell)
         elif smell_type == "god_class":
             return self._suggest_split_class(smell)
-        
+
         return []
-    
+
     def _suggest_extract_method(self, smell: Dict[str, Any]) -> List[Dict[str, Any]]:
         """メソッド抽出の提案"""
         return [{
@@ -68,7 +68,7 @@ class RefactoringSuggestionEngine:
                 "coverage_change": "新メソッドのテスト追加推奨"
             }
         }]
-    
+
     def _suggest_extract_common_method(self, smell: Dict[str, Any]) -> List[Dict[str, Any]]:
         """共通メソッド抽出の提案"""
         return [{
@@ -91,7 +91,7 @@ class RefactoringSuggestionEngine:
                 "test_impact": "共通メソッドのテスト追加が必要"
             }
         }]
-    
+
     def _suggest_simplify_condition(self, smell: Dict[str, Any]) -> List[Dict[str, Any]]:
         """条件式簡素化の提案"""
         return [{
@@ -113,7 +113,7 @@ class RefactoringSuggestionEngine:
             },
             "auto_fixable": False
         }]
-    
+
     def _suggest_split_class(self, smell: Dict[str, Any]) -> List[Dict[str, Any]]:
         """クラス分割の提案"""
         return [{
@@ -136,7 +136,7 @@ class RefactoringSuggestionEngine:
                 "coverage_change": "新しいクラス構造に応じたテスト再設計"
             }
         }]
-    
+
     def _get_priority_score(self, priority: str) -> int:
         """優先度スコアを取得"""
         priority_scores = {"high": 3, "medium": 2, "low": 1}

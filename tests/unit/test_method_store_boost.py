@@ -12,7 +12,7 @@ class TestMethodStoreBoost(unittest.TestCase):
         self.test_dir = os.path.join(os.getcwd(), 'tests', 'tmp_method_store_boost')
         os.makedirs(self.test_dir, exist_ok=True)
         self.store_path = os.path.join(self.test_dir, 'test_store.json')
-        
+
         # Mock config_manager
         class MockConfig:
             def __init__(self, store_path, storage_dir):
@@ -20,7 +20,7 @@ class TestMethodStoreBoost(unittest.TestCase):
                 self.storage_dir = storage_dir
                 self.workspace_root = os.getcwd()
                 self.domain_dictionary_path = os.path.join(self.workspace_root, "resources", "domain_dictionary.json")
-        
+
         self.store = MethodStore(config=MockConfig(self.store_path, self.test_dir))
 
         # テストデータの準備
@@ -32,7 +32,7 @@ class TestMethodStoreBoost(unittest.TestCase):
             "role": "FETCH",
             "code": "public void ProcessTask() {}"
         }
-        
+
         self.m2 = {
             "id": "project.internal.handler",
             "name": "HandleInternalTask",
@@ -52,10 +52,10 @@ class TestMethodStoreBoost(unittest.TestCase):
     def test_structural_role_filter_precedes_vector_order(self):
         """明示された構造ロールに適合するメソッドだけが返るか"""
         results = self.store.search("task", role="PERSIST")
-        
+
         result_ids = [r['id'] for r in results]
         print(f"\nSearch results for 'task': {result_ids}")
-        
+
         self.assertEqual(
             [result["id"] for result in results],
             ["project.internal.handler"],

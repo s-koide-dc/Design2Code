@@ -40,7 +40,7 @@ class IntentDetector:
             self.corpus_path = config_manager.intent_corpus_path
         elif not self.corpus_path:
             self.corpus_path = "resources/intent_corpus.json"
-            
+
         self.task_manager = task_manager
         self.intents = []
         self.vector_engine = None
@@ -66,7 +66,7 @@ class IntentDetector:
         """
         Pre-calculates sentence vectors for all examples in the corpus.
         Uses a cache to speed up startup.
-        
+
         Args:
             morph_analyzer (MorphAnalyzer): Instance to tokenize the corpus examples.
         """
@@ -79,7 +79,7 @@ class IntentDetector:
             cache_dir,
             f"intent_vectors_{cache_signature[:16]}.pkl",
         )
-        
+
         # Try to load from cache
         import pickle
         if os.path.exists(cache_file):
@@ -105,14 +105,14 @@ class IntentDetector:
                 temp_context = {"original_text": text}
                 tokens_data = morph_analyzer.analyze(temp_context).get("analysis", {}).get("tokens", [])
                 words = self._extract_content_words(tokens_data)
-                
+
                 # Get sentence vector from VectorEngine
                 vec = self.vector_engine.get_sentence_vector(words)
                 if vec is not None:
                     vectors.append(vec)
-            
+
             self.intent_vectors[name] = vectors
-        
+
         # Save to cache
         if not os.path.exists(cache_dir):
             os.makedirs(cache_dir, exist_ok=True)
@@ -216,7 +216,7 @@ class IntentDetector:
                     intent.setdefault("examples", []).append(example)
                 intent_found = True
                 break
-        
+
         if not intent_found:
             self.intents.append({
                 "name": intent_name,
@@ -243,7 +243,7 @@ class IntentDetector:
         """
         context.setdefault("analysis", {})
         context.setdefault("pipeline_history", [])
-        
+
         text = context.get("original_text", "")
         if not text:
             context["analysis"]["intent"] = INTENT_GENERAL
@@ -262,7 +262,7 @@ class IntentDetector:
         current_task = context.get("task", {})
         task_name = current_task.get("name")
         task_state = current_task.get("state")
-        
+
         # 1. Semantic Match (High Priority)
         # Prioritize explicit approval / rejection only when awaiting explicit approval (not missing-entity clarification)
         is_awaiting_conf = current_task and current_task.get("clarification_needed") and current_task.get("clarification_type") == "APPROVAL"
@@ -271,7 +271,7 @@ class IntentDetector:
              sid = self.task_manager.get_session_id(context)
              if sid in self.task_manager.active_tasks and self.task_manager.active_tasks[sid].get("clarification_needed") and self.task_manager.active_tasks[sid].get("clarification_type") == "APPROVAL":
                   is_awaiting_conf = True
-        
+
         if is_awaiting_conf and self.vector_engine:
             debug_print(f"[DEBUG] Awaiting confirmation for task {current_task.get('name') if current_task else 'unknown'}")
 
@@ -280,12 +280,12 @@ class IntentDetector:
             tokens = context.get("analysis", {}).get("tokens", [])
             query_words = self._extract_content_words(tokens)
             query_vec = self.vector_engine.get_sentence_vector(query_words)
-            
+
             if query_vec is not None:
                 best_score = 0.0
                 best_intent = INTENT_GENERAL
                 threshold = 0.60 # Baseline threshold (from design doc, now 0.60)
-                
+
                 # Intent Priority logic: Actions should outrank greetings if scores are reasonably high
                 action_intents = [
                     INTENT_BACKUP_AND_DELETE,
@@ -311,25 +311,25 @@ class IntentDetector:
                     INTENT_WEATHER,
                 ]
                 is_short_utterance = len(query_words) <= 3
-                
+
                 for name, vectors in self.intent_vectors.items():
                     # Apply state-dependent boost to best_score for vector matching
                     state_boost = 0.0
                     if task_name == INTENT_FILE_CREATE and task_state == "AWAITING_CONTENT" and name == INTENT_PROVIDE_CONTENT:
                         state_boost = 0.1 # Small boost
-                
+
                     # Confirmation Context Boost for Vector Match
                     if is_awaiting_conf and name in [INTENT_AGREE, INTENT_DISAGREE]:
                         state_boost = 0.2 # Significant boost during confirmation
-                
+
                     for vec in vectors:
                         score = self.vector_engine.vector_similarity(query_vec, vec)
-                        
+
                         # Boost score for Action intents to prevent false GREETING matches
                         adjusted_score = score
                         if name in action_intents and score > 0.4:
                             adjusted_score += 0.05
-                            
+
                         # High confidence for specific greetings if they're close enough
                         if name == INTENT_GREETING and adjusted_score > 0.8:
                             adjusted_score += 0.1
@@ -344,19 +344,19 @@ class IntentDetector:
                             and adjusted_score > 0.5
                         ):
                             adjusted_score += 0.08
-                        
+
                         adjusted_score += state_boost # Apply state-dependent boost
-                            
+
                         if adjusted_score > best_score:
                             best_score = adjusted_score
                             best_intent = name
-                
+
                 if best_score > threshold:
                     detected_intent = best_intent
                     detected_confidence = best_score # Use vector score as confidence
-                
+
         context["analysis"]["intent"] = detected_intent
         context["analysis"]["intent_confidence"] = detected_confidence
         context["pipeline_history"].append("intent_detector")
-        
+
         return context

@@ -50,12 +50,12 @@ class AutonomousSynthesizer:
             def __init__(self):
                 self.active_tasks = {}
             def get_session_id(self, context=None): return "autonomous_session"
-            
+
         self.task_manager = task_manager or DummyTaskManager()
         from .dependency_resolver import DependencyResolver
         self.dependency_resolver = DependencyResolver(config_manager, structural_memory=self.structural_memory)
         self.intent_detector = None
-            
+
         self.syntactic_analyzer = SyntacticAnalyzer()
         self.semantic_analyzer = SemanticAnalyzer(self.task_manager, config_manager=config_manager)
         self.logic_auditor = LogicAuditor(
@@ -67,33 +67,33 @@ class AutonomousSynthesizer:
     def synthesize_safely(self, method_name: str, design_steps: List[str], max_retries: int = 3, execute: bool = False, session_context: Dict[str, Any] = None, return_type: str = None, input_param_type: str = None, work_dir: str = None, intent: str = None) -> Dict[str, Any]:
         """ビルド（および任意で実行）が成功するまで、負のフィードバックを糧に再試行を繰り返す"""
         session_context = session_context or {}
-        
+
         attempt = 0
         v_res = {}
         result = {}
-        
+
         # Track already resolved packages to avoid loops
         resolved_symbols = set()
         session_dependencies = set()
-        
+
         while attempt <= max_retries:
             attempt += 1
             debug_print(f"\n[AutonomousSynthesizer] Attempt {attempt} for '{method_name}'")
-            
+
             # 1. 合成 (セッションコンテキストを考慮)
             enhanced_steps = design_steps.copy()
             if session_context.get("last_method"):
                 last_m = session_context["last_method"]
                 ret_type = input_param_type or last_m.get("return_type", "dynamic")
                 enhanced_steps.insert(0, f"直前の処理 {last_m['name']} が返した {ret_type} 型のデータを受け取る")
-            
+
             result = self.synthesizer.synthesize(method_name, enhanced_steps, return_type=return_type, input_type_hint=input_param_type, pre_resolved_dependencies=list(session_dependencies), intent=intent)
             code = result["code"]
-            
+
             # 2. 検証 (ビルド)
             debug_print("[AutonomousSynthesizer] Verifying build...")
             v_start = time.time()
-            
+
             # Use current dependencies from path
             current_deps = [{"name": d} for d in result.get("dependencies", [])]
             # 更新された依存関係をセッションレベルで保持
@@ -101,17 +101,17 @@ class AutonomousSynthesizer:
             v_res = self.verifier.verify(code, work_dir=work_dir, dependencies=current_deps)
             v_time = time.time() - v_start
             debug_print(f"[AutonomousSynthesizer] Build took {v_time:.2f}s")
-            
+
             if v_res.get("valid"):
                 debug_print("[AutonomousSynthesizer] Build SUCCESS!")
                 # Persist the newly resolved packages
                 self.dependency_resolver.save_mappings()
-                
+
                 # 3. 実行検証 (オプション)
                 if execute:
                     debug_print("[AutonomousSynthesizer] Extracting logic goals for assertions...")
                     assertion_goals = self.logic_auditor.extract_assertion_goals(enhanced_steps)
-                    
+
                     debug_print("[AutonomousSynthesizer] Executing code with assertions...")
                     e_start = time.time()
                     e_res = self.executor.run_and_capture(code, method_name, work_dir=work_dir, assertion_goals=assertion_goals, dependencies=current_deps)
@@ -119,7 +119,7 @@ class AutonomousSynthesizer:
                     debug_print(f"[AutonomousSynthesizer] Execution took {e_time:.2f}s")
                     if e_res.get("success"):
                         debug_print("[AutonomousSynthesizer] Execution SUCCESS!")
-                        
+
                         # --- NEW: Positive Semantic Feedback ---
                         if intent:
                             used_ids = result.get("used_ids", [])
@@ -138,7 +138,7 @@ class AutonomousSynthesizer:
                         }
                     else:
                         debug_print(f"[AutonomousSynthesizer] Execution FAILED: {e_res.get('exception', {}).get('type')}")
-                        
+
                         # --- NEW: Semantic Feedback Analysis ---
                         from src.advanced_tdd.models import TestFailure
                         test_failure = TestFailure(
@@ -147,18 +147,18 @@ class AutonomousSynthesizer:
                             error_message=e_res.get('exception', {}).get('message', ''),
                             stack_trace=e_res.get('exception', {}).get('stack_trace', '')
                         )
-                        
+
                         # Roslyn data equivalent for runtime: list of classes/methods used in the path
                         roslyn_data_for_feedback = {"details_by_id": {}} # Simple stub for now
-                        
+
                         # Analyze failure with intent awareness
                         runtime_feedback_analysis = self.analyzer.analyze_test_failure(test_failure, expected_intent=intent)
-                        
+
                         mismatch = runtime_feedback_analysis.get('semantic_mismatch')
                         if mismatch:
                             actual_code = mismatch.get('actual_code')
                             debug_print(f"[AutonomousSynthesizer] SEMANTIC MISMATCH detected: {actual_code} is NOT suitable for {intent}")
-                            
+
                             # Update MethodStore with negative feedback
                             # Note: actual_code is class.method, MethodStore expects ID
                             # For now, we try to match the ID.
@@ -171,9 +171,9 @@ class AutonomousSynthesizer:
                         rec = None
                         for rb in runtime_feedback:
                             rec = rb.get("recommendation")
-                        
+
                         # Heuristic regex/keyword-based corrections are disallowed.
-                        
+
                         if rec == "AddFileCheck":
                             new_step = "もしファイルの存在が確認できれば"
                             if new_step not in design_steps:
@@ -188,30 +188,30 @@ class AutonomousSynthesizer:
                         "has_side_effects": result.get("has_side_effects"),
                         "poco_info": result.get("poco_info")
                     }
-            
+
             # 4. 失敗分析と学習 (ビルドエラー)
             errors = v_res.get("errors", [])
             if not v_res.get("valid") and errors:
                 debug_print(f"[AutonomousSynthesizer] Build FAILED with {len(errors)} errors.")
-                
+
                 # --- NEW: Autonomous NuGet Resolution ---
                 resolution_results = self.dependency_resolver.analyze_build_errors(errors)
                 resolved_any = False
-                
+
                 for res in resolution_results:
                     if res.get("internal"):
                         # 内部コードの場合は using 句の欠落としてマーク
                         debug_print(f"[AutonomousSynthesizer] Symbol '{res.get('id')}' found internally. Injecting reference hint.")
                         # 次の合成で using が追加されるようにヒントを与える（仮）
                         # TODO: self.synthesizer に直接 using 強制リストを渡す
-                        resolved_any = True 
+                        resolved_any = True
                     else:
                         pkg_id = res["name"]
                         if pkg_id not in session_dependencies:
                             debug_print(f"[AutonomousSynthesizer] Found NuGet package: {pkg_id}")
                             session_dependencies.add(pkg_id)
                             resolved_any = True
-                
+
                 if resolved_any:
                     debug_print("[AutonomousSynthesizer] Resolved missing symbols. Retrying synthesis.")
                     continue
@@ -220,17 +220,17 @@ class AutonomousSynthesizer:
                 for err in errors:
                     debug_print(f"  - {err.get('code')}: {err.get('message')} (Line: {err.get('line')})")
                 feedback = self.analyzer.analyze_compilation_failure(code, errors)
-                
+
                 if not feedback:
                     debug_print("[AutonomousSynthesizer] No actionable feedback extracted. Stopping.")
                     break
-                    
+
                 for fb in feedback:
                     if fb["type"] == "negative_feedback":
                         src, tgt = fb["source_type"], fb["target_type"]
                         debug_print(f"[AutonomousSynthesizer] Learning from mistake: {src} -> {tgt} is invalid.")
                         self.synthesizer.knowledge_base.add_negative_feedback(src, tgt)
-                        
+
                         # 推薦アクションがあれば、設計ステップを動的に補完する
                         rec = fb.get("recommendation")
                         err_line = fb.get("line")
@@ -240,17 +240,17 @@ class AutonomousSynthesizer:
                             if new_step not in design_steps:
                                 debug_print(f"[AutonomousSynthesizer] Injecting fix step: {new_step}")
                                 design_steps.insert(insert_idx, new_step)
-                    
+
                     elif fb["type"] == "unresolved_symbol":
                         symbol = fb["symbol"]
                         # NuGet解決ループで解決できなかったものだけを永続化
                         if symbol not in session_dependencies:
                             debug_print(f"[AutonomousSynthesizer] Marking symbol as dead-end: {symbol}")
                             # self.synthesizer.knowledge_base.add_unresolved_symbol(symbol)
-            
+
             # 5. 知識ベースの更新をSynthesizerに反映
             # self.synthesizer.reload_feedback()
-            
+
         return {
             "status": "partial_success",
             "message": "ビルド成功には至りませんでしたが、最適と思われるコードを返します。",
@@ -265,38 +265,38 @@ class AutonomousSynthesizer:
         start_time = time.time()
         if not goal.description:
             return {"status": "error", "message": "目標の説明が空です。"}
-        
+
         # 検蔵用サンドボックスの準備 (セッション内で共有)
         work_dir = tempfile.mkdtemp(prefix="tdd_shared_")
         try:
             # サンドボックスの初期化
             self.verifier.initialize_sandbox(work_dir)
-            
+
             # POCO情報は IRGenerator が自動的に抽出するため、事前抽出ロジックを削除
             # main_type = list(inferred_poco.keys())[0] if inferred_poco else "Item"
             # main_collection = f"IEnumerable<{main_type}>"
             main_collection = "IEnumerable<dynamic>" # フォールバック
-        
+
             requirements = []
             for i, criteria in enumerate(goal.acceptance_criteria):
                 debug_print(f"[AutonomousSynthesizer] Analyzing Requirement {i+1}: {criteria}")
-                
+
                 # コンテキスト作成と分析
                 context = {"original_text": criteria, "analysis": {}}
                 # Morph分析
                 if hasattr(self.synthesizer, "morph_analyzer"):
                     context = self.synthesizer.morph_analyzer.analyze(context)
-                
+
                 # 構文解析 (chunks生成のために必要)
                 self.syntactic_analyzer.analyze(context)
-                
+
                 # Intent detection via external heuristics is disabled for strict semantics.
                 self.semantic_analyzer.analyze(context)
-                
+
                 intent = INTENT_GENERAL
                 entities = context.get("analysis", {}).get("entities", {})
                 debug_print(f"[DEBUG] Detected Intent: {intent}, Entities: {list(entities.keys())}")
-                
+
                 # 特殊ケース: メソッド名指定の意図がある場合
                 if intent == INTENT_SET_METHOD_NAME and "target_name" in entities:
                     target_name = entities["target_name"]["value"]
@@ -304,7 +304,7 @@ class AutonomousSynthesizer:
                         # 直前の要件のメソッド名を更新
                         debug_print(f"[AutonomousSynthesizer] Renaming previous requirement to '{target_name}'")
                         requirements[-1]["method_name"] = target_name
-                        continue 
+                        continue
 
                 method_name = self._infer_method_name_from_analysis(intent, entities, criteria)
                 requirements.append({
@@ -314,14 +314,14 @@ class AutonomousSynthesizer:
                     "entities": entities,
                     "method_name": method_name
                 })
-                
+
             final_results = []
             session_context = {
                 "last_method": None,
                 "methods_history": [],
                 "inferred_poco": {}
             }
-            
+
             for i, req in enumerate(requirements):
                 m_name = req["method_name"]
                 desc = req["description"]
@@ -330,22 +330,22 @@ class AutonomousSynthesizer:
 
                 # 意図に基づくステップの強化
                 steps = [desc]
-                
+
                 # 戻り値／引数の推論 (次のステップがある場合、READなら型を要求する)
                 req_ret = None
                 req_input = None
-                
+
                 if session_context["last_method"]:
                     prev_ret = session_context["last_method"].get("return_type")
                     if prev_ret and prev_ret.lower() != "void" and prev_ret != "Task":
                         req_input = prev_ret
-                
+
                 # 合成実行
                 debug_print(f"[AutonomousSynthesizer] Step {i+1}/{len(requirements)}: Synthesizing task: {m_name}")
-                
+
                 # CodeSynthesizer.synthesize は完成したコードを返すため、引数を調整
                 res = self.synthesize_safely(m_name, steps, execute=True, session_context=session_context, return_type=req_ret, input_param_type=req_input, work_dir=work_dir, intent=intent)
-                
+
                 if res.get("code"):
                     sig = self._extract_signature(res["code"], m_name)
                     session_context["last_method"] = {
@@ -355,15 +355,15 @@ class AutonomousSynthesizer:
                         "params": sig.get("params")
                     }
                     session_context["methods_history"].append(session_context["last_method"])
-                
+
                 final_results.append({
                     "requirement": req,
                     "result": res
                 })
-                
+
             # 結果の統合
             consolidated_code = self._consolidate_results(final_results)
-            
+
             total_time = time.time() - start_time
             debug_print(f"\n[AutonomousSynthesizer] Total Goal processing took {total_time:.2f}s")
 
@@ -427,15 +427,15 @@ class AutonomousSynthesizer:
         all_usings = set()
         method_bodies = []
         poco_definitions = {}
-        
+
         for res in results:
             code = res["result"].get("code", "")
             if not code: continue
-            
+
             # 1. Using の抽出
             usings = re.findall(r"using\s+[\w\.]+;", code)
             for u in usings: all_usings.add(u)
-            
+
             # 2. メソッド定義の抽出
             # クラスの中身（メソッド部分）を正規表現で抜く
             # より堅牢な方法: GeneratedProcessor { ... } の中身をバランスの取れた括弧で探すか、
@@ -443,7 +443,7 @@ class AutonomousSynthesizer:
             methods = re.findall(r"(public\s+(?:async\s+)?(?:Task<.*?>|Task|[a-zA-Z0-9_<>,\[\]]+)\s+\w+\s*\(.*?\)\s*\{(?:[^{}]*|\{[^{}]*\})*\})", code, re.DOTALL)
             for m in methods:
                 method_bodies.append(m.strip())
-            
+
             # 3. POCO 定義の抽出 (クラス定義の外にある public class ...)
             # res["result"] に poco_info がある場合はそれを利用
             poco_info = res["result"].get("poco_info", {})
@@ -460,7 +460,7 @@ class AutonomousSynthesizer:
         # 4. 組み立て
         sorted_usings = sorted(list(all_usings))
         usings_str = "\n".join(sorted_usings)
-        
+
         # メソッドのインデント調整 (クラス内に配置するため4スペース追加)
         indented_methods = []
         for body in method_bodies:
@@ -468,9 +468,9 @@ class AutonomousSynthesizer:
             clean_body = textwrap.dedent(body).strip()
             indented_body = "\n".join([f"    {line}" if line.strip() else "" for line in clean_body.splitlines()])
             indented_methods.append(indented_body)
-            
+
         combined_methods = "\n\n".join(indented_methods)
-        
+
         poco_str = ""
         if poco_definitions:
             for name, props in poco_definitions.items():
@@ -486,19 +486,19 @@ class AutonomousSynthesizer:
                         # POCOも正規化
                         clean_pc = textwrap.dedent(pc_code).strip()
                         poco_str += f"\n{clean_pc}\n"
-            
+
         # 最終的なクラス定義
         final_code = f"{usings_str}\n\npublic class GeneratedProcessor\n{{\n{combined_methods}\n}}\n{poco_str}"
         return final_code
 
     def _infer_method_name_from_analysis(self, intent: str, entities: Dict[str, Any], text: str) -> str:
         """IntentとEntityから適切なメソッド名を推測する"""
-        
+
         # 1. Entity (target_name) があれば優先
         if "target_name" in entities:
              val = entities["target_name"]["value"]
              return "".join(word.capitalize() for word in re.split(r'[^a-zA-Z0-9]', val))
-        
+
         # 2. Intent によるマッピング
         intent_map = {
             INTENT_FILE_CREATE: "Create",
@@ -509,7 +509,7 @@ class AutonomousSynthesizer:
             "EXTRACT_ENTITY": "Extract",
             INTENT_CS_QUERY_ANALYSIS: "Analyze"
         }
-        
+
         if intent in intent_map:
             name = intent_map[intent]
             # Entity (filename) があれば結合
@@ -519,7 +519,7 @@ class AutonomousSynthesizer:
                 f_name = "".join(word.capitalize() for word in re.split(r'[^a-zA-Z0-9]', f_name))
                 return f"{name}{f_name}"
             return name
-        
+
         # 3. 既定のルールベースへフォールバック
         return self._infer_method_name_from_criteria(text)
 
@@ -531,7 +531,7 @@ class AutonomousSynthesizer:
         if "計算" in text or "Calculate" in text: return "Calculate"
         if "検索" in text or "Search" in text: return "Search"
         return "Features"
-        
+
     def _extract_signature(self, code: str, method_name: str) -> Dict[str, Any]:
         """生成された C# コードからシグネチャを抽出する (簡易版)"""
         # public [Async] [ReturnType] [MethodName]([Params])

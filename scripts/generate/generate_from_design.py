@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import sys
-import copy
 import time
 from datetime import datetime
 from pathlib import Path
@@ -623,7 +622,7 @@ def main() -> int:
     inferred_design_path = inference_result.get("output_path") or args.design
     spec = sd_parser.parse_design_file(inferred_design_path)
     validate_structured_spec_or_raise(spec)
-    
+
     module_name = spec.get("module_name", "GeneratedModule")
     output_path = args.output or f"{module_name}.cs"
 
@@ -742,7 +741,7 @@ def main() -> int:
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(code)
-    
+
     emit_progress(f"[+] Result saved to {output_path}")
     return 0
 

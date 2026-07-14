@@ -20,20 +20,20 @@ class TestSyntacticAnalyzer(unittest.TestCase):
             "analysis": {"tokens": tokens},
             "pipeline_history": ["morph_analyzer"]
         }
-        
+
         result_context = self.analyzer.analyze(initial_context)
-        
+
         self.assertIn("chunks", result_context["analysis"])
         chunks = result_context["analysis"]["chunks"]
-        
+
         # 2つのチャンクが生成されることを期待
         self.assertEqual(len(chunks), 2)
-        
+
         # 1つ目のチャンクは「猫が」
         self.assertEqual(len(chunks[0]), 2)
         self.assertEqual(chunks[0][0]["surface"], "猫")
         self.assertEqual(chunks[0][1]["surface"], "が")
-        
+
         # 2つ目のチャンクは「歩く」
         self.assertEqual(len(chunks[1]), 1)
         self.assertEqual(chunks[1][0]["surface"], "歩く")
@@ -55,9 +55,9 @@ class TestSyntacticAnalyzer(unittest.TestCase):
             {"surface": "渡した", "pos": "動詞,自立,*,*", "base": "渡す"},
         ]
         initial_context = {"analysis": {"tokens": tokens}}
-        
+
         result_context = self.analyzer.analyze(initial_context)
-        
+
         self.assertIn("chunks", result_context["analysis"])
         chunks = result_context["analysis"]["chunks"]
 
@@ -76,9 +76,9 @@ class TestSyntacticAnalyzer(unittest.TestCase):
         エッジケース: 空のトークンリストを処理する。
         """
         initial_context = {"analysis": {"tokens": []}}
-        
+
         result_context = self.analyzer.analyze(initial_context)
-        
+
         self.assertIn("chunks", result_context["analysis"])
         self.assertEqual(len(result_context["analysis"]["chunks"]), 0)
         self.assertIn("syntactic_analyzer", result_context["pipeline_history"])
@@ -88,9 +88,9 @@ class TestSyntacticAnalyzer(unittest.TestCase):
         エッジケース: contextにtokensキーが存在しない。
         """
         initial_context = {"analysis": {}}
-        
+
         result_context = self.analyzer.analyze(initial_context)
-        
+
         self.assertIn("errors", result_context)
         self.assertGreater(len(result_context["errors"]), 0)
         self.assertEqual(result_context["errors"][0]["module"], "syntactic_analyzer")

@@ -13,7 +13,7 @@ class TestMethodStore(unittest.TestCase):
         self.test_dir = os.path.join(os.getcwd(), 'tests', 'tmp_method_store')
         os.makedirs(self.test_dir, exist_ok=True)
         self.store_path = os.path.join(self.test_dir, 'test_store.json')
-        
+
         # テストデータの準備 (新形式: リスト)
         self.test_data = [
             {
@@ -274,9 +274,9 @@ class TestMethodStore(unittest.TestCase):
         }
         self.store.add_method(new_method)
         self.assertEqual(len(self.store.items), 3)
-        
+
         self.store.save()
-        
+
         # ファイルを直接確認
         with open(self.store_path, 'r', encoding='utf-8') as f:
             data = json.load(f)

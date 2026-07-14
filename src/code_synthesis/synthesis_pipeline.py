@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from src.design_parser.validator import validate_structured_spec_or_raise
 

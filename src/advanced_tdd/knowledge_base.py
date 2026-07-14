@@ -2,8 +2,6 @@
 import json
 import os
 import shutil
-import logging
-import numpy as np
 import hashlib
 from typing import Dict, List, Any, Optional
 from datetime import datetime
@@ -11,7 +9,7 @@ from src.semantic_search.semantic_search_base import SemanticSearchBase
 
 class RepairKnowledgeBase(SemanticSearchBase):
     """テスト修復のための知識ベース (SemanticSearchBase統合版)"""
-    
+
     def __init__(self, workspace_root: str = ".", vector_engine=None, morph_analyzer=None, config_manager=None):
         self.config_manager = config_manager
         root_path = config_manager.workspace_root if config_manager else workspace_root
@@ -23,18 +21,18 @@ class RepairKnowledgeBase(SemanticSearchBase):
             metadata_path = None
 
         self._migrate_legacy_vector_store_files(str(root_path), storage_dir)
-            
+
         super().__init__("repair_knowledge", storage_dir, vector_engine, morph_analyzer, metadata_path=metadata_path)
-        
+
         self.workspace_root = root_path
-        
+
         # 固有メタデータ
         self.fix_stats = {}
         self.type_mappings = {}
         self.negative_feedbacks: List[Dict[str, Any]] = []
         self.unresolved_symbols: List[str] = []
         self.load_diagnostics: List[Dict[str, Any]] = []
-        
+
         self.load()
 
     def _migrate_legacy_vector_store_files(self, workspace_root: str, target_dir: str):
@@ -108,7 +106,7 @@ class RepairKnowledgeBase(SemanticSearchBase):
         os.makedirs(self.storage_dir, exist_ok=True)
         try:
             wrapper = {
-                "patterns": self.items, 
+                "patterns": self.items,
                 "fix_stats": self.fix_stats,
                 "type_mappings": self.type_mappings,
                 "negative_feedbacks": self.negative_feedbacks,
@@ -117,12 +115,12 @@ class RepairKnowledgeBase(SemanticSearchBase):
             }
             with open(self.metadata_path, 'w', encoding='utf-8') as f:
                 json.dump(wrapper, f, ensure_ascii=False, indent=2)
-            
+
             if hasattr(self, "collection") and self.collection is not None:
                 self.collection.items = list(self.items)
                 self.collection.id_to_index = {str(item.get("id", item.get("error_signature", item.get("name")))): idx for idx, item in enumerate(self.items)}
                 self.collection._save()
-            
+
             self.is_dirty = False
         except Exception as e:
             self.logger.error(f"Failed to save knowledge base: {e}")
@@ -183,27 +181,27 @@ class RepairKnowledgeBase(SemanticSearchBase):
     def add_repair_experience(self, experience: Dict[str, Any]):
         """修復の成功体験を記録し、必要に応じて新しいパターンを学習 (ベクトル化含む)"""
         root_cause = experience.get('root_cause', 'unknown')
-        error_type = experience.get('error_type') 
+        error_type = experience.get('error_type')
         fix_type = experience.get('fix_type')
         success = experience.get('success', False)
-        
+
         if not error_type: return
 
         # 1. 統計の更新
         if root_cause not in self.fix_stats:
             self.fix_stats[root_cause] = {'total': 0, 'success': 0, 'fixes': {}}
-        
+
         stats = self.fix_stats[root_cause]
         stats['total'] += 1
         if success:
             stats['success'] += 1
             if fix_type:
                 stats['fixes'][fix_type] = stats['fixes'].get(fix_type, 0) + 1
-        
+
         # 2. 新しいパターンの学習
         if success and fix_type:
             exists = any(self._pattern_signature(p) == error_type for p in self.items)
-            
+
             if not exists:
                 new_vec = self.vectorize_text(error_type)
                 if new_vec is not None:
@@ -217,7 +215,7 @@ class RepairKnowledgeBase(SemanticSearchBase):
                         'timestamp': datetime.now().isoformat()
                     }, new_vec)
                     self.logger.info(f"Learned new semantic repair pattern: {error_type} -> {fix_type}")
-        
+
         self.save_knowledge()
 
     def _repair_pattern_id(self, error_type: str) -> str:
@@ -251,7 +249,7 @@ class RepairKnowledgeBase(SemanticSearchBase):
         """特定の型に対する不足プロパティの知識を蓄積"""
         if type_name not in self.type_mappings:
             self.type_mappings[type_name] = {}
-            
+
         self.type_mappings[type_name][prop_name] = suggested_value
         self.save_knowledge()
 
@@ -285,7 +283,7 @@ class RepairKnowledgeBase(SemanticSearchBase):
                                 continue
                 except Exception as e:
                     self.logger.warning(f"Error parsing log {filename}: {e}")
-        
+
         self.logger.info(f"Learned {count} new repair facts.")
         if count > 0:
             self.save_knowledge()
@@ -294,7 +292,7 @@ class RepairKnowledgeBase(SemanticSearchBase):
         data = session.get('data', {})
         history = data.get('history', [])
         found = 0
-        
+
         # 0. セッション自体の分析結果も対象にする
         main_analysis = None
         if session.get('event_type') == 'SESSION_COMPLETED':
@@ -325,7 +323,7 @@ class RepairKnowledgeBase(SemanticSearchBase):
                         if ar.get('analyses'):
                             last_analysis = ar['analyses'][0]
                             break
-                
+
                 if not last_analysis: continue
 
                 # 以降のターンのどこかで成功したか
@@ -337,7 +335,7 @@ class RepairKnowledgeBase(SemanticSearchBase):
                     if ('TEST_RUN' in next_intent) and next_result.get('status') == 'success':
                         success_verified = True
                         break
-                
+
                 # 特例: セッション全体の最終結果が成功なら、それも成功とみなす
                 if not success_verified and data.get('action_result', {}).get('status') == 'success':
                     success_verified = True

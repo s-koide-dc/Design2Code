@@ -38,7 +38,7 @@ def extract_dependencies(design_file_path):
     """Extracts internal dependencies from a design document."""
     if not design_file_path or not os.path.exists(design_file_path):
         return []
-        
+
     try:
         with open(design_file_path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -49,18 +49,18 @@ def extract_dependencies(design_file_path):
     section_match = re.search(r'##\s*3\.\s*Dependencies[\s\S]*', content, re.IGNORECASE)
     if not section_match:
         return []
-    
+
     section_content = section_match.group(0)
     # Filter to look for internal dependencies block
     internal_block_match = re.search(r'-\s*\*?\*?(?:Internal|内部)\*?\*?\s*:\s*([\s\S]*?)(?:\n\s*-\s*\*?\*?(?:External|外部)|\n#|\Z)', section_content, re.IGNORECASE)
     if not internal_block_match:
         internal_block_match = re.search(r'-\s*\*?\*?(?:Internal|内部)\*?\*?\s*:\s*(.*)', section_content, re.IGNORECASE)
-    
+
     if not internal_block_match:
         return []
-    
+
     block_text = internal_block_match.group(1).strip()
-    
+
     # Extract dependencies
     dependencies = []
     bullets = re.findall(r'-?\s*`?([a-zA-Z0-9_]+)`?(?::|\s|\Z)', block_text)
@@ -68,7 +68,7 @@ def extract_dependencies(design_file_path):
         dependencies = [b for b in bullets if b and b.lower() not in ['internal', '内部', 'external', '外部', 'none', 'なし']]
     else:
         dependencies = [dep.strip().replace('`', '').replace('"', '').replace("'", "") for dep in block_text.split(',') if dep.strip()]
-    
+
     dependencies = [d for d in dependencies if d and d.strip(' .').lower() not in ['internal', '内部', 'external', '外部', 'none', 'なし']]
     return dependencies
 
@@ -80,12 +80,12 @@ def find_modules_recursive(base_dir):
     for root, dirs, files in os.walk(base_dir):
         # Ignore __pycache__ and hidden dirs
         dirs[:] = [d for d in dirs if not d.startswith('.') and d != '__pycache__']
-        
+
         for file in files:
             if file.endswith('.design.md'):
                 module_name = file.replace('.design.md', '')
                 design_path = os.path.join(root, file)
-                
+
                 # Find source file (same name, different extension)
                 source_path = None
                 for ext in ['.py', '.cs', '.js', '.ts']:
@@ -93,7 +93,7 @@ def find_modules_recursive(base_dir):
                     if os.path.exists(potential_source):
                         source_path = potential_source
                         break
-                
+
                 # Find test file (heuristics)
                 test_path = None
                 # 1. tests/test_{module_name}.py
@@ -122,9 +122,9 @@ def find_tool_projects(base_dir="tools"):
     tool_projects = []
     if not os.path.exists(base_dir):
         return tool_projects
-    
+
     ignore_dirs = {'bin', 'obj', 'node_modules', '.git', '__pycache__'}
-    
+
     for lang_dir in os.listdir(base_dir):
         lang_path = os.path.join(base_dir, lang_dir)
         if os.path.isdir(lang_path) and lang_dir not in ignore_dirs:
@@ -140,9 +140,9 @@ def find_tool_projects(base_dir="tools"):
 
 def main():
     emit_progress("Synchronizing 'ai_project_map.json'...")
-    
+
     map_path = 'ai_project_map.json'
-    
+
     if not os.path.exists(map_path):
         emit_error(f"エラー: {map_path} が見つかりません。")
         return 1
@@ -155,10 +155,10 @@ def main():
     mapped_modules = {m['name']: m for m in project_map.get('modules', [])}
     updated_modules = []
     seen_names = {}
-    
+
     for mod in found_modules:
         module_name = mod['name']
-        
+
         # Check for name collisions
         if module_name in seen_names:
             emit_error(f"警告: モジュール名の衝突を検出しました: '{module_name}'")
@@ -166,16 +166,16 @@ def main():
             emit_error(f"  New:      {mod['design_path']}")
             # Skip duplicate for now to avoid map pollution
             continue
-        
+
         seen_names[module_name] = mod['design_path']
-        
+
         module_info = mapped_modules.get(module_name, {
             "name": module_name,
             "summary": "Auto-discovered module.",
             "status": "discovered",
             "dependencies": []
         })
-        
+
         # Update paths and hashes
         if mod['source_path']:
             module_info['source_file'] = {
@@ -200,9 +200,9 @@ def main():
             module_info['design_document'] = None
 
         module_info['test_file'] = mod['test_path']
-        
+
         updated_modules.append(module_info)
-    
+
     # Identify removed modules
     updated_names = {m['name'] for m in updated_modules}
     removed_modules = [name for name in mapped_modules if name not in updated_names]
@@ -244,7 +244,7 @@ def main():
             "last_modified": get_mtime_iso(config_path),
             "hash": get_file_hash(config_path)
         } if os.path.exists(config_path) else None
-        
+
         # Also look for a design doc in the tool folder
         design_path = os.path.join(tool_proj['path'], f"{tool_proj['name']}.design.md")
         if os.path.exists(design_path):
@@ -255,13 +255,13 @@ def main():
             }
 
         updated_tools_catalog.append(tool_info)
-    
+
     project_map['tools_catalog'] = updated_tools_catalog
     project_map['last_updated_by_ai'] = datetime.now().isoformat()
-    
+
     with open(map_path, 'w', encoding='utf-8') as f:
         json.dump(project_map, f, indent=2, ensure_ascii=False)
-        
+
     emit_progress("Synchronization complete.")
     return 0
 

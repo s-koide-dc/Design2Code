@@ -25,22 +25,22 @@ from src.refactoring_analyzer.refactoring_analyzer import (
 
 class TestRefactoringAnalyzer(unittest.TestCase):
     """RefactoringAnalyzerのテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.temp_dir = tempfile.mkdtemp()
         self.mock_log_manager = Mock()
         self.mock_action_executor = Mock()
         self.analyzer = RefactoringAnalyzer(self.temp_dir, self.mock_log_manager, self.mock_action_executor)
-    
+
     def tearDown(self):
         """テスト後のクリーンアップ"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-    
+
     def test_init_with_default_config(self):
         """デフォルト設定での初期化テスト"""
         analyzer = RefactoringAnalyzer(self.temp_dir)
-        
+
         self.assertEqual(analyzer.workspace_root, self.temp_dir)
         self.assertIn("csharp", analyzer.config)
         self.assertIn("python", analyzer.config)
@@ -48,13 +48,13 @@ class TestRefactoringAnalyzer(unittest.TestCase):
         self.assertIn("csharp", analyzer.analyzers)
         self.assertIn("python", analyzer.analyzers)
         self.assertIn("javascript", analyzer.analyzers)
-    
+
     def test_load_refactoring_config_with_custom_file(self):
         """カスタム設定ファイルの読み込みテスト"""
         # カスタム設定ファイルを作成
         config_dir = os.path.join(self.temp_dir, "resources")
         os.makedirs(config_dir, exist_ok=True)
-        
+
         custom_config = {
             "csharp": {
                 "smell_thresholds": {
@@ -62,18 +62,18 @@ class TestRefactoringAnalyzer(unittest.TestCase):
                 }
             }
         }
-        
+
         config_path = os.path.join(config_dir, "refactoring_config.json")
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(custom_config, f)
-        
+
         analyzer = RefactoringAnalyzer(self.temp_dir)
-        
+
         # カスタム設定が適用されていることを確認
         self.assertEqual(analyzer.config["csharp"]["smell_thresholds"]["long_method_lines"], 15)
         # デフォルト値も保持されていることを確認
         self.assertIn("cyclomatic_complexity", analyzer.config["csharp"]["smell_thresholds"])
-    
+
     @patch('src.refactoring_analyzer.refactoring_analyzer.CSharpRefactoringAnalyzer.detect_smells')
     def test_detect_code_smells_success(self, mock_detect):
         """コードスメル検出成功テスト"""
@@ -90,29 +90,29 @@ class TestRefactoringAnalyzer(unittest.TestCase):
             ],
             "files_analyzed": 1
         }
-        
+
         # テスト実行
         result = self.analyzer._detect_code_smells("test_project", "csharp", {})
-        
+
         # 結果検証
         self.assertEqual(result["status"], "success")
         self.assertEqual(len(result["code_smells"]), 1)
         self.assertEqual(result["code_smells"][0]["type"], "long_method")
-    
+
     def test_detect_code_smells_unsupported_language(self):
         """サポートされていない言語のテスト"""
         result = self.analyzer._detect_code_smells("test_project", "unsupported", {})
-        
+
         self.assertEqual(result["status"], "error")
         self.assertIn("サポートされていない言語", result["message"])
-    
+
     @patch('src.refactoring_analyzer.refactoring_analyzer.RefactoringAnalyzer._detect_code_smells')
     @patch('src.refactoring_analyzer.refactoring_analyzer.RefactoringAnalyzer._generate_refactoring_suggestions')
     @patch('src.refactoring_analyzer.refactoring_analyzer.RefactoringAnalyzer._calculate_quality_metrics')
     @patch('src.refactoring_analyzer.refactoring_analyzer.RefactoringAnalyzer._analyze_impact_scope')
     @patch('src.refactoring_analyzer.refactoring_analyzer.RefactoringAnalyzer._generate_recommendations')
     @patch('src.refactoring_analyzer.refactoring_analyzer.RefactoringAnalyzer._generate_reports')
-    def test_analyze_project_integration(self, mock_reports, mock_recommendations, 
+    def test_analyze_project_integration(self, mock_reports, mock_recommendations,
                                        mock_impact, mock_quality, mock_suggestions, mock_detect):
         """プロジェクト分析の統合テスト"""
         # モックの設定
@@ -125,13 +125,13 @@ class TestRefactoringAnalyzer(unittest.TestCase):
         mock_impact.return_value = {"total_affected_files": 1}
         mock_recommendations.return_value = [{"category": "immediate_action"}]
         mock_reports.return_value = {"detailed_report": "test.json"}
-        
+
         # テストプロジェクトディレクトリを作成
         test_project = os.path.join(self.temp_dir, "test_project")
         os.makedirs(test_project, exist_ok=True)
-        
+
         result = self.analyzer.analyze_project(test_project, "csharp")
-        
+
         # 結果検証
         self.assertEqual(result["status"], "success")
         self.assertIn("analysis_summary", result)
@@ -196,7 +196,7 @@ class TestRefactoringAnalyzer(unittest.TestCase):
                 }
             }
         }
-        
+
         # Mock _detect_code_smells to return Roslyn analysis data
         mock_detect.return_value = {
             "status": "success",
@@ -206,7 +206,7 @@ class TestRefactoringAnalyzer(unittest.TestCase):
             "roslyn_analysis": roslyn_analysis_data,
             "files_analyzed": 1 # ADDED THIS LINE
         }
-        
+
         # Mock suggestions for impact analysis
         mock_suggestions.return_value = [
             {
@@ -214,24 +214,24 @@ class TestRefactoringAnalyzer(unittest.TestCase):
                 "target": {"file": "ClassA.cs", "method": "Namespace.ClassA.MethodX", "class": "Namespace.ClassA", "lines": "10-20"}
             }
         ]
-        
+
         # Mock other methods
         mock_quality.return_value = {"overall_score": 7.5}
         mock_recommendations.return_value = [{"category": "immediate_action"}]
         mock_reports.return_value = {"detailed_report": "test.json"}
-        
+
         # Create dummy files for project_path
         os.makedirs(self.temp_dir, exist_ok=True)
         with open(os.path.join(self.temp_dir, "ClassA.cs"), "w") as f: f.write("")
         with open(os.path.join(self.temp_dir, "ClassB.cs"), "w") as f: f.write("")
-        
+
         # Call analyze_project
         result = self.analyzer.analyze_project(self.temp_dir, "csharp")
-        
+
         # Assertions for impact_analysis
         self.assertEqual(result["status"], "success")
         self.assertIn("impact_analysis", result)
-        
+
         impact = result["impact_analysis"]
         self.assertIn("total_affected_files", impact)
         self.assertIn("affected_files", impact)
@@ -246,23 +246,23 @@ class TestRefactoringAnalyzer(unittest.TestCase):
         # Verify specific values based on our mock data
         self.assertEqual(impact["total_affected_files"], 2) # ClassA.cs (target) + ClassB.cs (dependency)
         self.assertSetEqual(set(impact["affected_files"]), {"ClassA.cs", "ClassB.cs"})
-        
+
         self.assertEqual(impact["total_affected_classes"], 2) # Namespace.ClassA (target) + Namespace.ClassB (dependency)
         self.assertSetEqual(set(impact["affected_classes"]), {"Namespace.ClassA", "Namespace.ClassB"})
-        
+
         self.assertEqual(impact["total_affected_methods"], 2) # Namespace.ClassA.MethodX (target) + Namespace.ClassB.MethodY (dependency)
         self.assertSetEqual(set(impact["affected_methods"]), {"Namespace.ClassA.MethodX", "Namespace.ClassB.MethodY"})
-        
+
         # visited は initial_affected_ids (1) + 依存 (2) = 3
         # total_dependencies は visited の長さ = 4 (classA_id, methodX_id, classB_id, methodY_id)
-        self.assertEqual(impact["total_dependencies_identified"], 4) 
+        self.assertEqual(impact["total_dependencies_identified"], 4)
         self.assertEqual(impact["estimated_test_impact"], "medium") # 実際の実装に合わせて調整
         self.assertEqual(impact["risk_level"], "medium") # 実際の実装に合わせて調整
 
 
 class TestCSharpRefactoringAnalyzer(unittest.TestCase):
     """C#リファクタリング分析器のテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.temp_dir = tempfile.mkdtemp()
@@ -288,18 +288,18 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
         }, action_executor=self.mock_action_executor) # Pass mock
         self.project_path = os.path.join(self.temp_dir, "test_csharp_project")
         os.makedirs(self.project_path, exist_ok=True)
-    
+
     def tearDown(self):
         """テスト後のクリーンアップ"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-    
+
     def test_find_cs_files(self):
         """C#ファイル検索テスト"""
         # _find_cs_filesはRoslyn統合で削除されたため、このテストは無効または変更が必要
         # このテストはRoslyn統合前の古いdetect_smellsのロジック用だった
         # 現在のCSharpRefactoringAnalyzerは_find_cs_filesを持っていないので、このテストは削除または変更する必要がある
         pass # テストを一時的に無効化
-    
+
     def test_detect_smells_success(self):
         """スメル検出成功テスト (Roslyn統合前の古いロジック用)"""
         # このテストはRoslyn統合前の古いdetect_smellsのロジック用だった
@@ -482,7 +482,7 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
                 }
             }
         }
-        
+
         # mock_action_executor._analyze_csharp の戻り値を設定
         self.mock_action_executor._analyze_csharp.return_value = {
             "action_result": {
@@ -493,7 +493,7 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
 
         # detect_smellsを呼び出す
         result = self.analyzer.detect_smells(self.project_path, {})
-        
+
         # 結果検証
         self.assertEqual(result["status"], "success")
         self.assertGreater(len(result["code_smells"]), 0)
@@ -577,19 +577,19 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
                         {"id": "method_b_id", "name": "MethodB", "startLine": 20, "endLine": 25, "metrics": {"bodyHash": "unique_hash_b"}}
                     ]
                 },
-                "method_a_id": { 
-                    "id": "method_a_id", "fullName": "MySampleApp.MyCalculator.MethodA", "type": "Method", 
-                    "filePath": os.path.join(self.project_path, "Program.cs"), "name": "MethodA", 
+                "method_a_id": {
+                    "id": "method_a_id", "fullName": "MySampleApp.MyCalculator.MethodA", "type": "Method",
+                    "filePath": os.path.join(self.project_path, "Program.cs"), "name": "MethodA",
                     "startLine": 10, "endLine": 15, "metrics": {"bodyHash": "unique_hash_a"}
                 },
-                "method_b_id": { 
-                    "id": "method_b_id", "fullName": "MySampleApp.MyCalculator.MethodB", "type": "Method", 
-                    "filePath": os.path.join(self.project_path, "Program.cs"), "name": "MethodB", 
+                "method_b_id": {
+                    "id": "method_b_id", "fullName": "MySampleApp.MyCalculator.MethodB", "type": "Method",
+                    "filePath": os.path.join(self.project_path, "Program.cs"), "name": "MethodB",
                     "startLine": 20, "endLine": 25, "metrics": {"bodyHash": "unique_hash_b"}
                 }
             }
         }
-        
+
         mock_analyze_csharp.return_value = {
             "action_result": {
                 "status": "success",
@@ -598,7 +598,7 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
         }
 
         result = self.analyzer.detect_smells(self.project_path, {})
-        
+
         self.assertEqual(result["status"], "success")
         duplicate_smells = [s for s in result["code_smells"] if s["type"] == "duplicate_code"]
         self.assertEqual(len(duplicate_smells), 0)
@@ -606,7 +606,7 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
     def test_detect_duplicate_smells_with_roslyn_data(self):
         """Roslynデータの明示duplicateGroupIdで重複コードが検出されることのテスト"""
         duplicate_group_id = "calculator.shared-total"
-        
+
         roslyn_analysis_data = {
             "manifest": {
                 "objects": [
@@ -685,7 +685,7 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
                 }
             }
         }
-        
+
         self.mock_action_executor._analyze_csharp.return_value = {
             "action_result": {
                 "status": "success",
@@ -694,11 +694,11 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
         }
 
         result = self.analyzer.detect_smells(self.project_path, {})
-        
+
         self.assertEqual(result["status"], "success")
         duplicate_smells = [s for s in result["code_smells"] if s["type"] == "duplicate_code"]
         self.assertEqual(len(duplicate_smells), 1) # 同じduplicateGroupIdを持つメソッドは1つのスメルとして報告されるはず
-        
+
         # スメルが正しい情報を持っていることを確認
         self.assertEqual(duplicate_smells[0]["method"], "MethodA")
         self.assertEqual(duplicate_smells[0]["duplicate_group_id"], duplicate_group_id)
@@ -709,11 +709,11 @@ class TestCSharpRefactoringAnalyzer(unittest.TestCase):
 
 class TestLongMethodDetector(unittest.TestCase):
     """長いメソッド検出器のテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.detector = LongMethodDetector({"long_method_lines": 10})
-    
+
     def test_detect_long_method(self):
         """長いメソッド検出テスト"""
         code = """
@@ -721,9 +721,9 @@ class TestLongMethodDetector(unittest.TestCase):
 def long_method(a, b):
     return a + b
 """
-        
+
         smells = self.detector.detect("test.py", code, ".")
-        
+
         # 結果検証
         self.assertEqual(len(smells), 1)
         self.assertEqual(smells[0]["type"], "long_method")
@@ -732,13 +732,13 @@ def long_method(a, b):
             ["long_method"],
             smells[0]["metrics"]["structural_facts"],
         )
-    
+
     def test_detect_no_long_method(self):
         """短いメソッドのテスト（検出されないことを確認）"""
         code = "def short_method(a, b):\n    return a + b\n"
-        
+
         smells = self.detector.detect("test.py", code, ".")
-        
+
         # 結果検証
         self.assertEqual(len(smells), 0)
 
@@ -779,11 +779,11 @@ class LargeCoordinator:
 
 class TestDuplicateCodeDetector(unittest.TestCase):
     """重複コード検出器のテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.detector = DuplicateCodeDetector({})
-    
+
     def test_detect_duplicate_code(self):
         """明示されたduplicate_groupの検出テスト"""
         code = """
@@ -795,9 +795,9 @@ def method_one():
 def method_two():
     return 1
 """
-        
+
         smells = self.detector.detect("test.py", code, ".")
-        
+
         # 結果検証
         self.assertEqual(len(smells), 1)
         duplicate_smells = [s for s in smells if s["type"] == "duplicate_code"]
@@ -823,11 +823,11 @@ def method_one():
 
 class TestComplexConditionDetector(unittest.TestCase):
     """複雑な条件分岐検出器のテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.detector = ComplexConditionDetector({"cyclomatic_complexity": 3})
-    
+
     def test_detect_complex_condition(self):
         """複雑な条件分岐検出テスト"""
         code = """
@@ -836,9 +836,9 @@ def complex_condition(a, b, c):
         return True
     return False
 """
-        
+
         smells = self.detector.detect("test.py", code, ".")
-        
+
         # 結果検証
         self.assertGreater(len(smells), 0)
         complex_smells = [s for s in smells if s["type"] == "complex_condition"]
@@ -884,11 +884,11 @@ def complex_condition(a, b, c):
 
 class TestRefactoringSuggestionEngine(unittest.TestCase):
     """リファクタリング提案エンジンのテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.engine = RefactoringSuggestionEngine("csharp", {})
-    
+
     def test_generate_suggestions_for_long_method(self):
         """長いメソッドに対する提案生成テスト"""
         code_smells = [
@@ -902,19 +902,19 @@ class TestRefactoringSuggestionEngine(unittest.TestCase):
                 "metrics": {"line_count": 40}
             }
         ]
-        
+
         suggestions = self.engine.generate_suggestions(code_smells, {})
-        
+
         # 結果検証
         self.assertGreater(len(suggestions), 0)
         extract_method_suggestions = [s for s in suggestions if s["type"] == "extract_method"]
         self.assertGreater(len(extract_method_suggestions), 0)
-        
+
         suggestion = extract_method_suggestions[0]
         self.assertEqual(suggestion["priority"], "high")
         self.assertIn("target", suggestion)
         self.assertIn("suggestion", suggestion)
-    
+
     def test_generate_suggestions_for_duplicate_code(self):
         """重複コードに対する提案生成テスト"""
         code_smells = [
@@ -927,23 +927,23 @@ class TestRefactoringSuggestionEngine(unittest.TestCase):
                 "metrics": {"occurrences": 3}
             }
         ]
-        
+
         suggestions = self.engine.generate_suggestions(code_smells, {})
-        
+
         # 結果検証
         self.assertGreater(len(suggestions), 0)
         common_method_suggestions = [s for s in suggestions if s["type"] == "extract_common_method"]
         self.assertGreater(len(common_method_suggestions), 0)
-    
+
     def test_priority_sorting(self):
         """優先度ソートテスト"""
         code_smells = [
             {"type": "long_method", "severity": "low", "file": "test.cs", "method": "Method1", "line_start": 1, "line_end": 10, "metrics": {"line_count": 10}},
             {"type": "duplicate_code", "severity": "high", "file": "test.cs", "lines": [1, 2], "content": "test", "metrics": {"occurrences": 2}}
         ]
-        
+
         suggestions = self.engine.generate_suggestions(code_smells, {})
-        
+
         # 高優先度の提案が最初に来ることを確認
         if len(suggestions) > 1:
             first_priority = self.engine._get_priority_score(suggestions[0]["priority"])
@@ -953,11 +953,11 @@ class TestRefactoringSuggestionEngine(unittest.TestCase):
 
 class TestQualityMetricsCalculator(unittest.TestCase):
     """品質メトリクス計算器のテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.calculator = QualityMetricsCalculator("csharp")
-    
+
     def test_calculate_quality_metrics(self):
         """品質メトリクス計算テスト"""
         code_smells = [
@@ -965,30 +965,30 @@ class TestQualityMetricsCalculator(unittest.TestCase):
             {"type": "duplicate_code", "severity": "medium"},
             {"type": "complex_condition", "severity": "low", "metrics": {"complexity": 5}}
         ]
-        
+
         metrics = self.calculator.calculate("test_project", code_smells)
-        
+
         # 結果検証
         self.assertIn("overall_score", metrics)
         self.assertIn("maintainability_index", metrics)
         self.assertIn("technical_debt_hours", metrics)
         self.assertIn("code_duplication_percentage", metrics)
         self.assertIn("improvement_potential", metrics)
-        
+
         # スコアの範囲確認
         self.assertGreaterEqual(metrics["overall_score"], 1.0)
         self.assertLessEqual(metrics["overall_score"], 10.0)
         self.assertGreaterEqual(metrics["maintainability_index"], 20)
         self.assertLessEqual(metrics["maintainability_index"], 100)
-    
+
     def test_estimate_fix_time(self):
         """修正時間見積もりテスト"""
         long_method_smell = {"type": "long_method", "severity": "high"}
         duplicate_code_smell = {"type": "duplicate_code", "severity": "medium"}
-        
+
         long_method_time = self.calculator._estimate_fix_time(long_method_smell)
         duplicate_code_time = self.calculator._estimate_fix_time(duplicate_code_smell)
-        
+
         # 結果検証
         self.assertGreater(long_method_time, 0)
         self.assertGreater(duplicate_code_time, 0)
@@ -998,7 +998,7 @@ class TestQualityMetricsCalculator(unittest.TestCase):
 
 class TestRefactoringReporters(unittest.TestCase):
     """リファクタリングレポーター類のテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.temp_dir = tempfile.mkdtemp()
@@ -1010,44 +1010,44 @@ class TestRefactoringReporters(unittest.TestCase):
             "quality_metrics": {"overall_score": 7.5},
             "recommendations": [{"category": "immediate_action"}]
         }
-    
+
     def tearDown(self):
         """テスト後のクリーンアップ"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-    
+
     def test_json_reporter(self):
         """JSONレポーター テスト"""
         reporter = RefactoringJSONReporter()
         output_path = os.path.join(self.temp_dir, "test_report.json")
-        
+
         reporter.generate(output_path, **self.test_data)
-        
+
         # ファイルが生成されていることを確認
         self.assertTrue(os.path.exists(output_path))
-        
+
         # 内容を確認
         with open(output_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        
+
         self.assertIn("smell_result", data)
         self.assertIn("suggestions", data)
         self.assertIn("quality_metrics", data)
         self.assertIn("generated_at", data)
-    
+
     def test_html_reporter(self):
         """HTMLレポーター テスト"""
         reporter = RefactoringHTMLReporter()
         output_path = os.path.join(self.temp_dir, "test_report.html")
-        
+
         reporter.generate(output_path, **self.test_data)
-        
+
         # ファイルが生成されていることを確認
         self.assertTrue(os.path.exists(output_path))
-        
+
         # 内容を確認
         with open(output_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        
+
         self.assertIn("<!DOCTYPE html>", content)
         self.assertIn("リファクタリング分析レポート", content)
         self.assertIn("7.5", content)  # 品質スコア
@@ -1055,40 +1055,40 @@ class TestRefactoringReporters(unittest.TestCase):
 
 class TestRefactoringAnalyzerErrorHandling(unittest.TestCase):
     """リファクタリング分析器のエラーハンドリングテストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.temp_dir = tempfile.mkdtemp()
         self.mock_log_manager = Mock()
         self.analyzer = RefactoringAnalyzer(self.temp_dir, self.mock_log_manager)
-    
+
     def tearDown(self):
         """テスト後のクリーンアップ"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-    
+
     def test_analyze_project_nonexistent_path(self):
         """存在しないプロジェクトパスのテスト"""
         nonexistent_path = os.path.join(self.temp_dir, "nonexistent")
-        
+
         result = self.analyzer.analyze_project(nonexistent_path, "csharp")
-        
+
         self.assertEqual(result["status"], "error")
         self.assertIn("プロジェクトパスが存在しません", result["message"])
-    
+
     def test_analyze_file_with_encoding_issues(self):
         """エンコーディング問題のあるファイルのテスト"""
         # バイナリファイルを作成
         binary_file = os.path.join(self.temp_dir, "binary.cs")
         with open(binary_file, 'wb') as f:
             f.write(b'\x80\x81\x82\x83')  # 無効なUTF-8バイト
-        
+
         analyzer = PythonRefactoringAnalyzer({})
         result = analyzer.detect_smells(self.temp_dir, {})
-        
+
         # エラーが発生してもクラッシュしないことを確認
         self.assertEqual(result["status"], "success")
         self.assertIsInstance(result["code_smells"], list)
-    
+
     def test_analyze_large_file_handling(self):
         """大きなファイルの処理テスト"""
         # 大きなファイルを作成（テスト用に小さめ）
@@ -1099,23 +1099,23 @@ class TestRefactoringAnalyzerErrorHandling(unittest.TestCase):
             for i in range(1000):
                 f.write(f"    // Line {i}\n")
             f.write("}")
-        
+
         analyzer = PythonRefactoringAnalyzer({})
         result = analyzer.detect_smells(self.temp_dir, {})
-        
+
         # 正常に処理されることを確認
         self.assertEqual(result["status"], "success")
-    
+
     def test_detector_exception_handling(self):
         """検出器内での例外処理テスト"""
         # 不正な構文のファイルを作成
         invalid_file = os.path.join(self.temp_dir, "invalid.cs")
         with open(invalid_file, 'w', encoding='utf-8') as f:
             f.write("public class { invalid syntax }")
-        
+
         analyzer = PythonRefactoringAnalyzer({})
         result = analyzer.detect_smells(self.temp_dir, {})
-        
+
         # 例外が発生してもクラッシュしないことを確認
         self.assertEqual(result["status"], "success")
 
@@ -1167,7 +1167,7 @@ class TestRefactoringAnalyzerErrorHandling(unittest.TestCase):
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["analysis_diagnostics"], [diagnostic])
-    
+
     def test_memory_limit_simulation(self):
         """メモリ制限のシミュレーションテスト"""
         # 非常に長い行を持つファイルを作成
@@ -1176,31 +1176,31 @@ class TestRefactoringAnalyzerErrorHandling(unittest.TestCase):
             f.write("public class Test { ")
             f.write("// " + "x" * 100000)  # 非常に長いコメント
             f.write(" }")
-        
+
         analyzer = PythonRefactoringAnalyzer({})
         result = analyzer.detect_smells(self.temp_dir, {})
-        
+
         # 正常に処理されることを確認
         self.assertEqual(result["status"], "success")
 
 
 class TestRefactoringAnalyzerPerformance(unittest.TestCase):
     """リファクタリング分析器のパフォーマンステストクラス"""
-    
+
     def setUp(self):
         """テスト前の準備"""
         self.temp_dir = tempfile.mkdtemp()
         self.mock_log_manager = Mock()
         self.mock_action_executor = Mock()
         self.analyzer = RefactoringAnalyzer(self.temp_dir, self.mock_log_manager, self.mock_action_executor)
-    
+
     def tearDown(self):
         """テスト後のクリーンアップ"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
-    
+
     def test_multiple_files_performance(self):
         """複数ファイルの処理パフォーマンステスト"""
-        
+
         # より現実的なRoslynデータを作成
         roslyn_analysis_data = {
             "manifest": {
@@ -1208,19 +1208,19 @@ class TestRefactoringAnalyzerPerformance(unittest.TestCase):
             },
             "details_by_id": {}
         }
-        
+
         # 10個のクラスとメソッドを作成
         for i in range(10):
             class_id = f"test_class_{i}_id"
             method_id = f"test_method_{i}_id"
             file_path = os.path.join(self.temp_dir, f"TestClass{i}.cs")
-            
+
             # manifestにオブジェクトを追加
             roslyn_analysis_data["manifest"]["objects"].extend([
                 {"id": class_id, "type": "Class", "name": f"TestClass{i}", "filePath": file_path},
                 {"id": method_id, "type": "Method", "name": f"Method{i}", "filePath": file_path}
             ])
-            
+
             # details_by_idに詳細を追加
             roslyn_analysis_data["details_by_id"][class_id] = {
                 "id": class_id,
@@ -1231,7 +1231,7 @@ class TestRefactoringAnalyzerPerformance(unittest.TestCase):
                 "endLine": 30,
                 "methods": [{"id": method_id, "name": f"Method{i}"}]
             }
-            
+
             roslyn_analysis_data["details_by_id"][method_id] = {
                 "id": method_id,
                 "fullName": f"TestNamespace.TestClass{i}.Method{i}",
@@ -1242,7 +1242,7 @@ class TestRefactoringAnalyzerPerformance(unittest.TestCase):
                 "endLine": 15,
                 "metrics": {"cyclomaticComplexity": 1, "lineCount": 6, "bodyHash": f"hash_{i}"}
             }
-        
+
         # action_executorのモックを設定
         self.mock_action_executor._analyze_csharp.return_value = {
             "action_result": {
@@ -1252,7 +1252,7 @@ class TestRefactoringAnalyzerPerformance(unittest.TestCase):
         }
 
         import time
-        
+
         # 複数のテストファイルを作成
         for i in range(10):
             test_file = os.path.join(self.temp_dir, f"TestClass{i}.cs")
@@ -1267,15 +1267,15 @@ public class TestClass{i}
     }}
 }}
 """)
-        
+
         start_time = time.time()
         result = self.analyzer.analyze_project(self.temp_dir, "csharp")
         end_time = time.time()
-        
+
         # 結果の検証
         self.assertEqual(result["status"], "success")
         self.assertGreaterEqual(result["analysis_summary"]["total_smells"], 0)
-        
+
         # パフォーマンスの確認（10ファイルを5秒以内で処理）
         processing_time = end_time - start_time
         self.assertLess(processing_time, 5.0, f"処理時間が長すぎます: {processing_time:.2f}秒")

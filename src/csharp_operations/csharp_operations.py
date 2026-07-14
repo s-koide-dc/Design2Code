@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 # src/csharp_operations/csharp_operations.py
 
 import os
@@ -11,7 +11,7 @@ from typing import Dict, Any, Tuple
 
 class CSharpOperations:
     """C#関連の操作を担当する独立モジュール"""
-    
+
     def __init__(self, action_executor):
         self.ae = action_executor
 
@@ -63,7 +63,7 @@ class CSharpOperations:
         if not filename:
              context["action_result"] = {"status": "error", "message": "解析対象のファイル名が指定されていません。"}
              return context
-             
+
         path = self.ae._safe_join(filename)
         if not path or not os.path.exists(path):
              context["action_result"] = {"status": "error", "message": "ファイルが見つかりません。"}
@@ -73,13 +73,13 @@ class CSharpOperations:
         current_file_dir = os.path.dirname(__file__)
         project_root = os.path.abspath(os.path.join(current_file_dir, "..", ".."))
         analyzer_project = os.path.join(project_root, "tools", "csharp", "MyRoslynAnalyzer", "MyRoslynAnalyzer.csproj")
-        
+
         # Create a persistent output directory based on filename/session to allow subsequent queries
         if os.path.abspath(self.ae.workspace_root) == project_root:
             output_base = os.path.join(project_root, "logs", "analysis_output")
         else:
             output_base = os.path.join(self.ae.workspace_root, "logs", "analysis_output")
-            
+
         os.makedirs(output_base, exist_ok=True)
         fingerprint = self._analysis_fingerprint(path, analyzer_project)
         out_dir_name = f"analysis_{fingerprint[:24]}"
@@ -98,7 +98,7 @@ class CSharpOperations:
             else:
                 cmd = ["dotnet", "run", "--project", analyzer_project, "--", path, temp_out]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
-            
+
             if result.returncode == 0:
                 if not cache_hit and self._is_complete_analysis(temp_out):
                     try:
@@ -116,7 +116,7 @@ class CSharpOperations:
                 if os.path.exists(manifest_path):
                     with open(manifest_path, 'r', encoding='utf-8') as f:
                         manifest = json.load(f)
-                    
+
                     details_by_id = {}
                     details_dir = os.path.join(temp_out, "details")
                     if os.path.exists(details_dir):
@@ -125,20 +125,20 @@ class CSharpOperations:
                                 with open(os.path.join(details_dir, detail_file), 'r', encoding='utf-8') as f:
                                     detail = json.load(f)
                                     details_by_id[detail.get("id")] = detail
-                    
+
                     analysis_data = {
                         "manifest": manifest,
                         "details_by_id": details_by_id,
                         "classes": [],
                         "project_metrics": manifest.get("projectMetrics")
                     }
-                    
+
                     class_summary = []
                     for obj in manifest.get("objects", []):
                         if obj.get("type") == "Class":
                             obj_id = obj.get("id")
                             detail = details_by_id.get(obj_id, {})
-                            
+
                             class_info = {
                                 "name": obj.get("fullName"),
                                 "methods": [m.get("name") for m in detail.get("methods", [])],
@@ -148,24 +148,24 @@ class CSharpOperations:
                                 "summary": obj.get("summary")
                             }
                             analysis_data["classes"].append(class_info)
-                            
+
                             m_names = class_info["methods"]
                             if m_names:
                                 class_summary.append(f"{class_info['name']} (methods: {', '.join(m_names)}, lines: {class_info['start_line']}-{class_info['end_line']})")
                             else:
                                 class_summary.append(f"{class_info['name']} (lines: {class_info['start_line']}-{class_info['end_line']})")
-                    
+
                     message = f"C# ファイル '{filename}' の解析が完了しました。"
                     if class_summary:
                         message += " 抽出されたクラス: " + "; ".join(class_summary)
-                    
+
                     project_metrics = manifest.get("projectMetrics")
                     if project_metrics:
                         message += (f"\nプロジェクトメトリクス: 合計CC={project_metrics.get('totalCyclomaticComplexity')}, "
                                     f"最大CC={project_metrics.get('maxCyclomaticComplexity')}, "
                                     f"平均CC={project_metrics.get('averageCyclomaticComplexity'):.2f}, "
                                     f"総行数={project_metrics.get('totalLineCount')}")
-                    
+
                     # Ensure it's available for history resolution in subsequent turns
                     context.setdefault("analysis", {})
                     context["analysis"].setdefault("entities", {})
@@ -187,12 +187,12 @@ class CSharpOperations:
         except Exception as e:
             self._remove_analysis_workdir(temp_out, output_base)
             context["action_result"] = self.ae._handle_exception_with_patterns(e, f"C# 解析中にエラーが発生しました: {e}")
-            
+
         return context
 
     def run_dotnet_test(self, context: Dict[str, Any], parameters: Dict[str, Any]) -> Dict[str, Any]:
         project_path = self.ae._get_entity_value(parameters.get("project_path"))
-        
+
         # Smart resolution
         generated_proj = os.path.join(self.ae.workspace_root, "tests", "generated", "GeneratedTests.csproj")
         if not project_path or project_path == "." or "MyRoslynAnalyzer" in project_path:
@@ -200,7 +200,7 @@ class CSharpOperations:
                 project_path = generated_proj
             elif not project_path:
                 project_path = "."
-        
+
         abs_project_path = self.ae._safe_join(project_path)
         if not abs_project_path:
              context["action_result"] = {"status": "error", "message": "無効なパスです。"}
@@ -235,7 +235,7 @@ class CSharpOperations:
         # 2. Run test with log file
         log_file = os.path.join(self.ae.workspace_root, "logs", "last_dotnet_test.log")
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
-        
+
         cmd = ["dotnet", "test", abs_project_path, "--no-build"]
         try:
             result = subprocess.run(
@@ -251,7 +251,7 @@ class CSharpOperations:
                 f.write(output)
             summary = self.parse_dotnet_test_result(output)
             status = "success" if result.returncode == 0 and summary.get("failed_count", 0) == 0 and summary.get("total_count", 0) > 0 else "error"
-            
+
             msg = f"dotnet test の実行が完了しました (Status: {status.upper()})\n"
             msg += f"サマリー: {summary.get('summary_line', '情報なし')}\n"
             context["action_result"] = {
@@ -518,7 +518,7 @@ class CSharpOperations:
         try:
             manifest, details_by_id = self.load_csharp_analysis_results(output_path)
             target_detail_obj = None
-            target_method_obj = None 
+            target_method_obj = None
 
             if requires_target_name:
                 t_lower = target_name.lower()
@@ -526,7 +526,7 @@ class CSharpOperations:
                 target_manifest_obj = next((obj for obj in manifest.get("objects", []) if obj["fullName"] == target_name or obj["fullName"].lower().endswith("." + t_lower) or obj["fullName"].lower() == t_lower), None)
                 if target_manifest_obj:
                     target_detail_obj = details_by_id.get(target_manifest_obj.get("id"))
-                
+
                 # 2. Match Method (ClassName.MethodName)
                 if not target_method_obj and "." in target_name:
                     parts = target_name.rsplit('.', 1)
@@ -553,7 +553,7 @@ class CSharpOperations:
                 else:
                     t_type = target_detail_obj.get("type") if target_detail_obj else "Unknown"
                     context["action_result"] = {"status": "error", "message": f"クエリタイプ 'class_summary' はクラスにのみ適用可能です。ターゲットは '{t_type}' です。"}
-            
+
             elif query_type in ["method_calls", "method_summary", "called_by", "method_metrics"]:
                 if target_method_obj:
                     if query_type == "method_calls":
@@ -596,9 +596,9 @@ class CSharpOperations:
                         bh = metrics.get("bodyHash", "N/A")
                         result_message = f"メソッド '{target_name}' のメトリクス:\n  CC: {cc}, Lines: {lc}, Hash: {bh}"
                         context["action_result"] = {
-                            "status": "success", 
-                            "message": result_message, 
-                            "cyclomatic_complexity": cc, 
+                            "status": "success",
+                            "message": result_message,
+                            "cyclomatic_complexity": cc,
                             "line_count": lc,
                             "body_hash": bh
                         }
@@ -623,7 +623,7 @@ class CSharpOperations:
                     all_impacted = set()
                     for method in target_detail_obj.get("methods", []):
                         all_impacted.update(self.recursively_find_callers(method["id"], details_by_id, set()))
-                    
+
                     if all_impacted:
                         result_message = f"クラス '{target_name}' の影響範囲:\n" + "\n".join(sorted(list(all_impacted)))
                         context["action_result"] = {"status": "success", "message": result_message, "impacted_methods": sorted(list(all_impacted))}
@@ -667,5 +667,5 @@ class CSharpOperations:
 
         except Exception as e:
             context["action_result"] = self.ae._handle_exception_with_patterns(e, f"C#解析結果のクエリ中にエラーが発生しました: {e}")
-            
+
         return context

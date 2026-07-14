@@ -23,10 +23,10 @@ class TestGapAnalyzer(unittest.TestCase):
             }
         }
         project_path = "c:/project"
-        
+
         # Act
         scenarios = self.analyzer._identify_missing_scenarios(coverage_data, project_path)
-        
+
         # Assert
         self.assertEqual(len(scenarios), 1)
         scenario = scenarios[0]
@@ -48,10 +48,10 @@ class TestGapAnalyzer(unittest.TestCase):
             }
         }
         project_path = "c:/project"
-        
+
         # Act
         scenarios = self.analyzer._identify_missing_scenarios(coverage_data, project_path)
-        
+
         # Assert
         self.assertEqual(len(scenarios), 1)
         scenario = scenarios[0]
@@ -73,10 +73,10 @@ class TestGapAnalyzer(unittest.TestCase):
             }
         }
         project_path = "c:/project"
-        
+
         # Act
         scenarios = self.analyzer._identify_missing_scenarios(coverage_data, project_path)
-        
+
         # Assert
         self.assertEqual(len(scenarios), 0)
 
@@ -161,10 +161,10 @@ class TestQualityAnalyzer(unittest.TestCase):
                 "high_priority_gaps": 0
             }
         }
-        
+
         # Act
         score = self.analyzer._calculate_quality_score(coverage_data, gap_analysis)
-        
+
         # Assert: 80% coverage with no gaps should be reasonably high (e.g. around 8.0)
         self.assertGreaterEqual(score, 7.5)
         self.assertLessEqual(score, 8.5)
@@ -182,10 +182,10 @@ class TestQualityAnalyzer(unittest.TestCase):
                 "high_priority_gaps": 2    # Penalty
             }
         }
-        
+
         # Act
         score = self.analyzer._calculate_quality_score(coverage_data, gap_analysis)
-        
+
         # Assert: Should be lower than base score (5.0)
         self.assertLess(score, 5.0)
 
@@ -237,13 +237,13 @@ class TestCoverageAnalyzer(unittest.TestCase):
         mock_analyze_qual.return_value = {}
         mock_gen_recs.return_value = []
         mock_gen_reports.return_value = {}
-        
+
         from src.coverage_analyzer.coverage_analyzer import CoverageAnalyzer
         analyzer = CoverageAnalyzer()
-        
+
         # Act
         result = analyzer.analyze_project("c:/test_project", "csharp")
-        
+
         # Assert
         self.assertEqual(result["status"], "success")
         mock_measure.assert_called_once()
@@ -258,13 +258,13 @@ class TestCoverageAnalyzer(unittest.TestCase):
         # Arrange
         mock_load_config.return_value = {}
         mock_measure.return_value = {"status": "error", "message": "Failed"}
-        
+
         from src.coverage_analyzer.coverage_analyzer import CoverageAnalyzer
         analyzer = CoverageAnalyzer()
-        
+
         # Act
         result = analyzer.analyze_project("c:/test_project", "csharp")
-        
+
         # Assert
         self.assertEqual(result["status"], "error")
 
@@ -283,7 +283,7 @@ class TestCSharpCoverageCollector(unittest.TestCase):
         # Arrange
         mock_subprocess.return_value = MagicMock(returncode=0)
         mock_exists.return_value = True
-        
+
         # Mocking Coverlet JSON output structure
         mock_reponse_data = {
             "c:/project/File.cs": {
@@ -296,10 +296,10 @@ class TestCSharpCoverageCollector(unittest.TestCase):
             }
         }
         mock_json_load.return_value = mock_reponse_data
-        
+
         # Act
         result = self.collector.collect_coverage("c:/project", {})
-        
+
         # Assert
         self.assertEqual(result["status"], "success")
         self.assertIn("coverage_data", result)
@@ -313,10 +313,10 @@ class TestCSharpCoverageCollector(unittest.TestCase):
     def test_collect_coverage_command_failure(self, mock_subprocess):
         # Arrange
         mock_subprocess.return_value = MagicMock(returncode=1, stderr="Error")
-        
+
         # Act
         result = self.collector.collect_coverage("c:/project", {})
-        
+
         # Assert
         self.assertEqual(result["status"], "error")
         self.assertIn("Error", result["message"])
@@ -371,10 +371,10 @@ class TestRecommendationEngine(unittest.TestCase):
             "missing_test_scenarios": []
         }
         quality_metrics = {"technical_debt": "low"}
-        
+
         # Act
         recommendations = self.engine.generate(gap_analysis, quality_metrics)
-        
+
         # Assert
         self.assertEqual(len(recommendations), 1)
         rec = recommendations[0]
@@ -386,10 +386,10 @@ class TestRecommendationEngine(unittest.TestCase):
         # Arrange
         gap_analysis = {}
         quality_metrics = {"technical_debt": "high"}
-        
+
         # Act
         recommendations = self.engine.generate(gap_analysis, quality_metrics)
-        
+
         # Assert
         self.assertTrue(any(r["type"] == "refactor" for r in recommendations))
 
@@ -399,11 +399,11 @@ class TestReporters(unittest.TestCase):
         # Arrange
         from src.coverage_analyzer.coverage_analyzer import JSONReporter
         reporter = JSONReporter()
-        
+
         with patch('builtins.open', mock_open()) as mock_file:
             # Act
             reporter.generate("output.json", {}, {}, {}, [])
-            
+
             # Assert
             mock_file.assert_called_with("output.json", 'w', encoding='utf-8')
             # Check if json.dump was called (file write happened)
@@ -420,10 +420,10 @@ class TestReporters(unittest.TestCase):
             "analysis_summary": {"total_uncovered_files": 2}
         }
         recommendations = [{"type": "add_test"}]
-        
+
         # Act
         summary = reporter.generate_summary(coverage_result, gap_analysis, recommendations)
-        
+
         # Assert
         self.assertIn("80.0%", summary)
         self.assertIn("2", summary) # Uncovered files count

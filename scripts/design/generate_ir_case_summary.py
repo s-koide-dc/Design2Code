@@ -18,7 +18,7 @@ def parse_case_file(content: str) -> dict:
         "primary": "",
         "secondary": ""
     }
-    
+
     # Extract Case ID and Title
     title_match = re.search(r"^# Case (\d+):\s*(.+)$", content, re.MULTILINE)
     if title_match:
@@ -47,7 +47,7 @@ def generate_summary(cases_dir: str, output_path: str) -> int:
     if not os.path.isdir(cases_dir):
         emit_error(f"エラー: ケースディレクトリが見つかりません: {cases_dir}")
         return 1
-    
+
     parsed_data = []
     for file_path in case_files:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -55,26 +55,26 @@ def generate_summary(cases_dir: str, output_path: str) -> int:
             data = parse_case_file(content)
             if data["case_id"]:
                 parsed_data.append(data)
-                
+
     # Sort by case_id
     parsed_data.sort(key=lambda x: int(x["case_id"]))
-    
+
     table_lines = [
         "# Case Summary Table",
         "",
         "| Case | Title | Benchmark Role | Primary Failure | Secondary Failure |",
         "|---|---|---|---|---|"
     ]
-    
+
     for row in parsed_data:
         # Escape any pipes in the content to avoid breaking markdown table
         title = row["title"].replace("|", "\\|")
         role = row["benchmark_role"].replace("|", "\\|")
         primary = row["primary"].replace("|", "\\|")
         secondary = row["secondary"].replace("|", "\\|")
-        
+
         table_lines.append(f"| {row['case_id']} | {title} | {role} | {primary} | {secondary} |")
-        
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(table_lines) + "\n")

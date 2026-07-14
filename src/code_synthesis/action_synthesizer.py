@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 import copy
-import sys
-import json
-import os
 from typing import List, Dict, Any, Optional
 from src.code_synthesis.unified_knowledge_base import AmbiguousMethodCandidatesError
 
@@ -199,14 +196,14 @@ class ActionSynthesizer:
             res = handle_display_transform(self, runtime_node, path)
             if res is not None:
                 return res
-        
+
         target_entity = node.get("target_entity", "Item")
         htn_plan = node.get("htn_plan")
-        
+
         if path.get("in_loop") and htn_plan and len(htn_plan) > 1:
             if any(s.get("task") in [INTENT_FETCH, INTENT_DATABASE_QUERY, INTENT_JSON_DESERIALIZE] for s in htn_plan):
                 htn_plan = None
-        
+
         if htn_plan and len(htn_plan) > 1:
             return handle_htn_plan(self, runtime_node, path, htn_plan)
 
@@ -216,7 +213,7 @@ class ActionSynthesizer:
             return handle_io(self, runtime_node, path)
         if intent == INTENT_JSON_DESERIALIZE:
             return handle_json(self, runtime_node, path)
-        
+
         candidates = gather_candidates(self, runtime_node, path, target_entity)
         if runtime_node.get("_ambiguous_method_candidates"):
             return self._unresolved_path(
@@ -417,6 +414,11 @@ class ActionSynthesizer:
             if h.get("code") not in existing_codes:
                 new_p["hoisted_statements"].append(h)
                 existing_codes.append(h.get("code"))
+        existing_extra = set(new_p.setdefault("extra_code", []))
+        for code in best_child.get("extra_code", []) or []:
+            if code not in existing_extra:
+                new_p["extra_code"].append(code)
+                existing_extra.add(code)
         return [new_p]
 
     def _process_project_ops(self, node: Dict[str, Any], path: Dict[str, Any], ops: List[str]) -> Optional[List[Dict[str, Any]]]:
@@ -1043,6 +1045,12 @@ class ActionSynthesizer:
         if "IEnumerable" in ret_type or "List" in ret_type:
             rendering_cardinality = "COLLECTION"
         call_expr = self.stmt_builder.render_method_call(m, params, render_target, rendering_cardinality, new_path)
+        if (
+            node.get("intent") == INTENT_FETCH
+            and node.get("source_kind") == "env"
+            and str(ret_type).strip() == "string"
+        ):
+            call_expr = f"{call_expr} ?? string.Empty"
         is_async = m.get("is_async") or "async" in m.get("name", "").lower() or "Task" in str(m.get("return_type", "")) or node.get("side_effect") in ["IO", "NETWORK", "DB"]
         method_name = call_expr.split("(", 1)[0].strip() if isinstance(call_expr, str) else call_expr
         stmt = {
@@ -1249,72 +1257,97 @@ class ActionSynthesizer:
                     node,
                     "http_response_target_not_explicit",
                 )[0]
-            request_var = self.stmt_builder.get_semantic_var_name(
-                node,
-                "HttpRequestMessage",
-                "request",
-                new_path,
-                prefix="request",
-                role="request",
-            )
-            response_var = self.stmt_builder.get_semantic_var_name(
-                node,
-                "HttpResponseMessage",
-                "response",
-                new_path,
-                prefix="response",
-                role="response",
-            )
-            cancellation_var = self.stmt_builder.get_semantic_var_name(
-                node,
-                "CancellationTokenSource",
-                "requestTimeout",
-                new_path,
-                prefix="requestTimeout",
-                role="cancellation",
-            )
             url_literal = to_csharp_string_literal(str(request_url))
-            request_lines = [
-                f"using var {request_var} = new HttpRequestMessage("
-                f"{method_expressions[http_method]}, {url_literal});"
-            ]
-            if has_payload:
-                content_type_literal = to_csharp_string_literal(content_type)
-                request_lines.append(
-                    f"{request_var}.Content = new StringContent("
-                    f"{payload_input}, Encoding.UTF8, {content_type_literal});"
-                )
-            if use_api_key:
+            if (
+                http_method == "GET"
+                and use_api_key
+                and not has_payload
+                and not cancellation_input
+                and error_policy == "return_default"
+            ):
+                helper_name = self.stmt_builder.ensure_structured_http_get_string_helper(new_path)
                 header_literal = to_csharp_string_literal(header_name)
-                request_lines.append(
-                    f"{request_var}.Headers.Add({header_literal}, {api_key_input});"
-                )
-            if cancellation_input:
-                cancellation_setup = (
-                    f"using var {cancellation_var} = "
-                    f"CancellationTokenSource.CreateLinkedTokenSource({cancellation_input});\n"
-                    f"{cancellation_var}.CancelAfter(TimeSpan.FromMilliseconds({timeout_ms}));"
-                )
+                stmt = {
+                    "type": "call",
+                    "method": helper_name,
+                    "method_name": helper_name,
+                    "args": ["_httpClient", url_literal, header_literal, api_key_input, str(timeout_ms)],
+                    "call_expr": (
+                        f"{helper_name}(_httpClient, {url_literal}, "
+                        f"{header_literal}, {api_key_input}, {timeout_ms})"
+                    ),
+                    "node_id": node.get("id"),
+                    "intent": intent,
+                    "out_var": stmt.get("out_var"),
+                    "var_type": stmt.get("var_type"),
+                    "is_async": True,
+                }
             else:
-                cancellation_setup = (
-                    f"using var {cancellation_var} = "
-                    f"new CancellationTokenSource(TimeSpan.FromMilliseconds({timeout_ms}));"
+                request_var = self.stmt_builder.get_semantic_var_name(
+                    node,
+                    "HttpRequestMessage",
+                    "request",
+                    new_path,
+                    prefix="request",
+                    role="request",
                 )
-            stmt = {
-                "type": "raw",
-                "code": (
-                    f"{chr(10).join(request_lines)}\n"
-                    f"{cancellation_setup}\n"
-                    f"using var {response_var} = await _httpClient.SendAsync({request_var}, {cancellation_var}.Token);\n"
-                    f"{response_var}.EnsureSuccessStatusCode();\n"
-                    f"{stmt['out_var']} = await {response_var}.Content.ReadAsStringAsync("
-                    f"{cancellation_var}.Token);"
-                ),
-                "node_id": node.get("id"),
-                "intent": intent,
-                "out_var": stmt.get("out_var"),
-                "var_type": stmt.get("var_type"),
-            }
+                response_var = self.stmt_builder.get_semantic_var_name(
+                    node,
+                    "HttpResponseMessage",
+                    "response",
+                    new_path,
+                    prefix="response",
+                    role="response",
+                )
+                cancellation_var = self.stmt_builder.get_semantic_var_name(
+                    node,
+                    "CancellationTokenSource",
+                    "requestTimeout",
+                    new_path,
+                    prefix="requestTimeout",
+                    role="cancellation",
+                )
+                request_lines = [
+                    f"using var {request_var} = new HttpRequestMessage("
+                    f"{method_expressions[http_method]}, {url_literal});"
+                ]
+                if has_payload:
+                    content_type_literal = to_csharp_string_literal(content_type)
+                    request_lines.append(
+                        f"{request_var}.Content = new StringContent("
+                        f"{payload_input}, Encoding.UTF8, {content_type_literal});"
+                    )
+                if use_api_key:
+                    header_literal = to_csharp_string_literal(header_name)
+                    request_lines.append(
+                        f"{request_var}.Headers.Add({header_literal}, {api_key_input});"
+                    )
+                if cancellation_input:
+                    cancellation_setup = (
+                        f"using var {cancellation_var} = "
+                        f"CancellationTokenSource.CreateLinkedTokenSource({cancellation_input});\n"
+                        f"{cancellation_var}.CancelAfter(TimeSpan.FromMilliseconds({timeout_ms}));"
+                    )
+                else:
+                    cancellation_setup = (
+                        f"using var {cancellation_var} = "
+                        f"new CancellationTokenSource(TimeSpan.FromMilliseconds({timeout_ms}));"
+                    )
+                stmt = {
+                    "type": "raw",
+                    "code": (
+                        f"{chr(10).join(request_lines)}\n"
+                        f"{cancellation_setup}\n"
+                        f"using var {response_var} = await _httpClient.SendAsync({request_var}, {cancellation_var}.Token);\n"
+                        f"{response_var}.EnsureSuccessStatusCode();\n"
+                        f"{stmt['out_var']} = await {response_var}.Content.ReadAsStringAsync("
+                        f"{cancellation_var}.Token);"
+                    ),
+                    "node_id": node.get("id"),
+                    "intent": intent,
+                    "out_var": stmt.get("out_var"),
+                    "var_type": stmt.get("var_type"),
+                }
             new_path.setdefault("all_usings", set()).update({
                 "System",
                 "System.Net.Http",
@@ -1485,7 +1518,7 @@ class ActionSynthesizer:
                     role_mismatch = True
                 if effective_role in [ROLE_WRITE, ROLE_PERSIST] and c_role in [ROLE_READ, ROLE_FETCH]:
                     role_mismatch = True
-            
+
             if role_mismatch:
                 continue
 

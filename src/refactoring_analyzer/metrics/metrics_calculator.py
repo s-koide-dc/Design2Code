@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
 # src/refactoring_analyzer/metrics/metrics_calculator.py
 
-import os
-import math
 from typing import Dict, List, Any, Optional
 
 class QualityMetricsCalculator:
     """品質メトリクス計算機"""
-    
+
     def __init__(self, language: str):
         self.language = language
-    
+
     def calculate(self, project_path: str, code_smells: List[Dict[str, Any]], roslyn_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """プロジェクトの品質メトリクスを計算"""
         try:
@@ -19,7 +17,7 @@ class QualityMetricsCalculator:
             technical_debt = self._estimate_technical_debt(code_smells)
             duplication_percentage = self._calculate_code_duplication_percentage(code_smells)
             improvement_potential = max(0.0, 10.0 - overall_score)
-            
+
             return {
                 "overall_score": overall_score,
                 "maintainability_index": maintainability_index,
@@ -41,26 +39,26 @@ class QualityMetricsCalculator:
     def _calculate_overall_score(self, code_smells: List[Dict[str, Any]], roslyn_data: Optional[Dict[str, Any]]) -> float:
         """総合品質スコアを計算（10点満点）"""
         base_score = 10.0
-        
+
         # スメルの重み付け減点
         deductions = {
             "high": 1.0,
             "medium": 0.4,
             "low": 0.1
         }
-        
+
         total_deduction = 0
         for smell in code_smells:
             severity = smell.get("severity", "medium")
             total_deduction += deductions.get(severity, 0.4)
-            
+
         # Roslynデータ（CC等）がある場合はそれも考慮
         if roslyn_data and "project_metrics" in roslyn_data:
             metrics = roslyn_data["project_metrics"]
             avg_cc = metrics.get("averageCyclomaticComplexity", 1.0)
             if avg_cc > 5.0:
                 total_deduction += (avg_cc - 5.0) * 0.5
-                
+
         return max(0.0, base_score - total_deduction)
 
     def _calculate_maintainability_index(self, roslyn_data: Optional[Dict[str, Any]]) -> int:
@@ -81,12 +79,12 @@ class QualityMetricsCalculator:
             "medium": 1.5,
             "low": 0.5
         }
-        
+
         total_effort = 0
         for smell in code_smells:
             severity = smell.get("severity", "medium")
             total_effort += effort.get(severity, 1.5)
-            
+
         return total_effort
 
     def _calculate_code_duplication_percentage(self, code_smells: List[Dict[str, Any]]) -> float:

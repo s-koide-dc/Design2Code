@@ -3,7 +3,7 @@ import json
 import os
 import ast
 import logging
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 class KnowledgeExtractor:
     """
@@ -68,7 +68,7 @@ class KnowledgeExtractor:
         if isinstance(node, ast.Constant): return node.value
         if hasattr(ast, 'Str') and isinstance(node, ast.Str): return node.s # Legacy
         if isinstance(node, ast.List): return [self._get_value(e) for e in node.elts]
-        if isinstance(node, ast.Set): 
+        if isinstance(node, ast.Set):
             res = {self._get_value(e) for e in node.elts}
             return list(res) if isinstance(res, set) else res # JSON serializable
         if isinstance(node, ast.Dict): return self._parse_ast_dict(node)
@@ -77,22 +77,22 @@ class KnowledgeExtractor:
     def save_canonical_knowledge(self, output_path: str = None):
         if output_path is None:
             output_path = os.path.join(self.workspace_root, "resources", "canonical_knowledge.json")
-        
+
         existing = {"templates": [], "type_mappings": {}, "common_patterns": {}}
         if os.path.exists(output_path):
             try:
                 with open(output_path, "r", encoding="utf-8") as f:
                     existing = json.load(f)
             except Exception: pass
-        
+
         # Overwrite structural knowledge
         if self.knowledge["type_mappings"]:
             existing["type_mappings"] = self.knowledge["type_mappings"]
         if self.knowledge["common_patterns"]:
             existing["common_patterns"] = self.knowledge["common_patterns"]
-        
+
         # Templates are managed manually for now or appended if new
-        
+
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(existing, f, indent=4, ensure_ascii=False)
         self.logger.info("Canonical knowledge updated with structural data at %s", output_path)

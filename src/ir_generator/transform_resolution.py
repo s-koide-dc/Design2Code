@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 
 
 def infer_transform_metadata(

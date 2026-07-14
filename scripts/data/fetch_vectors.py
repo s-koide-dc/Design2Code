@@ -18,26 +18,26 @@ def fetch_vectors():
     resources_dir = os.path.join(os.getcwd(), 'resources', 'vectors')
     if not os.path.exists(resources_dir):
         os.makedirs(resources_dir)
-        
+
     tar_name = os.path.basename(vector_url)
     tar_path = os.path.join(resources_dir, tar_name)
-    
+
     emit_progress(f"Downloading vectors from {vector_url}...")
-    
+
     # Bypass SSL verification if needed (sometimes local certs are missing)
     ssl_ctx = ssl.create_default_context()
     ssl_ctx.check_hostname = False
     ssl_ctx.verify_mode = ssl.CERT_NONE
-    
+
     try:
         with urllib.request.urlopen(vector_url, context=ssl_ctx) as response, open(tar_path, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
         emit_progress("Download complete.")
-        
+
         emit_progress("Extracting vectors...")
         with tarfile.open(tar_path, 'r:gz') as tar:
             tar.extractall(path=resources_dir)
-            
+
         emit_progress(f"Vectors extracted to {resources_dir}")
         expected_path = os.path.join(resources_dir, EXPECTED_TXT)
         if not os.path.exists(expected_path):
@@ -49,7 +49,7 @@ def fetch_vectors():
             emit_error(f"警告: 想定したベクトルファイルが見つかりません: {expected_path}")
             emit_error("アーカイブの内容を確認するか、EXPECTED_TXT を更新してください。")
         return 0
-        
+
     except Exception as e:
         emit_error(f"エラー: ベクトルのダウンロードまたは展開に失敗しました: {e}")
         return 1

@@ -25,6 +25,7 @@
 7. `history_subject` のような middle-strength provenance は exact target scope に閉じた解決だけを許可する。
 8. `HTTP_REQUEST` で `semantic_roles.payload` または `semantic_roles.content` が明示され、値が `{context}` の場合は、current context item を優先解決して `new StringContent(JsonSerializer.Serialize(contextVar))` を組み立てる。
 9. 上記 HTTP content 解決では、明示 payload/content がある限り write-role に限定せず、loop item や active scope item を request body として利用できる。
+10. nullable-enabled verification を前提に、schema 由来の string property へ `Contains` / `StartsWith` などの instance method を出す場合は null guard を付与する。
 
 ### Test Cases
 - **Happy Path**:
@@ -43,3 +44,4 @@
 ## 4. Review Notes
 - 2026-06-04: `DATABASE_QUERY` / `FETCH` / `PERSIST` / `HTTP_REQUEST` / `EXISTS` と READ/WRITE/PERSIST/FETCH/TRANSFORM の高頻度比較を `src.utils.semantic_intents` の共通語彙へ寄せた。
 - 2026-06-24: `HTTP_REQUEST + payload:{context}` のとき current context item を `StringContent(JsonSerializer.Serialize(...))` へ変換する現在の binding 境界を反映。
+- 2026-07-09: schema string property に対する string method 条件式で null guard を出し、生成コードの nullable warning を品質ゲートで検出可能な状態へ同期。

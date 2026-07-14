@@ -17,7 +17,7 @@ class ConfigManager:
         self.workspace_root = Path(workspace_root or os.getcwd())
         self.load_errors: List[Dict[str, str]] = []
         self.missing_config_files: List[str] = []
-        
+
         # Load core configurations (Moved from resources to config/)
         self.config_data = self._load_json(self.workspace_root / "config" / "config.json")
         self.safety_policy = self._load_json(self.workspace_root / "config" / "safety_policy.json")
@@ -29,7 +29,7 @@ class ConfigManager:
         if strict and self.load_errors:
             invalid_files = ", ".join(error["path"] for error in self.load_errors)
             raise ConfigLoadError(f"Invalid configuration file(s): {invalid_files}")
-        
+
         # Paths for Config files
         self.error_patterns_path = str(self.workspace_root / "config" / "error_patterns.json")
         self.cicd_config_path = str(self.workspace_root / "config" / "cicd_config.json")

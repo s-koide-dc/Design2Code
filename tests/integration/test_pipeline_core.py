@@ -31,7 +31,7 @@ class TestPipelineCore(unittest.TestCase):
 
         # Mock LogManager for each test to track calls independently
         self.mock_log_manager = MagicMock()
-        
+
         # Patch LogManager during Pipeline initialization
         with patch('src.pipeline_core.pipeline_core.LogManager', return_value=self.mock_log_manager):
             # Also need to mock other heavy components that might try to load files
@@ -45,9 +45,9 @@ class TestPipelineCore(unittest.TestCase):
         self.pipeline.planner.log_manager = self.mock_log_manager
         self.pipeline.action_executor.log_manager = self.mock_log_manager
         self.pipeline.semantic_analyzer.log_manager = self.mock_log_manager
-        
+
         # Explicitly access the property to force lazy loading and then set the mock
-        _ = self.pipeline.response_generator 
+        _ = self.pipeline.response_generator
         self.pipeline.response_generator.log_manager = self.mock_log_manager
 
         # Mock methods with specific side effects
@@ -60,10 +60,10 @@ class TestPipelineCore(unittest.TestCase):
             "response": {"text": "完了しました。"},
             **{k: v for k, v in c.items() if k != "response"}
         })
-        
+
         _ = self.pipeline.intent_detector
         self.pipeline.intent_detector.log_manager = self.mock_log_manager
-        
+
         # Mock AutonomousLearning
         self.mock_learning = MagicMock()
         _ = self.pipeline.autonomous_learning # Force load
@@ -85,7 +85,7 @@ class TestPipelineCore(unittest.TestCase):
     def test_pipeline_end_to_end_weather_question(self):
         text = "今日の天気は？"
         final_context = self.pipeline.run(text)
-        
+
         self.assertIn("response", final_context)
         self.assertIn("text", final_context["response"])
         self.assertGreater(len(final_context["response"]["text"]), 0) # Should be non-empty
@@ -94,13 +94,13 @@ class TestPipelineCore(unittest.TestCase):
         # Assert logging calls specific to this flow
         self.mock_log_manager.log_event.assert_any_call("pipeline_start", {"original_text": text, "session_id": "default_session"}, level="INFO")
         self.mock_log_manager.log_event.assert_any_call(
-            "pipeline_stage_completion", 
-            {"stage": "intent_detection", "context_summary": unittest.mock.ANY}, 
+            "pipeline_stage_completion",
+            {"stage": "intent_detection", "context_summary": unittest.mock.ANY},
             level="INFO"
         )
         self.mock_log_manager.log_event.assert_any_call(
-            "pipeline_end", 
-            {"final_response": final_context["response"]["text"]}, 
+            "pipeline_end",
+            {"final_response": final_context["response"]["text"]},
             level="INFO"
         )
         # Verify autonomous learning trigger
@@ -109,7 +109,7 @@ class TestPipelineCore(unittest.TestCase):
     def test_pipeline_semantic_synonym(self):
         text = "へとへとです"
         final_context = self.pipeline.run(text)
-        
+
         self.assertIn("response", final_context)
         self.assertIn("text", final_context["response"])
         self.assertGreater(len(final_context["response"]["text"]), 0) # Should be non-empty
@@ -142,15 +142,15 @@ class TestPipelineCore(unittest.TestCase):
         self.assertGreater(len(final_context["response"]["text"]), 0)
         # self.assertNotEqual(final_context["response"]["text"], self.pipeline.response_generator.default_response) # Still expect not default - Removed
         self.mock_log_manager.log_event.assert_any_call(
-            "pipeline_stage_completion", 
-            {"stage": "intent_detection", "context_summary": unittest.mock.ANY}, 
+            "pipeline_stage_completion",
+            {"stage": "intent_detection", "context_summary": unittest.mock.ANY},
             level="INFO"
         )
 
     def test_pipeline_fallback(self):
-        text = "あいうえおポテトサラダ" 
+        text = "あいうえおポテトサラダ"
         final_context = self.pipeline.run(text)
-        
+
         self.assertIn("response", final_context)
         self.assertIn("text", final_context["response"])
         # Expect clarification message instead of default response, as ClarificationManager intervenes
@@ -158,8 +158,8 @@ class TestPipelineCore(unittest.TestCase):
         self.assertTrue(final_context.get("clarification_needed", False))
         # Clarification flow should still log pipeline stages
         self.mock_log_manager.log_event.assert_any_call(
-            "pipeline_stage_completion", 
-            {"stage": "clarification_management", "context_summary": unittest.mock.ANY}, 
+            "pipeline_stage_completion",
+            {"stage": "clarification_management", "context_summary": unittest.mock.ANY},
             level="INFO"
         )
 
@@ -170,28 +170,28 @@ class TestPipelineCore(unittest.TestCase):
         # Assert specific log_event calls
         self.mock_log_manager.log_event.assert_any_call("pipeline_start", {"original_text": text, "session_id": "default_session"}, level="INFO")
         self.mock_log_manager.log_event.assert_any_call(
-            "pipeline_stage_completion", 
-            {"stage": "morph_analysis", "context_summary": unittest.mock.ANY}, 
+            "pipeline_stage_completion",
+            {"stage": "morph_analysis", "context_summary": unittest.mock.ANY},
             level="DEBUG"
         )
         self.mock_log_manager.log_event.assert_any_call(
-            "pipeline_stage_completion", 
-            {"stage": "syntactic_analysis", "context_summary": unittest.mock.ANY}, 
+            "pipeline_stage_completion",
+            {"stage": "syntactic_analysis", "context_summary": unittest.mock.ANY},
             level="DEBUG"
         )
         self.mock_log_manager.log_event.assert_any_call(
-            "pipeline_stage_completion", 
-            {"stage": "intent_detection", "context_summary": unittest.mock.ANY}, 
+            "pipeline_stage_completion",
+            {"stage": "intent_detection", "context_summary": unittest.mock.ANY},
             level="INFO"
         )
         self.mock_log_manager.log_event.assert_any_call(
-            "pipeline_stage_completion", 
-            {"stage": "semantic_analysis", "context_summary": unittest.mock.ANY}, 
+            "pipeline_stage_completion",
+            {"stage": "semantic_analysis", "context_summary": unittest.mock.ANY},
             level="DEBUG"
         )
         self.mock_log_manager.log_event.assert_any_call(
-            "pipeline_stage_completion", 
-            {"stage": "clarification_management", "context_summary": unittest.mock.ANY}, 
+            "pipeline_stage_completion",
+            {"stage": "clarification_management", "context_summary": unittest.mock.ANY},
             level="INFO"
         )
 
@@ -210,8 +210,8 @@ class TestPipelineCore(unittest.TestCase):
         else:
             self.assertTrue(_has_stage("response_generation"))
         self.mock_log_manager.log_event.assert_any_call(
-            "pipeline_end", 
-            {"final_response": final_context.get("response", {}).get("text")}, 
+            "pipeline_end",
+            {"final_response": final_context.get("response", {}).get("text")},
             level="INFO"
         )
 
@@ -249,7 +249,7 @@ class TestPipelineCore(unittest.TestCase):
                     },
                 }
             return context
-        
+
         # Patch TaskManager's _load_task_definitions to use our mock
         with patch.object(self.pipeline.task_manager, '_load_task_definitions', return_value=mock_task_definitions):
             # Reload task definitions with the mocked data
@@ -259,11 +259,11 @@ class TestPipelineCore(unittest.TestCase):
 
             # Mock ActionExecutor to simulate success for subtasks
             self.pipeline.action_executor._copy_file = MagicMock(side_effect=lambda c, p: {
-                **c, 
+                **c,
                 "action_result": {"status": "success", "message": "ファイル 'src.txt' を 'dest.txt' にコピーしました。"}
             })
             self.pipeline.action_executor._delete_file = MagicMock(side_effect=lambda c, p: {
-                **c, 
+                **c,
                 "action_result": {"status": "success", "message": "ファイル 'src.txt' を削除しました。"}
             })
 
@@ -309,11 +309,11 @@ class TestPipelineCore(unittest.TestCase):
                 {"original_text": text2, "session_id": session_id},
                 level="INFO",
             )
-            
+
             # Assertions for internal subtask execution (FILE_COPY)
             self.mock_log_manager.log_event.assert_any_call(
-                "pipeline_stage_completion", 
-                {"stage": "action_execution", "context_summary": unittest.mock.ANY}, 
+                "pipeline_stage_completion",
+                {"stage": "action_execution", "context_summary": unittest.mock.ANY},
                 level="INFO"
             )
             # Ensure _copy_file was called by the mocked ActionExecutor
@@ -321,11 +321,11 @@ class TestPipelineCore(unittest.TestCase):
 
             # Assertions for internal subtask execution (FILE_DELETE)
             self.mock_log_manager.log_event.assert_any_call(
-                "pipeline_stage_completion", 
-                {"stage": "action_execution", "context_summary": unittest.mock.ANY}, 
+                "pipeline_stage_completion",
+                {"stage": "action_execution", "context_summary": unittest.mock.ANY},
                 level="INFO"
             )
-            
+
             # Final pipeline end log
             self.mock_log_manager.log_event.assert_any_call("pipeline_end", {"final_response": final_context2["response"]["text"]}, level="INFO")
 

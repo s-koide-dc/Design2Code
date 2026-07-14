@@ -22,7 +22,7 @@ class TestPipelineIntegration(unittest.TestCase):
         # Create dummy resource files for new modules
         cls.test_resources_dir = "integration_test_resources"
         os.makedirs(cls.test_resources_dir, exist_ok=True)
-        
+
         # task_definitions.json
         cls.task_definitions_path = os.path.join(cls.test_resources_dir, "task_definitions.json")
         with open(cls.task_definitions_path, "w", encoding="utf-8") as f:
@@ -274,7 +274,7 @@ class TestPipelineIntegration(unittest.TestCase):
             cls.pipeline._autonomous_learning = MagicMock()
             cls.pipeline.action_executor.autonomous_learning = cls.pipeline._autonomous_learning
             cls.pipeline.planner.autonomous_learning = cls.pipeline._autonomous_learning
-            
+
             # Manually set paths for relevant managers to our dummy files
             cls.pipeline.task_manager.task_definitions_path = cls.task_definitions_path
             # Need to reload task_definitions after path change
@@ -573,7 +573,7 @@ class TestPipelineIntegration(unittest.TestCase):
         self.assertIn("plan", res1) # Plan should be created
         self.assertEqual(res1["plan"]["action_method"], "_create_file")
         self.assertEqual(res1["plan"]["parameters"]["filename"], "test.txt")
-        
+
         # Simulate user approval (if confirmation_needed is True) - For now, we assume direct execution post-plan
         self.assertEqual(res1["action_result"]["status"], "success")
         self.assertTrue(os.path.exists(os.path.join(self.test_ws, "test.txt")))
@@ -606,14 +606,14 @@ class TestPipelineIntegration(unittest.TestCase):
         """Tests execution of whitelisted, safe commands, expecting confirmation."""
         # 'ls' or 'dir' is a safe, whitelisted command.
         command = "ls -l" if sys.platform != "win32" else "dir"
-        
+
         result = self.pipeline.run(f"「{command}」を実行")
-        
+
         self.assertIn("plan", result)
         self.assertEqual(result["plan"]["action_method"], "_run_command")
         self.assertEqual(result["plan"]["parameters"]["command"], command)
         self.assertTrue(result["plan"]["confirmation_needed"]) # CMD_RUN needs confirmation
-        
+
         # With the new soft block logic, this should now request confirmation and clarify
         self.assertTrue(result.get("clarification_needed", False))
         self.assertIn("response", result)
@@ -658,7 +658,7 @@ class TestPipelineIntegration(unittest.TestCase):
         self.assertEqual(res["plan"]["action_method"], "_create_file")
         self.assertEqual(res["plan"]["parameters"]["filename"], expected_filename)
         self.assertEqual(res["plan"]["parameters"]["content"], expected_content)
-        
+
         self.assertEqual(res["action_result"]["status"], "success")
         self.assertTrue(os.path.exists(os.path.join(self.test_ws, expected_filename)))
         with open(os.path.join(self.test_ws, expected_filename), "r", encoding="utf-8") as f:
@@ -683,7 +683,7 @@ class TestPipelineIntegration(unittest.TestCase):
         self.assertEqual(res["plan"]["parameters"]["content"], append_content)
         # Assuming confirmation message includes action description
         self.assertIn(f"ファイル '{filename}' に追記します。よろしいですか？", res["response"]["text"])
-        
+
         # This test currently does not simulate user approval, so action_result won't be success
         # For now, we only check that confirmation is requested.
         # self.assertEqual(res["action_result"]["status"], "success")
@@ -729,7 +729,7 @@ class TestPipelineIntegration(unittest.TestCase):
     def test_cmd_run_task(self):
         """Tests running a safe command as a task, expecting confirmation."""
         command = "echo Hello" if sys.platform != "win32" else "echo Hello" # Example safe command
-        
+
         # Command execution should require confirmation
         res = self.pipeline.run(f"コマンド「{command}」を実行して。")
         self.assertTrue(res.get("clarification_needed", False)) # Should ask for confirmation
@@ -1198,7 +1198,7 @@ class TestPipelineIntegration(unittest.TestCase):
         self.pipeline.run(f"ファイル {filename} を作成して。中身は『{content}』にして。")
 
         res = self.pipeline.run(f"ファイル {filename} を読んでほしい。")
-        self.assertFalse(res.get("clarification_needed", False)) 
+        self.assertFalse(res.get("clarification_needed", False))
         self.assertIn("plan", res)
         self.assertEqual(res["plan"]["action_method"], "_read_file")
         self.assertEqual(res["plan"]["parameters"]["filename"], filename)
@@ -1209,7 +1209,7 @@ class TestPipelineIntegration(unittest.TestCase):
     def test_clarification_low_intent_confidence(self):
         # Default intent_threshold is 0.75. Input "曖昧な指示" gives intent "GENERAL" with confidence 0.5.
         # Since 0.5 < 0.75, clarification should be needed.
-        result = self.pipeline.run("曖昧な指示") 
+        result = self.pipeline.run("曖昧な指示")
         self.assertTrue(result.get("clarification_needed", False))
         self.assertIn("意図が明確ではありません。", result.get("response", {}).get("text", ""))
         self.assertIn(INTENT_GENERAL, result.get("response", {}).get("text", "")) # Assuming GENERAL intent for ambiguous input
@@ -1217,7 +1217,7 @@ class TestPipelineIntegration(unittest.TestCase):
 
     def test_clarification_missing_entity(self):
         # FILE_CREATE requires 'filename' and 'content'. Providing only filename.
-        result = self.pipeline.run("test_missing.txt を作って") 
+        result = self.pipeline.run("test_missing.txt を作って")
         self.assertTrue(result.get("clarification_needed", False))
         self.assertIn("ファイルの内容を教えていただけますか？", result.get("response", {}).get("text", ""))
         self.assertIn("clarification_manager", result["pipeline_history"])
@@ -1227,7 +1227,7 @@ class TestPipelineIntegration(unittest.TestCase):
         # Lower intent confidence to prevent plan creation (should be caught by Planner)
         original_intent_threshold = self.pipeline.planner.intent_threshold
         self.pipeline.planner.intent_threshold = 0.99
-        
+
         try:
             # Input with high intent_confidence but Planner's threshold is higher
             result = self.pipeline.run("明確な指示")
@@ -1243,13 +1243,13 @@ class TestPipelineIntegration(unittest.TestCase):
 
     def test_task_manager_state_transition(self):
         session_id = "test_task_manager_session"
-        
+
         original_clarification_intent_threshold = self.pipeline.clarification_manager.intent_threshold
         original_planner_intent_threshold = self.pipeline.planner.intent_threshold
 
         # Set low to bypass clarification and planning for 0.5 confidence
         self.pipeline.clarification_manager.intent_threshold = 0.4
-        self.pipeline.planner.intent_threshold = 0.4 
+        self.pipeline.planner.intent_threshold = 0.4
 
         try:
             # 1. Start FILE_CREATE task, filename provided
@@ -1307,9 +1307,9 @@ class TestPipelineIntegration(unittest.TestCase):
 
         # Assert the final state in the returned context and in active_tasks
         self.assertEqual(final_context["task"]["state"], "COMPLETED")
-        self.assertNotIn(session_id, self.pipeline.task_manager.active_tasks) 
+        self.assertNotIn(session_id, self.pipeline.task_manager.active_tasks)
         self.assertEqual(self.pipeline.task_manager.active_tasks.get(session_id), None) # Should be None after reset
-        
+
         # Clean up
         self.pipeline.task_manager.reset_task(session_id)
 
@@ -1345,7 +1345,7 @@ class TestPipelineIntegration(unittest.TestCase):
         self.assertTrue(res_B2.get("clarification_needed"))
         self.assertIn("ファイルの内容を教えていただけますか？", res_B2["response"]["text"])
         self.assertEqual(self.pipeline.task_manager.active_tasks[session_B]["state"], "AWAITING_CONTENT")
-        
+
         # 6. Assert that session_A's task is NOT affected
         self.assertEqual(self.pipeline.task_manager.active_tasks[session_A]["state"], "AWAITING_CONTENT", "Session A state should not change")
 
@@ -1369,9 +1369,9 @@ class TestPipelineIntegration(unittest.TestCase):
     def test_robustness_storage_full(self, mock_open):
         """Tests pipeline's response to a storage full error during file creation."""
         mock_open.side_effect = OSError(errno.ENOSPC, "No space left on device")
-        
+
         result = self.pipeline.run("ファイル 'no_space.txt' を作って。内容は「test」で。")
-        
+
         self.assertEqual(result['action_result']['status'], 'error')
         self.assertIn("ディスク容量が不足しています", result['action_result']['message'])
 
@@ -1379,9 +1379,9 @@ class TestPipelineIntegration(unittest.TestCase):
     def test_robustness_permission_denied(self, mock_open):
         """Tests pipeline's response to a permission error during file creation."""
         mock_open.side_effect = PermissionError("Permission denied")
-        
+
         result = self.pipeline.run("ファイル 'permission.txt' を作って。内容は「test」で。")
-        
+
         self.assertEqual(result['action_result']['status'], 'error')
         self.assertIn("操作に必要な権限がありません", result['action_result']['message'])
 
@@ -1389,12 +1389,12 @@ class TestPipelineIntegration(unittest.TestCase):
         """Tests if the pipeline can handle very long content without crashing."""
         long_content = "a" * (1024 * 1) # 1KB string (Reduced from 100KB to keep logs manageable)
         filename = "long_content.txt"
-        
+
         # This test primarily checks for crashes and basic success.
         # A more advanced test might check for performance.
         try:
             result = self.pipeline.run(f"ファイル '{filename}' を作成して。内容は『{long_content}』")
-            
+
             self.assertEqual(result['action_result']['status'], 'success')
             self.assertTrue(os.path.exists(os.path.join(self.test_ws, filename)))
             with open(os.path.join(self.test_ws, filename), "r", encoding="utf-8") as f:

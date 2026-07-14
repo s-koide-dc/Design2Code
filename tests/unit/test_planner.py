@@ -30,7 +30,7 @@ class TestPlanner(unittest.TestCase):
                     }
                 ]
             }, f, ensure_ascii=False, indent=2)
-        
+
         # Patch os.path.exists and open for retry rules loading
         # Store original os.path.exists and open
         cls.original_os_path_exists = os.path.exists
@@ -77,7 +77,7 @@ class TestPlanner(unittest.TestCase):
                 "APPLY_CODE_FIX": []
             }.get(intent, [])
         self.mock_action_executor.safe_commands = ["git", "ls", "dir", "echo"]
-        
+
         self.planner = Planner(
             action_executor=self.mock_action_executor,
             log_manager=mock_log_manager,
@@ -223,7 +223,7 @@ class TestPlanner(unittest.TestCase):
                 "clarification_message": None
             }
         }
-        
+
         # Ensure mock_action_executor returns required entities for FILE_READ
         self.mock_action_executor.get_required_entities_for_intent.side_effect = \
             lambda intent: {
@@ -249,14 +249,14 @@ class TestPlanner(unittest.TestCase):
         context = {
             "original_text": "rm -rf / を実行",
             "analysis": {
-                "intent": "CMD_RUN", 
+                "intent": "CMD_RUN",
                 "intent_confidence": 0.95,
                 "entities": {"command": {"value": "rm -rf /", "confidence": 0.95}}
             },
         }
         # Planner should consult SafetyPolicyValidator, which flags 'rm' as Blocked
         result = self.planner.create_plan(context)
-        
+
         self.assertIn("plan", result)
         self.assertEqual(result["plan"]["safety_check_status"], "BLOCK")
         self.assertIn("許可されていません", result["plan"]["safety_message"])

@@ -177,10 +177,11 @@ class TestGeneratedLambdaCompilation(unittest.TestCase):
                 "return default;",
             ],
             "scenarios/DailyInventorySync.design.md": [
-                'new HttpRequestMessage(HttpMethod.Get, "https://inventory.example.com/api/current")',
-                'request.Headers.Add("X-API-Key", input_1);',
-                "new CancellationTokenSource(TimeSpan.FromMilliseconds(30000))",
-                "await _httpClient.SendAsync(request, requestTimeout.Token);",
+                'SendGeneratedHttpGetStringAsync(_httpClient, "https://inventory.example.com/api/current", "X-API-Key", input_1, 30000)',
+                "new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url)",
+                "request.Headers.Add(headerName, headerValue);",
+                "new System.Threading.CancellationTokenSource(System.TimeSpan.FromMilliseconds(timeoutMs))",
+                "await httpClient.SendAsync(request, requestTimeout.Token);",
                 "return default;",
             ],
             "scenarios/AggregationSummary.design.md": [

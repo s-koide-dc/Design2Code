@@ -9,7 +9,7 @@ from src.utils.action_intents import INTENT_DOC_GEN, INTENT_DOC_REFINE
 
 class ComplianceAuditor:
     """プロジェクト規約と構造の整合性を自律的に監査するクラス"""
-    
+
     def __init__(self, workspace_root: str = ".", structural_memory=None):
         self.workspace_root = Path(workspace_root)
         self.memory = structural_memory
@@ -56,7 +56,7 @@ class ComplianceAuditor:
         self._audit_document_quality() # NEW: Check content quality
         self._audit_dependencies()
         self._audit_semantic_overlaps()
-        
+
         return self.findings
 
     def _audit_document_quality(self):
@@ -141,7 +141,7 @@ class ComplianceAuditor:
             if module_dir.is_dir() and module_dir.name != "__pycache__":
                 expected_rel = pattern.replace("{module}", module_dir.name)
                 expected_path = self.workspace_root / expected_rel
-                
+
                 if not expected_path.exists():
                     self.findings.append({
                         "type": "MANDATORY_FILE_MISSING",
@@ -248,13 +248,13 @@ class ComplianceAuditor:
     def generate_proactive_suggestion(self) -> Optional[Dict[str, Any]]:
         """監査結果に基づき、ユーザーに提案する最も重要なタスクを1つ選択"""
         if not self.findings: return None
-        
+
         # 深刻度順にソート
         severity_map = {"high": 3, "medium": 2, "low": 1}
         sorted_findings = sorted(self.findings, key=lambda x: severity_map.get(x['severity'], 0), reverse=True)
-        
+
         top = sorted_findings[0]
-        
+
         if top['type'] == 'DEPENDENCY_VIOLATION':
             return {
                 "summary": f"アーキテクチャ違反の修正 ({top['file']})",
@@ -276,5 +276,5 @@ class ComplianceAuditor:
                 "action_type": INTENT_DOC_REFINE,
                 "finding": top
             }
-        
+
         return None

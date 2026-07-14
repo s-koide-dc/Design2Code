@@ -129,17 +129,17 @@ class DynamicHarvester:
         from src.utils.nuget_client import NuGetClient
         client = NuGetClient(self.config_manager)
         dlls = client.get_package_dlls(package_name, version)
-        
+
         if not dlls:
             self.logger.warning(f"No DLLs found for package {package_name} {version}")
             return []
-            
+
         # ツールパスの解決
         cli_path = os.path.join(os.getcwd(), "tools", "csharp", "MethodHarvesterCLI", "bin", "Debug", "net10.0", "MethodHarvesterCLI.exe")
         if not os.path.exists(cli_path):
             self.logger.error(f"MethodHarvesterCLI not found at {cli_path}")
             return []
-             
+
         try:
             # 大量に DLL がある場合はコマンドライン長の制限に注意が必要だが、通常は数個
             cmd = [cli_path]
@@ -148,15 +148,15 @@ class DynamicHarvester:
                 cmd += ["--map", map_path]
             cmd += dlls
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            
+
             if result.returncode != 0:
                 self.logger.warning(f"MethodHarvesterCLI failed: {result.stderr}")
                 return []
-                
+
             data = json.loads(result.stdout)
             raw_methods = data.get("methods", [])
             self.policy.reset_audit()
-            
+
             # 形式変換 (MethodHarvesterCLI の出力はほぼ MethodStore 互換)
             converted = []
             for m in raw_methods:
@@ -172,11 +172,11 @@ class DynamicHarvester:
                     mapped = self._lookup_map_value(m.get("class", ""), m.get("name", ""), "capabilities")
                     if isinstance(mapped, list):
                         m["capabilities"] = mapped
-                
+
                 # Tier Handling (MethodHarvesterCLI now provides Tier, but we ensure it's mapped to tier)
                 if "Tier" in m:
                     m["tier"] = m.pop("Tier")
-                
+
                 if "tier" not in m:
                     cls_name = m.get("class", "")
                     m["tier"] = 1 if (cls_name.startswith("System.") or cls_name.startswith("Common.")) else 2
@@ -185,15 +185,15 @@ class DynamicHarvester:
                 if "tags" not in m: m["tags"] = []
                 m["tags"].append("harvested-nuget")
                 m["tags"].append(package_name.lower())
-                
+
                 # 名前空間
                 if "." in m["class"]:
                     m["namespace"] = m["class"].rsplit(".", 1)[0]
-                
+
                 normalized = self.policy.normalize(m)
                 if normalized is not None:
                     converted.append(normalized)
-            
+
             self.last_policy_audit = self.policy.get_audit_summary()
             return converted
 
@@ -213,26 +213,26 @@ class DynamicHarvester:
             #   "params": [{"name": "...", "type": "..."}], "return_type": "...",
             #   "dependencies": [], "tags": [], "usings": []
             # }
-            
+
             method_name = m["Name"]
-            params = m["Parameters"] 
+            params = m["Parameters"]
             ret_type = m["ReturnType"]
-            
+
             params_store = [{"name": p["Name"], "type": p["Type"], "role": p.get("Role")} for p in params]
-            
+
             # 呼び出しコードのテンプレート作成
             args_str = ", ".join([f"{{{p['Name']}}}" for p in params])
             code_template = f"{type_name}.{method_name}({args_str})"
-            
+
             # ソースコード定義はリフレクションでは取れないため、ダミー（シグネチャのみ）
             params_sig = ", ".join([f"{p['Type']} {p['Name']}" for p in params])
             definition = f"public static {ret_type} {method_name}({params_sig}) {{ /* Compiled Library */ }}"
-            
+
             # 依存関係
             ns = "System"
             if "." in type_name:
                 ns = type_name.rsplit(".", 1)[0]
-            
+
             mapped_intent = self._lookup_map_value(type_name, method_name, "intent")
             mapped_caps = self._lookup_map_value(type_name, method_name, "capabilities")
             entry = {
@@ -256,7 +256,7 @@ class DynamicHarvester:
             normalized = self.policy.normalize(entry)
             if normalized is not None:
                 converted.append(normalized)
-            
+
         self.last_policy_audit = self.policy.get_audit_summary()
         return converted
 
@@ -277,7 +277,7 @@ public class Program
         {{
             string targetType = "{type_name}";
             Type t = Type.GetType(targetType);
-            
+
             // Try standard assemblies if not found directly
             if (t == null) t = typeof(string).Assembly.GetType(targetType); // System.Private.CoreLib
             if (t == null) t = Assembly.Load("System.Runtime").GetType(targetType);
@@ -288,7 +288,7 @@ public class Program
             if (t == null) t = Assembly.Load("System.Linq").GetType(targetType);
             if (t == null) t = Assembly.Load("System.Security.Cryptography.Algorithms").GetType(targetType);
 
-            if (t == null) 
+            if (t == null)
             {{
                 Console.WriteLine("[]"); // Empty list
                 return;
@@ -296,7 +296,7 @@ public class Program
 
             var methods = t.GetMethods(BindingFlags.Public | BindingFlags.Static)
                            .Where(m => !m.IsSpecialName) // Getters/Setters除外
-                           .Select(m => new 
+                           .Select(m => new
                            {{
                                Name = m.Name,
                                ReturnType = GetScrubbedTypeName(m.ReturnType),
@@ -307,7 +307,7 @@ public class Program
             string json = JsonSerializer.Serialize(methods);
             Console.WriteLine(json);
         }}
-        catch 
+        catch
         {{
             Console.WriteLine("[]");
         }}

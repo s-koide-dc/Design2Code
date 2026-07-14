@@ -32,7 +32,7 @@ class TestClarificationManager(unittest.TestCase):
                     }
                 }
             , f, ensure_ascii=False, indent=2)
-        
+
         # Patch os.path.join to point to our test resources dir for knowledge base loading
         cls.original_os_path_join = os.path.join # Store the original
         cls.patcher = patch('src.clarification_manager.clarification_manager.os.path.join', side_effect=cls._mock_os_path_join)
@@ -62,7 +62,7 @@ class TestClarificationManager(unittest.TestCase):
                 "CMD_RUN": ["command"],
                 "AMBIGUOUS_ACTION": []
             }.get(intent, [])
-        
+
         self.cm = ClarificationManager(
             action_executor=self.mock_action_executor,
             log_manager=mock_log_manager,
@@ -119,19 +119,19 @@ class TestClarificationManager(unittest.TestCase):
             }
         }
         # Simulate max attempts reached
-        self.cm.clarification_history[hash(original_text)] = self.cm.max_clarification_attempts 
-        
+        self.cm.clarification_history[hash(original_text)] = self.cm.max_clarification_attempts
+
         result = self.cm.manage_clarification(context)
         self.assertTrue(result["clarification_needed"])
         self.assertIn("手動で操作してください", result["response"]["text"])
-        self.assertIn("不足情報: content", result["response"]["text"]) 
+        self.assertIn("不足情報: content", result["response"]["text"])
         self.assertEqual(self.cm.clarification_history[hash(original_text)], 0) # History reset
 
         # Reset context for the next call to avoid early return
         context["clarification_needed"] = False
         # Simulate max attempts reached
-        self.cm.clarification_history[hash(original_text)] = self.cm.max_clarification_attempts 
-        
+        self.cm.clarification_history[hash(original_text)] = self.cm.max_clarification_attempts
+
         result = self.cm.manage_clarification(context)
         self.assertTrue(result["clarification_needed"])
         self.assertIn("手動で操作してください", result["response"]["text"])

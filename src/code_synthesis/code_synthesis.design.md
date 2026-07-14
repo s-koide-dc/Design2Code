@@ -1,4 +1,5 @@
 # Code Synthesis Design Document
+<!-- metadata-sync: 2026-07-09T00:00:00+09:00 -->
 
 ## 1. Purpose (Updated 2026-06-18)
 
@@ -50,6 +51,7 @@
 9. review/audit 系 CLI では、同じ合成入口を使って `.design.md -> .inferred.design.md -> generated .cs -> spec audit -> compile verification` を一気通しで確認する。
 10. resilient IO/NETWORK/DB 合成では、scalar 戻り値 (`string`, `bool`, `int` など) も explicit `var_type` を保持し、退避変数の hoist 時に `var x = null` のような不正宣言を出さない。
 11. 現在の最小 authoring 境界で重点確認している生成経路は file / db / http / env の代表シナリオであり、各系統は review snapshot で `SpecAuditor` と compile verification まで通すことを前提にする。
+12. `StructuredSpec.entity_specs` がある場合、合成中だけ既存 `entity_schema` へ一時マージし、IR 生成・POCO 生成・property 解決に使う。グローバル `resources/entity_schema.json` は変更しない。
 
 ### Test Cases
 - **Happy Path**:
@@ -74,3 +76,4 @@
 - 2026-05-13: `ITERATE` の collection/item provenance bridge（exact upstream collection と deterministic item entity 優先）を module-level specification に反映。
 - 2026-05-13: `CALCULATE` の source/target provenance（`default_scope_var`, `calculate_target_resolution`）に応じて over-concretization を避ける方針を反映。
 - 2026-06-18: review snapshot による実コード監査経路、resilient scalar return hoisting、file/db/http/env の最小シナリオ検証前提を反映。
+- 2026-07-10: 設計書内 `Entity Specs` を一時 schema として合成へ渡し、未知 entity の POCO と property 解決に使う契約を反映。

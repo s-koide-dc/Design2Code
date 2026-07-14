@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-`StructuredDesignParser` は `.design.md` を読み込み、`StructuredSpec`（入力/出力/ステップ/データソース/テストケース）へ変換する。設計書内の明示メタデータと `ops`/`semantic_roles` を優先し、ヒューリスティック抽出に依存しない決定的な変換を行う。
+`StructuredDesignParser` は `.design.md` を読み込み、`StructuredSpec`（入力/出力/ステップ/データソース/テストケース/entity specs）へ変換する。設計書内の明示メタデータと `ops`/`semantic_roles` を優先し、ヒューリスティック抽出に依存しない決定的な変換を行う。
 
 ## 2. Structured Specification
 
@@ -36,8 +36,9 @@
    - `[refs:...]`/`[ops:...]`/`[semantic_roles:{...}]` を順に解析し、`input_refs` と `semantic_roles` に反映する。  
    - `semantic_roles.ops` のような JSON array もそのまま保持する。
 4. `source_ref` と `data_sources` を突合して `source_kind` を補完し、`FETCH` で未指定の場合は `file` を既定値とする。内部 semantic intent / node kind の既定語彙には `src.utils.semantic_intents` の共通定数を使う。
-5. `test_cases` を `tc_1..` 形式の構造体に変換する。
-6. `validate_structured_spec_or_raise` を実行し、形式・参照整合性を検証する。
+5. `### Entity Specs` / `### Entities` の箇条書きを明示 schema として読み、`entity_specs` に entity 名と property 型を保持する。
+6. `test_cases` を `tc_1..` 形式の構造体に変換する。
+7. `validate_structured_spec_or_raise` を実行し、形式・参照整合性を検証する。
 
 ### Test Cases
 - **Happy Path**:

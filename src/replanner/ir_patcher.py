@@ -6,11 +6,11 @@ class IRPatcher:
 
     def apply_patches(self, ir_tree: Dict[str, Any], hints: List[Dict[str, Any]]) -> Dict[str, Any]:
         patched_ir = ir_tree # In-place for simplicity or deepcopy
-        
+
         for hint in hints:
             patch = hint.get("patch", {})
             p_type = patch.get("type")
-            
+
             if p_type == "FORCE_INTENT_RESOLUTION":
                 self._patch_intent(patched_ir, patch)
             elif p_type == "REBIND_INPUT_LINK":
@@ -41,7 +41,7 @@ class IRPatcher:
                         if target_node and isinstance(patch.get("drop_at"), str):
                             if self._is_upstream_node(patched_ir.get("logic_tree", []), patch.get("drop_at"), node_id):
                                 target_node["input_link"] = patch.get("drop_at")
-                
+
         return patched_ir
 
     def _patch_node_semantic(self, ir: Dict[str, Any], node_id: str, updates: Dict[str, Any]):
@@ -61,7 +61,7 @@ class IRPatcher:
     def _patch_required_fields(self, ir: Dict[str, Any], patch: Dict[str, Any]):
         symbol = patch.get("name")
         if not symbol: return
-        
+
         # シンボル（型名など）からフィールド名への論理マッピング
         # これにより、CS0103 "HttpClient" エラーを "_httpClient" フィールドの不足と解釈する。
         norm_map = {
@@ -71,10 +71,10 @@ class IRPatcher:
             "SqliteConnection": "_dbConnection"
         }
         field_name = norm_map.get(symbol, symbol)
-        
+
         if "required_fields" not in ir:
             ir["required_fields"] = []
-        
+
         if field_name not in ir["required_fields"]:
             ir["required_fields"].append(field_name)
 
@@ -110,7 +110,7 @@ class IRPatcher:
     def _patch_intent(self, ir: Dict[str, Any], patch: Dict[str, Any]):
         target_id = patch.get("target_id")
         method = patch.get("method", "")
-        
+
         node = self._find_node(ir.get("logic_tree", []), target_id)
         if node:
             # SaveChangesAsync 等が含まれる場合は PERSIST に強制
@@ -123,7 +123,7 @@ class IRPatcher:
     def _patch_links(self, ir: Dict[str, Any], patch: Dict[str, Any]):
         source_id = patch.get("source_id")
         target_id = patch.get("target_id")
-        
+
         target_node = self._find_node(ir.get("logic_tree", []), target_id)
         if target_node:
             if "input_refs" not in target_node:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, Optional, Set, Tuple
 
 class TypeSystem:
     """
@@ -23,8 +23,8 @@ class TypeSystem:
         }
         self.aliases = {"String": "string", "Int32": "int", "Boolean": "bool", "Void": "void"}
         self.reserved_system_types = {
-            "Task", "List", "IEnumerable", "ICollection", "IList", "IQueryable", 
-            "Dictionary", "IDictionary", "HashSet", "ActionResult", "IActionResult", 
+            "Task", "List", "IEnumerable", "ICollection", "IList", "IQueryable",
+            "Dictionary", "IDictionary", "HashSet", "ActionResult", "IActionResult",
             "Response", "Request", "Data", "Repo", "Context", "Connection", "String", "Int32"
         }
         self.bridges = {
@@ -87,32 +87,32 @@ class TypeSystem:
         target = self.normalize_type(target_type)
         source = self.normalize_type(source_type)
         if target == source: return True, 100, None
-        
+
         # 0. Generic Wildcard Handling
         if "<T>" in target or "T" == target:
             t_base = target.split('<')[0]
             s_base = source.split('<')[0]
             if t_base == s_base or (t_base in ["IEnumerable", "IQueryable", "List"] and s_base in ["IEnumerable", "IQueryable", "List"]):
                 return True, 95, None
-        
+
         # 1. Bridge Conversion
         for s_base, targets in self.bridges.items():
             if s_base in source and target in targets:
                 return True, 90, targets[target]
-        
+
         # 2. Inheritance
         source_base = source.split('<')[0]
         if source_base in self.hierarchy:
             if target in self.hierarchy[source_base] or any(target.startswith(p.split('<')[0]) for p in self.hierarchy[source_base]):
                 return True, 80, None
-        
+
         # 3. Numeric & Object Fallback
         if target == "object": return True, 10, None
         if target == "string" and source in ["int", "decimal", "bool", "double", "float", "long"]:
             return True, 1, "{var}.ToString()"
         if target == "long" and source == "int":
             return True, 90, None
-        
+
         return False, 0, None
 
     def concretize_generic(self, generic_type: str, context_text: str, mandatory_hint: str = None, cardinality: str = None) -> str:
@@ -153,18 +153,18 @@ class TypeSystem:
                     continue
                 entity = m
                 break
-            
+
         if not entity: entity = "Item"
 
         # 27.115: Use cardinality as primary signal for collection wrapping
         is_collection = (cardinality == "COLLECTION")
         has_collection_wrapper = any(k in t for k in ["IEnumerable", "List", "[]", "ICollection", "IList"])
-        
+
         concrete_t = entity
         if is_collection and not has_collection_wrapper:
             concrete_t = f"List<{entity}>"
 
         res = t.replace("<T>", f"<{concrete_t}>").replace("<TSource>", f"<{concrete_t}>").replace("<TResult>", f"<{concrete_t}>") if "<" in t else (concrete_t if t in ["T", "TSource", "TResult"] else t)
-        
+
         if "List<List<" in res: res = res.replace("List<List<", "List<")
         return res

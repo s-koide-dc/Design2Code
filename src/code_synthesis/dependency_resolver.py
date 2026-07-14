@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
-import os
 import logging
 from typing import List, Dict, Any, Optional
 from src.utils.nuget_client import NuGetClient
@@ -13,7 +11,7 @@ class DependencyResolver:
         self.config_manager = config_manager
         self.nuget_client = NuGetClient(config_manager)
         self.structural_memory = structural_memory
-        
+
         # 既知のマッピングをロード
         self.map_path = self.nuget_client.map_path
 
@@ -21,7 +19,7 @@ class DependencyResolver:
         """シンボル名からパッケージ情報を解決する"""
         if not symbol:
             return None
-            
+
         # 1. プロジェクト内部のシンボルかチェック
         if self.structural_memory:
             # クラス名または完全修飾名で検索
@@ -34,7 +32,7 @@ class DependencyResolver:
         package = self.nuget_client.resolve_package(symbol)
         if package:
             return package
-            
+
         # 3. 階層的名前空間の解決 (例: System.Text.Json.JsonSerializer -> System.Text.Json)
         parts = symbol.split('.')
         if len(parts) > 1:
@@ -42,19 +40,19 @@ class DependencyResolver:
                 parent_ns = '.'.join(parts[:i])
                 # 短すぎる名前空間（Systemなど）はノイズが多いのでスキップ
                 if len(parent_ns) < 4: continue
-                
+
                 self.logger.info(f"Attempting to resolve parent namespace: {parent_ns}")
                 package = self.nuget_client.resolve_package(parent_ns)
                 if package:
                     return package
-        
+
         return None
 
     def analyze_build_errors(self, errors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """ビルドエラーから不足しているパッケージまたは内部参照を特定する"""
         results = []
         seen_symbols = set()
-        
+
         for error in errors:
             if error.get("code") == "CS0246":
                 msg = error.get("message", "")
@@ -64,7 +62,7 @@ class DependencyResolver:
                     res = self.resolve(symbol)
                     if res:
                         results.append(res)
-                            
+
         return results
 
     @staticmethod

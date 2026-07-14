@@ -16,14 +16,14 @@ class TestMorphAnalyzer(unittest.TestCase):
             "analysis": {},
             "errors": []
         }
-        
+
         result_context = self.analyzer.analyze(initial_context)
-        
+
         self.assertIsNotNone(result_context)
         self.assertIn("analysis", result_context)
         self.assertIn("tokens", result_context["analysis"])
         self.assertEqual(len(result_context["analysis"]["tokens"]), 3)
-        
+
         self.assertEqual(result_context["analysis"]["tokens"][0]["surface"], "猫")
         self.assertEqual(result_context["analysis"]["tokens"][0]["pos"], "名詞,一般,*,*")
         self.assertEqual(result_context["analysis"]["tokens"][0]["base"], "猫")
@@ -31,7 +31,7 @@ class TestMorphAnalyzer(unittest.TestCase):
         self.assertEqual(result_context["analysis"]["tokens"][1]["surface"], "が")
         self.assertEqual(result_context["analysis"]["tokens"][1]["pos"], "助詞,格助詞,一般,*")
         self.assertEqual(result_context["analysis"]["tokens"][1]["base"], "が")
-        
+
         self.assertEqual(result_context["analysis"]["tokens"][2]["surface"], "歩く")
         self.assertEqual(result_context["analysis"]["tokens"][2]["pos"], "動詞,自立,*,*")
         self.assertEqual(result_context["analysis"]["tokens"][2]["base"], "歩く")
@@ -49,14 +49,14 @@ class TestMorphAnalyzer(unittest.TestCase):
             "analysis": {},
             "errors": []
         }
-        
+
         result_context = self.analyzer.analyze(initial_context)
-        
+
         self.assertIsNotNone(result_context)
         self.assertIn("analysis", result_context)
         self.assertIn("tokens", result_context["analysis"])
         self.assertEqual(len(result_context["analysis"]["tokens"]), 0) # 空のリストが期待される
-        
+
         self.assertIn("morph_analyzer", result_context["pipeline_history"])
         self.assertEqual(len(result_context["errors"]), 0)
 
@@ -69,9 +69,9 @@ class TestMorphAnalyzer(unittest.TestCase):
             "analysis": {},
             "errors": []
         }
-        
+
         result_context = self.analyzer.analyze(initial_context)
-        
+
         self.assertIsNotNone(result_context)
         self.assertIn("errors", result_context)
         self.assertGreater(len(result_context["errors"]), 0)
@@ -91,9 +91,9 @@ class TestMorphAnalyzer(unittest.TestCase):
             "analysis": {},
             "errors": []
         }
-        
+
         result_context = self.analyzer.analyze(initial_context)
-        
+
         self.assertIsNotNone(result_context)
         self.assertIn("errors", result_context)
         self.assertGreater(len(result_context["errors"]), 0)

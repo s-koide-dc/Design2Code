@@ -3,7 +3,7 @@ import os
 import json
 import numpy as np
 import logging
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 
 class LightVectorCollection:
     """
@@ -14,7 +14,7 @@ class LightVectorCollection:
         self.storage_dir = storage_dir
         self.metadata_path = os.path.join(storage_dir, f"{name}_meta.json")
         self.vector_path = os.path.join(storage_dir, f"{name}_vectors.npy")
-        
+
         self.items: List[Dict[str, Any]] = []
         self.vectors: Optional[np.ndarray] = None
         self.id_to_index: Dict[str, int] = {}
@@ -36,7 +36,7 @@ class LightVectorCollection:
                 self.vectors = np.load(self.vector_path)
             except Exception as e:
                 logging.error(f"Failed to load vectors for {self.name}: {e}")
-        
+
         # 整合性チェック
         if self.vectors is not None and len(self.items) != len(self.vectors):
             logging.warning(f"Collection {self.name} size mismatch: metadata={len(self.items)}, vectors={len(self.vectors)}. Truncating to safe limit.")
@@ -52,17 +52,17 @@ class LightVectorCollection:
         current_vectors = self.vectors
         if current_vectors is not None:
             current_vectors = np.copy(current_vectors)
-        
+
         for i, idx in enumerate(ids):
             vec = vectors[i]
             meta = metadatas[i]
             meta["id"] = idx
-            
+
             if idx in self.id_to_index:
                 pos = self.id_to_index[idx]
                 if pos < len(self.items):
                     self.items[pos] = meta
-                
+
                 if current_vectors is not None and pos < len(current_vectors):
                     current_vectors[pos] = vec
                 else:
@@ -78,7 +78,7 @@ class LightVectorCollection:
                     current_vectors = np.array([vec])
                 else:
                     current_vectors = np.vstack([current_vectors, vec])
-        
+
         self.vectors = current_vectors
         self._save()
 
@@ -86,32 +86,32 @@ class LightVectorCollection:
         """アイテムの削除"""
         if not ids:
             return
-            
+
         target_indices = []
         for idx in ids:
             if idx in self.id_to_index:
                 target_indices.append(self.id_to_index[idx])
-        
+
         if not target_indices:
             return
-            
+
         # 削除対象を除去した新しいリストを作成
         new_items = []
         new_vectors_list = []
-        
+
         seen_indices = set(target_indices)
         for i, item in enumerate(self.items):
             if i not in seen_indices:
                 new_items.append(item)
                 if self.vectors is not None:
                     new_vectors_list.append(self.vectors[i])
-        
+
         self.items = new_items
         if new_vectors_list:
             self.vectors = np.array(new_vectors_list)
         else:
             self.vectors = None
-            
+
         # インデックスの再構築
         self.id_to_index = {item["id"]: i for i, item in enumerate(self.items)}
         self._save()
@@ -122,7 +122,7 @@ class LightVectorCollection:
         try:
             with open(self.metadata_path, 'w', encoding='utf-8') as f:
                 json.dump(self.items, f, ensure_ascii=False, indent=2)
-            
+
             if self.vectors is not None:
                 np.save(self.vector_path, self.vectors)
         except Exception as e:
@@ -132,13 +132,13 @@ class LightVectorCollection:
         """類似度検索（コサイン類似度）"""
         if self.vectors is None or len(self.items) == 0:
             return []
-        
+
         # 内積計算（正規化済み前提）
         scores = np.dot(self.vectors, query_vector)
-        
+
         # スコアの高い順にインデックスを取得
         top_indices = np.argsort(scores)[::-1]
-        
+
         results = []
         for idx in top_indices:
             if idx < len(self.items):

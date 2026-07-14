@@ -9,15 +9,15 @@ class TestCodeSynthesizerRefinement(unittest.TestCase):
         from src.morph_analyzer.morph_analyzer import MorphAnalyzer
         from src.code_synthesis.code_synthesizer import CodeSynthesizer
         from unittest.mock import MagicMock
-        
+
         self.cm = MagicMock()
         self.cm.storage_dir = "cache"
         self.cm.workspace_root = "."
-        
+
         # Use real MorphAnalyzer for better testing of logic
         self.morph = MorphAnalyzer(config_manager=self.cm)
         self.synthesizer = CodeSynthesizer(self.cm, morph_analyzer=self.morph)
-        
+
         # Mock builder_client to avoid external process calls
         def mock_build_code(blueprint):
             methods = blueprint.get("methods", [])
@@ -46,7 +46,7 @@ class TestCodeSynthesizerRefinement(unittest.TestCase):
         # Mock UKB search instead of harvester
         self.synthesizer.ukb = MagicMock()
         self.synthesizer.ukb.search = self.mock_search
-        
+
         self.mock_methods = [
             {
                 "id": "m1",

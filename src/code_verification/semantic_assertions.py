@@ -22,9 +22,10 @@ def flatten_statements(statements: List[Dict[str, Any]]) -> List[Dict[str, Any]]
             flat.extend(flatten_statements(stmt.get("else_body", [])))
         elif stmt_type == "foreach" or stmt_type == "while":
             flat.extend(flatten_statements(stmt.get("body", [])))
-        elif stmt_type == "try":
+        elif stmt_type == "try" or stmt_type == "try_catch":
             flat.extend(flatten_statements(stmt.get("body", [])))
             flat.extend(flatten_statements(stmt.get("else_body", [])))
+            flat.extend(flatten_statements(stmt.get("catch_body", [])))
 
     return flat
 
@@ -127,6 +128,5 @@ def evaluate_or_raise(blueprint: Dict[str, Any], contract: Dict[str, Any]) -> No
     issues = evaluate_blueprint_contract(blueprint, contract)
     if issues:
         raise SemanticAssertionError("; ".join(issues))
-
 
 

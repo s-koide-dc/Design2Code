@@ -1,6 +1,4 @@
 import xml.etree.ElementTree as ET
-import csv
-import json
 import os
 import sys
 import sqlite3
@@ -37,18 +35,18 @@ POS_MAP = {
 def parse_jmdict():
     xml_path = os.path.join(os.getcwd(), 'resources', 'JMdict_e.xml')
     output_db = os.path.join(os.getcwd(), 'resources', 'dictionary.db')
-    
+
     if not os.path.exists(xml_path):
         emit_error(f"エラー: JMdict XML が見つかりません: {xml_path}")
         emit_error("先に fetch_jmdict.py を実行してください。")
         return 1
 
     emit_progress(f"Parsing {xml_path} and updating {output_db}...")
-    
+
     # SQLite Setup
     if os.path.exists(output_db):
         os.remove(output_db)
-    
+
     conn = sqlite3.connect(output_db)
     cursor = conn.cursor()
     # Main table
@@ -65,23 +63,23 @@ def parse_jmdict():
 
     # Iterative parsing to handle large XML
     context = ET.iterparse(xml_path, events=("end",))
-    
+
     db_entries = []
-    
+
     count = 0
-    
+
     for event, elem in context:
         if elem.tag == "entry":
             k_eles = [e.text for e in elem.findall("./k_ele/keb")]
             r_eles = [e.text for e in elem.findall("./r_ele/reb")]
-            
+
             if k_eles:
                 surface_forms = k_eles
                 reading_form = r_eles[0] if r_eles else ""
             else:
                 surface_forms = r_eles
                 reading_form = r_eles[0] if r_eles else ""
-            
+
             sense = elem.find("./sense")
             if sense is not None:
                 pos_tags = [e.text for e in sense.findall("./pos")]
@@ -91,16 +89,16 @@ def parse_jmdict():
                     if tag_clean in POS_MAP:
                         main_pos = POS_MAP[tag_clean]
                         break
-                
+
                 glosses = [e.text for e in sense.findall("./gloss")]
                 meaning = "; ".join(glosses)
-                
+
                 for surface in surface_forms:
                     if not surface: continue
-                    
+
                     reading_clean = reading_form.replace(',', '')
                     db_entries.append((surface, meaning, main_pos, reading_clean))
-            
+
             elem.clear()
             count += 1
             if count % 10000 == 0:
@@ -116,7 +114,7 @@ def parse_jmdict():
         cursor.executemany('INSERT INTO dictionary_fts VALUES (?, ?)', [(e[0], e[1]) for e in db_entries])
 
     emit_progress(f"Finished parsing {count} entries.")
-    
+
     conn.commit()
     conn.close()
     emit_progress("Success. Dictionary DB updated.")
