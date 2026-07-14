@@ -5,6 +5,7 @@
 
 `code_verification` は生成コードのコンパイル検証、実行検証、生成品質ゲート、明示 runtime oracle の集計と実行を提供する。
 `CompilationVerifier`、`ExecutionVerifier`、`generation_quality`、`runtime_oracle` を入口として、C# のビルド/実行結果、品質判定、意味検証契約の有無と実行結果を構造化して返す。
+`runtime_oracle` は互換 facade とし、契約正規化は `runtime_oracle_contract`、xUnit 生成は `runtime_oracle_test_builder`、実行と依存追加は `runtime_oracle_executor` に分離する。
 
 ## 2. Structured Specification
 
@@ -37,5 +38,5 @@
   - **Expected Output / Behavior**: `CompilationVerifier.warnings` に diagnostic が入り、品質ゲートでは失敗扱いにできる。
 
 ## 3. Dependencies
-- **Internal**: `compilation_verifier`, `execution_verifier`, `generation_quality`, `runtime_oracle`, `semantic_assertions`
+- **Internal**: `compilation_verifier`, `execution_verifier`, `generation_quality`, `runtime_oracle`, `runtime_oracle_contract`, `runtime_oracle_test_builder`, `runtime_oracle_executor`, `semantic_assertions`
 - **External**: `subprocess`, `tempfile`, `os`

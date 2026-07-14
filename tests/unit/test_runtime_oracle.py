@@ -85,6 +85,52 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertEqual(1, summary["invalid_count"])
         self.assertTrue(summary["issues"])
 
+    def test_invalid_sqlite_contract_is_reported(self):
+        spec = {
+            "test_cases": [{
+                "id": "tc_1",
+                "scenario": "invalid sqlite",
+                "expected": '{"runtime_oracle":{"sqlite":{"schema":"CREATE TABLE X(Id INT)"}}}',
+            }]
+        }
+
+        summary = summarize_runtime_oracles(spec)
+
+        self.assertFalse(summary["valid"], summary)
+        self.assertEqual(1, summary["invalid_count"])
+        self.assertIn("tc_1: sqlite.schema must be a list", summary["issues"])
+
+    def test_invalid_db_assertion_contract_is_reported(self):
+        spec = {
+            "test_cases": [{
+                "id": "tc_1",
+                "scenario": "invalid db assertion",
+                "expected": '{"runtime_oracle":{"db_assertions":[{"not_null":true}]}}',
+            }]
+        }
+
+        summary = summarize_runtime_oracles(spec)
+
+        self.assertFalse(summary["valid"], summary)
+        self.assertEqual(1, summary["invalid_count"])
+        self.assertIn("tc_1: db_assertions[0].query must be a non-empty string", summary["issues"])
+
+    def test_invalid_http_response_contract_is_reported(self):
+        spec = {
+            "test_cases": [{
+                "id": "tc_1",
+                "scenario": "invalid http response",
+                "expected": '{"runtime_oracle":{"http_responses":[{"status_code":"200","body":[]}]}}',
+            }]
+        }
+
+        summary = summarize_runtime_oracles(spec)
+
+        self.assertFalse(summary["valid"], summary)
+        self.assertEqual(1, summary["invalid_count"])
+        self.assertIn("tc_1: http_responses[0].body must be a string", summary["issues"])
+        self.assertIn("tc_1: http_responses[0].status_code must be an integer", summary["issues"])
+
     def test_rejects_unsupported_contract_keys(self):
         contract, issues = normalize_runtime_oracle_contract(
             {
