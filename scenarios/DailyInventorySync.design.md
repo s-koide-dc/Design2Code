@@ -16,4 +16,4 @@
 3. [ACTION|PERSIST|Inventory|void|DB|inventory_db] [refs:step_2] [semantic_roles:{"sql":"UPDATE Inventory SET Stock = @Stock WHERE Id = @Id","error_policy":"return_default"}] 在庫リストの各項目について、SQL 'UPDATE Inventory SET Stock = @Stock WHERE Id = @Id' を実行して在庫情報を更新する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: 1
+- **Expected**: {"runtime_oracle":{"await":true,"method_args":["secret-api-key"],"http_responses":[{"status_code":200,"body":"[{\"Id\":1,\"Stock\":7},{\"Id\":2,\"Stock\":4}]"}],"sqlite":{"schema":["CREATE TABLE Inventory (Id INTEGER PRIMARY KEY, Stock INTEGER)"],"seed":["INSERT INTO Inventory (Id, Stock) VALUES (1, 0)","INSERT INTO Inventory (Id, Stock) VALUES (2, 0)"]},"return":2,"http_requests":[{"method":"GET","url":"https://inventory.example.com/api/current","headers":{"X-API-Key":"secret-api-key"}}],"db_assertions":[{"query":"SELECT Stock FROM Inventory WHERE Id = 1","contains":"7"},{"query":"SELECT Stock FROM Inventory WHERE Id = 2","contains":"4"}]}}

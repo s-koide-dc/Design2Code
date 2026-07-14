@@ -18,4 +18,4 @@
 5. [END|GENERAL]
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"await":true,"http_responses":[{"status_code":200,"body":"{}"}],"sqlite":{"schema":["CREATE TABLE Orders (Id INTEGER PRIMARY KEY, Total REAL, CustomerType TEXT, Status TEXT, Discount REAL, Points INTEGER)"],"seed":["INSERT INTO Orders (Id, Total, CustomerType, Status, Discount, Points) VALUES (1, 125.5, 'Standard', 'Pending', 0.0, 10)","INSERT INTO Orders (Id, Total, CustomerType, Status, Discount, Points) VALUES (2, 0.0, 'Standard', 'Pending', 0.0, 20)","INSERT INTO Orders (Id, Total, CustomerType, Status, Discount, Points) VALUES (3, 80.0, 'Standard', 'Shipped', 0.0, 30)"]},"return":true,"http_requests":[{"method":"POST","url":"https://shipping.example.com/api","body":{"contains":["\"Id\":1"],"not_contains":["\"Id\":2","\"Id\":3"]}}]}}

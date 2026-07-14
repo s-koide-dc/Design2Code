@@ -32,6 +32,10 @@ def _render_text_assertions(expression: str, assertion: Dict[str, Any]) -> List[
     return lines
 
 
+def _has_http_body_assertions(requests: List[Dict[str, Any]]) -> bool:
+    return any(bool(request.get("body")) for request in requests)
+
+
 def _render_http_handler(responses: List[Dict[str, Any]]) -> List[str]:
     if not responses:
         return []
@@ -112,6 +116,7 @@ def _render_db_assertions(assertions: List[Dict[str, Any]]) -> List[str]:
 def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -> str:
     method_args = ", ".join(csharp_literal(arg) for arg in contract.get("method_args", []) or [])
     fixtures = contract.get("fixtures", []) or []
+    environment = contract.get("environment", {}) or {}
     http_responses = contract.get("http_responses", []) or []
     http_requests = contract.get("http_requests", []) or []
     uses_http = bool(http_responses or http_requests)
@@ -121,8 +126,13 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
     file_assertions = contract.get("files", []) or []
     has_stdout = bool(contract.get("stdout"))
     awaits_call = bool(contract.get("await"))
+    awaits_request_assertions = _has_http_body_assertions(http_requests)
     call_prefix = "var result = " if "return" in contract else ""
-    test_signature = "public async Task ExplicitRuntimeOraclePasses()" if awaits_call or uses_sqlite else "public void ExplicitRuntimeOraclePasses()"
+    test_signature = (
+        "public async Task ExplicitRuntimeOraclePasses()"
+        if awaits_call or uses_sqlite or awaits_request_assertions
+        else "public void ExplicitRuntimeOraclePasses()"
+    )
     await_prefix = "await " if awaits_call else ""
     if uses_sqlite and uses_http:
         processor_expr = "new GeneratedProcessor(connection, httpClient)"
@@ -161,6 +171,11 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
         "        var originalOut = Console.Out;",
         "        using var capturedOut = new StringWriter(CultureInfo.InvariantCulture);",
     ])
+    if environment:
+        lines.append("        var previousEnvironment = new Dictionary<string, string?>();")
+        for name in environment:
+            name_literal = csharp_string_literal(str(name))
+            lines.append(f"        previousEnvironment[{name_literal}] = Environment.GetEnvironmentVariable({name_literal});")
     if uses_http:
         lines.extend([
             "        var handler = new RuntimeOracleHttpHandler(RuntimeOracleHttpFixtures.Responses);",
@@ -175,6 +190,10 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
     for fixture in fixtures:
         lines.append(
             f"            File.WriteAllText({csharp_string_literal(fixture['path'])}, {csharp_string_literal(fixture['content'])});"
+        )
+    for name, value in environment.items():
+        lines.append(
+            f"            Environment.SetEnvironmentVariable({csharp_string_literal(str(name))}, {csharp_literal(value)});"
         )
     if has_stdout:
         lines.append("            Console.SetOut(capturedOut);")
@@ -205,6 +224,18 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
                 lines.append(
                     f"            Assert.Equal({csharp_string_literal(request['url'])}, handler.Requests[{index}].RequestUri?.ToString());"
                 )
+            for header_index, (header_name, header_value) in enumerate((request.get("headers") or {}).items()):
+                values_var = f"headerValues{index}_{header_index}"
+                lines.append(
+                    f"            Assert.True(handler.Requests[{index}].Headers.TryGetValues({csharp_string_literal(header_name)}, out var {values_var}), \"Expected HTTP request header: {header_name}\");"
+                )
+                lines.append(
+                    f"            Assert.Contains({csharp_string_literal(header_value)}, {values_var});"
+                )
+            if request.get("body"):
+                body_var = f"requestBody{index}"
+                lines.append(f"            var {body_var} = await handler.Requests[{index}].Content!.ReadAsStringAsync();")
+                lines.extend(_render_text_assertions(body_var, request["body"]))
     if db_assertions:
         lines.extend(_render_db_assertions(db_assertions))
     lines.extend([
@@ -212,6 +243,14 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
         "        finally",
         "        {",
         "            Console.SetOut(originalOut);",
+    ])
+    if environment:
+        for name in environment:
+            name_literal = csharp_string_literal(str(name))
+            lines.append(
+                f"            Environment.SetEnvironmentVariable({name_literal}, previousEnvironment[{name_literal}]);"
+            )
+    lines.extend([
         "            Directory.SetCurrentDirectory(previousDirectory);",
         "            if (Directory.Exists(root))",
         "                Directory.Delete(root, recursive: true);",

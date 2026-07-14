@@ -22,9 +22,12 @@ class TestRuntimeOracle(unittest.TestCase):
                         '"fixtures":[{"path":"sales.csv","content":"A,10\\nA,20"}],'
                         '"http_responses":[{"status_code":200,"body":"[]"}],'
                         '"return":true,'
+                        '"environment":{"APP_MODE":"runtime-test"},'
                         '"stdout":{"contains":["Alice"],"not_contains":["Bob"]},'
                         '"files":[{"path":"totals.csv","contains":["A,30"]}],'
-                        '"http_requests":[{"method":"GET","url":"https://example.test/items"}]'
+                        '"http_requests":[{"method":"GET","url":"https://example.test/items",'
+                        '"headers":{"X-API-Key":"secret"},'
+                        '"body":{"contains":["payload"],"not_contains":["ignored"]}}]'
                         "}}"
                     ),
                 }
@@ -44,7 +47,10 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertEqual(["Alice"], contract["stdout"]["contains"])
         self.assertEqual(["Bob"], contract["stdout"]["not_contains"])
         self.assertEqual("totals.csv", contract["files"][0]["path"])
+        self.assertEqual("runtime-test", contract["environment"]["APP_MODE"])
         self.assertEqual("GET", contract["http_requests"][0]["method"])
+        self.assertEqual("secret", contract["http_requests"][0]["headers"]["X-API-Key"])
+        self.assertEqual(["payload"], contract["http_requests"][0]["body"]["contains"])
         self.assertEqual(200, contract["http_responses"][0]["status_code"])
 
     def test_natural_language_expected_is_visible_as_unverified(self):
@@ -174,6 +180,7 @@ class TestRuntimeOracle(unittest.TestCase):
                 "http_requests": [{
                     "method": "GET",
                     "url": "https://api.example.com/products",
+                    "headers": {"X-API-Key": "secret"},
                 }],
             },
         )
@@ -184,6 +191,24 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertIn("await new GeneratedProcessor(httpClient).ProductApiFilteredCatalog()", test_code)
         self.assertIn('Assert.Equal("GET", handler.Requests[0].Method.Method)', test_code)
         self.assertIn('Assert.Equal("https://api.example.com/products", handler.Requests[0].RequestUri?.ToString())', test_code)
+        self.assertIn('Headers.TryGetValues("X-API-Key", out var headerValues0_0)', test_code)
+        self.assertIn('Assert.Contains("secret", headerValues0_0)', test_code)
+
+    def test_build_runtime_oracle_test_code_renders_environment_contract(self):
+        test_code = build_runtime_oracle_test_code(
+            "AppModeEchoMinimal",
+            {
+                "environment": {"APP_MODE": "runtime-test"},
+                "return": True,
+                "stdout": {"contains": ["runtime-test"]},
+            },
+        )
+
+        self.assertIn('previousEnvironment["APP_MODE"] = Environment.GetEnvironmentVariable("APP_MODE")', test_code)
+        self.assertIn('Environment.SetEnvironmentVariable("APP_MODE", "runtime-test")', test_code)
+        self.assertIn("new GeneratedProcessor().AppModeEchoMinimal()", test_code)
+        self.assertIn('Assert.Contains("runtime-test", stdout)', test_code)
+        self.assertIn('Environment.SetEnvironmentVariable("APP_MODE", previousEnvironment["APP_MODE"])', test_code)
 
     def test_build_runtime_oracle_test_code_renders_sqlite_contract(self):
         test_code = build_runtime_oracle_test_code(

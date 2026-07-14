@@ -2361,8 +2361,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertEqual(payload["quality"]["warning_count"], 0)
         self.assertEqual(payload["quality"]["issues"], [])
         self.assertTrue(payload["runtime_oracle"]["valid"])
-        self.assertEqual(payload["runtime_oracle"]["ready_count"], 0)
-        self.assertEqual(payload["runtime_oracle"]["unverified_count"], 1)
+        self.assertEqual(payload["runtime_oracle"]["ready_count"], 1)
+        self.assertEqual(payload["runtime_oracle"]["unverified_count"], 0)
         self.assertEqual(completed.stderr.strip(), "")
 
     def test_validate_design_authoring_accepts_new_minimal_template_scenario(self):
@@ -2911,12 +2911,6 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             "--fail-on-maintainability",
             "--run-runtime-oracles",
             "--summary-only",
-            "--design",
-            "scenarios/CsvSalesAggregation.design.md",
-            "--design",
-            "scenarios/ProductApiFilteredCatalog.design.md",
-            "--design",
-            "scenarios/StateUpdatePersist.design.md",
         ]
         completed = subprocess.run(
             command,
@@ -2932,8 +2926,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
         )
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload["scenario_count"], 3)
-        self.assertEqual(payload["passed"], 3)
+        self.assertEqual(payload["scenario_count"], 8)
+        self.assertEqual(payload["passed"], 8)
         self.assertEqual(payload["failed"], 0)
         self.assertTrue(all("payload" not in item for item in payload["results"]))
         self.assertTrue(all(item["quality_valid"] for item in payload["results"]))

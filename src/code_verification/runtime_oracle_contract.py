@@ -9,6 +9,7 @@ ASSERTION_KEYS = {
     "await",
     "method_args",
     "fixtures",
+    "environment",
     "http_responses",
     "sqlite",
     "db_assertions",
@@ -145,6 +146,44 @@ def _normalize_fixtures(value: Any) -> Tuple[List[Dict[str, str]], List[str]]:
     return fixtures, issues
 
 
+def _normalize_environment(value: Any) -> Tuple[Dict[str, str | None], List[str]]:
+    if value is None:
+        return {}, []
+    if not isinstance(value, dict):
+        return {}, ["environment must be an object"]
+    normalized: Dict[str, str | None] = {}
+    issues: List[str] = []
+    for key, item in value.items():
+        if not isinstance(key, str) or not key.strip():
+            issues.append("environment keys must be non-empty strings")
+            continue
+        if item is None or isinstance(item, str):
+            normalized[key.strip()] = item
+        else:
+            issues.append(f"environment.{key} must be a string or null")
+    if not normalized and not issues:
+        issues.append("environment must include at least one variable")
+    return normalized, issues
+
+
+def _normalize_string_map(value: Any, path: str) -> Tuple[Dict[str, str], List[str]]:
+    if value is None:
+        return {}, []
+    if not isinstance(value, dict):
+        return {}, [f"{path} must be an object"]
+    normalized: Dict[str, str] = {}
+    issues: List[str] = []
+    for key, item in value.items():
+        if not isinstance(key, str) or not key.strip():
+            issues.append(f"{path} keys must be non-empty strings")
+            continue
+        if isinstance(item, str):
+            normalized[key.strip()] = item
+        else:
+            issues.append(f"{path}.{key} must be a string")
+    return normalized, issues
+
+
 def _normalize_http_requests(value: Any) -> Tuple[List[Dict[str, Any]], List[str]]:
     if value is None:
         return [], []
@@ -162,11 +201,19 @@ def _normalize_http_requests(value: Any) -> Tuple[List[Dict[str, Any]], List[str
             value_at_key = item.get(key)
             if isinstance(value_at_key, str) and value_at_key.strip():
                 request[key] = value_at_key.strip()
+        headers, header_issues = _normalize_string_map(item.get("headers"), f"{path}.headers")
+        if headers:
+            request["headers"] = headers
+        body, body_issues = _normalize_text_assertion(item.get("body"), f"{path}.body")
+        if body:
+            request["body"] = body
         if not request:
-            issues.append(f"{path} must include method or url")
+            issues.append(f"{path} must include method, url, headers, or body")
             continue
         normalized.append(request)
-        unknown = sorted(k for k in item if k not in {"method", "url"})
+        issues.extend(header_issues)
+        issues.extend(body_issues)
+        unknown = sorted(k for k in item if k not in {"method", "url", "headers", "body"})
         for key in unknown:
             issues.append(f"{path}.{key} is not a supported assertion")
     return normalized, issues
@@ -295,6 +342,7 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
             issues.append("await must be a boolean")
     method_args, method_arg_issues = _normalize_method_args(value.get("method_args"))
     fixtures, fixture_issues = _normalize_fixtures(value.get("fixtures"))
+    environment, environment_issues = _normalize_environment(value.get("environment"))
     if "return" in value:
         contract["return"] = value["return"]
 
@@ -310,6 +358,8 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
         contract["method_args"] = method_args
     if fixtures:
         contract["fixtures"] = fixtures
+    if environment:
+        contract["environment"] = environment
     if http_responses:
         contract["http_responses"] = http_responses
     if sqlite:
@@ -327,6 +377,7 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
 
     issues.extend(method_arg_issues)
     issues.extend(fixture_issues)
+    issues.extend(environment_issues)
     issues.extend(http_response_issues)
     issues.extend(sqlite_issues)
     issues.extend(db_assertion_issues)

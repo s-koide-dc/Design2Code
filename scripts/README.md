@@ -54,7 +54,7 @@
   - `quality` には compiler warning、spec issue、未解決 marker、blueprint placeholder fetch、生成コードの保守性メトリクスを見た生成品質ゲート結果を含む。
   - 保守性メトリクスは通常 CodeBuilder/Roslyn の AST 解析を使い、`quality.maintainability.analysis_source` に `roslyn` を出力する。
   - `runtime_oracle` には Test Cases の `Expected` に書かれた明示 JSON oracle の集計を含む。自然文 expected は推測せず、`unverified` として残す。
-  - `--run-runtime-oracles` を付けると、`runtime_oracle.ready` なケースを xUnit assertion に変換し、`ExecutionVerifier` で生成コードを実行する。現在は file fixture、HTTP response fixture、SQLite schema/seed、method args、async await、return、stdout、file output、HTTP method/url assertion、DB scalar assertion を扱う。
+  - `--run-runtime-oracles` を付けると、`runtime_oracle.ready` なケースを xUnit assertion に変換し、`ExecutionVerifier` で生成コードを実行する。現在は file fixture、environment fixture、HTTP response fixture、SQLite schema/seed、method args、async await、return、stdout、file output、HTTP method/url/header/body assertion、DB scalar assertion を扱う。
   - `--fail-on-maintainability` を付けると、保守性しきい値の finding も snapshot の失敗条件にする。
   - 中間表現だけでなく、実際の `.cs` を見て authoring 削減の妥当性を確認したいときのレビュー入口。
   - `--assist-endpoint-url` を付けると `literal_roles_only` assist を含めたレビューもできる。

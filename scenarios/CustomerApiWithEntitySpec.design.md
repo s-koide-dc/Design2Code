@@ -23,4 +23,4 @@
 5. [ACTION|DISPLAY|Customer|void|NONE] [refs:step_4] 条件に合致した顧客一覧を表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"await":true,"http_responses":[{"status_code":200,"body":"[{\"Id\":1,\"Name\":\"Alice\",\"Email\":\"alice@example.test\",\"Points\":150},{\"Id\":2,\"Name\":\"Bob\",\"Email\":\"bob@example.test\",\"Points\":300},{\"Id\":3,\"Name\":\"Anne\",\"Email\":\"anne@example.test\",\"Points\":80}]"}],"return":true,"stdout":{"contains":["Alice"],"not_contains":["Bob","Anne"]},"http_requests":[{"method":"GET","url":"https://customer.example.com/api/customers"}]}}
