@@ -47,7 +47,7 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
     - `render_try_catch` は直接レンダリング互換用の経路として残し、明示 `catch_body` がある場合はそれを優先し、無い場合は同じ catch body builder を使ってログと fallback return の契約を揃える。
     - `OperationCanceledException` は通常例外として握りつぶさず再throwする。
     - `error_policy=continue` は catch 後に return せず継続、`error_policy=rethrow` は catch 内で `throw;`、既定の `return_default` は戻り値型に応じた安全な既定値を返す。
-    - `Task<T>` 戻り値は内部の `T` を有効戻り値型として扱い、hoisted result の型と一致する場合は catch から hoisted result を返す。
+    - `Task<T>` 戻り値は内部の `T` を有効戻り値型として扱い、hoisted result の型と一致する場合は catch から hoisted result を返す。`void` / `Task` 戻り値では値付き return を生成せず、`return;` または `return default;` のみを使う。
     - catch body の return / throw 行は戻り値断片側に先頭スペースを含めず、block indent 側で整形する。
     - Console error logging は `GeneratedErrorLog.Write(intent, methodName, ex)` に寄せ、helper は `extra_code` に一度だけ登録する。`use_logger` の場合は既存通り `_logger.LogError` を使う。
     - collection JSON deserialize の `return_default` helper は `Deserialize{T}OrDefault(string json, out bool succeeded)` として `extra_code` に登録し、`OperationCanceledException` は再throw、通常例外は `GeneratedErrorLog` に記録して fallback collection を返す。呼び出し元は `succeeded` を見て同じ fallback return policy を適用する。
@@ -106,6 +106,7 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
     -   戻り値変数をhoistした呼び出しはcatch後も継続し、後から確定するメソッド戻り値に依存した不正な `return;` を生成しない。
     -   配列のhoisted既定値は `Array.Empty<T>()` とし、後続のLINQ処理でnullを参照しない。
     -   `error_policy` が `continue` / `rethrow` の場合はそれぞれ継続 / 再throw の契約を優先し、戻り値既定値の生成で上書きしない。
+    -   `void` メソッド内の resilient call が `string` などの hoisted result を持っていても、catch body は `return result;` を生成せず `return;` にする。
 3.  **Complex Generic**:
     -   Input: `method="Query<T>"`, `target="User"`
     -   Result: `conn.Query<User>(...)`
@@ -124,3 +125,4 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
 - 2026-07-13: `DATABASE_QUERY` / `HTTP_REQUEST` / `PERSIST` の async call return-default 経路を `RunGeneratedOperationAsync<T>` helper に寄せ、operation method 内の try/catch 密度を下げる契約へ同期。
 - 2026-07-13: structured HTTP GET + API key + timeout の return-default 経路を `SendGeneratedHttpGetStringAsync` helper に寄せる契約へ同期。
 - 2026-07-13: text file read/write の return-default 経路を helper 化し、operation method 内の file IO try/catch を削減する契約へ同期。
+- 2026-07-14: `void` / `Task` 戻り値の catch body では hoisted result を値付き return せず、C# の戻り値契約を優先する方針へ同期。

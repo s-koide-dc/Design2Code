@@ -69,8 +69,6 @@ class StatementBuilder:
                 return False
             if not isinstance(effective_ret, str) or not isinstance(hoisted_result_type, str):
                 return False
-            if effective_ret == "void" and hoisted_result_type not in ["void", "Task"]:
-                return True
             return effective_ret == hoisted_result_type
 
         if error_policy == "continue":

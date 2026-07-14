@@ -81,6 +81,26 @@ class TestStatementBuilder(unittest.TestCase):
         self.assertIn('GeneratedErrorLog.Write("FETCH", "File.ReadAllText", ex);', catch_codes)
         self.assertIn("return content;", catch_codes)
 
+    def test_wrap_with_try_catch_does_not_return_value_from_void_method(self):
+        builder = StatementBuilder(type_system=None)
+        path = {"indent_level": 2, "method_return_type": "void"}
+
+        wrapped = builder.wrap_with_try_catch(
+            {
+                "type": "call",
+                "call_expr": 'File.ReadAllText("input.txt")',
+                "out_var": "content",
+                "var_type": "string",
+            },
+            "FETCH",
+            "File.ReadAllText",
+            path,
+        )
+
+        catch_codes = [stmt.get("code") for stmt in wrapped["catch_body"]]
+        self.assertIn("return;", catch_codes)
+        self.assertNotIn("return content;", catch_codes)
+
     def test_wrap_async_resilient_call_uses_operation_result_helper(self):
         builder = StatementBuilder(type_system=None)
         path = {"indent_level": 2, "method_return_type": "Task<bool>", "is_async_needed": True}
