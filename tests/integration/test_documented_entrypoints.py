@@ -2933,6 +2933,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertTrue(all(item["quality_valid"] for item in payload["results"]))
         self.assertTrue(all(item["runtime_oracle_execution_valid"] for item in payload["results"]))
         self.assertTrue(all(item["runtime_oracle_execution_passed"] == 1 for item in payload["results"]))
+        self.assertTrue(all(item["runtime_oracle_failure_count"] == 0 for item in payload["results"]))
+        self.assertTrue(all(item["runtime_oracle_failures"] == [] for item in payload["results"]))
         self.assertTrue(all(item["maintainability"]["analysis_source"] == "roslyn" for item in payload["results"]))
         self.assertEqual(completed.stderr.strip(), "")
 

@@ -90,6 +90,55 @@ def _build_snapshot_args(args: argparse.Namespace, design_path: Path, output_dir
     )
 
 
+def _first_non_empty_line(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    for line in value.splitlines():
+        text = line.strip()
+        if text:
+            return text
+    return None
+
+
+def summarize_runtime_oracle_failures(runtime_oracle_execution: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Return compact oracle failure diagnostics suitable for regression summaries."""
+    failures: List[Dict[str, Any]] = []
+    results = runtime_oracle_execution.get("results") if isinstance(runtime_oracle_execution, dict) else []
+    if not isinstance(results, list):
+        results = []
+    for result in results:
+        if not isinstance(result, dict) or result.get("success", True):
+            continue
+        case_failures = result.get("failures") if isinstance(result.get("failures"), list) else []
+        normalized_case_failures: List[Dict[str, Any]] = []
+        for failure in case_failures:
+            if not isinstance(failure, dict):
+                continue
+            normalized_case_failures.append({
+                "test_name": failure.get("test_name"),
+                "message": _first_non_empty_line(failure.get("message")),
+                "stack_trace": _first_non_empty_line(failure.get("stack_trace")),
+            })
+        failures.append({
+            "id": result.get("id"),
+            "scenario": result.get("scenario"),
+            "error_type": result.get("error_type"),
+            "message": _first_non_empty_line(result.get("message")),
+            "failures": normalized_case_failures,
+        })
+    issues = runtime_oracle_execution.get("issues") if isinstance(runtime_oracle_execution, dict) else None
+    if isinstance(issues, list):
+        for issue in issues:
+            failures.append({
+                "id": None,
+                "scenario": None,
+                "error_type": "RUNTIME_ORACLE_CONTRACT_INVALID",
+                "message": str(issue),
+                "failures": [],
+            })
+    return failures
+
+
 def main() -> int:
     args = _parse_args()
     design_paths = _resolve_designs(args)
@@ -118,6 +167,7 @@ def main() -> int:
             maintainability = quality.get("maintainability") or {}
             runtime_oracle = payload.get("runtime_oracle") or {}
             runtime_oracle_execution = payload.get("runtime_oracle_execution") or {}
+            runtime_oracle_failures = summarize_runtime_oracle_failures(runtime_oracle_execution)
             result_entry = {
                 "design": payload.get("design"),
                 "success": success,
@@ -132,6 +182,8 @@ def main() -> int:
                 "runtime_oracle_execution_valid": runtime_oracle_execution.get("valid", True),
                 "runtime_oracle_execution_passed": runtime_oracle_execution.get("passed", 0),
                 "runtime_oracle_execution_failed": runtime_oracle_execution.get("failed", 0),
+                "runtime_oracle_failure_count": len(runtime_oracle_failures),
+                "runtime_oracle_failures": runtime_oracle_failures,
                 "maintainability_finding_count": len(maintainability.get("findings") or []),
                 "maintainability": {
                     "method_count": maintainability.get("method_count", 0),
