@@ -15,7 +15,7 @@
 
 を、benchmark・実装・運用の 3 面で説明可能にすることにある。
 
-最終的な研究問いは、[goal_state.md](research/ir_meaning_preservation/summary/goal_state.md:1) で定義したとおり、
+最終的な研究問いは、[goal_state.md](./summary/goal_state.md#L1) で定義したとおり、
 
 `決定論的な自然言語仕様処理において、意味保存を成立させる最小メタデータ体系と、その runtime / schema / policy の責務分担は何か`
 
@@ -32,14 +32,14 @@
 - データソース種別
 - 副作用種別
 
-評価枠組みは [evaluation.md](research/ir_meaning_preservation/foundation/evaluation.md:1) で固定し、benchmark は [benchmark_cases.md](research/ir_meaning_preservation/benchmark_cases.md:1) に集約した。各ケースでは、
+評価枠組みは [evaluation.md](./foundation/evaluation.md#L1) で固定し、benchmark は [benchmark_cases.md](./benchmark_cases.md#L1) に集約した。各ケースでは、
 
 - Expected IR
 - Observed IR
 - Diff Notes
 - Failure Mapping
 
-の順で差分を記録し、横断結果は [results/failure_mapping.md](research/ir_meaning_preservation/results/failure_mapping.md:1) に整理した。
+の順で差分を記録し、横断結果は [results/failure_mapping.md](./results/failure_mapping.md#L1) に整理した。
 
 ## 3. Main Findings
 
@@ -58,7 +58,7 @@
 - `CALCULATE` が `GENERAL/ACTION` に落ちる
 - `RETURN`, `TRANSFORM`, `ITERATE`, `WRAP` が coarse runtime handling に吸収される
 
-この観測は、[intent_drift_analysis.md](research/ir_meaning_preservation/archived_analysis/intent_drift_analysis.md:1)、[focused_role_analysis.md](research/ir_meaning_preservation/archived_analysis/focused_role_analysis.md:1)、[midterm_synthesis.md](research/ir_meaning_preservation/midterm_synthesis.md:1) で整理している。
+この観測は、[intent_drift_analysis.md](./archived_analysis/intent_drift_analysis.md#L1)、[focused_role_analysis.md](./archived_analysis/focused_role_analysis.md#L1)、[midterm_synthesis.md](./midterm_synthesis.md#L1) で整理している。
 
 ### 3.2 Provenance Is Required In Addition To Resolved Value
 
@@ -86,7 +86,7 @@ resolved value だけでは downstream を安全に制御できないことも�
 
 のような provenance metadata を役割ごとに導入した。
 
-この層は [resolution_provenance_model.md](research/ir_meaning_preservation/foundation/resolution_provenance_model.md:1)、[cross_role_provenance_design.md](research/ir_meaning_preservation/foundation/cross_role_provenance_design.md:1)、[provenance_strength_policy_matrix.md](research/ir_meaning_preservation/foundation/provenance_strength_policy_matrix.md:1) で共通化している。
+この層は [resolution_provenance_model.md](./foundation/resolution_provenance_model.md#L1)、[cross_role_provenance_design.md](./foundation/cross_role_provenance_design.md#L1)、[provenance_strength_policy_matrix.md](./foundation/provenance_strength_policy_matrix.md#L1) で共通化している。
 
 ### 3.3 Alias Admission Is A Schema/Policy Problem
 
@@ -102,7 +102,7 @@ property alias の問題も、runtime heuristic を増やすより、
 - `Downstream Impact`
 - `External Compatibility`
 
-これは [schema_alias_admission_timing_matrix.md](research/ir_meaning_preservation/design_proposals/schema_alias_admission_timing_matrix.md:1) と [results/schema_alias_admission_status_table.md](research/ir_meaning_preservation/results/schema_alias_admission_status_table.md:1) にまとまっている。
+これは [schema_alias_admission_timing_matrix.md](./design_proposals/schema_alias_admission_timing_matrix.md#L1) と [results/schema_alias_admission_status_table.md](./results/schema_alias_admission_status_table.md#L1) にまとまっている。
 
 ## 4. Research Method
 
@@ -171,7 +171,7 @@ property alias の問題も、runtime heuristic を増やすより、
 
 - item/property continuity と property-side provenance を consumer 側で保持
 
-この状態は [remaining_open_inventory.md](research/ir_meaning_preservation/summary/remaining_open_inventory.md:1) と [results/role_weakening_regression_table.md](research/ir_meaning_preservation/results/role_weakening_regression_table.md:1) に反映されている。
+この状態は [remaining_open_inventory.md](./summary/remaining_open_inventory.md#L1) と [results/role_weakening_regression_table.md](./results/role_weakening_regression_table.md#L1) に反映されている。
 
 ## 6. Runtime / Schema / Policy Boundary
 
@@ -227,7 +227,7 @@ policy の責務は、
 
 を置く。
 
-この整理は [runtime_schema_policy_boundary.md](research/ir_meaning_preservation/foundation/runtime_schema_policy_boundary.md:1) に 1 枚で圧縮している。
+この整理は [runtime_schema_policy_boundary.md](./foundation/runtime_schema_policy_boundary.md#L1) に 1 枚で圧縮している。
 
 ## 7. Implementation Connection
 
@@ -235,20 +235,20 @@ policy の責務は、
 
 主要な接続先:
 
-- [ir_generator.py](src/ir_generator/ir_generator.py:1)
-- [check_resolution.py](src/ir_generator/check_resolution.py:1)
-- [promotion_rules.py](src/ir_generator/promotion_rules.py:1)
-- [target_resolution.py](src/ir_generator/target_resolution.py:1)
-- [return_resolution.py](src/ir_generator/return_resolution.py:1)
-- [transform_resolution.py](src/ir_generator/transform_resolution.py:1)
-- [iterate_resolution.py](src/ir_generator/iterate_resolution.py:1)
-- [wrapper_resolution.py](src/ir_generator/wrapper_resolution.py:1)
-- [action_synthesizer.py](src/code_synthesis/action_synthesizer.py:1)
-- [semantic_binder.py](src/code_synthesis/semantic_binder.py:1)
-- [calc_ops.py](src/code_synthesis/action_handlers/calc_ops.py:1)
-- [ir_emitter.py](src/code_synthesis/ir_emitter.py:1)
+- [ir_generator.py](../../src/ir_generator/ir_generator.py#L1)
+- [check_resolution.py](../../src/ir_generator/check_resolution.py#L1)
+- [promotion_rules.py](../../src/ir_generator/promotion_rules.py#L1)
+- [target_resolution.py](../../src/ir_generator/target_resolution.py#L1)
+- [return_resolution.py](../../src/ir_generator/return_resolution.py#L1)
+- [transform_resolution.py](../../src/ir_generator/transform_resolution.py#L1)
+- [iterate_resolution.py](../../src/ir_generator/iterate_resolution.py#L1)
+- [wrapper_resolution.py](../../src/ir_generator/wrapper_resolution.py#L1)
+- [action_synthesizer.py](../../src/code_synthesis/action_synthesizer.py#L1)
+- [semantic_binder.py](../../src/code_synthesis/semantic_binder.py#L1)
+- [calc_ops.py](../../src/code_synthesis/action_handlers/calc_ops.py#L1)
+- [ir_emitter.py](../../src/code_synthesis/ir_emitter.py#L1)
 
-主張と根拠と実装の対応は [claim_evidence_implementation_map.md](research/ir_meaning_preservation/summary/claim_evidence_implementation_map.md:1) に整理してある。
+主張と根拠と実装の対応は [claim_evidence_implementation_map.md](./summary/claim_evidence_implementation_map.md#L1) に整理してある。
 
 ## 8. Operationalization
 
@@ -267,11 +267,11 @@ policy の責務は、
 
 中心文書:
 
-- [schema_alias_role_weakening_regression_checklist.md](research/ir_meaning_preservation/summary/schema_alias_role_weakening_regression_checklist.md:1)
-- [combined_regression_playbook.md](research/ir_meaning_preservation/summary/combined_regression_playbook.md:1)
-- [results/regression_run_2026_05_07_metadata_baseline.md](research/ir_meaning_preservation/results/regression_run_2026_05_07_metadata_baseline.md:1)
-- [run_ir_meaning_preservation_regression.py](scripts/validate/run_ir_meaning_preservation_regression.py:1)
-- [validate_ir_meaning_preservation_regression.py](scripts/validate/validate_ir_meaning_preservation_regression.py:1)
+- [schema_alias_role_weakening_regression_checklist.md](./summary/schema_alias_role_weakening_regression_checklist.md#L1)
+- [combined_regression_playbook.md](./summary/combined_regression_playbook.md#L1)
+- [results/regression_run_2026_05_07_metadata_baseline.md](./results/regression_run_2026_05_07_metadata_baseline.md#L1)
+- [run_ir_meaning_preservation_regression.py](../../scripts/validate/run_ir_meaning_preservation_regression.py#L1)
+- [validate_ir_meaning_preservation_regression.py](../../scripts/validate/validate_ir_meaning_preservation_regression.py#L1)
 
 これにより、研究成果は変更時の運用フローに直接接続できる。
 

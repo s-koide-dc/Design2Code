@@ -68,7 +68,7 @@ admission timing は runtime field として IR に直接書く対象ではな�
 ## 6. Immediate Next Step
 
 `Hold For Evidence` を含む current status は
-[results/schema_alias_admission_status_table.md](research/ir_meaning_preservation/results/schema_alias_admission_status_table.md:1)
+[results/schema_alias_admission_status_table.md](../results/schema_alias_admission_status_table.md#L1)
 で一貫表現できるようになった。
 
 次にやるべきことは、この matrix と status table を使って

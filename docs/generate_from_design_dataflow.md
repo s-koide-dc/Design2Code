@@ -208,7 +208,7 @@ To compare the same stages with optional `3B` literal assistance:
 python scripts/design/probe_design_authoring_reduction.py --design path/to/NewModule.design.md --assist-endpoint-url http://127.0.0.1:1234/v1/chat/completions
 ```
 
-For a practical starter shape and a prohibited over-reduced shape, see [docs/design_authoring_minimal_template.md](/C:/workspace/NLP/docs/design_authoring_minimal_template.md).
+For a practical starter shape and a prohibited over-reduced shape, see [docs/design_authoring_minimal_template.md](./design_authoring_minimal_template.md).
 
 For a pass/fail authoring gate before normal generation, use:
 

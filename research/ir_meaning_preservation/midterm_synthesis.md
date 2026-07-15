@@ -29,9 +29,9 @@
 
 少なくとも初期研究基盤は固定できている。
 
-- 保存対象の観点は [evaluation.md](research/ir_meaning_preservation/foundation/evaluation.md:1) で定義済み
-- benchmark coverage は [benchmark_cases.md](research/ir_meaning_preservation/benchmark_cases.md:1) で整理済み
-- 初回 5 ケースの失敗分類は [failure_mapping.md](research/ir_meaning_preservation/results/failure_mapping.md:1) で固定済み
+- 保存対象の観点は [evaluation.md](./foundation/evaluation.md#L1) で定義済み
+- benchmark coverage は [benchmark_cases.md](./benchmark_cases.md#L1) で整理済み
+- 初回 5 ケースの失敗分類は [failure_mapping.md](./results/failure_mapping.md#L1) で固定済み
 
 これにより、改善前後を比較するための基準面はすでに成立している。
 
@@ -140,7 +140,7 @@ representative case の current status は
 - 構造ブロック最初の子は structural parent に依存する
 - 同一ブロック内の後続 sibling は直前 sibling に依存する
 
-この原理は [structural_dependency_rule.md](research/ir_meaning_preservation/foundation/structural_dependency_rule.md:1) に固定され、実装側にも反映済みである。
+この原理は [structural_dependency_rule.md](./foundation/structural_dependency_rule.md#L1) に固定され、実装側にも反映済みである。
 
 ## 5. What Has Been Implemented As Research-Backed Change
 
@@ -188,7 +188,7 @@ representative case の current status は
 
 ### 6.3 IRGenerator Decomposition Is Advanced but Not Final
 
-[ir_generator_decomposition_plan.md](research/ir_meaning_preservation/ir_generator_decomposition_plan.md:1) に沿って、domain helper 化と in-file decomposition はかなり進んだ。
+[ir_generator_decomposition_plan.md](./archived_analysis/ir_generator_decomposition_plan.md#L1) に沿って、domain helper 化と in-file decomposition はかなり進んだ。
 
 ただしこれは最終アーキテクチャではない。
 

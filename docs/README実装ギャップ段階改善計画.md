@@ -1,9 +1,10 @@
 # README 実装ギャップ段階改善計画
 
-この計画は [AIFiles/PROJECT_CHARTER](/C:/workspace/NLP/AIFiles/PROJECT_CHARTER.md) と [AIFiles/CONVENTIONS.md](/C:/workspace/NLP/AIFiles/CONVENTIONS.md)、および `docs/改善指示.pdf` を前提に、README と実装の温度差を段階的に縮めるための実行順を整理したものです。
+この計画は [AIFiles/PROJECT_CHARTER](../AIFiles/PROJECT_CHARTER.md) と [AIFiles/CONVENTIONS.md](../AIFiles/CONVENTIONS.md)、および `docs/改善指示.pdf` を前提に、README と実装の温度差を段階的に縮めるための実行順を整理したものです。
 
 注記:
 - この文書は段階改善のための作業計画メモであり、恒久公開 docs と同じ validator 必須監視対象には含めない。
+- 現行仕様の正本と更新ルールは [documentation_source_of_truth.md](./documentation_source_of_truth.md) で管理する。
 - 必要なら `config/doc_reference_policy.json` の `required_docs` へ昇格させる。
 - 現在は `optional_reference_docs` 扱いなので、文書が存在する場合はローカル参照整合だけ validator 対象になる。
 
@@ -36,7 +37,7 @@
 ## Phase 3: エラーハンドリングと安全ポリシーの統一
 - 目的: `docs/改善指示.pdf` の「統一的な例外処理・ログ出力」を実装に落とす。
 - 対象:
-  - 主要 CLI の stdout/stderr 契約を [docs/stdout_output_policy.md](/C:/workspace/NLP/docs/stdout_output_policy.md) に合わせる。
+  - 主要 CLI の stdout/stderr 契約を [docs/stdout_output_policy.md](./stdout_output_policy.md) に合わせる。
   - 安全ポリシー違反時のエラーメッセージとログ項目を共通化する。
   - `tests/security` に安全ポリシー違反時の回帰テストを追加する。
 - 完了条件:

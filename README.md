@@ -158,8 +158,10 @@ python scripts/data/parse_jmdict.py
 - 設計書 → コード生成: `scripts/generate/generate_from_design.py`
 - 対話パイプライン: `src/pipeline_core/pipeline_core.py`
 - TDD 支援: `src/advanced_tdd/main.py`
-- 設定依存の見取り図: [config/README.md](/C:/workspace/NLP/config/README.md)
-- セットアップ後の生成物一覧: [resources/README.md](/C:/workspace/NLP/resources/README.md)
+- 設定依存の見取り図: [config/README.md](./config/README.md)
+- セットアップ後の生成物一覧: [resources/README.md](./resources/README.md)
+- ドキュメントの正本と更新ルール: [docs/documentation_source_of_truth.md](./docs/documentation_source_of_truth.md)
+- 実モデルを使うローカル検証: [docs/real_vector_model_validation.md](./docs/real_vector_model_validation.md)
 
 ## 1.1 入口の実行例
 ```bash
@@ -168,7 +170,7 @@ python scripts/generate/generate_from_design.py --design scenarios/SampleProject
 
 # 対話パイプライン（確認済みの例: 現在位置確認）
 python -c "from src.pipeline_core.pipeline_core import Pipeline; p = Pipeline(is_test_mode=True); r = p.run('カレントディレクトリを教えて'); print(r['response']['text'])"
-# 例: 現在の作業ディレクトリ: C:\workspace\NLP
+# 例: 現在の作業ディレクトリ: <workspace-root>
 
 # 対話パイプライン（確認済みの例: 一覧確認）
 python -c "from src.pipeline_core.pipeline_core import Pipeline; p = Pipeline(is_test_mode=True); r = p.run('このフォルダに何がある？'); print(r['response']['text'])"
@@ -219,6 +221,9 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 # docs / 設計書 / テスト参照の整合性確認
 python scripts/validate_project_consistency.py
 
+# Markdownリンク・正本文書・マシン依存パスの確認
+python scripts/validate/validate_documentation_consistency.py
+
 # 1 本の設計書について、元設計・inferred 設計・生成コード・compile 結果・明示 oracle を確認
 python scripts/design/review_design_generation_snapshot.py --design scenarios/ProductApiFilteredCatalog.design.md --run-runtime-oracles
 
@@ -239,7 +244,7 @@ python scripts/design/run_design_generation_regression.py --fail-on-maintainabil
   - `省略可`: 多くの `step_meta`、一部の `refs`、一部の `ops`。現行の deterministic inference がかなり補完できる。
   - `LLM補助前提で省略可`: literal を含むが deterministic だけでは埋まらない `path` / `url` / `sql`。ただし OpenAI 互換 HTTP backend の `literal_roles_only` 補助を使う前提であり、完全な deterministic 契約ではない。
 - 実務上の推奨は「まず `step_meta` を減らし、それでも煩雑なら `refs` / `ops` / `data_source` を減らす。`path` / `url` / `sql` は最後まで残す」です。
-- 詳細な inference 境界、assist 運用、scenario ベースの棚卸しは [docs/generate_from_design_dataflow.md](/C:/workspace/NLP/docs/generate_from_design_dataflow.md) を参照してください。
+- 詳細な inference 境界、assist 運用、scenario ベースの棚卸しは [docs/generate_from_design_dataflow.md](./docs/generate_from_design_dataflow.md) を参照してください。
 - LLM にタグ候補だけ提案させたい場合は、ファイルを増やさず次を使えます:
 
 ```bash
@@ -288,7 +293,7 @@ python scripts/design/audit_literal_tag_assist_coverage.py
 ```
 
 - `assist_recommended` が `true` のものは、strip 後に deterministic だけでは `NO_CANDIDATE` で止まるが、explicit literal candidate は残っているため `literal_roles_only` 補助の対象候補です。
-- 実運用では、scenario 名の列挙を README に固定せず、最新の棚卸し結果は [docs/generate_from_design_dataflow.md](/C:/workspace/NLP/docs/generate_from_design_dataflow.md) と監査 CLI の出力を正とします。
+- 実運用では、scenario 名の列挙を README に固定せず、最新の棚卸し結果は [docs/generate_from_design_dataflow.md](./docs/generate_from_design_dataflow.md) と監査 CLI の出力を正とします。
 
 ## 1.3 CLI 出力契約
 - 正式 CLI は、成功結果と進行表示を `stdout`、エラーと警告を `stderr` に分離します。
@@ -302,7 +307,7 @@ python scripts/design/audit_literal_tag_assist_coverage.py
   - `scripts/tools/manage_vector_db.py`
   - `scripts/tools/prune_backups.py`
   - `scripts/tools/suggest_method_capabilities.py`
-- 詳細な分類基準は [docs/stdout_output_policy.md](/C:/workspace/NLP/docs/stdout_output_policy.md) を参照してください。
+- 詳細な分類基準は [docs/stdout_output_policy.md](./docs/stdout_output_policy.md) を参照してください。
 - `scripts/generate/demo_synthesis.py` のようなデモ用スクリプトは、この契約の保証対象外です。
 - docs 監視対象の切り替えは `config/doc_reference_policy.json` で管理します。
 
@@ -311,7 +316,7 @@ python scripts/design/audit_literal_tag_assist_coverage.py
 - `existence_only_docs`: 在庫表や生成物一覧のような docs。文書自体の存在だけを監視します。
 - `optional_reference_docs`: 作業計画メモのような任意 docs。なくてもよいですが、存在するならローカル参照整合を監視します。
 - `scripts/validate_project_consistency.py` の失敗時は、`GENERAL` と docs mode ごとの節に分けて `stderr` へ出力します。
-- mode の実体定義は [config/README.md](/C:/workspace/NLP/config/README.md) と `config/doc_reference_policy.json` を参照してください。
+- mode の実体定義は [config/README.md](./config/README.md) と `config/doc_reference_policy.json` を参照してください。
 
 ### TDD CLI 入力例
 ```json

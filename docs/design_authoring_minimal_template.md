@@ -4,7 +4,7 @@
 This document is an `optional_reference_docs` authoring guide.
 
 1. `README.md` is not the place for full authoring templates.
-2. [docs/generate_from_design_dataflow.md](/C:/workspace/NLP/docs/generate_from_design_dataflow.md) defines the generation and assist contract.
+2. [docs/generate_from_design_dataflow.md](./generate_from_design_dataflow.md) defines the generation and assist contract.
 3. This document shows practical starting shapes for writing a new `.design.md` with the fewest tags that still preserve the current boundary.
 
 ## Scope
@@ -185,10 +185,10 @@ When the goal is to reduce tagging effort without increasing LLM dependence:
 ## Current verified minimal examples
 The following scenarios currently pass both the authoring gate and the generation snapshot review:
 
-1. File path flow: [scenarios/UserNamePrefixSearch.design.md](/C:/workspace/NLP/scenarios/UserNamePrefixSearch.design.md)
-2. DB query flow: [scenarios/InventoryLookupMinimal.design.md](/C:/workspace/NLP/scenarios/InventoryLookupMinimal.design.md)
-3. HTTP fetch flow: [scenarios/ProductApiLookupMinimal.design.md](/C:/workspace/NLP/scenarios/ProductApiLookupMinimal.design.md)
-4. Environment fetch flow: [scenarios/AppModeEchoMinimal.design.md](/C:/workspace/NLP/scenarios/AppModeEchoMinimal.design.md)
+1. File path flow: [scenarios/UserNamePrefixSearch.design.md](../scenarios/UserNamePrefixSearch.design.md)
+2. DB query flow: [scenarios/InventoryLookupMinimal.design.md](../scenarios/InventoryLookupMinimal.design.md)
+3. HTTP fetch flow: [scenarios/ProductApiLookupMinimal.design.md](../scenarios/ProductApiLookupMinimal.design.md)
+4. Environment fetch flow: [scenarios/AppModeEchoMinimal.design.md](../scenarios/AppModeEchoMinimal.design.md)
 
 What these examples mean in practice:
 

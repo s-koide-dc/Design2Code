@@ -26,7 +26,7 @@
 ### Output
 - **Description**: 出力先に C# プロジェクト一式が生成される。
 - **Type/Format**: Filesystem
-- **Example**: `C:\workspace\NLP\OrdersProject\Program.cs` ほか
+- **Example**: `<workspace-root>/OrdersProject/Program.cs` ほか
 
 ### Core Logic
 1. `ProjectGenerator.generate(spec, output_root)` で `project_name` / `tech` / `entities` / `dtos` / `method_specs` / `generation_hints` を抽出し、`spec_completion` と `spec_helpers` で不足情報を補完する。

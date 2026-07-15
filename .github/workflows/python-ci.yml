@@ -238,6 +238,9 @@ jobs:
       - name: Validate CI test matrix
         run: python scripts/validate/validate_ci_test_matrix.py
 
+      - name: Validate documentation consistency
+        run: python scripts/validate/validate_documentation_consistency.py
+
       - name: Validate configuration files
         run: python -c "from src.config.config_manager import ConfigManager; ConfigManager(strict=True)"
 

@@ -15,7 +15,7 @@ The `stages.py` module defines the discrete processing units that make up the AI
 #### 2.2.1 SetupStage
 - **Goal**: Initialize the request context.
 - **Logic**:
-    1.  **Validation**: Check input length (Max 200KB).
+    1.  **Validation**: Check input length (Max 200KB; inputs over this limit return a pipeline error context).
     2.  **Session Extraction**: Parse `session_id:` prefix or use default.
     3.  **Feedback**: If session is awaiting feedback, record it via `AutonomousLearning`, set `analysis.intent = INTENT_FEEDBACK_RECEIVED`, and exit early.
 
@@ -33,7 +33,7 @@ The `stages.py` module defines the discrete processing units that make up the AI
     3.  **Confirmation**: If the current intent matches the shared approval / rejection constants from `src.utils.confirmation_response` and a plan is pending, confirm or cancel the plan.
         - On `INTENT_AGREE`, set `confirmation_granted = true` in the context and clear the pending plan.
         - On `INTENT_DISAGREE`, clear both the pending plan and the active task so the next user request can start a fresh task.
-    4.  **Pending Confirmation Priority**: If a plan is already awaiting confirmation and the new intent is neither `INTENT_AGREE` nor `INTENT_DISAGREE`, keep that plan active, mark `dialogue_state = src.utils.dialogue_state.PENDING_CONFIRMATION`, and re-show the same confirmation prompt instead of switching into a new task flow.
+    4.  **Pending Confirmation Priority**: If a plan is already awaiting confirmation and the new intent is neither `INTENT_AGREE`, `INTENT_DISAGREE`, nor `INTENT_CANCEL_TASK`, keep that plan active, mark `dialogue_state = src.utils.dialogue_state.PENDING_CONFIRMATION`, and re-show the same confirmation prompt instead of switching into a new task flow. `INTENT_CANCEL_TASK` follows its own cancellation path.
 
 #### 2.2.4 SemanticAnalysisStage
 - **Goal**: Deep understanding and context history.
@@ -83,7 +83,7 @@ The `stages.py` module defines the discrete processing units that make up the AI
 
 #### Edge Cases
 1.  **Input Too Long**:
-    -   Input: 300KB text.
+    -   Input: 201KB text.
     -   Result: Error returned in SetupStage.
 2.  **Confirmation Denial**:
     -   Context: Pending plan. Input: "No".

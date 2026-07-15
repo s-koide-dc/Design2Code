@@ -4,9 +4,9 @@
 生成・解析・パイプライン・検証がここに集約されています。
 
 ## 1. 入口
-- パイプライン入口: `C:\workspace\NLP\src\pipeline_core\pipeline_core.py`
-- 設計書→プロジェクト生成: `C:\workspace\NLP\src\code_generation\project_generator.py`
-- 設計書→コード合成: `C:\workspace\NLP\src\code_synthesis\code_synthesizer.py`
+- パイプライン入口: `src/pipeline_core/pipeline_core.py`
+- 設計書→プロジェクト生成: `src/code_generation/project_generator.py`
+- 設計書→コード合成: `src/code_synthesis/code_synthesizer.py`
 
 ## 1.1 設計書→生成の最短パス
 1. `design_parser` が `.design.md` を StructuredSpec に変換
@@ -22,7 +22,7 @@
 - 学習/整合: `autonomous_learning`, `autonomous_aligner`, `replanner`
 
 ## 3. 重要な内部データ
-`src` は `C:\workspace\NLP\resources` と `C:\workspace\NLP\config` に依存します。
+`src` はリポジトリ直下の `resources` と `config` に依存します。
 - `resources`: 辞書・ベクトル・知識ベース
 - `config`: 安全性・生成方針・運用設定
 

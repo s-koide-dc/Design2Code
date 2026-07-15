@@ -9,6 +9,9 @@
 - `scripts/validate_project_consistency.py`
   - モジュール/設計書/依存関係の整合性を検証する。
   - `resources/` 配下の主要 JSON 資産について、intent / capability / role 語彙が共通定数境界に収まっているかも検証する。
+- `scripts/validate/validate_documentation_consistency.py`
+  - 正本文書の存在、Markdownのローカルリンク、マシン依存パスを検証する。
+  - `cache/` と生成済み `*.inferred.design.md` は検証対象外とする。
 - `scripts/validate_design_authoring.py`
   - 新規 `.design.md` の初稿が現在の authoring 境界に収まっているかを 1 コマンドで判定する。
   - 既定では `original`, `drop_step_meta`, `drop_step_meta_refs`, `drop_step_meta_refs_ops` が deterministic に通ることと、`strip_tags_drop_literals` が `NO_CANDIDATE` で止まることを検証する。
@@ -92,7 +95,7 @@
 ## Operational stdout/stderr 契約
 
 - 正式 CLI は、成功結果と進行表示を `stdout`、異常系と警告を `stderr` に出す。
-- この契約は [docs/stdout_output_policy.md](/C:/workspace/NLP/docs/stdout_output_policy.md) で管理する。
+- この契約は [docs/stdout_output_policy.md](../docs/stdout_output_policy.md) で管理する。
 - 新しい正式 CLI を追加した場合は:
   - `src/utils/cli_output.py` を使う。
   - `docs/stdout_output_policy.md` を更新する。

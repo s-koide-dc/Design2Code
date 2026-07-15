@@ -10,7 +10,7 @@
 ### Input
 - **Description**: ワークスペースルート（省略時は CWD）。
 - **Type/Format**: `str | None`
-- **Example**: `"C:\\workspace\\NLP"`
+- **Example**: `"<workspace-root>"`
 
 ### Output
 - **Description**: 設定辞書と各種パスを保持する `ConfigManager` インスタンス。

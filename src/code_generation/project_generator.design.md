@@ -29,7 +29,7 @@
 ### Output
 - **Description**: 出力ディレクトリに C# プロジェクト一式を生成する。
 - **Type/Format**: Filesystem
-- **Example**: `C:\workspace\NLP\OrdersProject\Program.cs` ほか
+- **Example**: `<workspace-root>/OrdersProject/Program.cs` ほか
 
 ### Core Logic
 1. `spec` から `tech/data_access/modules/entities/dtos/method_specs/validation/generation_hints` を抽出する。

@@ -10,7 +10,7 @@ cross-role provenance design の枠組みに沿って保存されているかに
 
 ## Observation Case
 
-- [case_32_return_provenance_contrast.md](research/ir_meaning_preservation/cases/case_32_return_provenance_contrast.md:1)
+- [case_32_return_provenance_contrast.md](../cases/case_32_return_provenance_contrast.md#L1)
 
 ## Main Observation
 

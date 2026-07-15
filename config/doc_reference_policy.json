@@ -5,6 +5,8 @@
     "config/README.md",
     "docs/stdout_output_policy.md",
     "docs/project_overview.md",
+    "docs/documentation_source_of_truth.md",
+    "docs/real_vector_model_validation.md",
     "docs/generate_from_design_dataflow.md",
     "docs/method_store_spec.md"
   ],
@@ -16,6 +18,7 @@
     "docs/design_authoring_minimal_template.md"
   ],
   "generated_reference_paths": [
+    "logs/real_vector_validation.json",
     "resources/vectors/vector_db/method_store_meta.json",
     "resources/vectors/vector_db/method_store_vectors.npy"
   ]

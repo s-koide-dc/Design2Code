@@ -1,5 +1,7 @@
 # AI Changelog
 
+このファイルは変更履歴であり、現行仕様の正本ではありません。現在の責務・契約・運用方針は [docs/documentation_source_of_truth.md](./docs/documentation_source_of_truth.md) から辿ってください。過去のファイル名や構成への参照は履歴情報として扱います。
+
 - **2026-06-18**: Added `scenarios/AppModeEchoMinimal.design.md` as an environment-variable-backed minimal authoring example, extended `design_inference` so plain `環境変数 ... を取得する` lines can deterministically recover `FETCH + source_kind=env`, and fixed documented-entrypoint coverage so the scenario now passes both the authoring gate and the design-to-code review snapshot.
 
 - **2026-06-18**: Fixed `src/code_synthesis/action_synthesizer.py` so call results now keep explicit `var_type` even for scalar returns such as `string`, which removed the `var result0 = null;` compile break in resilient HTTP generation and made `scenarios/ProductApiLookupMinimal.design.md` pass the full review snapshot end to end.
@@ -18,7 +20,7 @@
 
 - **2026-06-18**: Added `scripts/validate_design_authoring.py` as a one-command authoring gate for new `.design.md` drafts, checking that the standard reduced stages remain deterministic while the over-reduced literal-loss stage still blocks with `NO_CANDIDATE`, and documented the flow in the authoring template and generation-flow docs.
 
-- **2026-06-18**: Added [docs/design_authoring_minimal_template.md](/C:/workspace/NLP/docs/design_authoring_minimal_template.md) as an authoring guide that contrasts the current deterministic minimal template, the assisted boundary template, and the prohibited over-reduced template for new `.design.md` creation, and registered it under `optional_reference_docs`.
+- **2026-06-18**: Added [docs/design_authoring_minimal_template.md](./docs/design_authoring_minimal_template.md) as an authoring guide that contrasts the current deterministic minimal template, the assisted boundary template, and the prohibited over-reduced template for new `.design.md` creation, and registered it under `optional_reference_docs`.
 
 - **2026-06-18**: Added `scripts/probe_design_authoring_reduction.py` to compare authoring-reduction stages (`step_meta` removal through literal-boundary removal) on a single `.design.md`, updated the generation-flow docs and `scripts/README.md`, and whitelisted the new CLI in `config/safety_policy.json`.
 
