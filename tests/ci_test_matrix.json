@@ -1,0 +1,54 @@
+{
+  "integration": {
+    "ci_included": [
+      "test_advanced_tdd_fixes.py",
+      "test_advanced_tdd_support.py",
+      "test_compound_task_scenarios.py",
+      "test_dynamic_method_store.py",
+      "test_generated_lambda_compilation.py",
+      "test_impact_planning.py",
+      "test_phase6_multi_turn.py",
+      "test_pipeline_core.py",
+      "test_quality_management_scenarios.py",
+      "test_response_rewriter_integration.py",
+      "test_runtime_execution.py"
+    ],
+    "ci_excluded": [
+      {
+        "file": "test_documented_entrypoints.py",
+        "reason": "生成済みmethod-storeアセットが必要",
+        "validation": "local_asset_validation"
+      },
+      {
+        "file": "test_semantic_method_search.py",
+        "reason": "実ベクトルモデルまたは派生キャッシュが必要",
+        "validation": "real_vector_model_validation"
+      },
+      {
+        "file": "test_vector_engine_real_model.py",
+        "reason": "実ベクトルモデルまたは派生キャッシュが必要",
+        "validation": "real_vector_model_validation"
+      },
+      {
+        "file": "test_conversation_scenarios.py",
+        "reason": "辞書・ベクトル・生成済みmethod-storeアセットが必要",
+        "validation": "local_asset_validation"
+      },
+      {
+        "file": "test_end_to_end_scenarios.py",
+        "reason": "辞書・ベクトル・生成済みmethod-storeアセットが必要",
+        "validation": "local_asset_validation"
+      },
+      {
+        "file": "test_full_integrated_pipeline.py",
+        "reason": "辞書・ベクトル・生成済みmethod-storeアセットが必要",
+        "validation": "local_asset_validation"
+      },
+      {
+        "file": "test_reverse_lookup_flow.py",
+        "reason": "辞書・ベクトル・生成済みmethod-storeアセットが必要",
+        "validation": "local_asset_validation"
+      }
+    ]
+  }
+}

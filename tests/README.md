@@ -35,3 +35,9 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 - `resources/` 配下の辞書・ベクトルが必要なテストがあります。
 - `resources/vectors` のキャッシュ未生成だと失敗するテストがあります。
 - `resources/vectors` の実モデルが必要な integration テストがあります。
+- GitHub Actions では実モデルを配置せず、モデル依存テストは `SKIP_VECTOR_MODEL=1` または対象スイート除外として扱います。ユニットテストランナーはスキップ件数を最後に表示します。
+- integration テストのCI実行／ローカル実行境界は `tests/ci_test_matrix.json` で管理し、`scripts/validate/validate_ci_test_matrix.py` が除外対象の存在・理由・未分類テストを検証します。
+- `test_regression_scenarios.py` は設計解決・監査に集中するためインプロセスのCodeBuilderフォールバックを使用します。外部.NET CodeBuilderとの連携は `test_code_synthesizer_integration.py` などの専用テストで検証します。
+- `test_code_synthesizer_integration.py` の外部.NET CodeBuilderテストは `RUN_CODEBUILDER_TESTS=1` のときだけ有効です。通常のユニット実行ではスキップされ、生成品質ジョブで明示的に実行されます。
+- `test_response_rewriter.py` のsubprocess／persistent subprocess／HTTPバックエンドテストは `RUN_RESPONSE_REWRITER_BACKENDS=1` のときだけ有効です。通常のユニット実行ではスキップされ、生成品質ジョブで明示的に実行されます。
+- `test_execution_verifier.py` のRoslyn構造解析テストは `RUN_EXECUTION_VERIFIER_TESTS=1` のときだけ有効です。通常のユニット実行ではスキップされ、生成品質ジョブで明示的に実行されます。

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import os
 import sys
 import tempfile
 import textwrap
@@ -10,6 +11,13 @@ from pathlib import Path
 
 from src.response_rewriter.response_rewriter import ResponseRewriter
 from src.utils.dialogue_state import PENDING_CONFIRMATION, TASK_CLARIFICATION
+
+
+def requires_response_backend(test_method):
+    return unittest.skipUnless(
+        os.environ.get("RUN_RESPONSE_REWRITER_BACKENDS") == "1",
+        "requires response rewriter subprocess/HTTP backend; set RUN_RESPONSE_REWRITER_BACKENDS=1",
+    )(test_method)
 
 
 class _Config:
@@ -55,6 +63,7 @@ class TestResponseRewriter(unittest.TestCase):
 
         self.addCleanup(_cleanup)
 
+    @requires_response_backend
     def test_subprocess_backend_rewrites_text_via_json_contract(self):
         self._write_backend(
             """
@@ -83,6 +92,7 @@ class TestResponseRewriter(unittest.TestCase):
 
         self.assertEqual(result, "元の応答です。 [rewritten].")
 
+    @requires_response_backend
     def test_subprocess_backend_falls_back_on_nonzero_exit(self):
         self._write_backend(
             """
@@ -99,6 +109,7 @@ class TestResponseRewriter(unittest.TestCase):
 
         self.assertEqual(result, "元の応答です。")
 
+    @requires_response_backend
     def test_subprocess_backend_falls_back_when_output_contains_structured_markup(self):
         self._write_backend(
             """
@@ -117,6 +128,7 @@ class TestResponseRewriter(unittest.TestCase):
 
         self.assertEqual(result, "元の応答です。")
 
+    @requires_response_backend
     def test_subprocess_backend_sends_versioned_payload_contract(self):
         self._write_backend(
             """
@@ -191,6 +203,7 @@ class TestResponseRewriter(unittest.TestCase):
 
         self.assertEqual(result, "ファイル名を教えていただけますか？")
 
+    @requires_response_backend
     def test_clarification_message_can_be_rewritten_when_explicitly_enabled(self):
         self._write_backend(
             """
@@ -291,6 +304,7 @@ class TestResponseRewriter(unittest.TestCase):
 
         self.assertEqual(result, "もちろんです。少しお話ししましょうか。")
 
+    @requires_response_backend
     def test_action_intent_can_be_rewritten_when_explicitly_allowed(self):
         self._write_backend(
             """
@@ -354,6 +368,7 @@ class TestResponseRewriter(unittest.TestCase):
         self.assertEqual(resolved[0], sys.executable)
         self.assertTrue(resolved[1].endswith("scripts/custom_response_rewriter.py"))
 
+    @requires_response_backend
     def test_persistent_subprocess_backend_reuses_same_process_across_rewrites(self):
         self._write_backend(
             """
@@ -395,6 +410,7 @@ class TestResponseRewriter(unittest.TestCase):
         self.assertEqual(first_text, "一回目です。")
         self.assertEqual(second_text, "二回目です。")
 
+    @requires_response_backend
     def test_openai_compatible_http_backend_rewrites_text(self):
         captured = {}
 
@@ -446,6 +462,7 @@ class TestResponseRewriter(unittest.TestCase):
         self.assertFalse(captured["body"]["stream"])
         self.assertEqual(captured["body"]["messages"][0]["role"], "system")
 
+    @requires_response_backend
     def test_openai_compatible_http_backend_falls_back_when_it_echoes_original_user_text(self):
         class _Handler(BaseHTTPRequestHandler):
             def do_POST(self):
@@ -496,6 +513,7 @@ class TestResponseRewriter(unittest.TestCase):
             "処理を開始しました。完了まで少々お待ちください。現在、処理を進めています。",
         )
 
+    @requires_response_backend
     def test_openai_compatible_http_backend_falls_back_when_sentence_ending_breaks(self):
         class _Handler(BaseHTTPRequestHandler):
             def do_POST(self):

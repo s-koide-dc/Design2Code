@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import MagicMock
 from src.safety.safety_policy_validator import SafetyPolicyValidator, SafetyCheckResult, SafetyCheckStatus, RiskLevel
+from src.safety.policy import SafetyPolicy
 
 class TestSafetyPolicyValidator(unittest.TestCase):
     def setUp(self):
@@ -43,6 +44,13 @@ class TestSafetyPolicyValidator(unittest.TestCase):
     def test_missing_command_param(self):
         result = self.validator.validate_action("_run_command", {}, "CMD_RUN")
         self.assertEqual(result.status, SafetyCheckStatus.BLOCK)
+
+    def test_default_policy_is_shared_and_isolated(self):
+        first = SafetyPolicy()
+        second = SafetyPolicy()
+        first.safe_commands.append("temporary")
+        self.assertNotIn("temporary", second.safe_commands)
+        self.assertIn("dotnet", second.safe_commands)
 
 if __name__ == '__main__':
     unittest.main()

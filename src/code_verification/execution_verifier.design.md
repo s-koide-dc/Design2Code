@@ -21,6 +21,7 @@
 3. 例外はラッパーが出力する `__RUNTIME_JSON__` の構造化JSON診断を優先的に解析する。非構造テキストから例外型を推定しない。
 4. `dotnet run` を実行し、標準出力/例外を収集する。
 5. `verify_runtime` は `dotnet test` 方式でテストコードを実行する。
+6. `run_and_capture` は `has_side_effects=true` のコードを、`allow_side_effects=true` かつ外部サンドボックスを用意した呼び出し以外では実行しない。
 
 ### Test Cases
 - **Happy Path**:

@@ -12,12 +12,14 @@ class TestDynamicHarvesterRuntime(unittest.TestCase):
 
     def test_rejects_type_name_that_could_modify_inspector_source(self):
         with patch("subprocess.run") as run:
-            result = self.harvester.harvest_from_type(
-                'System.String"; Console.WriteLine("injected")'
-            )
+            with self.assertLogs(self.harvester.logger, level="WARNING") as captured:
+                result = self.harvester.harvest_from_type(
+                    'System.String"; Console.WriteLine("injected")'
+                )
 
         self.assertEqual([], result)
         run.assert_not_called()
+        self.assertIn("Rejected unsupported reflection type name", "\n".join(captured.output))
 
     def test_uses_structured_json_output_and_removes_temporary_project(self):
         captured_directory = None

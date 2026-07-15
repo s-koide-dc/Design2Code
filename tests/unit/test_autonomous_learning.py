@@ -769,7 +769,11 @@ class TestAutonomousLearning(unittest.TestCase):
         create_sample_config(self.temp_dir)
 
         self.mock_log_manager = Mock()
-        self.learner = AutonomousLearning(self.temp_dir, self.mock_log_manager)
+        self.learner = AutonomousLearning(
+            self.temp_dir,
+            self.mock_log_manager,
+            skip_vector_model=True,
+        )
 
     def tearDown(self):
         """テスト後のクリーンアップ"""
@@ -1014,7 +1018,7 @@ class TestAutonomousLearning(unittest.TestCase):
                 json.dump([{"id": "legacy_pattern", "error_message_regex": "X", "fix_direction": "Y"}], f)
             np.save(legacy_vec, np.zeros((1, 300)))
 
-            _ = AutonomousLearning(temp_root)
+            _ = AutonomousLearning(temp_root, skip_vector_model=True)
 
             self.assertFalse(os.path.exists(legacy_meta))
             self.assertFalse(os.path.exists(legacy_vec))
@@ -1038,7 +1042,7 @@ class TestAutonomousLearning(unittest.TestCase):
                 json.dump([{"id": "legacy_component", "name": "LegacyComponent"}], f)
             np.save(legacy_vec, np.zeros((1, 300)))
 
-            _ = AutonomousLearning(temp_root)
+            _ = AutonomousLearning(temp_root, skip_vector_model=True)
 
             self.assertFalse(os.path.exists(legacy_meta))
             self.assertFalse(os.path.exists(legacy_vec))
@@ -1218,7 +1222,7 @@ class TestIntegration(unittest.TestCase):
                         f.write('\n')
 
                 # Step 2: 自律学習実行
-                learner = AutonomousLearning(self.temp_dir)
+                learner = AutonomousLearning(self.temp_dir, skip_vector_model=True)
                 result = learner.run_learning_cycle()
 
                 # Step 3: 結果検証

@@ -1,11 +1,37 @@
 # -*- coding: utf-8 -*-
 import unittest
+import json
 from src.utils.nuget_client import NuGetClient
 
 class TestNuGetClient(unittest.TestCase):
 
+    class FakeResponse:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            return json.dumps(self.payload).encode("utf-8")
+
     def setUp(self):
-        self.client = NuGetClient()
+        def fake_urlopen(url, timeout):
+            del timeout
+            if "YamlDotNet.Serialization" in url:
+                return self.FakeResponse({
+                    "data": [{"id": "YamlDotNet", "version": "16.2.0"}],
+                })
+            if "Newtonsoft.Json" in url:
+                return self.FakeResponse({
+                    "data": [{"id": "Newtonsoft.Json", "version": "13.0.3"}],
+                })
+            return self.FakeResponse({"data": []})
+
+        self.client = NuGetClient(urlopen=fake_urlopen)
 
     def test_resolve_common_package(self):
         """有名なパッケージが解決できるか"""

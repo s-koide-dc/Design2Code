@@ -103,6 +103,32 @@ class TestStructuralMemorySearch(unittest.TestCase):
 
         self.assertEqual(code, "def target():\n    return 1")
 
+    def test_index_project_skips_ast_analysis_when_manifest_is_current(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            source = workspace / "src" / "sample.py"
+            source.parent.mkdir()
+            source.write_text("class Sample:\n    pass\n", encoding="utf-8")
+
+            memory = StructuralMemory.__new__(StructuralMemory)
+            memory.workspace_root = workspace
+            memory.storage_dir = str(workspace / "storage")
+            memory.index_manifest_path = str(
+                workspace / "storage" / "structural_memory_index_manifest.json"
+            )
+            memory.collection = MagicMock()
+            memory.collection.items = [{"id": "src/sample.py::Sample"}]
+            memory.items = memory.collection.items
+            memory.logger = MagicMock()
+            memory.ast_analyzer = MagicMock()
+
+            manifest = memory._build_source_manifest(source.parent, workspace)
+            memory._save_index_manifest(manifest)
+            memory.index_project()
+
+            memory.ast_analyzer.analyze_code_structure.assert_not_called()
+            self.assertEqual(memory.items, memory.collection.items)
+
 
 if __name__ == "__main__":
     unittest.main()

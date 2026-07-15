@@ -15,6 +15,7 @@ import argparse
 import io
 import os
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -55,12 +56,13 @@ def module_name_for(test_file: Path) -> str:
     return ".".join(relative.parts)
 
 
-def run_module(module_name: str, verbosity: int) -> tuple[bool, int, str, list[str]]:
+def run_module(module_name: str, verbosity: int) -> tuple[bool, int, int, str, list[str]]:
+    started = time.perf_counter()
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromName(module_name)
     test_count = suite.countTestCases()
     if test_count == 0:
-        return True, test_count, f"{module_name}: no tests loaded; skipped", []
+        return True, test_count, 0, f"{module_name}: no tests loaded; skipped ({time.perf_counter() - started:.2f}s)", []
 
     stream = io.StringIO()
     runner = unittest.TextTestRunner(stream=stream, verbosity=verbosity)
@@ -69,7 +71,9 @@ def run_module(module_name: str, verbosity: int) -> tuple[bool, int, str, list[s
         test.id()
         for test, _traceback in [*result.failures, *result.errors]
     ]
-    return result.wasSuccessful(), test_count, stream.getvalue().strip(), failed_test_ids
+    output = stream.getvalue().strip()
+    output = f"{output}\nDuration: {time.perf_counter() - started:.2f}s"
+    return result.wasSuccessful(), test_count, len(result.skipped), output, failed_test_ids
 
 
 def emit_github_failure_summary(failed_modules: list[str]) -> None:
@@ -91,10 +95,14 @@ def main() -> int:
     start_directory = Path(args.start_directory)
     failed_modules: list[str] = []
     failure_details: list[str] = []
+    skipped_tests = 0
+    loaded_tests = 0
 
     for test_file in sorted(start_directory.glob(args.pattern)):
         module_name = module_name_for(test_file)
-        ok, test_count, output, failed_test_ids = run_module(module_name, args.verbosity)
+        ok, test_count, module_skipped, output, failed_test_ids = run_module(module_name, args.verbosity)
+        loaded_tests += test_count
+        skipped_tests += module_skipped
         header = f"=== {module_name} ({test_count} tests) ==="
         if ok:
             emit_progress(header)
@@ -116,6 +124,11 @@ def main() -> int:
             emit_error(header)
             if output:
                 emit_error(output)
+
+    emit_progress(
+        f"Unit test summary: {loaded_tests} tests loaded, {skipped_tests} skipped, "
+        f"{len(failed_modules)} failed modules"
+    )
 
     if failed_modules:
         if args.failure_report:

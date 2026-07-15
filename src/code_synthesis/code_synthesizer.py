@@ -30,7 +30,14 @@ from src.utils.semantic_intents import (
 class CodeSynthesizer:
     """[Phase 23.3: Pure Orchestration] Design-to-Code の中心的なオーケストレータークラス。"""
 
-    def __init__(self, config, method_store=None, morph_analyzer=None, matcher=None):
+    def __init__(
+        self,
+        config,
+        method_store=None,
+        morph_analyzer=None,
+        matcher=None,
+        builder_client=None,
+    ):
         self.config = config
         self.morph_analyzer = morph_analyzer or MorphAnalyzer(config_manager=config)
         if method_store is None:
@@ -76,7 +83,7 @@ class CodeSynthesizer:
         self.action_synthesizer = ActionSynthesizer(self)
         from src.code_synthesis.ir_emitter import IREmitter
         self.ir_emitter = IREmitter(self)
-        self.builder_client = CodeBuilderClient(config)
+        self.builder_client = builder_client or CodeBuilderClient(config)
         self.design_steps_history = []
         strict_cfg = {}
         if hasattr(config, "get_section"):

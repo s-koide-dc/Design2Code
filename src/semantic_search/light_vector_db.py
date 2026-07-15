@@ -3,6 +3,23 @@ import os
 import json
 import numpy as np
 import logging
+import tempfile
+import threading
+import time
+
+
+_SAVE_LOCKS = {}
+_SAVE_LOCKS_GUARD = threading.Lock()
+
+
+def _save_lock_for(path: str) -> threading.RLock:
+    normalized_path = os.path.normcase(os.path.abspath(path))
+    with _SAVE_LOCKS_GUARD:
+        lock = _SAVE_LOCKS.get(normalized_path)
+        if lock is None:
+            lock = threading.RLock()
+            _SAVE_LOCKS[normalized_path] = lock
+        return lock
 from typing import Dict, List, Any, Optional
 
 class LightVectorCollection:
@@ -18,6 +35,7 @@ class LightVectorCollection:
         self.items: List[Dict[str, Any]] = []
         self.vectors: Optional[np.ndarray] = None
         self.id_to_index: Dict[str, int] = {}
+        self._save_lock = _save_lock_for(self.metadata_path)
         self._load()
 
     def _load(self):
@@ -118,15 +136,73 @@ class LightVectorCollection:
 
     def _save(self):
         """永続化"""
-        os.makedirs(self.storage_dir, exist_ok=True)
-        try:
-            with open(self.metadata_path, 'w', encoding='utf-8') as f:
-                json.dump(self.items, f, ensure_ascii=False, indent=2)
+        with self._save_lock:
+            os.makedirs(self.storage_dir, exist_ok=True)
+            temporary_paths = []
+            try:
+                metadata_tmp = self._write_json_atomically(self.items)
+                temporary_paths.append(metadata_tmp)
+                self._replace_with_retry(metadata_tmp, self.metadata_path)
+                temporary_paths.remove(metadata_tmp)
 
-            if self.vectors is not None:
-                np.save(self.vector_path, self.vectors)
-        except Exception as e:
-            logging.error(f"Failed to save {self.name}: {e}")
+                if self.vectors is not None:
+                    vector_tmp = self._write_numpy_atomically(self.vectors)
+                    temporary_paths.append(vector_tmp)
+                    self._replace_with_retry(vector_tmp, self.vector_path)
+                    temporary_paths.remove(vector_tmp)
+                elif os.path.exists(self.vector_path):
+                    # Do not leave stale vectors after the last item is removed.
+                    os.remove(self.vector_path)
+            except Exception as e:
+                logging.error(f"Failed to save {self.name}: {e}")
+            finally:
+                for temporary_path in temporary_paths:
+                    try:
+                        os.remove(temporary_path)
+                    except OSError:
+                        pass
+
+    def _write_json_atomically(self, value) -> str:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=self.storage_dir,
+            prefix=f"{self.name}_metadata_",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary_file:
+            json.dump(value, temporary_file, ensure_ascii=False, indent=2)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+            return temporary_file.name
+
+    def _write_numpy_atomically(self, value: np.ndarray) -> str:
+        with tempfile.NamedTemporaryFile(
+            mode="w+b",
+            dir=self.storage_dir,
+            prefix=f"{self.name}_vectors_",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary_file:
+            np.save(temporary_file, value)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+            return temporary_file.name
+
+    @staticmethod
+    def _replace_with_retry(source_path: str, target_path: str) -> None:
+        last_error = None
+        for attempt in range(5):
+            try:
+                os.replace(source_path, target_path)
+                return
+            except PermissionError as exc:
+                last_error = exc
+                if attempt == 4:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
+        if last_error is not None:
+            raise last_error
 
     def query(self, query_vector: np.ndarray, top_k: int = 5) -> List[Dict[str, Any]]:
         """類似度検索（コサイン類似度）"""

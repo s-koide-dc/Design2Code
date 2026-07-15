@@ -175,10 +175,11 @@ class TestRepairKnowledgeBase(unittest.TestCase):
         ) as metadata:
             metadata.write("{invalid")
 
-        kb = RepairKnowledgeBase(
-            config_manager=self.config,
-            vector_engine=DummyVectorEngine(),
-        )
+        with self.assertLogs("SemanticSearch.repair_knowledge", level="ERROR") as captured:
+            kb = RepairKnowledgeBase(
+                config_manager=self.config,
+                vector_engine=DummyVectorEngine(),
+            )
 
         self.assertEqual(
             "REPAIR_KNOWLEDGE_LOAD_ERROR",
@@ -188,6 +189,7 @@ class TestRepairKnowledgeBase(unittest.TestCase):
             "JSONDecodeError",
             kb.load_diagnostics[0]["error_type"],
         )
+        self.assertIn("Failed to sync repair_knowledge", "\n".join(captured.output))
 
 
 if __name__ == "__main__":

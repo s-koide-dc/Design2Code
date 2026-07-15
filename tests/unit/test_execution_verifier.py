@@ -1,10 +1,29 @@
 import json
+import os
 import unittest
 
 from src.code_verification.execution_verifier import ExecutionVerifier
 
 
+def requires_external_code_builder(test_method):
+    return unittest.skipUnless(
+        os.environ.get("RUN_EXECUTION_VERIFIER_TESTS") == "1",
+        "requires external .NET CodeBuilder; set RUN_EXECUTION_VERIFIER_TESTS=1",
+    )(test_method)
+
+
 class TestExecutionVerifier(unittest.TestCase):
+    def test_side_effecting_code_requires_explicit_sandbox(self):
+        result = ExecutionVerifier().run_and_capture(
+            "public class Worker { public void Run() {} }",
+            "Run",
+            has_side_effects=True,
+        )
+
+        self.assertFalse(result["success"])
+        self.assertEqual("SIDE_EFFECT_EXECUTION_BLOCKED", result["error_type"])
+
+    @requires_external_code_builder
     def test_source_inspection_uses_roslyn_structure(self):
         source = """
 using System.Threading.Tasks;

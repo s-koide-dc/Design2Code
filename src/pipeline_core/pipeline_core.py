@@ -39,6 +39,7 @@ class Pipeline:
         self.config_manager = ConfigManager(workspace_root=workspace_root)
         force_vector = os.environ.get("FORCE_VECTOR_MODEL") == "1"
         test_mode = is_test_mode or os.environ.get("PYTEST_CURRENT_TEST") or "unittest" in sys.modules
+        self._is_test_mode = bool(test_mode)
         self._skip_vector_model = os.environ.get("SKIP_VECTOR_MODEL") == "1"
         if test_mode and not force_vector:
             # Skip vector loading only when cache is not available
@@ -50,6 +51,7 @@ class Pipeline:
 
         self._vector_engine = None
         self._vector_engine_future = None
+        self._vector_executor = None
         self._intent_detector = None
         self._response_generator = None
         self._autonomous_learning = None
@@ -138,13 +140,29 @@ class Pipeline:
 
     def _start_vector_engine_loading(self):
         """Starts loading VectorEngine in a background thread."""
+        if self._skip_vector_model:
+            # No model lookup or worker thread is needed when loading is explicitly
+            # disabled (for example, lightweight unit-test mode).
+            self._vector_engine = VectorEngine(
+                model_path=self.config_manager.vector_model_path,
+                skip_load=True,
+            )
+            return
+
         import concurrent.futures
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        self._vector_engine_future = executor.submit(
+        self._vector_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self._vector_engine_future = self._vector_executor.submit(
             VectorEngine,
             model_path=self.config_manager.vector_model_path,
             skip_load=self._skip_vector_model,
         )
+        self._vector_engine_future.add_done_callback(lambda _future: self._shutdown_vector_executor())
+
+    def _shutdown_vector_executor(self):
+        executor = self._vector_executor
+        if executor:
+            self._vector_executor = None
+            executor.shutdown(wait=False, cancel_futures=True)
 
     @property
     def vector_engine(self):
@@ -161,6 +179,8 @@ class Pipeline:
                         model_path=v_path,
                         skip_load=self._skip_vector_model,
                     )
+                finally:
+                    self._shutdown_vector_executor()
             else:
                 self._vector_engine = VectorEngine(
                     model_path=v_path,
@@ -196,11 +216,12 @@ class Pipeline:
     def autonomous_learning(self):
         if self._autonomous_learning is None:
             self._autonomous_learning = AutonomousLearning(
-                workspace_root=os.getcwd(),
+                workspace_root=str(self.config_manager.workspace_root),
                 log_manager=self.log_manager,
                 intent_detector=self._intent_detector,
                 vector_engine=self.vector_engine,
-                morph_analyzer=self.morph_analyzer
+                morph_analyzer=self.morph_analyzer,
+                index_on_init=not self._is_test_mode,
             )
         return self._autonomous_learning
 
@@ -222,7 +243,7 @@ class Pipeline:
         events = self.log_manager.get_events_after(start_time)
         if not events: return
 
-        log_dir = "logs"
+        log_dir = str(self.config_manager.workspace_root / "logs")
         os.makedirs(log_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         log_file = os.path.join(log_dir, f"pipeline_{timestamp}.json")

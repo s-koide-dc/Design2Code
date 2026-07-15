@@ -184,7 +184,9 @@ class SemanticAnalyzer:
         # Single filename match
         # For dotted names, ONLY extract if explicitly marked as "file" or similar.
         # Clear extensions are allowed to be extracted as filenames automatically.
-        extensions = r'\.(json|txt|md|csv|xml|html|cs|config|log|pdf|zip|png|jpg)'
+        # Keep longer project extensions ahead of their shorter prefixes and
+        # require a token boundary so ``.csproj`` cannot be truncated to ``.cs``.
+        extensions = r'\.(csproj|slnx|targets|props|json|txt|md|csv|xml|html|cs|sln|config|log|pdf|zip|png|jpg)(?![A-Za-z0-9_])'
         fn_with_ext = rf'(?P<bfn>[\w\-\./\\]+{extensions})'
 
         # We REMOVE {dotted_name} from the automatic extraction to avoid matching code.

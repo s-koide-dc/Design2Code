@@ -1,5 +1,5 @@
 # semantic_analyzer Design Document
-<!-- metadata-sync: 2026-07-09T00:00:00+09:00 -->
+<!-- metadata-sync: 2026-07-15T00:00:00+09:00 -->
 
 ## 1. Purpose
 
@@ -39,6 +39,7 @@
 4. `analysis.entities` が存在する場合は抽出結果をマージし、`pipeline_history` に `semantic_analyzer` を追加する。
 5. `_extract_entities` は以下を実行する。
    - URL を最優先で抽出し、テキストから除外する。
+   - 明示的なファイル拡張子は `.csproj` / `.slnx` / `.props` / `.targets` を含めて抽出し、短い拡張子が長い拡張子を途中で切り取らないよう境界を検証する。
    - `src.utils.action_intents` の共通定数を使い、`FILE_MOVE/FILE_COPY/BACKUP_AND_DELETE` ではソース/デスティネーションを分離抽出する。
    - `FILE_CREATE/FILE_APPEND` では引用符内テキストを内容候補として抽出する。
    - `awaiting_entity` がある場合は積極的に抽出して信頼度を 1.0 にする。
@@ -54,7 +55,9 @@
   - **Scenario**: `FILE_CREATE` でファイル名が抽出される。
   - **Input**: `"test.txt を作成"`
   - **Expected Output**: `entities.filename.value == "test.txt"`。
-- **Edge Cases**:
+  - **Edge Cases**:
+  - **Scenario**: `.csproj` を含む .NET プロジェクトパスを抽出する。
+  - **Expected Output / Behavior**: `entities.filename.value` が `.csproj` まで保持される。
   - **Scenario**: `analysis.chunks` が存在しない。
   - **Expected Output / Behavior**: `errors` にメッセージを追加して終了。
   - **Scenario**: 指示語入力（「それを削除」）で履歴参照。

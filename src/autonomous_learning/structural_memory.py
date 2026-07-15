@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import tempfile
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -19,6 +20,10 @@ class StructuralMemory(SemanticSearchBase):
         root = config_manager.workspace_root if config_manager else os.getcwd()
         super().__init__("structural_memory", storage_dir, vector_engine, morph_analyzer, workspace_root=root)
         self.workspace_root = root
+        self.index_manifest_path = os.path.join(
+            storage_dir,
+            "structural_memory_index_manifest.json",
+        )
         self.ast_analyzer = ASTAnalyzer()
         self.load()
         if index_on_init:
@@ -63,6 +68,18 @@ class StructuralMemory(SemanticSearchBase):
                 self.logger.info(f"Source directory {src_dir} not found (skipped indexing).")
             return
 
+        source_manifest = self._build_source_manifest(src_dir, workspace_path)
+        if (
+            self.collection.items
+            and source_manifest == self._load_index_manifest()
+        ):
+            self.items = self.collection.items
+            self.logger.info(
+                "Structural index is up to date; skipped AST analysis (%d components).",
+                len(self.items),
+            )
+            return
+
         # 既存のインデックスを完全にクリアしてから再構築する (Zombieデータ根絶)
         self.items = []
         self.id_to_index = {}
@@ -85,6 +102,7 @@ class StructuralMemory(SemanticSearchBase):
         batch_ids = []
         batch_vectors = []
         batch_items = []
+        index_errors = 0
 
         # 再帰的にファイルを探索
         for root, dirs, files in os.walk(src_dir):
@@ -260,6 +278,7 @@ class StructuralMemory(SemanticSearchBase):
                             })
 
                     except Exception as e:
+                        index_errors += 1
                         self.logger.warning(f"Failed to index {file_path}: {e}")
 
         if batch_ids:
@@ -267,7 +286,69 @@ class StructuralMemory(SemanticSearchBase):
             self.items = self.collection.items
             self.save_memory()
 
+        if index_errors == 0:
+            self._save_index_manifest(source_manifest)
+
         self.logger.info(f"Indexed {len(self.items)} components.")
+
+    @staticmethod
+    def _build_source_manifest(src_dir: Path, workspace_path: Path) -> List[Dict[str, Any]]:
+        """Build a cheap source fingerprint without reading source contents."""
+        manifest = []
+        for root, dirs, files in os.walk(src_dir):
+            dirs[:] = [
+                directory
+                for directory in dirs
+                if directory not in ["tests", "scenarios", "obj", "bin", ".git", ".venv"]
+            ]
+            for file in files:
+                if not file.endswith((".py", ".cs")):
+                    continue
+                file_path = Path(root) / file
+                try:
+                    stat = file_path.stat()
+                except OSError:
+                    continue
+                manifest.append({
+                    "path": str(file_path.relative_to(workspace_path)),
+                    "size": stat.st_size,
+                    "mtime_ns": stat.st_mtime_ns,
+                })
+        manifest.sort(key=lambda entry: entry["path"])
+        return manifest
+
+    def _load_index_manifest(self) -> Optional[List[Dict[str, Any]]]:
+        try:
+            with open(self.index_manifest_path, "r", encoding="utf-8") as manifest_file:
+                data = json.load(manifest_file)
+            return data if isinstance(data, list) else None
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def _save_index_manifest(self, manifest: List[Dict[str, Any]]) -> None:
+        os.makedirs(os.path.dirname(self.index_manifest_path), exist_ok=True)
+        temporary_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=os.path.dirname(self.index_manifest_path),
+                prefix="structural_memory_index_",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = temporary_file.name
+                json.dump(manifest, temporary_file, ensure_ascii=False, indent=2)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+            os.replace(temporary_path, self.index_manifest_path)
+        except OSError as exc:
+            self.logger.warning("Failed to save structural index manifest: %s", exc)
+            if temporary_path:
+                try:
+                    os.remove(temporary_path)
+                except OSError:
+                    pass
 
     def search_component(
         self,

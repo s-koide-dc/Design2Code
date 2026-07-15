@@ -30,7 +30,16 @@ from src.vector_engine.vector_engine import VectorEngine
 class AutonomousLearning:
     """自律学習のメインクラス"""
 
-    def __init__(self, workspace_root: str, log_manager=None, intent_detector=None, vector_engine=None, morph_analyzer=None):
+    def __init__(
+        self,
+        workspace_root: str,
+        log_manager=None,
+        intent_detector=None,
+        vector_engine=None,
+        morph_analyzer=None,
+        index_on_init: bool = True,
+        skip_vector_model: bool = False,
+    ):
         self.workspace_root = Path(workspace_root)
         self.log_manager = log_manager
         self.intent_detector = intent_detector
@@ -43,7 +52,10 @@ class AutonomousLearning:
         if vector_engine is None:
             try:
                 model_path = cfg.vector_model_path if cfg else None
-                vector_engine = VectorEngine(model_path=model_path)
+                vector_engine = VectorEngine(
+                    model_path=model_path,
+                    skip_load=skip_vector_model,
+                )
             except Exception:
                 vector_engine = None
 
@@ -70,7 +82,8 @@ class AutonomousLearning:
             structural_storage_dir,
             config_manager=cfg,
             vector_engine=vector_engine,
-            morph_analyzer=morph_analyzer
+            morph_analyzer=morph_analyzer,
+            index_on_init=index_on_init,
         )
         self.compliance_auditor = ComplianceAuditor(str(self.workspace_root), structural_memory=self.structural_memory)
 

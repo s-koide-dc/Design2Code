@@ -115,7 +115,8 @@ public class ProcessorTests
         csproj_path = os.path.join(self.repro_dir, "Repro.csproj")
 
         # --- Turn 1: Run Test ---
-        print("\n--- Turn 1: Run failing test ---")
+        # The fixture intentionally fails so the next turn can analyze it.
+        print("\n--- Turn 1: Run test (expected failure) ---")
         context1 = self.pipeline.run(f"session_id:{self.session_id} テストを実行して")
         if "action_result" not in context1:
             context1 = self.pipeline.run(
@@ -125,7 +126,7 @@ public class ProcessorTests
         if 'action_result' in context1 and 'test_summary' in context1['action_result']:
             details = context1['action_result']['test_summary'].get('error_details', [])
             if details:
-                print(f"[DEBUG] Turn 1 Stack Trace:\n{details[0].get('stack_trace')}")
+                print(f"[EXPECTED_FAILURE] Stack trace:\n{details[0].get('stack_trace')}")
         self.assertEqual(context1["action_result"]["test_summary"]["failed_count"], 1)
 
         # --- Turn 2: Analyze Failure ---
@@ -150,7 +151,7 @@ public class ProcessorTests
             suggestions[0]["impact_analysis"]["recommended_action"],
             "inspect_manual_fix",
         )
-        print(f"Suggested Code: {suggestions[0]['suggested_code']}")
+        print(f"Manual-fix suggestion (no generated code expected): {suggestions[0]['suggested_code']}")
 
         with open(
             os.path.join(self.repro_dir, "ProcessorTests.cs"),

@@ -105,6 +105,17 @@ class TestSemanticAnalyzer(unittest.TestCase):
         self.assertEqual(result["analysis"]["entities"]["filename"]["value"], "data.csv")
         self.assertEqual(result["analysis"]["entities"]["filename"]["confidence"], 0.9)
 
+    def test_entity_extraction_preserves_dotnet_project_extension(self):
+        result = self.analyzer.analyze({
+            "original_text": "tests/fixtures/GeneralityCheck/GeneralityCheck.csproj を解析して",
+            "analysis": {"intent": "CS_ANALYZE", "chunks": []},
+        })
+
+        self.assertEqual(
+            "tests/fixtures/GeneralityCheck/GeneralityCheck.csproj",
+            result["analysis"]["entities"]["filename"]["value"],
+        )
+
     def test_entity_extraction_content_with_confidence(self):
         """Verify regex extraction of content in brackets with confidence."""
         initial_context = {

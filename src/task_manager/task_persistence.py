@@ -8,6 +8,8 @@
 
 import json
 import os
+import hashlib
+import tempfile
 from typing import Optional
 from datetime import datetime, timedelta
 
@@ -33,7 +35,10 @@ class TaskPersistence:
 
     def _get_state_file_path(self, session_id: str) -> str:
         """セッションIDに対応する状態ファイルのパスを取得"""
-        safe_session_id = "".join(c for c in session_id if c.isalnum() or c in "-_")
+        raw_session_id = str(session_id)
+        readable = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw_session_id)
+        digest = hashlib.sha256(raw_session_id.encode("utf-8")).hexdigest()[:16]
+        safe_session_id = f"{readable[:80] or 'session'}_{digest}"
         return os.path.join(self.storage_dir, f"task_state_{safe_session_id}.json")
 
     def _log_error(self, message: str):
@@ -61,8 +66,16 @@ class TaskPersistence:
             }
 
             file_path = self._get_state_file_path(session_id)
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(state_data, f, ensure_ascii=False, indent=2)
+            fd, temporary_path = tempfile.mkstemp(prefix=".task_state_", suffix=".tmp", dir=self.storage_dir)
+            try:
+                with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                    json.dump(state_data, f, ensure_ascii=False, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(temporary_path, file_path)
+            finally:
+                if os.path.exists(temporary_path):
+                    os.remove(temporary_path)
 
             return True
         except Exception as e:

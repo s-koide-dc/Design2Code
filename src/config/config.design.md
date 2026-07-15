@@ -19,7 +19,7 @@
 ### Core Logic
 1. `config/` 配下の JSON（`config.json`, `safety_policy.json`, `retry_rules.json` など）を読み込む。
 2. 読み込み失敗時は空辞書として扱う。
-3. `resources/` 配下の各種パス（辞書・モデル・定義ファイル）を解決して保持する。
+3. 入力された workspace root を絶対パスへ解決し、`resources/` 配下の各種パス（辞書・モデル・定義ファイル）をその root 基準で保持する。
 4. `get` / `get_section` で設定値を取得する。
 
 ### Test Cases

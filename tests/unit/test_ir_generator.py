@@ -6,9 +6,14 @@ from src.ir_generator.ir_generator import IRGenerator
 from src.config.config_manager import ConfigManager
 
 class TestIRGenerator(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.config = ConfigManager()
+        cls.generator = IRGenerator(cls.config)
+
     def setUp(self):
-        self.config = ConfigManager()
-        self.generator = IRGenerator(self.config)
+        self.config = self.__class__.config
+        self.generator = self.__class__.generator
 
     def test_generate_simple_chain(self):
         steps = [
