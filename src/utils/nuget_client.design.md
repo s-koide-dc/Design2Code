@@ -8,6 +8,7 @@
 ### Input
 - **Constructor**:
     - `config_manager`: 設定マネージャ（`dependency_map_path` を提供）。
+    - `urlopen`: 任意のHTTPトランスポート。未指定時は `urllib.request.urlopen` を使い、テストや専用実行環境では決定論的な応答を注入できる。
 - **Method `resolve_package`**:
     - `namespace_or_name`: 解決したい名前空間または型名（例: `YamlDotNet.Serialization`）。
 

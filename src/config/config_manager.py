@@ -14,7 +14,7 @@ class ConfigManager:
     Handles loading of all JSON configs and providing path resolution.
     """
     def __init__(self, workspace_root=None, strict: bool = False):
-        self.workspace_root = Path(workspace_root or os.getcwd())
+        self.workspace_root = Path(workspace_root or os.getcwd()).resolve()
         self.load_errors: List[Dict[str, str]] = []
         self.missing_config_files: List[str] = []
 
@@ -88,6 +88,10 @@ class ConfigManager:
 
     def get_safety_policy(self) -> Dict[str, Any]:
         return self.safety_policy
+
+    def get_safety_policy_model(self):
+        from src.safety.policy import SafetyPolicy
+        return SafetyPolicy.from_mapping(self.safety_policy)
 
     def get_retry_rules(self) -> list:
         return self.retry_rules.get("retry_rules", [])

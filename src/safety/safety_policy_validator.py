@@ -17,6 +17,7 @@ from src.utils.action_intents import (
     INTENT_FILE_MOVE,
 )
 from src.utils.context_utils import normalize_path
+from src.safety.policy import SafetyPolicy
 
 class RiskLevel(Enum):
     LOW = "LOW"
@@ -49,36 +50,19 @@ class SafetyPolicyValidator:
         self.action_executor = action_executor
         self.config_manager = config_manager
 
-        # Load from config if available
-        if config_manager:
-            policy = config_manager.get_safety_policy()
-            self.destructive_intents = set(policy.get("destructive_intents", []))
-            self.cautionary_intents = set(policy.get("cautionary_intents", []))
-            self.blocked_metacharacters = policy.get("blocked_metacharacters", ['&', '|', ';', '>', '<', '`', '$'])
-            self.disallowed_args = policy.get("disallowed_args", {})
-            self.allowed_subcommands = policy.get("allowed_subcommands", {})
-            self.python_allowed_dirs = policy.get("python_allowed_dirs", ["scripts"])
-            self.python_allowed_scripts = policy.get("python_allowed_scripts", [])
-            self.read_commands = policy.get("read_commands", ["cat", "type"])
-            self.list_commands = policy.get("list_commands", ["ls", "dir"])
-            self.read_allowed_dirs = policy.get("read_allowed_dirs", [])
-            self.read_blocked_rules = policy.get("read_blocked_rules", [])
-        else:
-            # Default values in case file loading fails
-            self.destructive_intents = {
-                INTENT_FILE_DELETE, INTENT_FILE_MOVE, INTENT_BACKUP_AND_DELETE,
-                INTENT_APPLY_CODE_FIX, INTENT_APPLY_REFACTORING, INTENT_FILE_APPEND, INTENT_CMD_RUN
-            }
-            self.cautionary_intents = {INTENT_FILE_CREATE}
-            self.blocked_metacharacters = ['&', '|', ';', '>', '<', '`', '$']
-            self.disallowed_args = {}
-            self.allowed_subcommands = {}
-            self.python_allowed_dirs = ["scripts"]
-            self.python_allowed_scripts = []
-            self.read_commands = ["cat", "type"]
-            self.list_commands = ["ls", "dir"]
-            self.read_allowed_dirs = []
-            self.read_blocked_rules = []
+        # Keep planner-time validation on the same normalized policy as execution.
+        policy = config_manager.get_safety_policy_model() if config_manager else SafetyPolicy()
+        self.destructive_intents = policy.destructive_intents
+        self.cautionary_intents = policy.cautionary_intents
+        self.blocked_metacharacters = policy.blocked_metacharacters
+        self.disallowed_args = policy.disallowed_args
+        self.allowed_subcommands = policy.allowed_subcommands
+        self.python_allowed_dirs = policy.python_allowed_dirs
+        self.python_allowed_scripts = policy.python_allowed_scripts
+        self.read_commands = policy.read_commands
+        self.list_commands = policy.list_commands
+        self.read_allowed_dirs = policy.read_allowed_dirs
+        self.read_blocked_rules = policy.read_blocked_rules
 
     def validate_action(self, action_method: str, parameters: Dict[str, Any], intent: str = None) -> SafetyCheckResult:
         """

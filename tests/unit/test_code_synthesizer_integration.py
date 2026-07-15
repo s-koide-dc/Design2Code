@@ -9,7 +9,20 @@ from src.config.config_manager import ConfigManager
 from src.morph_analyzer.morph_analyzer import MorphAnalyzer
 from src.utils.code_builder_client import CodeBuilderClient
 
+
+def requires_external_code_builder(test_method):
+    return unittest.skipUnless(
+        os.environ.get("RUN_CODEBUILDER_TESTS") == "1",
+        "requires external .NET CodeBuilder; set RUN_CODEBUILDER_TESTS=1",
+    )(test_method)
+
 class TestCodeSynthesizerIntegration(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        # Janome's dictionary load is immutable after construction and is safe
+        # to share across isolated per-test stores.
+        cls.shared_morph_analyzer = MorphAnalyzer()
 
     def _debug_dump_generated_code(self, label, code):
         flag = str(os.environ.get("NLP_TEST_DEBUG_STDOUT", "")).strip().lower()
@@ -79,7 +92,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.cm.get_retry_rules.return_value = []
         self.cm.get_safety_policy.return_value = {}
 
-        self.ma = MorphAnalyzer(config_manager=self.cm)
+        self.ma = self.__class__.shared_morph_analyzer
         from src.code_synthesis.method_store import MethodStore
         self.vector_engine = DummyVectorEngine()
         self.ms = MethodStore(self.cm, morph_analyzer=self.ma, vector_engine=self.vector_engine)
@@ -187,8 +200,11 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
 
         # Inject required methods for testing
         store = self.ms
+        original_collection_save = store.collection._save
+        store.collection._save = lambda: None
 
-        store.add_method({
+        try:
+            store.add_method({
             "id": "validate_email_test",
             "name": "ValidateEmail",
             "class": "Common.Validation.Utils",
@@ -199,9 +215,9 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "role": "TRANSFORM",
             "capabilities": ["TRANSFORM"],
             "tags": ["validation"]
-        }, overwrite=True)
+            }, overwrite=True)
 
-        store.add_method({
+            store.add_method({
             "id": "get_user_test",
             "name": "GetUser",
             "class": "Common.Data.Repository",
@@ -212,9 +228,9 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "role": "FETCH",
             "capabilities": ["FETCH"],
             "tags": ["data"]
-        }, overwrite=True)
+            }, overwrite=True)
 
-        store.add_method({
+            store.add_method({
             "id": "save_data_test",
             "name": "SaveData",
             "class": "Common.Data.Repository",
@@ -225,9 +241,9 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "role": "PERSIST",
             "capabilities": ["PERSIST"],
             "tags": ["io"]
-        }, overwrite=True)
+            }, overwrite=True)
 
-        store.add_method({
+            store.add_method({
             "id": "env_get_test",
             "name": "GetEnvironmentVariable",
             "class": "Environment",
@@ -238,7 +254,10 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             "role": "READ",
             "capabilities": ["FETCH"],
             "tags": ["env", "fetch"]
-        }, overwrite=True)
+            }, overwrite=True)
+        finally:
+            store.collection._save = original_collection_save
+        store.collection._save()
 
     def tearDown(self):
         self.test_dir.cleanup()
@@ -1698,6 +1717,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("System.Threading.Thread.Sleep(retryDelayMs);", code)
         self.assertIn("retryDelayMs = Math.Min(1000, (int)Math.Ceiling(retryDelayMs * 2.0));", code)
 
+    @requires_external_code_builder
     def test_code_builder_rejects_empty_structural_body(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()
@@ -1723,6 +1743,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         )
         self.assertNotIn("TODO", result.get("code", ""))
 
+    @requires_external_code_builder
     def test_code_builder_rejects_unsupported_statement(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()
@@ -1742,6 +1763,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
             result.get("errors", [{}])[0].get("reason"),
         )
 
+    @requires_external_code_builder
     def test_code_builder_accepts_structured_try_catch_statement(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()
@@ -1777,6 +1799,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("return false;", code)
         self.assertIn("return true;", code)
 
+    @requires_external_code_builder
     def test_code_builder_rejects_invalid_call_argument_expression(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()
@@ -1799,6 +1822,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("Invalid argument", result.get("message", ""))
         self.assertNotIn("code", result)
 
+    @requires_external_code_builder
     def test_code_builder_rejects_generated_syntax_diagnostics(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()
@@ -1817,6 +1841,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertTrue(result.get("diagnostics"))
         self.assertNotIn("code", result)
 
+    @requires_external_code_builder
     def test_code_builder_analyzes_source_metrics_with_roslyn(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()
@@ -1871,6 +1896,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertEqual(1, helper.get("catch_count"))
         self.assertEqual("GeneratedOperationResult", constructor.get("declaring_type"))
 
+    @requires_external_code_builder
     def test_async_retry_blueprint_uses_task_delay_for_backoff(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()
@@ -1910,6 +1936,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("await Task.Delay(retryDelayMs);", code)
         self.assertIn("retryDelayMs = Math.Min(1000, (int)Math.Ceiling(retryDelayMs * 2));", code)
 
+    @requires_external_code_builder
     def test_wrap_runtime_bridge_uses_explicit_timeout_metadata(self):
         ir_tree = {
             "logic_tree": [
@@ -1972,6 +1999,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("System.TimeSpan.FromMilliseconds(5000)", code)
         self.assertIn("System.TimeoutException(\"Operation timed out after 5000ms.\")", code)
 
+    @requires_external_code_builder
     def test_async_timeout_blueprint_uses_wait_async(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()
@@ -2008,6 +2036,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("await timeoutTask.WaitAsync(timeoutCts.Token);", code)
         self.assertIn("throw new System.TimeoutException(\"Operation timed out after 2500ms.\");", code)
 
+    @requires_external_code_builder
     def test_wrap_runtime_bridge_uses_explicit_transaction_metadata(self):
         ir_tree = {
             "logic_tree": [
@@ -2068,6 +2097,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertIn("transactionScope.Complete();", code)
         self.assertIn("Console.WriteLine", code)
 
+    @requires_external_code_builder
     def test_async_transaction_blueprint_uses_transaction_scope_async_flow(self):
         real_cm = MagicMock()
         real_cm.workspace_root = os.getcwd()

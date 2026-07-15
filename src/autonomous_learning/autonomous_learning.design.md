@@ -17,13 +17,13 @@
 - **Type/Format**: `Dict[str, Any]`
 
 ### Core Logic
-1. 設定を読み込み、`LogAnalyzer` / `PatternLearner` / `SafetyEvaluator` / `EventProcessor` を初期化する。
+1. 設定を読み込み、`LogAnalyzer` / `PatternLearner` / `SafetyEvaluator` / `EventProcessor` を初期化する。`index_on_init` が真の場合のみ、StructuralMemoryの初期化時にプロジェクト構造を再解析する。実モデルを利用できない呼び出し元は `skip_vector_model` を指定してVectorEngineのモデル探索を省略できる。
 2. `ConfigManager.storage_dir`（`resources/vectors/vector_db`）を `RepairKnowledgeBase` / `StructuralMemory` の統一保存先として使用する。
 3. 旧配置（ワークスペース直下 / `resources` / `cache`）にある `repair_knowledge_meta.json` / `repair_knowledge_vectors.npy` と `structural_memory_meta.json` / `structural_memory_vectors.npy` は、起動時に統一保存先へ移行する。
 4. `trigger_learning` はイベントを同期/非同期で処理する。
    非同期処理の失敗は `learning_diagnostics` にイベント種別と例外型を記録する。
 5. `run_learning_cycle` はログを収集し、パターン抽出 → 提案生成 → 安全評価 → 適用を行う。
-6. 学習サイクル内で修復知識学習、辞書マッピング統合、構造メモリ索引、コンプライアンス監査を実行する。
+6. 学習サイクル内で修復知識学習、辞書マッピング統合、構造メモリ索引、コンプライアンス監査を実行する。StructuralMemoryはソースの相対パス・サイズ・更新時刻マニフェストを比較し、変更がない場合はAST再解析を省略する。変更時は従来どおり全体を再構築し、解析完了後にマニフェストを原子的に保存する。
 7. `apply_suggestions` は意図ルールとリトライルールを更新する。
 8. `generate_knowledge_summary` は修復知識とコンプライアンスの概要を返す。
    behavioral feedbackの不正行は行番号付きで診断し、正常行は保持する。

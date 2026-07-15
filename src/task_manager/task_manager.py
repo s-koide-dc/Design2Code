@@ -38,10 +38,11 @@ class TaskManager:
         Initializes the TaskManager.
         """
         from .metrics import TaskManagerMetrics
-        from .task_persistence import TaskPersistence
+        from .state_store import TaskStateStore
         from .approval_messages import ApprovalMessageGenerator
         from .condition_evaluator import ConditionEvaluator
         from .session_manager import SessionManager
+        from .approval_workflow import ApprovalWorkflow
         from types import SimpleNamespace
 
         # 1. Initialize global config manager
@@ -89,7 +90,8 @@ class TaskManager:
         self.metrics = TaskManagerMetrics() if self.config.debug_mode else None
 
         # 状態永続化
-        self.persistence = TaskPersistence(
+        self.persistence = TaskStateStore(
+            enabled=True,
             storage_dir=self.config.persistence_dir,
             max_age_hours=self.config.max_state_age_hours,
             log_manager=self.log_manager
@@ -97,6 +99,7 @@ class TaskManager:
 
         # 承認メッセージジェネレーター
         self.approval_messages = ApprovalMessageGenerator()
+        self.approval_workflow = ApprovalWorkflow()
 
         # 条件評価器
         self.condition_evaluator = ConditionEvaluator()
@@ -267,9 +270,14 @@ class TaskManager:
                 self._log_debug(f"Active task found with clarification needed: {active_task['name']}")
 
                 # Check for user_response entity (from vector fallback) or directly use intent
-                user_response_val = RESPONSE_APPROVED if intent == INTENT_AGREE else RESPONSE_REJECTED if intent == INTENT_DISAGREE else intent
-                if isinstance(entities.get("user_response"), dict):
-                    user_response_val = entities["user_response"].get("value", intent)
+                user_response_val = self.approval_workflow.response_value(
+                    intent,
+                    entities,
+                    INTENT_AGREE,
+                    INTENT_DISAGREE,
+                    RESPONSE_APPROVED,
+                    RESPONSE_REJECTED,
+                )
 
                 # Temporarily store for evaluation
                 active_task["parameters"]["user_response"] = user_response_val
@@ -289,8 +297,10 @@ class TaskManager:
                                 active_task["clarification_message"] = None
                                 active_task["clarification_type"] = None
                                 active_task.pop("awaiting_entity", None)
-                                if not active_task.get("approval_history"): active_task["approval_history"] = []
-                                active_task["approval_history"].append({"timestamp": time.time(), "action": "APPROVED"})
+                                self.approval_workflow.record_decision(
+                                    active_task,
+                                    self.approval_workflow.APPROVED,
+                                )
 
                                 if active_task.get("type") == "COMPOUND_TASK" and active_task.get("state") == "INIT":
                                     active_task["state"] = "IN_PROGRESS"
@@ -406,14 +416,10 @@ class TaskManager:
                                     active_task["clarification_message"] = None
 
                                     # 承認履歴の記録
-                                    if not active_task.get("approval_history"):
-                                        active_task["approval_history"] = []
-                                    active_task["approval_history"].append({
-                                        "timestamp": time.time(),
-                                        "action": "APPROVED",
-                                        "task_type": active_task.get("type", "SIMPLE_TASK"),
-                                        "task_name": active_task.get("name")
-                                    })
+                                    self.approval_workflow.record_decision(
+                                        active_task,
+                                        self.approval_workflow.APPROVED,
+                                    )
 
                                     # For compound tasks, set state to IN_PROGRESS after overall approval
                                     if active_task.get("type") == "COMPOUND_TASK" and active_task.get("state") == "INIT":
@@ -467,14 +473,10 @@ class TaskManager:
                                 elif transition["next_state"] == STATE_DISAGREED:
                                     # User disagreed, cancel the active task
                                     # 拒否履歴の記録
-                                    if not active_task.get("approval_history"):
-                                        active_task["approval_history"] = []
-                                    active_task["approval_history"].append({
-                                        "timestamp": time.time(),
-                                        "action": "REJECTED",
-                                        "task_type": active_task.get("type", "SIMPLE_TASK"),
-                                        "task_name": active_task.get("name")
-                                    })
+                                    self.approval_workflow.record_decision(
+                                        active_task,
+                                        self.approval_workflow.REJECTED,
+                                    )
 
                                     self.reset_task(session_id)
                                     context["task_cancelled"] = True

@@ -20,10 +20,16 @@ class DummyKnowledgeBase:
 
 
 class TestGenerationQuality(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.config = ConfigManager()
+        cls.parser = StructuredDesignParser()
+        cls.synthesizer = CodeSynthesizer(cls.config)
+
     def setUp(self):
-        self.config = ConfigManager()
-        self.parser = StructuredDesignParser()
-        self.synthesizer = CodeSynthesizer(self.config)
+        self.config = self.__class__.config
+        self.parser = self.__class__.parser
+        self.synthesizer = self.__class__.synthesizer
 
     def test_calculate_order_discount_uses_customer_type(self):
         spec = self.parser.parse_design_file("scenarios/CalculateOrderDiscount.design.md")

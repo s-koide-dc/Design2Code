@@ -30,9 +30,9 @@
 3. 起動時に `_rotate_expired_logs` 経由で `scripts.tools.rotate_logs.rotate_logs` を呼び出し、`LogManager` の `log_dir` / `log_file_prefix` に従ってログのメンテナンスを実施する。
    - `OSError` は運用上のローテーション失敗として `log_rotation_error` warning に記録する。
    - 予期しないプログラミングエラーは握りつぶさず、初期化時の失敗として表面化させる。
-4. `VectorEngine` は `_start_vector_engine_loading` でバックグラウンドロードを開始し、`vector_engine` プロパティ初回アクセス時に完了待ち（タイムアウト 30 秒）または同期ロードへフォールバックする。
+4. `VectorEngine` は通常 `_start_vector_engine_loading` でバックグラウンドロードを開始し、`vector_engine` プロパティ初回アクセス時に完了待ち（タイムアウト 30 秒）または同期ロードへフォールバックする。モデルロードがスキップされる場合は、不要なスレッドとモデル探索を避けるため軽量インスタンスを同期生成する。
 5. `IntentDetector` と `ResponseGenerator` はプロパティで遅延生成され、必要時に `vector_engine` を注入する。`ResponseGenerator` には `config_manager` も渡し、Phase 3 の `response_rewriter` 設定を参照できるようにする。
-6. `AutonomousLearning` は遅延生成され、`LogManager`、`MorphAnalyzer`、`VectorEngine` を利用して学習イベントを受け取る。
+6. `AutonomousLearning` は遅延生成され、`LogManager`、`MorphAnalyzer`、`VectorEngine` を利用して学習イベントを受け取る。テストモードでは既存のStructuralMemoryを読み込むが、起動時のプロジェクト全体AST再解析は行わない。
 7. `ClarificationManager` のしきい値は `config.json` の `clarification` セクションから読み込み、`Planner` の意図しきい値は `planner` セクションから読み込む。
 8. `run(text)` で初期 `context` を生成し、Stage を順に `execute(context, pipeline)` で実行する。
 9. Stage が `_early_exit` をセットした場合は以後のステージをスキップして終了する。
@@ -78,3 +78,5 @@
 
 - 2026-06-30: `workspace_root` をConfigManagerとActionExecutorへ一貫して注入し、モデルskip判定で環境変数を変更しない構成へ更新。
 - 2026-07-08: ログローテーションを `_rotate_expired_logs` に分離し、`OSError` は warning 記録、予期しない例外は隠さない契約へ更新。
+- 2026-07-15: 自律学習・セッションログ・外部コマンドの workspace root を ConfigManager の絶対パスへ統一し、VectorEngine 用 executor を終了処理する契約を追加。
+- 2026-07-15: VectorEngine のロードスキップ時はバックグラウンド executor を生成せず、軽量インスタンスを同期生成する構成へ更新。

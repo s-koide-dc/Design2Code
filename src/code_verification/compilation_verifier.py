@@ -4,6 +4,7 @@ import subprocess
 import shutil
 import tempfile
 from typing import Dict, List, Any, Optional
+from .dependency_contract import normalize_dependencies, render_package_references
 
 class CompilationVerifier:
     """生成された C# コードのコンパイル可能性を検証するクラス"""
@@ -12,25 +13,26 @@ class CompilationVerifier:
         self.config_manager = config_manager
         self.dotnet_path = "dotnet"
         self._initialized_dirs = set()
-        self.base_sandbox_path = os.path.join(os.getcwd(), "cache", "base_sandbox")
+        root = getattr(config_manager, "workspace_root", os.getcwd()) if config_manager else os.getcwd()
+        self.base_sandbox_path = os.path.join(str(root), "cache", "base_sandbox")
         self.default_deps = [
             {"name": "Dapper", "version": "2.1.35"},
             {"name": "Newtonsoft.Json", "version": "13.0.3"}
         ]
 
     def _merge_deps(self, base_deps: List[Dict[str, str]], extra_deps: List[Dict[str, str]] = None):
-        deps_by_name = {d.get("name"): dict(d) for d in base_deps if d.get("name")}
+        validated_base = normalize_dependencies(base_deps)
+        deps_by_name = {d["name"]: dict(d) for d in validated_base}
         changed = False
         if extra_deps:
             for d in extra_deps:
-                name = d.get("name")
-                if not name:
-                    continue
+                normalized = normalize_dependencies([d])[0]
+                name = normalized["name"]
                 if name not in deps_by_name:
-                    deps_by_name[name] = dict(d)
+                    deps_by_name[name] = normalized
                     changed = True
                 else:
-                    ver = d.get("version")
+                    ver = normalized.get("version")
                     if ver and ver != "*" and deps_by_name[name].get("version") != ver:
                         deps_by_name[name]["version"] = ver
                         changed = True
@@ -69,13 +71,9 @@ class CompilationVerifier:
         os.makedirs(work_dir, exist_ok=True)
 
         # プロジェクトファイルの作成
-        package_refs = ""
         default_deps = list(self.default_deps)
         final_deps, _ = self._merge_deps(default_deps, dependencies)
-
-        for dep in final_deps:
-            ver = dep.get("version", "*")
-            package_refs += f'    <PackageReference Include="{dep["name"]}" Version="{ver}" />\n'
+        package_refs = render_package_references(final_deps)
 
         target_csproj = os.path.join(work_dir, 'Sandbox.csproj')
         csproj_content = f"""<Project Sdk="Microsoft.NET.Sdk">
@@ -135,7 +133,6 @@ class CompilationVerifier:
                         is_fast_track = True
 
             # 依存関係の構築
-            package_refs = ""
             default_deps = list(self.default_deps)
 
             # マージ (指定がない場合はデフォルトのみ)
@@ -144,9 +141,7 @@ class CompilationVerifier:
                 # 依存が増減/バージョン変更される場合は restore が必要
                 is_fast_track = False
 
-            for dep in final_deps:
-                ver = dep.get("version", "*") # バージョン指定がなければ最新
-                package_refs += f'    <PackageReference Include="{dep["name"]}" Version="{ver}" />\n'
+            package_refs = render_package_references(final_deps)
 
             # 2. プロジェクトの初期化
             target_csproj = os.path.join(temp_dir, 'Sandbox.csproj')

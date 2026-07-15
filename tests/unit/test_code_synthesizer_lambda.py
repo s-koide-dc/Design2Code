@@ -8,6 +8,10 @@ from src.code_synthesis.method_store import MethodStore
 
 class TestReproLambda(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        cls.shared_morph_analyzer = MorphAnalyzer()
+
     def setUp(self):
         from unittest.mock import MagicMock
         import tempfile
@@ -55,11 +59,14 @@ class TestReproLambda(unittest.TestCase):
         self.ms = MethodStore(self.cm)
         self.ms.methods = []
 
-        self.ma = MorphAnalyzer(config_manager=self.cm)
+        shared_morph_analyzer = getattr(self.__class__, "shared_morph_analyzer", None)
+        self.ma = shared_morph_analyzer or MorphAnalyzer()
         self.synthesizer = CodeSynthesizer(self.cm, method_store=self.ms, morph_analyzer=self.ma)
 
         # Inject required methods for lambda/conditional testing
         store = self.ms
+        original_collection_save = store.collection._save
+        store.collection._save = lambda: None
         store.add_method({
             "id": "linq_where",
             "name": "Where",
@@ -120,6 +127,8 @@ class TestReproLambda(unittest.TestCase):
             "role": "FETCH",
             "capabilities": ["FETCH", "FILE_IO"]
         })
+        store.collection._save = original_collection_save
+        store.collection._save()
 
     def tearDown(self):
         self.test_dir.cleanup()

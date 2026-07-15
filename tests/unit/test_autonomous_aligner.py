@@ -9,12 +9,16 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.autonomous_aligner.autonomous_aligner import AutonomousAligner
+from src.vector_engine.vector_engine import VectorEngine
 
 class TestAutonomousAligner(unittest.TestCase):
     def setUp(self):
         self.test_dir = Path("tests/temp_align_test")
         self.test_dir.mkdir(exist_ok=True)
-        self.aligner = AutonomousAligner(str(project_root))
+        self.aligner = AutonomousAligner(
+            str(project_root),
+            vector_engine=VectorEngine(skip_load=True),
+        )
 
     def tearDown(self):
         import shutil

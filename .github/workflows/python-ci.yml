@@ -114,19 +114,9 @@ jobs:
       - name: Run integration tests
         shell: pwsh
         run: |
-          $excluded = @(
-            "test_documented_entrypoints.py",
-            # Real model assets are intentionally unavailable on GitHub.
-            # See docs/real_vector_model_validation.md for the local validation contract.
-            "test_semantic_method_search.py",
-            "test_vector_engine_real_model.py",
-            # These suites rely on dictionary/vector/generated method-store assets
-            # that are intentionally not stored in GitHub.
-            "test_conversation_scenarios.py",
-            "test_end_to_end_scenarios.py",
-            "test_full_integrated_pipeline.py",
-            "test_reverse_lookup_flow.py"
-          )
+          python scripts/validate/validate_ci_test_matrix.py
+          $matrix = Get-Content tests/ci_test_matrix.json -Raw | ConvertFrom-Json
+          $excluded = @($matrix.integration.ci_excluded | ForEach-Object { $_.file })
           $failed = @()
           Get-ChildItem tests/integration -Filter "test_*.py" |
             Where-Object { $_.Name -notin $excluded } |
@@ -175,6 +165,24 @@ jobs:
 
       - name: Run generated code runtime behavior regression
         run: python -m unittest tests.integration.test_runtime_execution -v
+
+      - name: Run external CodeBuilder integration tests
+        shell: pwsh
+        env:
+          RUN_CODEBUILDER_TESTS: "1"
+        run: python -m unittest tests.unit.test_code_synthesizer_integration -v
+
+      - name: Run response rewriter backend integration tests
+        shell: pwsh
+        env:
+          RUN_RESPONSE_REWRITER_BACKENDS: "1"
+        run: python -m unittest tests.unit.test_response_rewriter -v
+
+      - name: Run execution verifier CodeBuilder integration tests
+        shell: pwsh
+        env:
+          RUN_EXECUTION_VERIFIER_TESTS: "1"
+        run: python -m unittest tests.unit.test_execution_verifier -v
 
   security:
     runs-on: windows-latest
@@ -226,6 +234,9 @@ jobs:
 
       - name: Run consistency validation
         run: python scripts/validate_project_consistency.py
+
+      - name: Validate CI test matrix
+        run: python scripts/validate/validate_ci_test_matrix.py
 
       - name: Validate configuration files
         run: python -c "from src.config.config_manager import ConfigManager; ConfigManager(strict=True)"

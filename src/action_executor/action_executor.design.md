@@ -26,19 +26,20 @@
 2. `safety_check_status == "BLOCK"` の場合は実行を拒否する。
 3. `confirmation_needed == true` かつ `confirmation_granted/confirmed` が未設定の場合は実行を拒否する。
 4. `action_method` が存在すれば `execute_action` で該当メソッドを呼び出す。
-5. 実行後、`_augment_action_result_metadata` で `dialogue_metadata.action_method` / `intent` / 主要パラメータを補完し、対話層が安定して参照できる形へ正規化する。
+5. 実行後、`ActionResultMetadata` が `dialogue_metadata.action_method` / `intent` / 主要パラメータを補完し、対話層が安定して参照できる形へ正規化する。
 6. 実行結果を `action_result` に格納し、ログへ記録する。
 7. `_safe_join` でワークスペース外アクセスを拒否する。
 8. `_run_command` でホワイトリストとサブコマンド検証、禁止オプション、メタ文字、読み取り/一覧パス制限を行う（既定の読み取り許可ディレクトリは `AIFiles/config/docs/scripts/src/tests` のみ）。
 9. `python/py` は `scripts/` 配下かつ allowlist (`python_allowed_scripts`) に限定する。
 10. `FILE_DELETE` / `APPLY_CODE_FIX` / `APPLY_REFACTORING` は実行前にバックアップが必須。
 11. `get_required_entities_for_intent` の主要 action intent 判定は `src.utils.action_intents` の共通定数を使い、実行条件分岐の文字列直書きを避ける。
-12. 許可済みコマンドは引数配列と `shell=False` で実行し、終了コードが非0の場合は `action_result.status="error"` と `returncode` を返す。学習イベントの記録有無にかかわらず失敗を成功扱いしない。
+12. `CommandPolicyValidator` がコマンド分割、allowlist、サブコマンド、引数、パス、Python スクリプトの検証を担当する。許可済みコマンドは引数配列と `shell=False` で実行し、終了コードが非0の場合は `action_result.status="error"` と `returncode` を返す。学習イベントの記録有無にかかわらず失敗を成功扱いしない。
 13. コード修正の事前バックアップ対象は、明示された `filename` が無い場合、履歴中の構造化修正提案の `target_file` から解決する。
 14. `MEASURE_COVERAGE` / `ANALYZE_COVERAGE_GAPS` / `GENERATE_COVERAGE_REPORT` は `TestAndCoverageOperations` に委譲する。
 15. `ANALYZE_REFACTORING` / `SUGGEST_REFACTORING` / `APPLY_REFACTORING` は `RefactoringOperations` に委譲し、適用系はバックアップ検証を通過した場合のみ実行する。
 16. `ANALYZE_TEST_FAILURE` / `EXECUTE_GOAL_DRIVEN_TDD` / `APPLY_CODE_FIX` は `TDDOperations` に委譲し、対話層向け metadata は戻り値の `action_result` に保持する。
 17. `RUN_LEARNING_CYCLE` / `MANAGE_KNOWLEDGE` / `REVERSE_DICTIONARY_SEARCH` は `autonomous_learning` と semantic / vector search の有効状態を確認してから実行する。
+18. `_run_command` は `subprocess.run(..., cwd=workspace_root, shell=False)` で実行し、相対パスの解決先を操作対象ワークスペースと一致させる。
 
 ### Test Cases
 - **Happy Path**:

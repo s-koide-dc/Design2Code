@@ -551,13 +551,6 @@ namespace TestProject.Tests
         print(f"   リファクタリング: 分析完了")
         print(f"   CI/CD設定: 生成済み")
 
-        return {
-            "test_generation": {"status": "success", "file": test_file_path},
-            "coverage": coverage_result,
-            "refactoring": refactoring_result,
-            "cicd": cicd_result
-        }
-
     def test_error_recovery_in_compound_task(self):
         """複合タスク中のエラー回復テスト"""
         print("\n=== 複合タスクエラー回復テスト ===")

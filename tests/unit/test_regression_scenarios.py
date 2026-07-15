@@ -4,15 +4,36 @@ import unittest
 from src.config.config_manager import ConfigManager
 from src.design_parser.structured_parser import StructuredDesignParser
 from src.code_synthesis.code_synthesizer import CodeSynthesizer
+from src.utils.code_builder_client import CodeBuilderClient
 from src.utils.spec_auditor import SpecAuditor
 
 
 class TestRegressionScenarios(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.config = ConfigManager()
+        cls.parser = StructuredDesignParser()
+
+        fallback_renderer = CodeBuilderClient(cls.config)
+
+        class InProcessBuilder:
+            def build_code(self, blueprint):
+                return {
+                    "status": "fallback",
+                    "code": fallback_renderer._render_fallback_code(blueprint),
+                }
+
+        cls.synthesizer = CodeSynthesizer(
+            cls.config,
+            builder_client=InProcessBuilder(),
+        )
+        cls.auditor = SpecAuditor(knowledge_base=cls.synthesizer.ukb)
+
     def setUp(self):
-        self.config = ConfigManager()
-        self.parser = StructuredDesignParser()
-        self.synthesizer = CodeSynthesizer(self.config)
-        self.auditor = SpecAuditor(knowledge_base=self.synthesizer.ukb)
+        self.config = self.__class__.config
+        self.parser = self.__class__.parser
+        self.synthesizer = self.__class__.synthesizer
+        self.auditor = self.__class__.auditor
 
     def _assert_no_spec_issues(self, design_path: str):
         spec = self.parser.parse_design_file(design_path)

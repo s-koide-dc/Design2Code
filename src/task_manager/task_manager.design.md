@@ -39,6 +39,9 @@
 18. `PROVIDE_CONTENT` から `FILE_CREATE` への補正や、危険 intent の既定値は `src.utils.action_intents` の共通定数を利用する。
 19. `ApprovalMessageGenerator` のクリティカルサブタスク文面キーも `src.utils.action_intents` の共通定数を利用し、`FILE_DELETE` / `CMD_RUN` の文字列直書きを避ける。
 20. 回復タスク生成時の `RECOVERY_FROM_TEST_FAILURE` も `src.utils.action_intents` の共通定数を使い、task 定義資産と runtime の語彙を一致させる。
+21. タスク状態ファイル名はセッション ID の可読部分と SHA-256 短縮値を組み合わせ、ID の変換衝突を防ぐ。保存は一時ファイルへの flush/fsync 後に atomic replace する。
+22. `TaskStateStore` が永続化の有効/無効判定と `TaskPersistence` への委譲を担当し、タスク遷移ロジックから保存方式を分離する。
+23. `ApprovalWorkflow` が承認応答の正規化と承認履歴の共通記録を担当し、TaskManager は状態遷移と再評価を担当する。
 
 ### Test Cases
 - **Happy Path**:

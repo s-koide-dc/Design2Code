@@ -341,13 +341,6 @@ namespace TestProject.Tests
         ]))
 
         print("\n🎉 完全品質分析ワークフロー成功!")
-        return {
-            "coverage": coverage_result,
-            "refactoring": refactoring_result,
-            "cicd": cicd_result,
-            "integration": integration_result
-        }
-
     def test_coverage_to_refactoring_integration(self):
         """カバレッジ→リファクタリング統合テスト"""
         print("\n=== カバレッジ→リファクタリング統合テスト ===")

@@ -18,7 +18,7 @@
 - **Example**: `{"status":"OK","message":"Safety Check OK","risk_level":"LOW"}`
 
 ### Core Logic
-1. `SafetyPolicyValidator` がポリシー（`config`/`resources`）を読み込み、危険/注意 intent を初期化する。
+1. SafetyPolicy が config/safety_policy.json と中央既定値を型付きで正規化し、SafetyPolicyValidator と ActionExecutor が同じモデルを利用する。
 2. `INTENT_CMD_RUN` は `safe_commands` に含まれるコマンドのみ許可し、メタ文字が含まれる場合はブロックする。
 3. intent が破壊的または注意対象に該当する場合、リスクレベルを引き上げる。
 

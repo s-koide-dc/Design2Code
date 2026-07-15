@@ -7,6 +7,7 @@ import shutil
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Any
 from .compilation_verifier import CompilationVerifier
+from .dependency_contract import render_package_references
 from src.utils.stdout_guard import debug_print
 
 class ExecutionVerifier(CompilationVerifier):
@@ -112,8 +113,14 @@ class ExecutionVerifier(CompilationVerifier):
                 args.append(factory.generate_instantiation(param_type.strip()))
         return args
 
-    def run_and_capture(self, source_code: str, method_name: str, args: List[Any] = None, work_dir: str = None, assertion_goals: List[Dict[str, Any]] = None, dependencies: List[Dict[str, str]] = None) -> Dict[str, Any]:
+    def run_and_capture(self, source_code: str, method_name: str, args: List[Any] = None, work_dir: str = None, assertion_goals: List[Dict[str, Any]] = None, dependencies: List[Dict[str, str]] = None, has_side_effects: bool = False, allow_side_effects: bool = False) -> Dict[str, Any]:
         """コードを単純実行可能な形式にラップして実行し、実行時エラーを捕捉する"""
+        if has_side_effects and not allow_side_effects:
+            return {
+                "success": False,
+                "error_type": "SIDE_EFFECT_EXECUTION_BLOCKED",
+                "message": "Side-effecting generated code requires an explicit external sandbox.",
+            }
         temp_dir = work_dir or tempfile.mkdtemp(prefix="cs_exec_")
         os.makedirs(temp_dir, exist_ok=True)
 
@@ -241,12 +248,7 @@ public class Program
             # csproj (work_dir が指定されていない、またはファイルが存在しない場合のみ作成)
             target_csproj = os.path.join(temp_dir, "Exec.csproj")
 
-            dep_items = ""
-            for dep in dependencies:
-                name = dep.get("name")
-                version = dep.get("version", "*")
-                if name:
-                    dep_items += f'    <PackageReference Include="{name}" Version="{version}" />\n'
+            dep_items = render_package_references(dependencies)
 
             if not os.path.exists(target_csproj):
                 with open(target_csproj, "w", encoding="utf-8") as f:
@@ -360,13 +362,8 @@ public class Program
                 return None
 
             # 1. 依存関係の構築
-            dep_items = ""
             dependencies = dependencies or []
-            for dep in dependencies:
-                name = dep.get("name")
-                version = dep.get("version", "*")
-                if name:
-                    dep_items += f'    <PackageReference Include="{name}" Version="{version}" />\n'
+            dep_items = render_package_references(dependencies)
 
             # 2. プロジェクトファイルの作成
             target_csproj = os.path.join(temp_dir, "TestProject.csproj")

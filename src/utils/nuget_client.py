@@ -11,10 +11,11 @@ from src.utils.stdout_guard import debug_print
 class NuGetClient:
     """NuGet Search API 経由でパッケージ情報を取得するクライアント"""
 
-    def __init__(self, config_manager=None):
+    def __init__(self, config_manager=None, urlopen=None):
         self.logger = logging.getLogger("NuGetClient")
         self.search_url = "https://azuresearch-usnc.nuget.org/query"
         self.config_manager = config_manager
+        self._urlopen = urlopen or urllib.request.urlopen
         self.map_path = config_manager.dependency_map_path if config_manager else os.path.join('resources', 'dependency_map.json')
         self._cache: Dict[str, Dict[str, Any]] = self._load_map()
 
@@ -47,7 +48,7 @@ class NuGetClient:
 
         url = f"{self.search_url}?q={urllib.parse.quote(query)}&prerelease=false&take=1"
         try:
-            with urllib.request.urlopen(url, timeout=10) as response:
+            with self._urlopen(url, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 if data.get('data'):
                     pkg = data['data'][0]

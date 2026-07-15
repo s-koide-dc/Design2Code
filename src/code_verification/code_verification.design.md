@@ -26,6 +26,7 @@
 5. `runtime_oracle` が StructuredSpec の Test Cases から JSON 形式の明示 oracle を抽出し、自然文 expected は推測せず `unverified` として可視化する。
 6. 明示 oracle 実行が要求された場合は、file fixture、environment fixture、HTTP response fixture、SQLite schema/seed、method args、async await、return、stdout、file assertions、HTTP method/url/header/body assertions、DB scalar assertions を xUnit test code に変換し、`ExecutionVerifier` で生成コードを実行する。
 7. 失敗時は例外情報、品質 issue、または oracle 実行失敗を抽出して返す。
+8. 依存パッケージは `dependency_contract` で検証してから `.csproj` に出力する。副作用を持つ生成コードの `run_and_capture` は外部サンドボックスの明示許可がない限り拒否する。
 
 ### Test Cases
 - **Happy Path**:

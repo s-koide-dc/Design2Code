@@ -114,7 +114,14 @@ class AutonomousSynthesizer:
 
                     debug_print("[AutonomousSynthesizer] Executing code with assertions...")
                     e_start = time.time()
-                    e_res = self.executor.run_and_capture(code, method_name, work_dir=work_dir, assertion_goals=assertion_goals, dependencies=current_deps)
+                    e_res = self.executor.run_and_capture(
+                        code,
+                        method_name,
+                        work_dir=work_dir,
+                        assertion_goals=assertion_goals,
+                        dependencies=current_deps,
+                        has_side_effects=bool(result.get("has_side_effects")),
+                    )
                     e_time = time.time() - e_start
                     debug_print(f"[AutonomousSynthesizer] Execution took {e_time:.2f}s")
                     if e_res.get("success"):

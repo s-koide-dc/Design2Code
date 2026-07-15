@@ -4,7 +4,6 @@
 import os
 import subprocess
 import json
-import shlex
 import shutil
 from datetime import datetime
 from src.utils.action_intents import (
@@ -43,6 +42,9 @@ from src.refactoring_operations.refactoring_operations import RefactoringOperati
 from src.cicd_operations.cicd_operations import CICDOperations
 from src.tdd_operations.tdd_operations import TDDOperations
 from src.utils.context_utils import normalize_path
+from src.safety.policy import SafetyPolicy
+from src.safety.command_policy import CommandPolicyValidator
+from src.action_executor.result_metadata import ActionResultMetadata
 
 # Additional components
 from ..test_generator.test_generator import TestGenerator
@@ -57,51 +59,25 @@ class ActionExecutor:
         self.autonomous_learning = autonomous_learning
         self.config_manager = config_manager
         self.workspace_root = workspace_root or os.getcwd()
-        self.safe_commands = ["git", "ls", "dir", "type", "cat", "echo", "date", "time", "dotnet", "py", "python"]
-        self.simple_whitelist = ["dir", "ls", "echo", "type", "cat", "date", "time"]
-        self.allowed_subcommands = {
-            "git": ["status", "log", "diff", "show", "branch", "rev-parse", "ls-files"],
-            "dotnet": ["test", "build", "restore", "clean", "list"],
-            "npm": ["test", "list"],
-        }
-        self.disallowed_args = {
-            "python": ["-c", "-m"],
-            "py": ["-c", "-m"],
-        }
-        self.python_allowed_dirs = ["scripts"]
-        self.python_allowed_scripts = []
-        self.blocked_metacharacters = ['&', '|', ';', '>', '<', '`', '$']
-        self.read_commands = ["cat", "type"]
-        self.list_commands = ["ls", "dir"]
-        self.read_allowed_dirs = ["AIFiles", "config", "docs", "scripts", "src", "tests"]
-        self.read_blocked_rules = [
-            {"pattern": ".env", "match": "basename_exact"},
-            {"pattern": "private_key", "match": "segment"},
-            {"pattern": "api_key", "match": "segment"},
-            {"pattern": "apikey", "match": "segment"},
-            {"pattern": "secrets", "match": "segment"},
-            {"pattern": "secret", "match": "segment"},
-            {"pattern": "token", "match": "segment"},
-        ]
-
         self.vector_engine = vector_engine
         self.morph_analyzer = morph_analyzer
         self.semantic_analyzer = semantic_analyzer
 
-        # Load from safety_policy (via ConfigManager)
-        if config_manager:
-            policy_data = config_manager.get_safety_policy()
-            self.safe_commands = policy_data.get("safe_commands", self.safe_commands)
-            self.simple_whitelist = policy_data.get("simple_whitelist", self.simple_whitelist)
-            self.allowed_subcommands = policy_data.get("allowed_subcommands", self.allowed_subcommands)
-            self.disallowed_args = policy_data.get("disallowed_args", self.disallowed_args)
-            self.python_allowed_dirs = policy_data.get("python_allowed_dirs", self.python_allowed_dirs)
-            self.python_allowed_scripts = policy_data.get("python_allowed_scripts", self.python_allowed_scripts)
-            self.blocked_metacharacters = policy_data.get("blocked_metacharacters", self.blocked_metacharacters)
-            self.read_commands = policy_data.get("read_commands", self.read_commands)
-            self.list_commands = policy_data.get("list_commands", self.list_commands)
-            self.read_allowed_dirs = policy_data.get("read_allowed_dirs", self.read_allowed_dirs)
-            self.read_blocked_rules = policy_data.get("read_blocked_rules", self.read_blocked_rules)
+        # SafetyPolicy is the single source for defaults and normalized copies.
+        policy = config_manager.get_safety_policy_model() if config_manager else SafetyPolicy()
+        self.safe_commands = policy.safe_commands
+        self.simple_whitelist = policy.simple_whitelist
+        self.allowed_subcommands = policy.allowed_subcommands
+        self.disallowed_args = policy.disallowed_args
+        self.python_allowed_dirs = policy.python_allowed_dirs
+        self.python_allowed_scripts = policy.python_allowed_scripts
+        self.blocked_metacharacters = policy.blocked_metacharacters
+        self.read_commands = policy.read_commands
+        self.list_commands = policy.list_commands
+        self.read_allowed_dirs = policy.read_allowed_dirs
+        self.read_blocked_rules = policy.read_blocked_rules
+        self.command_policy = CommandPolicyValidator(self)
+        self.result_metadata = ActionResultMetadata(self._get_entity_value)
 
         ep_path = error_patterns_path
         if not ep_path and config_manager:
@@ -427,79 +403,12 @@ class ActionExecutor:
             context["action_result"] = {"status": "error", "message": "コマンドが指定されていません。"}
             return context
 
-        # Safely split the command string into a list of arguments
-        try:
-            cmd_parts = shlex.split(cmd_str)
-        except ValueError:
-            context["action_result"] = {"status": "error", "message": "コマンドの形式が正しくありません。"}
+        validation = self.command_policy.validate(cmd_str)
+        if not validation.ok:
+            context["action_result"] = {"status": "error", "message": validation.error_message}
             return context
-
-        if not cmd_parts:
-            context["action_result"] = {"status": "error", "message": "コマンドが空です。"}
-            return context
-
-        # 1. Base command validation
+        cmd_parts = validation.parts
         base_cmd = cmd_parts[0].lower()
-
-        if base_cmd not in self.safe_commands:
-            context["action_result"] = {"status": "error", "message": f"コマンド '{base_cmd}' は許可されていません。"}
-            return context
-
-        # 2. Subcommand validation
-        if base_cmd in self.allowed_subcommands and self.allowed_subcommands[base_cmd]:
-            if len(cmd_parts) < 2 or cmd_parts[1].lower() not in self.allowed_subcommands[base_cmd]:
-                allowed_str = ", ".join(self.allowed_subcommands[base_cmd])
-                context["action_result"] = {"status": "error", "message": f"コマンド '{base_cmd}' のサブコマンドが許可されていないか、指定されていません。許可されているサブコマンド: {allowed_str}"}
-                return context
-
-        # 3. Argument validation
-        if base_cmd in self.disallowed_args and self.disallowed_args[base_cmd]:
-            disallowed = [a.lower() for a in self.disallowed_args[base_cmd]]
-            for part in cmd_parts[1:]:
-                if part.lower() in disallowed:
-                    context["action_result"] = {"status": "error", "message": "コマンド引数に禁止されたオプションが含まれています。"}
-                    return context
-
-        # Prevent chaining and redirections first
-        for part in cmd_parts[1:]:
-            if any(char in part for char in self.blocked_metacharacters):
-                context["action_result"] = {"status": "error", "message": "コマンド引数に不正な文字が含まれています。"}
-                return context
-
-        if base_cmd in self.read_commands:
-            targets = self._extract_non_option_args(cmd_parts)
-            if not targets:
-                context["action_result"] = {"status": "error", "message": "読み取り対象のパスが指定されていません。"}
-                return context
-            for target in targets:
-                if not self._is_allowed_read_path(target):
-                    context["action_result"] = {"status": "error", "message": "読み取り対象のパスが許可範囲外です。"}
-                    return context
-                if self._is_blocked_read_path(target):
-                    context["action_result"] = {"status": "error", "message": "読み取り対象のパスが禁止されています。"}
-                    return context
-
-        if base_cmd in self.list_commands:
-            targets = self._extract_non_option_args(cmd_parts)
-            for target in targets:
-                if not self._is_allowed_read_path(target):
-                    context["action_result"] = {"status": "error", "message": "一覧取得対象のパスが許可範囲外です。"}
-                    return context
-                if self._is_blocked_read_path(target):
-                    context["action_result"] = {"status": "error", "message": "一覧取得対象のパスが禁止されています。"}
-                    return context
-
-        if base_cmd in ["python", "py"]:
-            script_path = self._extract_python_script_path(cmd_parts)
-            if not script_path:
-                context["action_result"] = {"status": "error", "message": "python/py はスクリプトファイルの指定が必須です。"}
-                return context
-            if not self._is_allowed_python_script(script_path):
-                context["action_result"] = {"status": "error", "message": "python/py の実行は scripts 配下のスクリプトに限定されています。"}
-                return context
-            if self.python_allowed_scripts and not self._is_whitelisted_python_script(script_path):
-                context["action_result"] = {"status": "error", "message": "python/py の実行は許可されたスクリプトに限定されています。"}
-                return context
 
         # On Windows, prefix built-ins with 'cmd /c'
         shell_builtins = ["echo", "dir", "type", "date", "time"]
@@ -510,7 +419,14 @@ class ActionExecutor:
 
         try:
             # Execute with shell=False, passing arguments as a list
-            result = subprocess.run(actual_cmd, capture_output=True, text=True, timeout=10, check=False)
+            result = subprocess.run(
+                actual_cmd,
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
             if result.returncode != 0:
                 if self.autonomous_learning:
                     self.autonomous_learning.trigger_learning(
@@ -539,30 +455,7 @@ class ActionExecutor:
         return context
 
     def _augment_action_result_metadata(self, context: dict, action_method_name: str, parameters: dict) -> None:
-        action_result = context.get("action_result")
-        if not isinstance(action_result, dict):
-            return
-
-        dialogue_metadata = action_result.get("dialogue_metadata")
-        if not isinstance(dialogue_metadata, dict):
-            dialogue_metadata = {}
-            action_result["dialogue_metadata"] = dialogue_metadata
-
-        dialogue_metadata.setdefault("action_method", action_method_name)
-        dialogue_metadata.setdefault("intent", context.get("analysis", {}).get("intent"))
-
-        for key in ("filename", "source_filename", "destination_filename", "project_path", "goal_description"):
-            if key not in dialogue_metadata:
-                value = self._get_entity_value(parameters.get(key))
-                if value:
-                    dialogue_metadata[key] = value
-
-        if "target_name" not in action_result:
-            for key in ("filename", "project_path", "goal_description"):
-                value = self._get_entity_value(parameters.get(key))
-                if value:
-                    action_result["target_name"] = value
-                    break
+        self.result_metadata.augment(context, action_method_name, parameters)
 
     def _ensure_backup_for_action(self, action_method_name: str, parameters: dict, context: dict) -> bool:
         backup_dir = "backup"

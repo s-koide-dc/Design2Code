@@ -247,6 +247,18 @@ class TestMethodStore(unittest.TestCase):
         self.assertEqual(len(self.store.collection.vectors), len(self.store.items))
         self.assertGreater(float(np.linalg.norm(self.store.collection.vectors[0])), 0.0)
 
+    def test_remove_last_items_deletes_stale_vector_file_and_temp_files(self):
+        collection = self.store.collection
+        collection._save()
+        vector_path = collection.vector_path
+        self.assertTrue(os.path.exists(vector_path))
+
+        collection.remove([item["id"] for item in list(collection.items)])
+
+        self.assertIsNone(collection.vectors)
+        self.assertFalse(os.path.exists(vector_path))
+        self.assertEqual([], [name for name in os.listdir(self.test_dir) if name.endswith(".tmp")])
+
     def test_search_happy_path(self):
         """キーワードによる検索のテスト"""
         # "email" で検索 (タグにマッチ)

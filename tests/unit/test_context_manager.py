@@ -28,8 +28,13 @@ class TestContextManagerUnit(unittest.TestCase):
         self.assertEqual(2, len(manager.get_history("s1")))
 
 class TestContextAndAnaphora(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.pipeline = Pipeline(is_test_mode=True)
+
     def setUp(self):
-        self.pipeline = Pipeline()
+        self.pipeline = self.__class__.pipeline
+        self.pipeline.context_manager = ContextManager()
         self.test_workspace = os.path.abspath("test_context_ws")
         if not os.path.exists(self.test_workspace):
             os.makedirs(self.test_workspace)
