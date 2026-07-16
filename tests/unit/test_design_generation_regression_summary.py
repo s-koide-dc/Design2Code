@@ -7,6 +7,7 @@ from scripts.design.run_design_generation_regression import (
     QUALITY_DESIGNS,
     SMOKE_DESIGNS,
     _resolve_designs,
+    runtime_oracle_requirement_issues,
     summarize_runtime_oracle_failures,
 )
 
@@ -31,6 +32,31 @@ class TestDesignGenerationRegressionSummary(unittest.TestCase):
         resolved = _resolve_designs(SimpleNamespace(designs=None, profile="quality"))
 
         self.assertEqual([Path(item) for item in QUALITY_DESIGNS], resolved)
+
+    def test_runtime_oracle_requirement_accepts_fully_executed_cases(self):
+        issues = runtime_oracle_requirement_issues(
+            {"case_count": 2, "ready_count": 2, "unverified_count": 0, "invalid_count": 0},
+            {"requested": True, "valid": True, "case_count": 2, "passed": 2, "failed": 0},
+        )
+
+        self.assertEqual([], issues)
+
+    def test_runtime_oracle_requirement_reports_missing_and_unverified_cases(self):
+        issues = runtime_oracle_requirement_issues(
+            {"case_count": 2, "ready_count": 1, "unverified_count": 1, "invalid_count": 0},
+            {"requested": True, "valid": True, "case_count": 1, "passed": 1, "failed": 0},
+        )
+
+        self.assertIn("runtime_oracle has 1 unverified case(s)", issues)
+        self.assertIn("runtime_oracle ready cases 1 do not match test cases 2", issues)
+
+    def test_runtime_oracle_requirement_reports_unrequested_execution(self):
+        issues = runtime_oracle_requirement_issues(
+            {"case_count": 1, "ready_count": 1, "unverified_count": 0, "invalid_count": 0},
+            {"requested": False, "valid": True, "case_count": 0, "passed": 0, "failed": 0},
+        )
+
+        self.assertIn("runtime_oracle execution was not requested", issues)
     def test_summarizes_failed_runtime_oracle_assertions(self):
         summary = summarize_runtime_oracle_failures({
             "results": [{

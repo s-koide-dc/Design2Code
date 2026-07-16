@@ -217,7 +217,7 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 - CI では `.github/workflows/python-ci.yml` の `generation-quality` ジョブで CodeBuilder を事前ビルドし、既定シナリオの品質ゲートと既定シナリオ全件の実行時挙動を必須確認します。生成回帰は `--fail-on-maintainability --run-runtime-oracles --summary-only` 付きで実行し、CodeBuilder/Roslyn の AST 解析で取得した保守性しきい値超過と明示 oracle 失敗も失敗扱いにします。
 - 回帰 summary には `runtime_oracle_failures` を含め、失敗した oracle case の id / scenario / test 名 / assertion message を `--summary-only` でも確認できます。
 - 現在の既定回帰セットは `ComplexLinqSearch` / `CsvSalesAggregation` / `ProductApiFilteredCatalog` / `CustomerApiWithEntitySpec` / `DailyInventorySync` / `SecureOrderProcessing` / `StateUpdatePersist` / `AppModeEchoMinimal` / `RobustConfigLoader` / `StdinToStdoutTransform` / `AggregationSummary` / `SyncExternalData` です。
-- `--profile smoke` は `ComplexLinqSearch` / `ProductApiFilteredCatalog` / `StateUpdatePersist` / `RobustConfigLoader` の生成・静的品質を短時間で確認します。`--profile quality`（既定）は全12件の実行oracleを含む品質回帰です。CIでは両者を独立ジョブとして並列実行します。
+- `--profile smoke` は `ComplexLinqSearch` / `ProductApiFilteredCatalog` / `StateUpdatePersist` / `RobustConfigLoader` の生成・静的品質を短時間で確認します。`--profile quality`（既定）は全12件の実行oracleを含む品質回帰です。`--require-runtime-oracles` を付けると、全Test Caseが有効な明示oracleを持ち、その全件が実行成功しなければ失敗します。CIでは両者を独立ジョブとして並列実行します。
 
 ```bash
 # docs / 設計書 / テスト参照の整合性確認

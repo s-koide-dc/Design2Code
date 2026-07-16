@@ -81,6 +81,11 @@ def _parse_args() -> argparse.Namespace:
         help="Execute explicit JSON runtime_oracle contracts from design test cases.",
     )
     parser.add_argument(
+        "--require-runtime-oracles",
+        action="store_true",
+        help="Require every design test case to have a valid explicit runtime_oracle and execute it.",
+    )
+    parser.add_argument(
         "--summary-only",
         action="store_true",
         help="Omit the detailed per-scenario payload from stdout.",
@@ -164,8 +169,47 @@ def summarize_runtime_oracle_failures(runtime_oracle_execution: Dict[str, Any]) 
     return failures
 
 
+def runtime_oracle_requirement_issues(
+    runtime_oracle: Dict[str, Any],
+    runtime_oracle_execution: Dict[str, Any],
+) -> List[str]:
+    """Return requirement violations for a fully executable runtime-oracle suite."""
+    case_count = runtime_oracle.get("case_count", 0)
+    ready_count = runtime_oracle.get("ready_count", 0)
+    unverified_count = runtime_oracle.get("unverified_count", 0)
+    invalid_count = runtime_oracle.get("invalid_count", 0)
+    issues: List[str] = []
+
+    if case_count == 0:
+        issues.append("no design test cases define an explicit runtime_oracle")
+    if unverified_count:
+        issues.append(f"runtime_oracle has {unverified_count} unverified case(s)")
+    if invalid_count:
+        issues.append(f"runtime_oracle has {invalid_count} invalid case(s)")
+    if ready_count != case_count:
+        issues.append(f"runtime_oracle ready cases {ready_count} do not match test cases {case_count}")
+
+    executed_count = runtime_oracle_execution.get("case_count", 0)
+    passed_count = runtime_oracle_execution.get("passed", 0)
+    failed_count = runtime_oracle_execution.get("failed", 0)
+    if not runtime_oracle_execution.get("requested"):
+        issues.append("runtime_oracle execution was not requested")
+    elif not runtime_oracle_execution.get("valid", False):
+        issues.append("runtime_oracle execution is invalid")
+    if executed_count != ready_count:
+        issues.append(f"runtime_oracle executed cases {executed_count} do not match ready cases {ready_count}")
+    if passed_count != ready_count:
+        issues.append(f"runtime_oracle passed cases {passed_count} do not match ready cases {ready_count}")
+    if failed_count:
+        issues.append(f"runtime_oracle execution has {failed_count} failed case(s)")
+    return issues
+
+
 def main() -> int:
     args = _parse_args()
+    if args.require_runtime_oracles and not args.run_runtime_oracles:
+        emit_error("--require-runtime-oracles requires --run-runtime-oracles")
+        return 2
     design_paths = _resolve_designs(args)
     missing = [str(path) for path in design_paths if not path.is_file()]
     if missing:
@@ -185,14 +229,19 @@ def main() -> int:
                 scenario_output_dir = root_output_dir / design_path.stem
             snapshot = build_review_snapshot(_build_snapshot_args(args, design_path, scenario_output_dir))
             payload = snapshot["payload"]
-            success = int(snapshot["exit_code"]) == 0
-            if not success:
-                failed += 1
             quality = payload.get("quality") or {}
             maintainability = quality.get("maintainability") or {}
             runtime_oracle = payload.get("runtime_oracle") or {}
             runtime_oracle_execution = payload.get("runtime_oracle_execution") or {}
             runtime_oracle_failures = summarize_runtime_oracle_failures(runtime_oracle_execution)
+            requirement_issues = (
+                runtime_oracle_requirement_issues(runtime_oracle, runtime_oracle_execution)
+                if args.require_runtime_oracles
+                else []
+            )
+            success = int(snapshot["exit_code"]) == 0 and not requirement_issues
+            if not success:
+                failed += 1
             result_entry = {
                 "design": payload.get("design"),
                 "success": success,
@@ -209,6 +258,7 @@ def main() -> int:
                 "runtime_oracle_execution_failed": runtime_oracle_execution.get("failed", 0),
                 "runtime_oracle_failure_count": len(runtime_oracle_failures),
                 "runtime_oracle_failures": runtime_oracle_failures,
+                "runtime_oracle_requirement_issues": requirement_issues,
                 "maintainability_finding_count": len(maintainability.get("findings") or []),
                 "maintainability": {
                     "method_count": maintainability.get("method_count", 0),

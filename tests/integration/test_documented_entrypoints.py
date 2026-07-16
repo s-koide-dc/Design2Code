@@ -2928,6 +2928,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             "scripts/design/run_design_generation_regression.py",
             "--fail-on-maintainability",
             "--run-runtime-oracles",
+            "--require-runtime-oracles",
             "--summary-only",
         ]
         completed = subprocess.run(
@@ -2950,6 +2951,7 @@ class TestDocumentedEntrypoints(unittest.TestCase):
         self.assertTrue(all("payload" not in item for item in payload["results"]))
         self.assertTrue(all(item["quality_valid"] for item in payload["results"]))
         self.assertTrue(all(item["runtime_oracle_execution_valid"] for item in payload["results"]))
+        self.assertTrue(all(item["runtime_oracle_requirement_issues"] == [] for item in payload["results"]))
         oracle_passes = {
             item["module_name"]: item["runtime_oracle_execution_passed"]
             for item in payload["results"]
