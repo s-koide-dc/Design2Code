@@ -210,6 +210,19 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertIn('Assert.Contains("runtime-test", stdout)', test_code)
         self.assertIn('Environment.SetEnvironmentVariable("APP_MODE", previousEnvironment["APP_MODE"])', test_code)
 
+    def test_build_runtime_oracle_test_code_renders_stdin_contract(self):
+        test_code = build_runtime_oracle_test_code(
+            "StdinToStdoutTransform",
+            {
+                "stdin": " hello \\n",
+                "stdout": {"contains": ["HELLO"]},
+            },
+        )
+
+        self.assertIn('var originalIn = Console.In;', test_code)
+        self.assertIn('Console.SetIn(new StringReader(" hello \\\\n"));', test_code)
+        self.assertIn('Console.SetIn(originalIn);', test_code)
+
     def test_build_runtime_oracle_test_code_renders_sqlite_contract(self):
         test_code = build_runtime_oracle_test_code(
             "StateUpdatePersist",

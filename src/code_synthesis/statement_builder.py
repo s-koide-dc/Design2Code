@@ -42,7 +42,14 @@ class StatementBuilder:
         if not return_type or return_type in ["void", "Task"]:
             return "return;"
         if isinstance(return_type, str) and return_type.startswith("Task<"):
+            inner = return_type[len("Task<"):-1].strip() if return_type.endswith(">") else ""
+            if inner.startswith(("List<", "IEnumerable<", "IReadOnlyList<", "ICollection<")) and inner.endswith(">"):
+                element_type = inner[inner.find("<") + 1:-1].strip()
+                return f"return new List<{element_type}>();"
             return "return default;"
+        if isinstance(return_type, str) and return_type.startswith(("List<", "IReadOnlyList<", "ICollection<")) and return_type.endswith(">"):
+            element_type = return_type[return_type.find("<") + 1:-1].strip()
+            return f"return new List<{element_type}>();"
         if return_type in ["int", "long", "decimal", "double", "float"]:
             return "return 0;"
         if return_type == "bool":

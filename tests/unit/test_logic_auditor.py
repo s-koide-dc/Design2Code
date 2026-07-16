@@ -124,6 +124,16 @@ class TestLogicAuditor(unittest.TestCase):
         findings = auditor.verify_logic_goals(goals, code)
         self.assertEqual(findings, [])
 
+    def test_same_step_multiple_assertions_are_not_ordered(self):
+        auditor = LogicAuditor()
+        goals = [
+            {"type": "numeric", "operator": "GreaterEqual", "expected_value": "1", "original_step": "影響件数が1以上ならtrue、0ならfalse"},
+            {"type": "numeric", "operator": "Equal", "expected_value": "0", "original_step": "影響件数が1以上ならtrue、0ならfalse"},
+        ]
+        code = "if (rows == 0) return false; if (rows >= 1) return true;"
+        findings = auditor.verify_logic_goals(goals, code)
+        self.assertFalse(any(f.get("reason") == "order_mismatch" for f in findings))
+
 
 if __name__ == "__main__":
     unittest.main()

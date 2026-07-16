@@ -20,7 +20,7 @@
 1. `FakeRepo` 実装を生成し、CRUD 呼び出しを差し込む。
 2. 既定のテスト（空リスト、NotFound、削除失敗）を生成する。
 3. Happy Path のテスト（Create 成功、GetById 成功、Update 成功、削除成功）を生成する。
-4. `StructuredTestCases` があれば、JSON 形式の `arrange` / `act` / `assert` をそのままテストとして生成する。
+4. `StructuredTestCases` があれば、JSON 形式の `arrange` / `act` / `assert` をテストとして生成する。null入力を表す呼び出しには対象DTO型とnull-forgiving演算子を付け、nullable有効プロジェクトでも意図したnull入力テストを警告なしでコンパイルできるようにする。
 5. `InvalidTest` があれば挿入する。
 
 ### Test Cases

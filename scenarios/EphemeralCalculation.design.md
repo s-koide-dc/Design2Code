@@ -17,4 +17,4 @@
 5. [ACTION|TRANSFORM|Item|void|NONE] [refs:step_4] [END] [refs:step_2]
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"fixtures":[{"path":"products.json","content":"[{\"Id\":1,\"Name\":\"A\",\"Price\":10,\"Quantity\":2},{\"Id\":2,\"Name\":\"B\",\"Price\":5,\"Quantity\":3}]"}],"return":true,"stdout":{"contains":["20","15"]}}}

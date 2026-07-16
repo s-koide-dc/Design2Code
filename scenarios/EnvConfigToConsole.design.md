@@ -17,4 +17,4 @@
 6. [ACTION|DISPLAY|string|void|NONE] 整形結果を表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"environment":{"APP_MODE":"runtime-test","APP_REGION":"jp"},"return":true,"stdout":{"contains":["MODE=runtime-test","REGION=jp"]}}}

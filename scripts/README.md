@@ -73,6 +73,9 @@
   - CI の generation-quality job は `--fail-on-maintainability --run-runtime-oracles --summary-only` 付きで実行し、既定しきい値超過と明示 oracle 失敗を失敗扱いにする。
   - `maintainability_finding_count` は保守性 finding の件数を示す。`--fail-on-maintainability` 付きの CI 実行では、1 件以上なら品質 NG として扱う。
   - GitHub Actions の `generation-quality` ジョブで必須実行し、品質ゲート失敗時は CI を失敗させる。
+- `scripts/validate/validate_generated_sqlserver.py`
+  - Windows上のLocalDBを事前確認・起動し、`SampleProject.design.md` から生成したプロジェクトのSQL Server実動作テストを実行する。
+  - GitHub Actionsでは `sqlserver-generation` ジョブから呼び出し、生成コードのビルドだけでなくLocalDBへのCRUD接続も検証する。
 - `scripts/design/audit_literal_tag_assist_coverage.py`
   - `scenarios/` 配下の `.design.md` を strip して `infer_then_freeze` に流し、`NO_CANDIDATE` で止まるケースと literal assist 推奨ケースを JSON で返す。
   - `assist_recommended` は、blocked 理由が `NO_CANDIDATE` で、かつ explicit literal-bearing candidate が残っているケースだけを示す。

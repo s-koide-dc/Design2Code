@@ -15,10 +15,8 @@
 
 ### Core Logic
 - [data_source|db_main|db]
-1. [ACTION|DATABASE_QUERY|Item|List<Item>|DB|db_main|db] [semantic_roles:{"sql":"SELECT * FROM Users"}] Dapper Query で一覧を取得する (`SELECT * FROM Users`)
-2. [ACTION|DISPLAY|Item|void|NONE] [refs:step_1] console_writeline で結果を出力する
+1. [ACTION|DATABASE_QUERY|User|List<User>|DB|db_main|db] [semantic_roles:{"sql":"SELECT * FROM Users"}] Dapper Query で一覧を取得する (`SELECT * FROM Users`)
+2. [ACTION|DISPLAY|User|void|NONE] [refs:step_1] console_writeline で結果を出力する
 ### Test Cases
-- **Happy Path**:
-  - **Scenario**: 一覧取得が成功する。
-  - **Input**: なし
-  - **Expected Output**: ユーザー一覧が返る。
+- **Scenario**: 一覧取得が成功する
+- **Expected**: {"runtime_oracle":{"await":true,"sqlite":{"schema":["CREATE TABLE Users (Id INTEGER PRIMARY KEY, Name TEXT, Age INTEGER, Email TEXT, Points INTEGER, Price NUMERIC, LastLoginAt TEXT)"],"seed":["INSERT INTO Users (Id, Name, Age, Email, Points, Price, LastLoginAt) VALUES (1, 'Alice', 30, 'alice@example.test', 10, 600, '2026-01-01T00:00:00')"]},"stdout":{"contains":["Alice"]}}}

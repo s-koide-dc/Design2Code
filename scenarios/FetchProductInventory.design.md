@@ -14,4 +14,4 @@
 3. [ACTION|DISPLAY|Inventory|void|NONE] [refs:step_2] 取得した在庫の一覧を表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"await":true,"sqlite":{"schema":["CREATE TABLE Inventory (Id INTEGER PRIMARY KEY, Stock INTEGER)"],"seed":["INSERT INTO Inventory (Id, Stock) VALUES (1, 7)"]},"return":true,"stdout":{"contains":["Stock: 7"]}}}

@@ -116,6 +116,7 @@ def _render_db_assertions(assertions: List[Dict[str, Any]]) -> List[str]:
 def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -> str:
     method_args = ", ".join(csharp_literal(arg) for arg in contract.get("method_args", []) or [])
     fixtures = contract.get("fixtures", []) or []
+    stdin = contract.get("stdin")
     environment = contract.get("environment", {}) or {}
     http_responses = contract.get("http_responses", []) or []
     http_requests = contract.get("http_requests", []) or []
@@ -169,6 +170,7 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
         "        Directory.CreateDirectory(root);",
         "        var previousDirectory = Directory.GetCurrentDirectory();",
         "        var originalOut = Console.Out;",
+        "        var originalIn = Console.In;",
         "        using var capturedOut = new StringWriter(CultureInfo.InvariantCulture);",
     ])
     if environment:
@@ -195,6 +197,8 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
         lines.append(
             f"            Environment.SetEnvironmentVariable({csharp_string_literal(str(name))}, {csharp_literal(value)});"
         )
+    if stdin is not None:
+        lines.append(f"            Console.SetIn(new StringReader({csharp_string_literal(stdin)}));")
     if has_stdout:
         lines.append("            Console.SetOut(capturedOut);")
     lines.extend([
@@ -243,6 +247,7 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
         "        finally",
         "        {",
         "            Console.SetOut(originalOut);",
+        "            Console.SetIn(originalIn);",
     ])
     if environment:
         for name in environment:

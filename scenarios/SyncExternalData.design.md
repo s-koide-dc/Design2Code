@@ -21,5 +21,4 @@ Web APIから商品情報を取得し、ローカルデータベースに同期�
 7. [ACTION|RETURN|bool|bool|NONE] 処理が成功したとして true を返す。
 ### Test Cases
 - **Scenario**: Happy Path
-    - **Expected**: true
-
+    - **Expected**: {"runtime_oracle":{"await":true,"http_responses":[{"status_code":200,"body":"[{\"Name\":\"Alpha\",\"Price\":100}]"}],"sqlite":{"schema":["CREATE TABLE Products (Id INTEGER PRIMARY KEY, Name TEXT, Price NUMERIC)"],"seed":[]},"return":true,"http_requests":[{"method":"GET","url":"https://api.example.com/products"}],"db_assertions":[{"query":"SELECT Name FROM Products WHERE Name = 'Alpha'","contains":"Alpha"}]}}

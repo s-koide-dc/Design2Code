@@ -125,6 +125,9 @@ def render_service_tests(test_context: dict, root_namespace: str) -> str:
         asserts = case.get("assert") if isinstance(case.get("assert"), list) else []
         if not isinstance(act, str) or not act.strip():
             continue
+        # Preserve the intentional null-input test while making the deliberate
+        # contract violation explicit for nullable-enabled test projects.
+        act = act.replace("(null)", f"(({context['CreateDto']})null!)")
         lines.extend([
             "    [Fact]",
             f"    public void {method_name}_{case_name}()",

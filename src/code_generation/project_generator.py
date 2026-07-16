@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
 from src.utils.stdout_guard import debug_print
 
@@ -21,6 +22,10 @@ from src.code_generation.renderers import (
     render_repository_class,
     render_service_class,
     render_test_csproj,
+    render_project_wiring_tests,
+    render_project_endpoint_tests,
+    render_project_sqlite_endpoint_tests,
+    render_project_sqlserver_endpoint_tests,
 )
 from src.code_generation.repo_generation import RepoGenerationHelper
 from src.code_generation.service_generation import ServiceGenerationHelper
@@ -613,6 +618,8 @@ class ProjectGenerator:
             "ukb_search": 0,
             "ukb_hits": 0,
         }
+        endpoint_cases = []
+        sqlite_endpoint_cases = []
         for spec_item in entity_specs:
             entity_name = spec_item.get("name")
             entity_plural = spec_item.get("plural", f"{entity_name}s")
@@ -757,14 +764,14 @@ class ProjectGenerator:
             for k in resolver_stats:
                 resolver_stats[k] += stats.get(k, 0)
             service_get_users_ret = self._infer_nullable_return(method_specs, f"{service_name}.{list_service}", f"List<{response_dto}>")
-            service_get_by_id_ret = self._infer_nullable_return(method_specs, f"{service_name}.{get_service}", response_dto)
-            service_create_ret = self._infer_nullable_return(method_specs, f"{service_name}.{create_service}", response_dto)
-            service_update_ret = self._infer_nullable_return(method_specs, f"{service_name}.{update_service}", response_dto)
+            service_get_by_id_ret = self._infer_nullable_return(method_specs, f"{service_name}.{get_service}", f"{response_dto}?")
+            service_create_ret = self._infer_nullable_return(method_specs, f"{service_name}.{create_service}", f"{response_dto}?")
+            service_update_ret = self._infer_nullable_return(method_specs, f"{service_name}.{update_service}", f"{response_dto}?")
             service_delete_ret = self._infer_nullable_return(method_specs, f"{service_name}.{delete_service}", "bool")
             repo_fetch_all_ret = self._infer_nullable_return(method_specs, f"{repo_name}.{repo_list}", f"List<{entity_name}>")
-            repo_fetch_by_id_ret = self._infer_nullable_return(method_specs, f"{repo_name}.{repo_get}", entity_name)
+            repo_fetch_by_id_ret = self._infer_nullable_return(method_specs, f"{repo_name}.{repo_get}", f"{entity_name}?")
             repo_insert_ret = self._infer_nullable_return(method_specs, f"{repo_name}.{repo_create}", entity_name)
-            repo_update_ret = self._infer_nullable_return(method_specs, f"{repo_name}.{repo_update}", entity_name)
+            repo_update_ret = self._infer_nullable_return(method_specs, f"{repo_name}.{repo_update}", f"{entity_name}?")
             repo_delete_ret = self._infer_nullable_return(method_specs, f"{repo_name}.{repo_delete}", "bool")
             if service_name:
                 key = f"{service_name}.{list_service}"
@@ -967,6 +974,13 @@ class ProjectGenerator:
         test_dir = os.path.join(output_root, "Tests")
         self._ensure_dir(test_dir)
         self._write_file(os.path.join(test_dir, f"{project_name}.Tests.csproj"), self._render_test_csproj(project_name, tech.get("Target")))
+        service_names = [str(item.get("service")) for item in entity_specs if item.get("service")]
+        repository_names = [str(item.get("repository")) for item in entity_specs if item.get("repository")]
+        if service_names or repository_names:
+            self._write_file(
+                os.path.join(test_dir, "ProjectWiringTests.cs"),
+                render_project_wiring_tests(project_name, service_names, repository_names),
+            )
         for spec_item in entity_specs:
             service_name = spec_item.get("service")
             repo_name = spec_item.get("repository")
@@ -1032,6 +1046,205 @@ class ProjectGenerator:
                     os.path.join(test_dir, f"{service_name}Tests.cs"),
                     self._render_service_tests(test_context, project_name),
                 )
+            routes = spec_item.get("routes", []) or []
+            list_route = next((str(route).split(" ", 1)[1] for route in routes if str(route).upper().startswith("GET ") and "{" not in str(route)), None)
+            if list_route and repo_name and entity_name:
+                endpoint_cases.append({
+                    "test_name": f"Get_{entity_plural}_ReturnsSuccess",
+                    "verb": "GET",
+                    "route": list_route,
+                    "repository": repo_name,
+                    "entity": entity_name,
+                    "setup_lines": [f"factory.Repository_{repo_name}.{repo_list}().Returns(new List<{entity_name}>());"],
+                })
+            id_literal = '"1"' if str(id_type).lower() == "string" else "1"
+            create_props = next((d.get("properties") for d in dtos if d.get("name") == create_dto), [])
+            payload = {}
+            for prop_name, prop_type in self._parse_props(create_props):
+                lowered = prop_name.lower()
+                normalized = str(prop_type).lower()
+                if "bool" in normalized:
+                    payload[prop_name] = True
+                elif any(token in normalized for token in ["int", "long", "decimal", "double", "float"]):
+                    payload[prop_name] = 1
+                elif "email" in lowered:
+                    payload[prop_name] = "test@example.com"
+                else:
+                    payload[prop_name] = "Test"
+            body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("\\", "\\\\").replace('"', '\\"')
+            entity_values = []
+            for prop_name, prop_type in self._parse_props(entity_props):
+                lowered = prop_name.lower()
+                normalized = str(prop_type).lower()
+                if prop_name.lower() == "id":
+                    value = id_literal
+                elif "bool" in normalized:
+                    value = "true"
+                elif any(token in normalized for token in ["int", "long", "decimal", "double", "float"]):
+                    value = "1"
+                elif "datetime" in normalized or "date" in normalized:
+                    value = "DateTime.UtcNow"
+                elif "email" in lowered:
+                    value = '"test@example.com"'
+                else:
+                    value = '"Test"'
+                entity_values.append(f"{prop_name} = {value}")
+            entity_initializer = ", ".join(entity_values)
+            parsed_entity_props = self._parse_props(entity_props)
+            string_props = [name for name, typ in parsed_entity_props if "string" in str(typ).lower()]
+            if string_props:
+                marker_property = string_props[0]
+                db_values = []
+                columns = []
+                definitions = []
+                for prop_name, prop_type in parsed_entity_props:
+                    normalized = str(prop_type).lower()
+                    columns.append(prop_name)
+                    if prop_name.lower() == "id" or "int" in normalized or "long" in normalized:
+                        sql_type = "INTEGER"
+                        sql_value = "1"
+                    elif "bool" in normalized:
+                        sql_type = "INTEGER"
+                        sql_value = "1"
+                    elif any(token in normalized for token in ["decimal", "double", "float"]):
+                        sql_type = "REAL"
+                        sql_value = "1"
+                    elif "datetime" in normalized or "date" in normalized:
+                        sql_type = "TEXT"
+                        sql_value = "'2025-01-01T00:00:00Z'"
+                    else:
+                        sql_type = "TEXT"
+                        marker = "Alice" if prop_name == marker_property else ("test@example.com" if "email" in prop_name.lower() else "Test")
+                        sql_value = f"'{marker}'"
+                    definitions.append(f"{prop_name} {sql_type}{' PRIMARY KEY' if prop_name.lower() == 'id' else ''}")
+                    db_values.append(sql_value)
+                schema_sql = f"CREATE TABLE {entity_plural} ({', '.join(definitions)})"
+                seed_sql = f"INSERT INTO {entity_plural} ({', '.join(columns)}) VALUES ({', '.join(db_values)})"
+                update_payload = dict(payload)
+                update_payload[marker_property] = "Updated"
+                create_body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("\\", "\\\\").replace('"', '\\"')
+                update_body = json.dumps(update_payload, ensure_ascii=False, separators=(",", ":")).replace("\\", "\\\\").replace('"', '\\"')
+                list_route = next((str(route).split(" ", 1)[1] for route in routes if str(route).upper().startswith("GET ") and "{" not in str(route)), None)
+                post_route = next((str(route).split(" ", 1)[1] for route in routes if str(route).upper().startswith("POST ")), None)
+                put_route = next((str(route).split(" ", 1)[1].replace("{id}", "1") for route in routes if str(route).upper().startswith("PUT ")), None)
+                delete_route = next((str(route).split(" ", 1)[1].replace("{id}", "1") for route in routes if str(route).upper().startswith("DELETE ")), None)
+                if list_route:
+                    sqlite_endpoint_cases.append({"test_name": f"SqliteGet_{entity_plural}_ReadsDatabase", "schema_sql": schema_sql, "seed_sql": seed_sql, "body": "{}", "http_method": "Get", "route": list_route, "response_contains": "Alice", "expected_scalar": "1L", "assert_sql": f"SELECT COUNT(*) FROM {entity_plural}"})
+                if post_route:
+                    sqlite_endpoint_cases.append({"test_name": f"SqlitePost_{entity_plural}_WritesDatabase", "schema_sql": schema_sql, "seed_sql": "", "body": create_body, "http_method": "Post", "route": post_route, "expected_scalar": "1L", "assert_sql": f"SELECT COUNT(*) FROM {entity_plural}"})
+                if put_route:
+                    sqlite_endpoint_cases.append({"test_name": f"SqlitePut_{entity_plural}_UpdatesDatabase", "schema_sql": schema_sql, "seed_sql": seed_sql, "body": update_body, "http_method": "Put", "route": put_route, "expected_scalar": '"Updated"', "assert_sql": f"SELECT {marker_property} FROM {entity_plural} WHERE Id = 1"})
+                if delete_route:
+                    sqlite_endpoint_cases.append({"test_name": f"SqliteDelete_{entity_plural}_DeletesDatabase", "schema_sql": schema_sql, "seed_sql": seed_sql, "body": "{}", "http_method": "Delete", "route": delete_route, "expected_scalar": "0L", "assert_sql": f"SELECT COUNT(*) FROM {entity_plural}"})
+            create_route = next((str(route).split(" ", 1)[1] for route in routes if str(route).upper().startswith("POST ")), None)
+            if create_route and repo_name and entity_name:
+                endpoint_cases.append({
+                    "test_name": f"Post_{entity_plural}_ReturnsSuccess",
+                    "verb": "POST",
+                    "route": create_route,
+                    "repository": repo_name,
+                    "entity": entity_name,
+                    "body": body,
+                    "setup_lines": [f"factory.Repository_{repo_name}.{repo_create}(Arg.Any<{entity_name}>()).Returns(new {entity_name} {{ {entity_initializer} }});"],
+                })
+            update_route = next((str(route).split(" ", 1)[1].replace("{id}", "1") for route in routes if str(route).upper().startswith("PUT ")), None)
+            if update_route and repo_name and entity_name:
+                endpoint_cases.append({
+                    "test_name": f"Put_{entity_plural}_ReturnsSuccess",
+                    "verb": "PUT",
+                    "route": update_route,
+                    "repository": repo_name,
+                    "entity": entity_name,
+                    "body": body,
+                    "setup_lines": [
+                        f"factory.Repository_{repo_name}.{repo_get}({id_literal}).Returns(new {entity_name} {{ {entity_initializer} }});",
+                        f"factory.Repository_{repo_name}.{repo_update}({id_literal}, Arg.Any<{entity_name}>()).Returns(new {entity_name} {{ {entity_initializer} }});",
+                    ],
+                })
+            delete_route = next((str(route).split(" ", 1)[1].replace("{id}", "1") for route in routes if str(route).upper().startswith("DELETE ")), None)
+            if delete_route and repo_name:
+                endpoint_cases.append({
+                    "test_name": f"Delete_{entity_plural}_ReturnsSuccess",
+                    "verb": "DELETE",
+                    "route": delete_route,
+                    "repository": repo_name,
+                    "entity": entity_name,
+                    "setup_lines": [f"factory.Repository_{repo_name}.{repo_delete}({id_literal}).Returns(true);"],
+                })
+                endpoint_cases.append({
+                    "test_name": f"Delete_{entity_plural}_Missing_ReturnsNotFound",
+                    "verb": "DELETE",
+                    "route": delete_route,
+                    "repository": repo_name,
+                    "entity": entity_name,
+                    "expected_status": 404,
+                    "setup_lines": [f"factory.Repository_{repo_name}.{repo_delete}({id_literal}).Returns(false);"],
+                })
+            get_by_id_route = next((str(route).split(" ", 1)[1].replace("{id}", "1") for route in routes if str(route).upper().startswith("GET ") and "{" in str(route)), None)
+            if get_by_id_route and repo_name and entity_name:
+                endpoint_cases.append({
+                    "test_name": f"Get_{entity_plural}_Missing_ReturnsNotFound",
+                    "verb": "GET",
+                    "route": get_by_id_route,
+                    "repository": repo_name,
+                    "entity": entity_name,
+                    "expected_status": 404,
+                    "setup_lines": [f"factory.Repository_{repo_name}.{repo_get}(1).Returns(({entity_name}?)null);"],
+                })
+            if update_route and repo_name and entity_name:
+                endpoint_cases.append({
+                    "test_name": f"Put_{entity_plural}_Missing_ReturnsNotFound",
+                    "verb": "PUT",
+                    "route": update_route,
+                    "repository": repo_name,
+                    "entity": entity_name,
+                    "body": body,
+                    "expected_status": 404,
+                    "setup_lines": [f"factory.Repository_{repo_name}.{repo_get}(1).Returns(({entity_name}?)null);"],
+                })
+            has_validation = any(str(key).startswith(f"{create_dto}.") for key in (validation_rules or {}))
+            if create_route and has_validation:
+                endpoint_cases.append({
+                    "test_name": f"Post_{entity_plural}_Invalid_ReturnsBadRequest",
+                    "verb": "POST",
+                    "route": create_route,
+                    "repository": repo_name,
+                    "entity": entity_name,
+                    "body": "{}",
+                    "expected_status": 400,
+                    "setup_lines": [],
+                })
+        if endpoint_cases:
+            self._write_file(
+                os.path.join(test_dir, "ProjectEndpointTests.cs"),
+                render_project_endpoint_tests(project_name, endpoint_cases, repository_names),
+            )
+        if sqlite_endpoint_cases:
+            self._write_file(
+                os.path.join(test_dir, "ProjectSqliteEndpointTests.cs"),
+                render_project_sqlite_endpoint_tests(project_name, sqlite_endpoint_cases),
+            )
+            sqlserver_endpoint_cases = []
+            for sqlite_case in sqlite_endpoint_cases:
+                table_name = str(sqlite_case["schema_sql"]).split()[2]
+                schema_sql = str(sqlite_case["schema_sql"])
+                schema_sql = schema_sql.replace("INTEGER PRIMARY KEY", "INT IDENTITY(1,1) PRIMARY KEY")
+                schema_sql = schema_sql.replace("INTEGER", "INT")
+                schema_sql = schema_sql.replace("REAL", "DECIMAL(18,2)")
+                schema_sql = schema_sql.replace("TEXT", "NVARCHAR(4000)")
+                seed_sql = str(sqlite_case.get("seed_sql") or "")
+                if seed_sql:
+                    seed_sql = f"SET IDENTITY_INSERT {table_name} ON; {seed_sql}; SET IDENTITY_INSERT {table_name} OFF;"
+                sqlserver_case = dict(sqlite_case)
+                sqlserver_case["test_name"] = str(sqlite_case["test_name"]).replace("Sqlite", "SqlServer")
+                sqlserver_case["expected_scalar"] = str(sqlite_case["expected_scalar"]).replace("1L", "1").replace("0L", "0")
+                sqlserver_case["schema_sql"] = schema_sql
+                sqlserver_case["seed_sql"] = seed_sql
+                sqlserver_endpoint_cases.append(sqlserver_case)
+            self._write_file(
+                os.path.join(test_dir, "ProjectSqlServerEndpointTests.cs"),
+                render_project_sqlserver_endpoint_tests(project_name, sqlserver_endpoint_cases),
+            )
 
         if logic_findings:
             logging.warning("Logic audit warnings (project generation):")

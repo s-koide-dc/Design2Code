@@ -15,4 +15,4 @@
 3. [ACTION|DISPLAY|User|void|NONE] [refs:step_2] [ops:display_names] 抽出されたユーザーの名前一覧を表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"fixtures":[{"path":"users.json","content":"[{\"Id\":1,\"Name\":\"Alice\",\"Price\":200},{\"Id\":2,\"Name\":\"Bob\",\"Price\":50}]"}],"return":true,"stdout":{"contains":["Alice"],"not_contains":["Bob"]}}}

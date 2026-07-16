@@ -15,4 +15,4 @@
 3. [ACTION|DISPLAY|decimal|void|NONE] [semantic_roles:{"display_scope":"after_loop","display_var":"total"}] 最終的な総計を最後に1回だけ表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"fixtures":[{"path":"orders.json","content":"[{\"Id\":1,\"Total\":10.5},{\"Id\":2,\"Total\":5.0}]"}],"return":true,"stdout":{"contains":["15.5"]}}}

@@ -15,4 +15,4 @@
 4. [ACTION|DISPLAY|string|void|NONE] 変換結果を表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"stdin":" hello \\n","return":true,"stdout":{"contains":["HELLO"]}}}
