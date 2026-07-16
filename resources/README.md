@@ -8,7 +8,7 @@
 
 ## 0. 初期セットアップとの対応
 
-README の「ベクトル/辞書の準備」で実行する主要コマンドと、増える代表生成物は次の通りです。
+[ローカル初回セットアップ](../docs/local_setup.md) で実行する主要コマンドと、増える代表生成物は次の通りです。
 
 1. `python scripts/data/fetch_vectors.py`
    - `vectors/chive-1.3-mc90.txt`

@@ -132,27 +132,24 @@ namespace Generated
   - `global.json` で `10.0.109` / `allowPrerelease: false` / `rollForward: latestFeature` を指定しています。
   - preview SDK が同居していても、このリポジトリ直下では安定版 SDK を使う前提です。
 
-### 初期セットアップ例
+### 最短セットアップ（設計書からC#を生成する）
 ```bash
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+python scripts/validate/diagnose_local_environment.py --require design_generation
+python scripts/generate/generate_from_design.py --design scenarios/AppModeEchoMinimal.design.md
 ```
 
-### ベクトル/辞書の準備
-```bash
-# chiVe 取得
-python scripts/data/fetch_vectors.py
-# chiVe キャッシュ生成（必須）
-python scripts/data/convert_vectors.py
+診断はワークスペースを変更せず、設計書生成・chiVeを使う対話/意味検索・辞書検索を分けて可用性と準備コマンドを表示します。
 
-# JMDict 取得/変換（dictionary.db 作成）
-python scripts/data/fetch_jmdict.py
-python scripts/data/parse_jmdict.py
-```
+### 機能別の追加セットアップ
 
-`src/pipeline_core/pipeline_core.py` やベクトル検索を使う機能では、`resources/vectors/chive-1.3-mc90.txt` とその `.npy` キャッシュが必要です。
-一方で、設計書からの単体生成や一部テストは `is_test_mode=True` や既存キャッシュにより最小構成でも動く場合があります。
+- chiVeを使う対話・意味検索: `--require semantic_pipeline`
+- method-storeの意味検索: `--require semantic_method_search`
+- JMDictの辞書検索・逆引き: `--require dictionary_search`
+
+必要な資産と各コマンドは [ローカル初回セットアップ](./docs/local_setup.md) に集約しています。実モデルをGitHubへ置かない理由と実モデル検証は [実モデルを使うローカル検証](./docs/real_vector_model_validation.md) を参照してください。
 
 ## 1. 入口（エントリポイント）
 - 設計書 → コード生成: `scripts/generate/generate_from_design.py`
@@ -160,6 +157,7 @@ python scripts/data/parse_jmdict.py
 - TDD 支援: `src/advanced_tdd/main.py`
 - 設定依存の見取り図: [config/README.md](./config/README.md)
 - セットアップ後の生成物一覧: [resources/README.md](./resources/README.md)
+- 機能別のローカル初回セットアップ: [docs/local_setup.md](./docs/local_setup.md)
 - ドキュメントの正本と更新ルール: [docs/documentation_source_of_truth.md](./docs/documentation_source_of_truth.md)
 - 実モデルを使うローカル検証: [docs/real_vector_model_validation.md](./docs/real_vector_model_validation.md)
 - 設計書生成の検証済み範囲: [docs/supported_generation_contract.md](./docs/supported_generation_contract.md)

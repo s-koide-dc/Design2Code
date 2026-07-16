@@ -149,6 +149,7 @@
   - GitHub Actions では `core + parser + synthesis` だけを実行し、chiVe / cache / `dictionary.db` のような未コミット資産には依存しない
   - `--test-target` は profile に追加する形で使える
 - `scripts/validate/run_tdd.py` : Advanced TDD の CLI 入口
+- `scripts/validate/diagnose_local_environment.py` : ローカル環境を変更せず、設計書生成、chiVeを使う意味検索、method-store検索、辞書検索の準備状況を診断する。`--require` で必要な能力を明示できる。
 
 ## 7. sync (同期/更新)
 
