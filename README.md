@@ -162,6 +162,7 @@ python scripts/data/parse_jmdict.py
 - セットアップ後の生成物一覧: [resources/README.md](./resources/README.md)
 - ドキュメントの正本と更新ルール: [docs/documentation_source_of_truth.md](./docs/documentation_source_of_truth.md)
 - 実モデルを使うローカル検証: [docs/real_vector_model_validation.md](./docs/real_vector_model_validation.md)
+- 設計書生成の検証済み範囲: [docs/supported_generation_contract.md](./docs/supported_generation_contract.md)
 
 ## 1.1 入口の実行例
 ```bash

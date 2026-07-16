@@ -14,14 +14,14 @@
 ### Output
 - **Description**: 作成されたサンドボックスディレクトリのパス。
 - **Type/Format**: `Path`
-- **Example**: `C:\\Users\\...\\Temp\\gemini_nlp_sandbox`
+- **Example**: `C:\\Users\\...\\Temp\\nlp_codegen_sandbox_<unique-id>`
 
 ### Core Logic
-1. 既存の一時ディレクトリがあれば削除する。
-2. 依存パッケージを含む最小 `csproj` を生成する。
+1. 実行ごとに所有する一意な一時ディレクトリを生成する。呼び出し元のプロジェクト名はパスへ使わず、内部固定名 `Sandbox.csproj` を使う。
+2. `dependency_contract` で検証・XMLエスケープ済みの依存パッケージだけを含む最小 `net10.0` の `csproj` を生成する。
 3. `dotnet restore` を実行して依存を復元する。
 4. ディレクトリパスを返す。失敗時は警告を出す。
-5. `clean_up` で一時ディレクトリを削除する。
+5. `clean_up` は当該インスタンスが生成した一時ディレクトリだけを削除する。
 
 ### Test Cases
 - **Happy Path**:
@@ -32,7 +32,7 @@
   - **Expected Output / Behavior**: 警告が出るがパスは返る。
 
 ## 3. Dependencies
-- **Internal**: `config_manager`
+- **Internal**: `dependency_contract`
 
 ## 4. Operational Notes
 - `dotnet restore` 失敗の補助診断は stdout ではなく logger の warning に記録する。

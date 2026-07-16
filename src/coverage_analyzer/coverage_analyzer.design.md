@@ -25,7 +25,7 @@
   - 分析結果の集約とワークフロー管理
   - レポート生成の統括
   - Roslynデータ等の外部解析情報の統合
-  - 設定ファイル（`resources/coverage_config.json`）の読み込みとデフォルト値のマージ
+  - 設定ファイル（`config/coverage_config.json`）の読み込みとデフォルト値のマージ
   - ログマネージャーとの連携によるイベント記録
 
 #### Language-Specific Collectors

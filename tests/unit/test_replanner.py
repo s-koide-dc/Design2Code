@@ -117,5 +117,61 @@ class TestReplanner(unittest.TestCase):
         patched_ir = patcher.apply_patches(ir_tree, hints)
         self.assertIn("step_1", patched_ir["logic_tree"][1]["input_refs"])
 
+    def test_ir_patcher_adds_explicitly_typed_poco_property(self):
+        patcher = IRPatcher()
+        ir_tree = {"poco_defs": {"User": {"Name": "string"}}}
+        hints = [{"patch": {
+            "type": "ADD_POCO_PROPERTY",
+            "entity": "User",
+            "member": "Age",
+            "member_type": "int",
+        }}]
+
+        patched_ir = patcher.apply_patches(ir_tree, hints)
+
+        self.assertEqual("int", patched_ir["poco_defs"]["User"]["Age"])
+
+    def test_ir_patcher_does_not_guess_or_overwrite_poco_schema(self):
+        patcher = IRPatcher()
+        ir_tree = {"poco_defs": {"User": {"Age": "int"}}}
+
+        patcher.apply_patches(ir_tree, [{"patch": {
+            "type": "ADD_POCO_PROPERTY",
+            "entity": "User",
+            "member": "Age",
+            "member_type": "string",
+        }}])
+        patcher.apply_patches(ir_tree, [{"patch": {
+            "type": "ADD_POCO_PROPERTY",
+            "entity": "Unknown",
+            "member": "Value",
+            "member_type": "string",
+        }}])
+        patcher.apply_patches(ir_tree, [{"patch": {
+            "type": "ADD_POCO_PROPERTY",
+            "entity": "User",
+            "member": "Email",
+        }}])
+
+        self.assertEqual({"Age": "int"}, ir_tree["poco_defs"]["User"])
+        self.assertNotIn("Unknown", ir_tree["poco_defs"])
+
+    def test_reason_analyzer_emits_poco_patch_only_with_explicit_type(self):
+        analyzer = ReasonAnalyzer()
+        verification_result = {"valid": False, "errors": [{
+            "code": "CS1061",
+            "message": "'User' does not contain a definition for 'Age'",
+            "member_type": "int",
+        }]}
+
+        hints = analyzer.analyze({}, verification_result, [])
+
+        self.assertEqual([{
+            "type": "ADD_POCO_PROPERTY",
+            "entity": "User",
+            "member": "Age",
+            "member_type": "int",
+        }], [hint["patch"] for hint in hints])
+
 if __name__ == "__main__":
     unittest.main()

@@ -20,7 +20,7 @@ class CoverageAnalyzer:
     """カバレッジ分析の中心的なコントローラー"""
 
     def __init__(self, workspace_root: str = ".", log_manager=None):
-        self.workspace_root = workspace_root
+        self.workspace_root = Path(workspace_root)
         self.log_manager = log_manager
         self.config = self._load_coverage_config()
         self.collectors = {
@@ -31,7 +31,7 @@ class CoverageAnalyzer:
 
     def _load_coverage_config(self) -> Dict[str, Any]:
         """カバレッジ設定を読み込む"""
-        config_path = os.path.join(self.workspace_root, "resources", "coverage_config.json")
+        config_path = self.workspace_root / "config" / "coverage_config.json"
 
         default_config = {
             "csharp": {
@@ -55,8 +55,8 @@ class CoverageAnalyzer:
         }
 
         try:
-            if os.path.exists(config_path):
-                with open(config_path, 'r', encoding='utf-8') as f:
+            if config_path.exists():
+                with config_path.open('r', encoding='utf-8') as f:
                     loaded_config = json.load(f)
                 for lang in default_config:
                     if lang in loaded_config:

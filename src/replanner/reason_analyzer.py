@@ -48,7 +48,19 @@ class ReasonAnalyzer:
         if err_code == "CS0103":
             patch = {"type": "ENSURE_FIELD_OR_LOCAL", "name": symbol}
         elif err_code == "CS1061":
-            patch = {"type": "ADD_POCO_PROPERTY", "member": symbol}
+            entity_name, member_name = self._extract_missing_member_details(msg)
+            member_type = error.get("member_type") or error.get("property_type")
+            if not all(
+                isinstance(value, str) and value.strip()
+                for value in (entity_name, member_name, member_type)
+            ):
+                return None
+            patch = {
+                "type": "ADD_POCO_PROPERTY",
+                "entity": entity_name,
+                "member": member_name,
+                "member_type": member_type,
+            }
         elif err_code == "CS0120":
             patch = {"type": "INSTANCE_REQUIRED", "name": symbol}
         else:
@@ -224,6 +236,24 @@ class ReasonAnalyzer:
         if end == -1:
             return ""
         return value[start + 1:end]
+
+    @staticmethod
+    def _extract_missing_member_details(message: str) -> tuple[str, str]:
+        """Read the type and member from the fixed CS1061 diagnostic shape."""
+        values = []
+        remaining = str(message)
+        while len(values) < 2:
+            start = remaining.find("'")
+            if start == -1:
+                break
+            end = remaining.find("'", start + 1)
+            if end == -1:
+                break
+            values.append(remaining[start + 1:end])
+            remaining = remaining[end + 1:]
+        if len(values) != 2:
+            return "", ""
+        return values[0], values[1]
 
     @staticmethod
     def _is_identifier_token(value: str) -> bool:

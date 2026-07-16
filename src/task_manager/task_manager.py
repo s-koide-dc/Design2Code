@@ -552,83 +552,14 @@ class TaskManager:
             # This branch implies that the user might be trying to do something outside the current task's scope
             # and ClarificationManager should then ask. We don't want to prematurely reset the current_task here.
 
-        # 1. Initiate a new task if no active task and a valid task intent is detected
         if not current_task and task_definition:
-            if task_definition.get("type") == "COMPOUND_TASK":
-                subtasks_definitions = []
-                for subtask_def in task_definition.get("subtasks", []):
-                    subtasks_definitions.append({
-                        "name": subtask_def["name"],
-                        "state": "PENDING", # Initial state for subtasks
-                        "parameters": {} # Subtask parameters will be filled during its lifecycle
-                    })
-                current_task = {
-                    "id": str(uuid.uuid4()),
-                    "name": effective_intent,
-                    "type": "COMPOUND_TASK",
-                    "state": "INIT", # Overall state of the compound task
-                    "parameters": {}, # Parent-level parameters
-                    "subtasks": subtasks_definitions,
-                    "current_subtask_index": 0,
-                    "history": [],
-                    "recovery_attempts": 0, # NEW: Track recovery loops
-                    "clarification_needed": task_definition.get("require_overall_approval", True),  # Default to True, but allow override
-                    "clarification_message": None, # Will be set below if needed
-                    "clarification_type": "APPROVAL" if task_definition.get("require_overall_approval", True) else None
-                }
-                self._apply_recommended_action_metadata(current_task, effective_intent)
-
-                # Propagate entities to the new task immediately
-                for entity_key, entity_data in entities.items():
-                    if entity_data.get("value"):
-                        current_task["parameters"][entity_key] = entity_data
-
-                # デバッグ情報
-                require_approval = task_definition.get("require_overall_approval", True)
-                self._log_debug(f"Compound task {effective_intent}: require_overall_approval={require_approval}, clarification_needed={current_task['clarification_needed']}")
-
-                if task_definition.get("require_overall_approval", True):
-                    context["clarification_needed"] = True # Set top-level clarification_needed only if approval is required
-                    # 複合タスクの承認メッセージをcontextにも設定
-                    approval_message = self.approval_messages.generate_overall_approval_message(effective_intent, current_task["parameters"], self.task_definitions)
-                    current_task["clarification_message"] = approval_message  # 実際のメッセージを設定
-                    current_task["clarification_type"] = "APPROVAL"
-                    context["response"] = {"text": approval_message}
-                    # LOG
-                    if self.log_manager:
-                        self.log_manager.log_event("clarification_needed", {"message": approval_message}, level="INFO")
-                    self._log_debug(f"Set context clarification_needed=True for compound task {effective_intent}")
-                    self._log_debug(f"Set approval message: {approval_message}")
-            else: # Regular (simple) task
-                current_task = {
-                    "id": str(uuid.uuid4()),
-                    "name": effective_intent,
-                    "type": "SIMPLE_TASK", # Explicitly mark as simple task
-                    "state": "INIT",
-                    "parameters": {},
-                    "history": [],
-                    "clarification_needed": False,
-                    "clarification_message": None,
-                    "clarification_type": None
-                }
-                self._apply_recommended_action_metadata(current_task, effective_intent)
-            self.active_tasks[session_id] = current_task
-
-            # メトリクス記録
-            if self.metrics:
-                self.metrics.start_task(session_id, effective_intent, task_definition.get("type", "SIMPLE_TASK"))
-
-            # 永続化
-            if self.persistence:
-                self.persistence.save_task_state(session_id, current_task)
-
-            context["analysis"]["task_initiated"] = True # For logging/tracking
-            self._log_debug(f"Created new task: {effective_intent} for session {session_id}")
-
-            for entity_key, entity_data in entities.items():
-                if entity_data.get("value"):
-                    current_task["parameters"][entity_key] = entity_data
-            # --- END NEW ---
+            current_task = self._initiate_task(
+                session_id,
+                context,
+                effective_intent,
+                task_definition,
+                entities,
+            )
 
         if current_task:
             context["task"] = current_task # Set it early so _evaluate_condition can see it
@@ -645,218 +576,250 @@ class TaskManager:
                 self._update_clarification_status(context)
                 return context
 
-            # --- START COMPOUND TASK LOGIC ---
             if task_type == "COMPOUND_TASK":
-                # Check if overall approval is needed first
-                if current_task.get("state") == "INIT" and current_task.get("clarification_needed"):
-                    # Overall approval is needed, return early
-                    self._update_clarification_status(context)
-                    return context
+                return self._manage_compound_task(session_id, context, current_task, entities)
 
-                sub_task_index = current_task.get("current_subtask_index", 0)
-
-                # If we've completed all subtasks, the compound task is effectively done for state management
-                if sub_task_index >= len(current_task.get("subtasks", [])):
-                    # All sub-tasks are done, no more state management needed here.
-                    self._update_clarification_status(context)
-                    return context
-
-                sub_task = current_task["subtasks"][sub_task_index]
-                self._apply_recommended_action_metadata(sub_task, sub_task.get("name"))
-                sub_task_def = self.task_definitions.get(sub_task["name"])
-
-                if not sub_task_def:
-                    context["errors"].append({
-                        "module": "task_manager",
-                        "message": f"複合タスク '{current_task['name']}' のサブタスク '{sub_task['name']}' の定義が見つかりません。"
-                    })
-                    self.reset_task(session_id)
-                    self._update_clarification_status(context)
-                    return context
-
-                if sub_task: # Process current sub-task regardless of state
-
-                    # 1. Propagate entities from parent and current turn (only if not already ready)
-                    if sub_task.get("state") in ["PENDING", "INIT"]:
-                        sub_task.setdefault("parameters", {})
-
-                        # Use parameter_mapping from the parent task's definition
-                        parent_task_def = self.task_definitions.get(current_task["name"], {})
-                        subtask_info_from_def = parent_task_def.get("subtasks", [])[sub_task_index]
-                        param_mapping = subtask_info_from_def.get("parameter_mapping", {})
-
-                        for sub_param, parent_param in param_mapping.items():
-                            if parent_param in current_task["parameters"]:
-                                sub_task["parameters"][sub_param] = current_task["parameters"][parent_param]
-
-                        # Current turn entities can also fill in missing parameters
-                        for entity_key, entity_data in entities.items():
-                            if entity_data.get("value"):
-                                sub_task["parameters"][entity_key] = entity_data
-
-                        # 2. Create a temporary context for evaluating the sub-task's state
-                        # We create a new context for the sub_task evaluation to avoid side-effects
-                        sub_task_eval_context = {
-                            "analysis": {"entities": sub_task["parameters"]},
-                            # _evaluate_condition uses context['task']['parameters'] as a fallback
-                            "task": sub_task
-                        }
-
-                        # 3. Evaluate transitions for the sub-task
-                        current_sub_state = sub_task.get("state", "INIT")
-                        if current_sub_state == "PENDING": current_sub_state = "INIT"
-
-                        transitions = sub_task_def.get("transitions", {}).get(current_sub_state, [])
-                        for transition in transitions:
-                            if self._evaluate_condition(transition["condition"], sub_task_eval_context):
-                                old_state = sub_task.get("state", "INIT")
-                                new_state = transition["next_state"]
-                                sub_task["state"] = new_state
-                                sub_task["clarification_needed"] = False # Reset on successful transition
-                                sub_task["clarification_message"] = None
-                                sub_task["clarification_type"] = None
-
-                                # ログ記録
-                                self._log_state_transition(session_id, old_state, new_state, f"{current_task['name']}.{sub_task['name']}")
-
-                                # 永続化
-                                if self.persistence:
-                                    self.persistence.save_task_state(session_id, current_task)
-                                break
-
-                    # --- NEW: Level 2 Approval Check for Critical Subtasks (check regardless of state transition) ---
-
-                    if (sub_task["state"] == "READY_FOR_EXECUTION" and
-                        sub_task["name"] in self.CRITICAL_INTENTS and
-                        not sub_task.get("clarification_needed", False) and
-                        current_task.get("state") != "IN_PROGRESS"):  # Skip if overall task already approved
-
-                        sub_task["clarification_needed"] = True
-                        # より具体的な承認メッセージを生成
-                        sub_task["clarification_message"] = self.approval_messages.generate_critical_subtask_message(
-                            current_task.get("name", "不明なタスク"),
-                            sub_task.get("name", "不明なサブタスク"),
-                            sub_task.get("parameters", {}),
-                            self.task_definitions
-                        )
-                        sub_task["clarification_type"] = "APPROVAL"
-                        current_task["clarification_type"] = "APPROVAL"
-                        context["clarification_needed"] = True # <--- This line is supposed to set it to True
-
-                        # メトリクス記録
-                        if self.metrics:
-                            self.metrics.record_approval_request(session_id, "CRITICAL_SUBTASK")
-                        # context["response"]["text"] will be set by Pipeline calling ResponseGenerator
-
-                    # --- END NEW ---
-
-                    # 4. If not ready and not already asking for approval, check for missing entities and set clarification
-                    if not context.get("clarification_needed") and sub_task["state"] != "READY_FOR_EXECUTION":
-                        required = sub_task_def.get("required_entities", [])
-                        missing_entities = [req for req in required if req not in sub_task["parameters"] or not sub_task["parameters"].get(req)]
-
-                        if missing_entities:
-                            first_missing = missing_entities[0]
-                            clarification_msgs = sub_task_def.get("clarification_messages", {})
-                            message = clarification_msgs.get(first_missing, f"複合タスク「{current_task['name']}」のサブタスク「{sub_task['name']}」で、情報「{first_missing}」が必要です。")
-
-                            sub_task["clarification_needed"] = True
-                            sub_task["clarification_message"] = message
-                            sub_task["clarification_type"] = "MISSING_ENTITY"
-                            sub_task["awaiting_entity"] = first_missing
-                            context["clarification_needed"] = True
-                            context.setdefault("response", {})
-                            context["response"]["text"] = message
-                        else:
-                            # If no specific entities are missing but not ready, something is wrong with transition logic
-                            # Or it's just awaiting more info without a specific prompt
-                            sub_task["clarification_needed"] = False
-                            sub_task["clarification_message"] = None
-                            sub_task["clarification_type"] = None
-                            sub_task.pop("awaiting_entity", None)
-
-
-                # Update the main task structure and return
-                current_task["subtasks"][sub_task_index] = sub_task
-                context["task"] = current_task
-
-                # Propagate clarification_needed from the current sub_task to the top-level context
-                if sub_task.get("clarification_needed"):
-                    context["clarification_needed"] = True
-
-                return context
-            # --- END COMPOUND TASK LOGIC ---
-
-            # The rest of the logic is for SIMPLE tasks.
-            # 1. Populate/update entities for the simple task FIRST
-            for entity_key, entity_data in entities.items():
-                if isinstance(entity_data, dict) and entity_data.get("value"):
-                    current_task["parameters"][entity_key] = entity_data
-                elif isinstance(entity_data, str):
-                    current_task["parameters"][entity_key] = {"value": entity_data, "confidence": 1.0}
-
-            # 2. Transition state for the simple task SECOND
-            current_state = current_task["state"]
-            transitions = task_def.get("transitions", {}).get(current_state, [])
-
-            for transition in transitions:
-                if self._evaluate_condition(transition["condition"], context):
-                    old_state = current_task.get("state", "INIT")
-                    new_state = transition["next_state"]
-                    current_task["state"] = new_state
-                    current_task["clarification_needed"] = False
-                    current_task["clarification_message"] = None
-                    current_task["clarification_type"] = None
-                    current_task.pop("awaiting_entity", None)
-                    self._log_state_transition(session_id, old_state, new_state, current_task["name"])
-                    if self.persistence: self.persistence.save_task_state(session_id, current_task)
-                    break
-
-            # 3. Check for missing entities THIRD
-            if current_task["state"] != "READY_FOR_EXECUTION":
-
-                required = task_def.get("required_entities", [])
-                missing_entities = []
-                for req in required:
-                    val = current_task["parameters"].get(req)
-                    is_missing = not val or (isinstance(val, dict) and not val.get("value"))
-                    if is_missing:
-                        missing_entities.append(req)
-
-                if missing_entities:
-                    first_missing = missing_entities[0]
-                    clarification_msgs = task_def.get("clarification_messages", {})
-                    message = clarification_msgs.get(first_missing, f"タスク「{task_name}」で、情報「{first_missing}」が必要です。")
-
-                    current_task["clarification_needed"] = True
-                    current_task["clarification_message"] = message
-                    current_task["clarification_type"] = "MISSING_ENTITY"
-                    current_task["awaiting_entity"] = first_missing
-                    context["clarification_needed"] = True
-
-                    # LOG
-                    if self.log_manager:
-                        self.log_manager.log_event("clarification_needed", {"message": message}, level="INFO")
-
-                    # --- NEW: Flag the specific entity we are waiting for ---
-                    context["analysis"]["awaiting_entity"] = first_missing
-                    # -------------------------------------------------------
-
-
-
-                    # メトリクス記録
-                    if self.metrics:
-                        self.metrics.record_approval_request(session_id, "MISSING_ENTITY")
-                    context.setdefault("response", {})
-                    context["response"]["text"] = message
-
-            context["task"] = current_task
+            self._manage_simple_task(session_id, context, current_task, task_def, entities)
 
         if current_task and current_task.get("state") == "READY_FOR_EXECUTION" and not current_task.get("clarification_needed"):
             context["analysis"]["intent"] = current_task.get("name")
 
         self._update_clarification_status(context)
         return context
+
+    def _initiate_task(self, session_id, context, intent, task_definition, entities):
+        """Create, register, and persist one task from a validated definition."""
+        is_compound = task_definition.get("type") == "COMPOUND_TASK"
+        if is_compound:
+            task = {
+                "id": str(uuid.uuid4()),
+                "name": intent,
+                "type": "COMPOUND_TASK",
+                "state": "INIT",
+                "parameters": {},
+                "subtasks": [
+                    {"name": definition["name"], "state": "PENDING", "parameters": {}}
+                    for definition in task_definition.get("subtasks", [])
+                ],
+                "current_subtask_index": 0,
+                "history": [],
+                "recovery_attempts": 0,
+                "clarification_needed": task_definition.get("require_overall_approval", True),
+                "clarification_message": None,
+                "clarification_type": "APPROVAL" if task_definition.get("require_overall_approval", True) else None,
+            }
+        else:
+            task = {
+                "id": str(uuid.uuid4()),
+                "name": intent,
+                "type": "SIMPLE_TASK",
+                "state": "INIT",
+                "parameters": {},
+                "history": [],
+                "clarification_needed": False,
+                "clarification_message": None,
+                "clarification_type": None,
+            }
+
+        self._apply_recommended_action_metadata(task, intent)
+        for entity_key, entity_data in entities.items():
+            if entity_data.get("value"):
+                task["parameters"][entity_key] = entity_data
+
+        self.active_tasks[session_id] = task
+        if self.metrics:
+            self.metrics.start_task(session_id, intent, task_definition.get("type", "SIMPLE_TASK"))
+        if self.persistence:
+            self.persistence.save_task_state(session_id, task)
+        context["analysis"]["task_initiated"] = True
+
+        if is_compound and task_definition.get("require_overall_approval", True):
+            context["clarification_needed"] = True
+            approval_message = self.approval_messages.generate_overall_approval_message(
+                intent,
+                task["parameters"],
+                self.task_definitions,
+            )
+            task["clarification_message"] = approval_message
+            task["clarification_type"] = "APPROVAL"
+            context["response"] = {"text": approval_message}
+            if self.log_manager:
+                self.log_manager.log_event("clarification_needed", {"message": approval_message}, level="INFO")
+        self._log_debug(f"Created new task: {intent} for session {session_id}")
+        return task
+
+    def _manage_compound_task(self, session_id, context, current_task, entities):
+        """Advance the active subtask, including its approval and slot-filling flow."""
+        if current_task.get("state") == "INIT" and current_task.get("clarification_needed"):
+            self._update_clarification_status(context)
+            return context
+
+        subtask_index = current_task.get("current_subtask_index", 0)
+        if subtask_index >= len(current_task.get("subtasks", [])):
+            self._update_clarification_status(context)
+            return context
+
+        subtask = current_task["subtasks"][subtask_index]
+        self._apply_recommended_action_metadata(subtask, subtask.get("name"))
+        subtask_definition = self.task_definitions.get(subtask["name"])
+        if not subtask_definition:
+            context["errors"].append({
+                "module": "task_manager",
+                "message": f"複合タスク '{current_task['name']}' のサブタスク '{subtask['name']}' の定義が見つかりません。",
+            })
+            self.reset_task(session_id)
+            self._update_clarification_status(context)
+            return context
+
+        self._advance_pending_subtask(session_id, current_task, subtask, subtask_definition, entities, subtask_index)
+        self._request_subtask_approval_if_needed(session_id, context, current_task, subtask)
+        self._request_missing_subtask_entity(context, current_task, subtask, subtask_definition)
+
+        current_task["subtasks"][subtask_index] = subtask
+        context["task"] = current_task
+        if subtask.get("clarification_needed"):
+            context["clarification_needed"] = True
+        return context
+
+    def _advance_pending_subtask(self, session_id, parent_task, subtask, subtask_definition, entities, subtask_index):
+        if subtask.get("state") not in ["PENDING", "INIT"]:
+            return
+
+        subtask.setdefault("parameters", {})
+        parent_definition = self.task_definitions.get(parent_task["name"], {})
+        subtask_specification = parent_definition.get("subtasks", [])[subtask_index]
+        for subtask_parameter, parent_parameter in subtask_specification.get("parameter_mapping", {}).items():
+            if parent_parameter in parent_task["parameters"]:
+                subtask["parameters"][subtask_parameter] = parent_task["parameters"][parent_parameter]
+        for entity_key, entity_data in entities.items():
+            if entity_data.get("value"):
+                subtask["parameters"][entity_key] = entity_data
+
+        current_state = subtask.get("state", "INIT")
+        if current_state == "PENDING":
+            current_state = "INIT"
+        evaluation_context = {"analysis": {"entities": subtask["parameters"]}, "task": subtask}
+        for transition in subtask_definition.get("transitions", {}).get(current_state, []):
+            if self._evaluate_condition(transition["condition"], evaluation_context):
+                old_state = subtask.get("state", "INIT")
+                subtask["state"] = transition["next_state"]
+                subtask["clarification_needed"] = False
+                subtask["clarification_message"] = None
+                subtask["clarification_type"] = None
+                self._log_state_transition(
+                    session_id,
+                    old_state,
+                    subtask["state"],
+                    f"{parent_task['name']}.{subtask['name']}",
+                )
+                if self.persistence:
+                    self.persistence.save_task_state(session_id, parent_task)
+                return
+
+    def _request_subtask_approval_if_needed(self, session_id, context, parent_task, subtask):
+        needs_approval = (
+            subtask["state"] == "READY_FOR_EXECUTION"
+            and subtask["name"] in self.CRITICAL_INTENTS
+            and not subtask.get("clarification_needed", False)
+            and parent_task.get("state") != "IN_PROGRESS"
+        )
+        if not needs_approval:
+            return
+
+        subtask["clarification_needed"] = True
+        subtask["clarification_message"] = self.approval_messages.generate_critical_subtask_message(
+            parent_task.get("name", "不明なタスク"),
+            subtask.get("name", "不明なサブタスク"),
+            subtask.get("parameters", {}),
+            self.task_definitions,
+        )
+        subtask["clarification_type"] = "APPROVAL"
+        parent_task["clarification_type"] = "APPROVAL"
+        context["clarification_needed"] = True
+        if self.metrics:
+            self.metrics.record_approval_request(session_id, "CRITICAL_SUBTASK")
+
+    @staticmethod
+    def _missing_task_entities(task, task_definition):
+        return [
+            required
+            for required in task_definition.get("required_entities", [])
+            if required not in task["parameters"] or not task["parameters"].get(required)
+        ]
+
+    def _request_missing_subtask_entity(self, context, parent_task, subtask, subtask_definition):
+        if context.get("clarification_needed") or subtask["state"] == "READY_FOR_EXECUTION":
+            return
+        missing_entities = self._missing_task_entities(subtask, subtask_definition)
+        if not missing_entities:
+            subtask["clarification_needed"] = False
+            subtask["clarification_message"] = None
+            subtask["clarification_type"] = None
+            subtask.pop("awaiting_entity", None)
+            return
+
+        missing_entity = missing_entities[0]
+        message = subtask_definition.get("clarification_messages", {}).get(
+            missing_entity,
+            f"複合タスク「{parent_task['name']}」のサブタスク「{subtask['name']}」で、情報「{missing_entity}」が必要です。",
+        )
+        subtask["clarification_needed"] = True
+        subtask["clarification_message"] = message
+        subtask["clarification_type"] = "MISSING_ENTITY"
+        subtask["awaiting_entity"] = missing_entity
+        context["clarification_needed"] = True
+        context.setdefault("response", {})["text"] = message
+
+    def _manage_simple_task(self, session_id, context, current_task, task_definition, entities):
+        """Merge entities, advance one state transition, then request a missing slot."""
+        for entity_key, entity_data in entities.items():
+            if isinstance(entity_data, dict) and entity_data.get("value"):
+                current_task["parameters"][entity_key] = entity_data
+            elif isinstance(entity_data, str):
+                current_task["parameters"][entity_key] = {"value": entity_data, "confidence": 1.0}
+
+        for transition in task_definition.get("transitions", {}).get(current_task["state"], []):
+            if self._evaluate_condition(transition["condition"], context):
+                old_state = current_task.get("state", "INIT")
+                current_task["state"] = transition["next_state"]
+                current_task["clarification_needed"] = False
+                current_task["clarification_message"] = None
+                current_task["clarification_type"] = None
+                current_task.pop("awaiting_entity", None)
+                self._log_state_transition(session_id, old_state, current_task["state"], current_task["name"])
+                if self.persistence:
+                    self.persistence.save_task_state(session_id, current_task)
+                break
+
+        if current_task["state"] != "READY_FOR_EXECUTION":
+            self._request_missing_simple_task_entity(session_id, context, current_task, task_definition)
+        context["task"] = current_task
+
+    def _request_missing_simple_task_entity(self, session_id, context, current_task, task_definition):
+        missing_entities = []
+        for required in task_definition.get("required_entities", []):
+            value = current_task["parameters"].get(required)
+            if not value or (isinstance(value, dict) and not value.get("value")):
+                missing_entities.append(required)
+        if not missing_entities:
+            return
+
+        missing_entity = missing_entities[0]
+        message = task_definition.get("clarification_messages", {}).get(
+            missing_entity,
+            f"タスク「{current_task['name']}」で、情報「{missing_entity}」が必要です。",
+        )
+        current_task["clarification_needed"] = True
+        current_task["clarification_message"] = message
+        current_task["clarification_type"] = "MISSING_ENTITY"
+        current_task["awaiting_entity"] = missing_entity
+        context["clarification_needed"] = True
+        if self.log_manager:
+            self.log_manager.log_event("clarification_needed", {"message": message}, level="INFO")
+        context["analysis"]["awaiting_entity"] = missing_entity
+        if self.metrics:
+            self.metrics.record_approval_request(session_id, "MISSING_ENTITY")
+        context.setdefault("response", {})["text"] = message
 
     def update_task_after_execution(self, context: dict) -> dict:
         """

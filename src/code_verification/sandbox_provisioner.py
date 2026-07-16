@@ -1,69 +1,78 @@
 # -*- coding: utf-8 -*-
-import os
+"""Provision short-lived .NET projects for generated-code verification."""
+
+from __future__ import annotations
+
+import logging
 import shutil
 import subprocess
 import tempfile
-import logging
-from typing import List, Dict
 from pathlib import Path
+from typing import Dict, List
+
+from .dependency_contract import render_package_references
+
 
 class SandboxProvisioner:
-    """
-    [Phase 24.4: Development Environment Provisioning]
-    検証用の隔離された C# プロジェクト環境（Sandbox）を動的に構築し、
-    NuGet パッケージのリストアやビルドを可能にする。
-    """
-    def __init__(self, config):
+    """Create one owned temporary project directory per verification run."""
+
+    def __init__(self, config, dotnet_path: str = "dotnet"):
         self.config = config
-        self.root = getattr(config, 'workspace_root', os.getcwd())
-        self.temp_dir = Path(tempfile.gettempdir()) / "gemini_nlp_sandbox"
+        self.dotnet_path = dotnet_path
+        self.temp_dir: Path | None = None
         self.logger = logging.getLogger(__name__)
 
     def provision_sandbox(self, project_name: str, dependencies: List[Dict[str, str]]) -> Path:
-        """
-        最小限の .csproj を含むプロジェクトディレクトリを作成し、依存関係を設定する。
-        """
-        if self.temp_dir.exists():
-            shutil.rmtree(self.temp_dir)
-        self.temp_dir.mkdir(parents=True, exist_ok=True)
+        """Create a fresh project and restore its validated dependencies.
 
-        # 1. Create .csproj
-        csproj_content = self._generate_csproj(dependencies)
-        csproj_path = self.temp_dir / f"{project_name}.csproj"
-        with open(csproj_path, "w", encoding="utf-8") as f:
-            f.write(csproj_content)
+        ``project_name`` remains part of the public API for compatibility.  The
+        generated project always uses a fixed, internal filename so callers
+        cannot influence paths in the temporary directory.
+        """
+        del project_name
+        package_references = render_package_references(dependencies)
+        self.clean_up()
+        self.temp_dir = Path(tempfile.mkdtemp(prefix="nlp_codegen_sandbox_"))
 
-        # 2. Restore packages
+        csproj_path = self.temp_dir / "Sandbox.csproj"
+        csproj_path.write_text(
+            self._generate_csproj(package_references),
+            encoding="utf-8",
+        )
+
         try:
-            subprocess.run(["dotnet", "restore", str(csproj_path)],
-                           capture_output=True, check=True, timeout=30)
-        except Exception as e:
-            self.logger.warning("Sandbox restore failed: %s", e)
+            result = subprocess.run(
+                [self.dotnet_path, "restore", str(csproj_path)],
+                cwd=self.temp_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                self.logger.warning("Sandbox restore failed: %s", result.stderr.strip())
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            self.logger.warning("Sandbox restore failed: %s", exc)
 
         return self.temp_dir
 
-    def _generate_csproj(self, dependencies: List[Dict[str, str]]) -> str:
-        pkg_refs = []
-        for dep in dependencies:
-            name = dep.get("name")
-            version = dep.get("version", "*")
-            if name:
-                pkg_refs.append(f'    <PackageReference Include="{name}" Version="{version}" />')
-
-        refs_str = "\n".join(pkg_refs)
-
+    @staticmethod
+    def _generate_csproj(package_references: str) -> str:
         return f"""<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-{refs_str}
-  </ItemGroup>
+{package_references}  </ItemGroup>
 </Project>
 """
 
     def clean_up(self):
-        if self.temp_dir.exists():
-            shutil.rmtree(self.temp_dir)
+        """Remove only the temporary directory created by this instance."""
+        if self.temp_dir is None:
+            return
+        temporary_directory = self.temp_dir
+        self.temp_dir = None
+        shutil.rmtree(temporary_directory, ignore_errors=True)

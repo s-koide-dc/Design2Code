@@ -223,6 +223,20 @@ class TestQualityAnalyzer(unittest.TestCase):
 
 
 class TestCoverageAnalyzer(unittest.TestCase):
+    def test_loads_coverage_configuration_from_workspace_config_directory(self):
+        from src.coverage_analyzer.coverage_analyzer import CoverageAnalyzer
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_dir = os.path.join(temp_dir, "config")
+            os.mkdir(config_dir)
+            with open(os.path.join(config_dir, "coverage_config.json"), "w", encoding="utf-8") as stream:
+                json.dump({"python": {"thresholds": {"line": 91, "branch": 88}}}, stream)
+
+            analyzer = CoverageAnalyzer(temp_dir)
+
+        self.assertEqual(91, analyzer.config["python"]["thresholds"]["line"])
+        self.assertEqual(88, analyzer.config["python"]["thresholds"]["branch"])
+
     @patch('src.coverage_analyzer.coverage_analyzer.CoverageAnalyzer._load_coverage_config')
     @patch('src.coverage_analyzer.coverage_analyzer.CoverageAnalyzer._measure_coverage')
     @patch('src.coverage_analyzer.coverage_analyzer.CoverageAnalyzer._analyze_gaps')
