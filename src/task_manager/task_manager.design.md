@@ -42,6 +42,7 @@
 21. タスク状態ファイル名はセッション ID の可読部分と SHA-256 短縮値を組み合わせ、ID の変換衝突を防ぐ。保存は一時ファイルへの flush/fsync 後に atomic replace する。
 22. `TaskStateStore` が永続化の有効/無効判定と `TaskPersistence` への委譲を担当し、タスク遷移ロジックから保存方式を分離する。
 23. `ApprovalWorkflow` が承認応答の正規化と承認履歴の共通記録を担当し、TaskManager は状態遷移と再評価を担当する。
+24. `manage_task_state` はオーケストレーションに限定し、タスク生成、複合サブタスク進行・承認、不足情報要求、単純タスク遷移はそれぞれ専用の私有メソッドへ委譲する。
 
 ### Test Cases
 - **Happy Path**:

@@ -8,7 +8,8 @@
     "docs/documentation_source_of_truth.md",
     "docs/real_vector_model_validation.md",
     "docs/generate_from_design_dataflow.md",
-    "docs/method_store_spec.md"
+    "docs/method_store_spec.md",
+    "docs/supported_generation_contract.md"
   ],
   "existence_only_docs": [
     "resources/README.md"

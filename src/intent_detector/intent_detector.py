@@ -2,6 +2,10 @@ import json
 import os
 import logging
 import hashlib
+from pathlib import Path
+from zipfile import BadZipFile
+
+import numpy as np
 
 from src.utils.confirmation_response import INTENT_AGREE, INTENT_DISAGREE
 from src.utils.action_intents import (
@@ -77,22 +81,13 @@ class IntentDetector:
         cache_signature = self._vector_cache_signature()
         cache_file = os.path.join(
             cache_dir,
-            f"intent_vectors_{cache_signature[:16]}.pkl",
+            f"intent_vectors_{cache_signature[:16]}.npz",
         )
 
-        # Try to load from cache
-        import pickle
-        if os.path.exists(cache_file):
-            try:
-                with open(cache_file, 'rb') as f:
-                    cache_data = pickle.load(f)
-                    if cache_data.get("signature") == cache_signature:
-                        self.intent_vectors = cache_data.get("vectors", {})
-                        # print(f"Loaded {len(self.intent_vectors)} intent vectors from cache.")
-                        return
-            except Exception as e:
-                # print(f"Error loading cache: {e}")
-                pass
+        cached_vectors = self._load_vector_cache(cache_file, cache_signature)
+        if cached_vectors is not None:
+            self.intent_vectors = cached_vectors
+            return
 
         # If cache invalid or missing, recalculate
         self.intent_vectors = {}
@@ -113,18 +108,67 @@ class IntentDetector:
 
             self.intent_vectors[name] = vectors
 
-        # Save to cache
-        if not os.path.exists(cache_dir):
-            os.makedirs(cache_dir, exist_ok=True)
+        self._save_vector_cache(cache_file, cache_signature, self.intent_vectors)
+
+    def _load_vector_cache(self, cache_file, expected_signature):
+        """Load an intent-vector cache without allowing object deserialization."""
+        if not os.path.exists(cache_file):
+            return None
+
         try:
-            with open(cache_file, 'wb') as f:
-                pickle.dump({
-                    "signature": cache_signature,
-                    "vectors": self.intent_vectors,
-                }, f)
-        except Exception as e:
-            # print(f"Error saving cache: {e}")
-            pass
+            with np.load(cache_file, allow_pickle=False) as cache:
+                metadata = json.loads(str(cache["metadata"].item()))
+                if metadata.get("signature") != expected_signature:
+                    return None
+
+                vectors = {}
+                for item in metadata.get("entries", []):
+                    name = item.get("intent")
+                    keys = item.get("keys", [])
+                    if not isinstance(name, str) or not isinstance(keys, list):
+                        return None
+                    vectors[name] = [self._restore_cached_vector(cache[key]) for key in keys]
+                return vectors
+        except (OSError, ValueError, KeyError, json.JSONDecodeError, EOFError, BadZipFile) as exc:
+            self.logger.warning("Ignoring invalid intent-vector cache %s: %s", cache_file, exc)
+            return None
+
+    @staticmethod
+    def _restore_cached_vector(value):
+        return value.item() if value.ndim == 0 else value
+
+    def _save_vector_cache(self, cache_file, signature, vectors):
+        """Atomically persist numeric/string arrays in a non-pickle NPZ archive."""
+        entries = []
+        arrays = {}
+        try:
+            for intent_index, (intent_name, intent_vectors) in enumerate(vectors.items()):
+                if not isinstance(intent_name, str):
+                    return
+                keys = []
+                for vector_index, vector in enumerate(intent_vectors):
+                    array = np.asarray(vector)
+                    if array.dtype.hasobject:
+                        self.logger.warning("Intent-vector cache was not written: object dtype is unsupported.")
+                        return
+                    key = f"v_{intent_index}_{vector_index}"
+                    arrays[key] = array
+                    keys.append(key)
+                entries.append({"intent": intent_name, "keys": keys})
+
+            arrays["metadata"] = np.asarray(json.dumps({"signature": signature, "entries": entries}))
+            cache_path = Path(cache_file)
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
+            with temporary_path.open("wb") as stream:
+                np.savez_compressed(stream, **arrays)
+            os.replace(temporary_path, cache_path)
+        except (OSError, TypeError, ValueError) as exc:
+            self.logger.warning("Intent-vector cache was not written: %s", exc)
+            try:
+                Path(cache_file).with_suffix(Path(cache_file).suffix + ".tmp").unlink(missing_ok=True)
+            except OSError:
+                pass
 
     def _vector_cache_signature(self) -> str:
         digest = hashlib.sha256()

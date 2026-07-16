@@ -18,7 +18,7 @@ The `IRPatcher` [Phase 23.4] is a mechanism for self-correction within the synth
 Iterates through `hints` and executes logic based on `patch.type`:
 1.  **FORCE_INTENT_RESOLUTION**: Calls `_patch_intent` to override a node's intent (e.g., GENERAL -> PERSIST).
 2.  **REBIND_INPUT_LINK**: Calls `_patch_links` to explicitly connect data flow between nodes.
-3.  **ADD_POCO_PROPERTY**: Calls `_patch_entities` (Stub) to extend data models.
+3.  **ADD_POCO_PROPERTY**: entity、member、member_type がすべて明示された場合に限り、既存 `poco_defs[entity]` へプロパティを追加する。型の推測、存在しないPOCOの作成、既存型の上書きは行わない。
 4.  **ENSURE_FIELD_OR_LOCAL**: Calls `_patch_required_fields` to inject missing dependency fields.
 5.  **FORCE_VARIABLE_BINDING**: Updates node semantics to prioritize variable usage over literals.
 6.  **FIX_LOGIC_GAPS**: Marks nodes for retry/logic re-evaluation.

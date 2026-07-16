@@ -132,7 +132,28 @@ class IRPatcher:
                 target_node["input_refs"].append(source_id)
 
     def _patch_entities(self, ir: Dict[str, Any], patch: Dict[str, Any]):
-        # エンティティ定義の拡張（現在は ir["poco_defs"] などを想定）
-        member = patch.get("member")
-        # TODO: 実装が必要な場合に備えてスケルトンを維持
-        pass
+        """Add an explicitly typed member to an existing POCO definition.
+
+        A compiler diagnostic alone cannot establish a property's type.  This
+        repair therefore requires the producer of the hint to supply the
+        entity, member, and member type explicitly; it never fabricates a
+        POCO or guesses a type merely to make a compilation error disappear.
+        """
+        entity_name = patch.get("entity")
+        member_name = patch.get("member")
+        member_type = patch.get("member_type")
+        if not all(
+            isinstance(value, str) and value.strip()
+            for value in (entity_name, member_name, member_type)
+        ):
+            return
+
+        poco_definitions = ir.get("poco_defs")
+        if not isinstance(poco_definitions, dict):
+            return
+        properties = poco_definitions.get(entity_name)
+        if not isinstance(properties, dict):
+            return
+
+        # Preserve a schema declaration that was already explicit.
+        properties.setdefault(member_name, member_type)

@@ -23,7 +23,7 @@ The `ReasonAnalyzer` [Phase 23.4] is the diagnostic engine of the self-correctio
 2.  **Locate Node**: Map line numbers back to Node IDs using fixed-format `// Node: ID` comments in the source code. Node IDs must be identifier tokens.
 3.  **Heuristic Mapping**:
     -   **CS0103** (Name doesn't exist): `ENSURE_FIELD_OR_LOCAL` (Inject field/variable).
-    -   **CS1061** (Type missing member): `ADD_POCO_PROPERTY` (Extend POCO).
+    -   **CS1061** (Type missing member): 診断に entity、member、member_type が明示される場合だけ `ADD_POCO_PROPERTY` (Extend POCO) を出す。型が不明な場合は推測して修復しない。
     -   **CS0120** (Static vs Instance): `INSTANCE_REQUIRED` (Fix method call style).
     -   **Default**: `FIX_LOGIC_GAPS` (Trigger general retry logic for the node).
 

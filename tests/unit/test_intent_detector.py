@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
+
+import numpy as np
 
 from src.intent_detector.intent_detector import IntentDetector
 from src.utils.action_intents import (
@@ -154,6 +158,49 @@ class TestIntentDetector(unittest.TestCase):
         changed_signature = self.detector._vector_cache_signature()
 
         self.assertNotEqual(original_signature, changed_signature)
+
+    def test_vector_cache_is_loaded_without_pickle(self):
+        with tempfile.TemporaryDirectory() as cache_root:
+            previous_directory = os.getcwd()
+            os.chdir(cache_root)
+            try:
+                first_engine = _FakeVectorEngine()
+                first_detector = IntentDetector(self.task_manager, corpus_path=str(self.corpus_path))
+                first_detector.set_vector_engine(first_engine)
+                first_detector.prepare_corpus_vectors(_FakeMorphAnalyzer())
+
+                cache_files = list((Path(cache_root) / "cache").glob("intent_vectors_*.npz"))
+                self.assertEqual(1, len(cache_files))
+                self.assertFalse(list((Path(cache_root) / "cache").glob("*.pkl")))
+
+                second_engine = _FakeVectorEngine()
+                second_engine.get_sentence_vector = Mock(side_effect=AssertionError("cache was not used"))
+                second_detector = IntentDetector(self.task_manager, corpus_path=str(self.corpus_path))
+                second_detector.set_vector_engine(second_engine)
+                second_detector.prepare_corpus_vectors(_FakeMorphAnalyzer())
+
+                self.assertEqual(first_detector.intent_vectors, second_detector.intent_vectors)
+            finally:
+                os.chdir(previous_directory)
+
+    def test_invalid_vector_cache_is_ignored_and_rebuilt(self):
+        with tempfile.TemporaryDirectory() as cache_root:
+            previous_directory = os.getcwd()
+            os.chdir(cache_root)
+            try:
+                signature = self.detector._vector_cache_signature()
+                cache_dir = Path(cache_root) / "cache"
+                cache_dir.mkdir()
+                cache_file = cache_dir / f"intent_vectors_{signature[:16]}.npz"
+                cache_file.write_bytes(b"not an npz archive")
+
+                self.detector.prepare_corpus_vectors(_FakeMorphAnalyzer())
+
+                with np.load(cache_file, allow_pickle=False) as rebuilt_cache:
+                    self.assertIn("metadata", rebuilt_cache.files)
+                self.assertTrue(self.detector.intent_vectors)
+            finally:
+                os.chdir(previous_directory)
 
     def test_detect_maps_copy_synonym_to_file_copy(self):
         result = self._detect("コピーを作って")
