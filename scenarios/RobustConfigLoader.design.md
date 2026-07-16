@@ -18,4 +18,4 @@
 6. [END|GENERAL] [refs:step_1]
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"fixtures":[{"path":"config.json","content":"{\"mode\":\"test\"}"}],"return":true,"stdout":{"contains":["mode","test"]}}}

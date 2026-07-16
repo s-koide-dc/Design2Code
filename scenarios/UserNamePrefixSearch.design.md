@@ -15,4 +15,4 @@
 4. 条件に合致したユーザー一覧を表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"fixtures":[{"path":"users.json","content":"[{\"Id\":1,\"Name\":\"Alice\",\"Price\":600},{\"Id\":2,\"Name\":\"Bob\",\"Price\":900}]"}],"return":true,"stdout":{"contains":["Alice"],"not_contains":["Bob"]}}}

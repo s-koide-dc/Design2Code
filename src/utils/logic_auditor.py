@@ -205,7 +205,7 @@ class LogicAuditor:
                             "goal": goal
                         })
                         continue
-                    goal_hits.append((g_idx, 0))
+                    goal_hits.append((g_idx, 0, goal))
                     continue
                 elif not expected or not self._is_number_literal(expected):
                     continue
@@ -224,7 +224,7 @@ class LogicAuditor:
                         "goal": goal
                     })
                 else:
-                    goal_hits.append((g_idx, hit))
+                    goal_hits.append((g_idx, hit, goal))
             elif g_type == "string":
                 if not expected:
                     continue
@@ -236,10 +236,16 @@ class LogicAuditor:
                         "goal": goal
                     })
                 else:
-                    goal_hits.append((g_idx, hit))
+                    goal_hits.append((g_idx, hit, goal))
         if len(goal_hits) >= 2:
             last_pos = goal_hits[0][1]
-            for idx, pos in goal_hits[1:]:
+            previous_goal = goal_hits[0][2]
+            for idx, pos, goal in goal_hits[1:]:
+                # Multiple assertions attached to one specification step are
+                # a conjunction, not an ordered sequence. Their source order
+                # may change without changing the represented meaning.
+                if goal.get("original_step") == previous_goal.get("original_step"):
+                    continue
                 if pos < last_pos:
                     findings.append({
                         "reason": "order_mismatch",
@@ -248,6 +254,7 @@ class LogicAuditor:
                     })
                     break
                 last_pos = pos
+                previous_goal = goal
         return findings
 
     def _code_has_input_var(self, code: str) -> bool:

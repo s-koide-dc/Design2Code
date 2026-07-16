@@ -74,3 +74,5 @@
 - 2026-07-13: async resilient call を operation result helper 化するため、call metadata を保持して `StatementBuilder` に渡す契約を反映。
 - 2026-07-13: structured HTTP GET + API key + timeout + `return_default` を helper call に寄せ、複雑な HTTP block を operation method から外す契約を反映。
 - 2026-07-13: loop child path の `extra_code` を親 path に戻し、loop 内 helper call の定義欠落を防ぐ契約を反映。
+- 2026-07-16: condition の if/else child path でも `extra_code` を親 path へマージし、条件分岐内の file IO helper 定義を最終 blueprint へ保持する契約を反映。
+- 2026-07-16: stdin fetch / trim_upper の入力は `Console.ReadLine() ?? string.Empty` で正規化し、nullable warning を生成品質ゲートへ持ち込まない契約を反映。

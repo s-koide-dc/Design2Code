@@ -20,7 +20,7 @@ def process_transform_ops(action_synthesizer, node: Dict[str, Any], path: Dict[s
             source_var = bridge.replace("{var}", v_name) if bridge else v_name
     if "trim_upper" in ops_set and not source_var:
         src_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "string", "input", new_p, prefix="input", role="content")
-        new_p["statements"].append({"type": "raw", "code": f"var {src_var} = Console.ReadLine();", "node_id": node.get("id"), "intent": intent})
+        new_p["statements"].append({"type": "raw", "code": f"var {src_var} = Console.ReadLine() ?? string.Empty;", "node_id": node.get("id"), "intent": intent})
         new_p.setdefault("type_to_vars", {}).setdefault("string", []).append({"var_name": src_var, "node_id": node.get("id"), "role": "content", "target_entity": "string"})
         source_var = src_var
 

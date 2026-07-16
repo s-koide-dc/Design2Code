@@ -126,3 +126,4 @@ The `StatementBuilder` acts as the "Low-Level Renderer" in the Code Synthesis mo
 - 2026-07-13: structured HTTP GET + API key + timeout の return-default 経路を `SendGeneratedHttpGetStringAsync` helper に寄せる契約へ同期。
 - 2026-07-13: text file read/write の return-default 経路を helper 化し、operation method 内の file IO try/catch を削減する契約へ同期。
 - 2026-07-14: `void` / `Task` 戻り値の catch body では hoisted result を値付き return せず、C# の戻り値契約を優先する方針へ同期。
+- 2026-07-16: `Task<List<T>>` などの collection 戻り値を resilient failure 時に空の `List<T>` で返し、nullable-enabled compile warning を避ける契約を反映。

@@ -16,4 +16,4 @@
 4. [END|GENERAL] [refs:step_2]
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"fixtures":[{"path":"products.json","content":"[{\"Id\":1,\"Name\":\"Alice\"},{\"Id\":2,\"Name\":\"Bob\"}]"}],"return":true,"stdout":{"contains":["Alice","Bob"]}}}

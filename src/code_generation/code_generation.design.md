@@ -1,5 +1,5 @@
 # code_generation Design Document
-<!-- metadata-sync: 2026-07-09T00:00:00+09:00 -->
+<!-- metadata-sync: 2026-07-16T00:00:00+09:00 -->
 
 ## 1. Purpose (Updated 2026-04-14)
 
@@ -42,6 +42,13 @@
    - `[ACTION|PERSIST|string|void|FILE] [semantic_roles:{"path":"<output_root>/Program.cs"}]`  
    - `[ACTION|PERSIST|string|void|FILE] [semantic_roles:{"path":"<output_root>/appsettings.json"}]`
 7. `LogicAuditor` と `DesignDocRefiner` を用いて生成物の監査を行い、問題があれば警告を出力する。
+8. `ProjectContractValidator` により、生成前のProjectSpec契約と生成後のController/Service/Repository/DIリンクを検証する。
+9. `Tests/ProjectWiringTests.cs` を生成し、`WebApplicationFactory` でアプリケーションを起動して、宣言されたService/Repositoryが実DIコンテナから解決できることを確認する。
+10. `Tests/ProjectEndpointTests.cs` を生成し、Repositoryをテスト代替に差し替えた上で、一覧GETとPOST/PUT/DELETEを `HttpClient` から実行し、Controller → Service → Repository の経路と成功レスポンスを確認する。
+11. `Tests/ProjectSqliteEndpointTests.cs` を生成し、インメモリSQLiteへスキーマと初期データを作成して、生成RepositoryのSQL、Dapperマッピング、CRUD後のDB状態を検証する。
+12. CRUD補完で仕様が省略された場合でも、取得・更新系のnullable戻り値を既定で反映し、生成コードのnullable警告を抑制する。明示的なモジュール署名・method specがある場合はそちらを優先する。
+13. `ProjectEndpointTests.cs` では、対象なしのGET/PUT/DELETEと、検証規則がある場合の不正POSTについて、404/400のHTTPステータスを確認する。
+14. `Tests/ProjectSqlServerEndpointTests.cs` を生成し、利用可能なLocalDB上に一時データベースを作成して、SQL Server実接続でCRUD経路とDB状態を確認する。テスト終了時にデータベースを削除する。
 
 ### Test Cases
 - **Happy Path**:
@@ -52,6 +59,8 @@
   - **Expected Output / Behavior**: `generation_hints` と `modules` から既定値を構築して生成する。
   - **Scenario**: `modules` に宣言されていない Controller/Service/Repository がある。
   - **Expected Output / Behavior**: 警告が標準出力に表示される。
+  - **Scenario**: Controller、Service、Repository、またはDI登録の生成物が層間契約から外れる。
+  - **Expected Output / Behavior**: 生成後契約検証が失敗し、プロジェクト生成を失敗として扱う。
 
 ## 3. Dependencies
 - **Internal**:

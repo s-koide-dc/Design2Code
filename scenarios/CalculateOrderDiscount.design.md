@@ -15,4 +15,4 @@
 3. [ACTION|DISPLAY|Order|void|NONE] [semantic_roles:{"message":"全ての処理が完了しました。","output_channel":"stdout"}] 全ての処理が完了したことをログに出力する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"fixtures":[{"path":"orders.json","content":"[{\"Id\":1,\"Total\":6000,\"CustomerType\":\"Premium\",\"Discount\":0}]"}],"return":true,"stdout":{"contains":["全ての処理が完了しました。"]}}}

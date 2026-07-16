@@ -309,6 +309,11 @@ class ActionSynthesizer:
                 if h.get("code") not in existing_codes:
                     path["hoisted_statements"].append(h)
                     existing_codes.append(h.get("code"))
+            existing_extra = set(path.setdefault("extra_code", []))
+            for code in best_if.get("extra_code", []) or []:
+                if code not in existing_extra:
+                    path["extra_code"].append(code)
+                    existing_extra.add(code)
         else_children = node.get("else_children", [])
         if else_children:
             else_ir_tree = {"logic_tree": else_children}
@@ -325,6 +330,11 @@ class ActionSynthesizer:
                     if h.get("code") not in existing_codes:
                         path["hoisted_statements"].append(h)
                         existing_codes.append(h.get("code"))
+                existing_extra = set(path.setdefault("extra_code", []))
+                for code in best_else.get("extra_code", []) or []:
+                    if code not in existing_extra:
+                        path["extra_code"].append(code)
+                        existing_extra.add(code)
         new_p = self.synthesizer._copy_path(path)
         new_p["statements"].append(stmt)
         new_p.setdefault("consumed_ids", set()).add(node.get("id"))

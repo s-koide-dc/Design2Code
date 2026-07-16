@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Tuple
 ASSERTION_KEYS = {
     "await",
     "method_args",
+    "stdin",
     "fixtures",
     "environment",
     "http_responses",
@@ -117,6 +118,14 @@ def _normalize_method_args(value: Any) -> Tuple[List[Any], List[str]]:
         else:
             issues.append(f"method_args[{index}] must be a string, number, boolean, or null")
     return args, issues
+
+
+def _normalize_stdin(value: Any) -> Tuple[str, List[str]]:
+    if value is None:
+        return "", []
+    if not isinstance(value, str):
+        return "", ["stdin must be a string"]
+    return value, []
 
 
 def _normalize_fixtures(value: Any) -> Tuple[List[Dict[str, str]], List[str]]:
@@ -341,6 +350,7 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
         else:
             issues.append("await must be a boolean")
     method_args, method_arg_issues = _normalize_method_args(value.get("method_args"))
+    stdin, stdin_issues = _normalize_stdin(value.get("stdin"))
     fixtures, fixture_issues = _normalize_fixtures(value.get("fixtures"))
     environment, environment_issues = _normalize_environment(value.get("environment"))
     if "return" in value:
@@ -356,6 +366,8 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
 
     if method_args:
         contract["method_args"] = method_args
+    if "stdin" in value and not stdin_issues:
+        contract["stdin"] = stdin
     if fixtures:
         contract["fixtures"] = fixtures
     if environment:
@@ -376,6 +388,7 @@ def normalize_runtime_oracle_contract(value: Any) -> Tuple[Dict[str, Any], List[
         contract["http_requests"] = http_requests
 
     issues.extend(method_arg_issues)
+    issues.extend(stdin_issues)
     issues.extend(fixture_issues)
     issues.extend(environment_issues)
     issues.extend(http_response_issues)

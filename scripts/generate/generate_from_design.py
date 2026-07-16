@@ -24,6 +24,11 @@ from src.utils.cli_output import emit_stderr, emit_stdout
 from src.utils.nuget_client import NuGetClient
 from src.utils.spec_auditor import SpecAuditor
 from src.code_generation.project_generator import ProjectGenerator
+from src.code_generation.project_contract_validator import (
+    validate_project_contract,
+    validate_generated_project_contract,
+    format_contract_issues,
+)
 from src.log_manager.log_manager import LogManager
 from src.action_executor.action_executor import ActionExecutor
 from src.refactoring_analyzer.refactoring_analyzer import RefactoringAnalyzer
@@ -377,10 +382,20 @@ def main() -> int:
         }
         return structured
 
-    def audit_project_methods(project_spec: dict) -> None:
+    def audit_project_methods(project_spec: dict) -> bool:
+        contract_issues = validate_project_contract(project_spec)
+        if contract_issues:
+            emit_progress("[*] Running project-wide contract validation...")
+            for contract_issue, rendered in zip(contract_issues, format_contract_issues(contract_issues)):
+                if contract_issue.blocking:
+                    emit_error(f"[!] プロジェクト契約違反: {rendered}")
+                else:
+                    emit_progress(f"[!] プロジェクト契約警告: {rendered}")
+            if any(issue.blocking for issue in contract_issues):
+                return False
         method_specs = project_spec.get("spec", {}).get("method_specs", {}) if isinstance(project_spec, dict) else {}
         if not method_specs:
-            return
+            return True
         # Default to auditing all methods unless an explicit limit is provided.
         limit_raw = os.environ.get("PROJECT_AUDIT_LIMIT", "0")
         try:
@@ -406,6 +421,7 @@ def main() -> int:
         emit_progress("[*] Running SpecAuditor/Replanner on project methods...")
         audited = 0
         skipped = 0
+        audit_ok = True
         for method_name, method_spec in method_specs.items():
             if skipped < offset:
                 skipped += 1
@@ -419,6 +435,7 @@ def main() -> int:
                 validate_structured_spec_or_raise(structured_spec)
             except Exception as e:
                 emit_error(f"[!] 仕様検証に失敗しました: {method_name}: {e}")
+                audit_ok = False
                 continue
             result = synthesize_structured_spec(
                 synthesizer,
@@ -432,16 +449,22 @@ def main() -> int:
             )
             if result.get("status") == "FAILED" or "code" not in result:
                 emit_error(f"[!] 監査中の合成に失敗しました: {method_name}")
+                audit_ok = False
                 continue
             spec_issues = result.get("spec_issues", []) or []
             if spec_issues:
+                audit_ok = False
                 emit_error(f"[!] 仕様整合の問題を検出しました: {method_name}")
                 for issue in spec_issues:
                     emit_error(f"    - {issue}")
             audited += 1
             if time.time() - start_time > timeout_sec:
                 emit_error(f"[!] プロジェクト監査がタイムアウトしました: {method_name}")
+                audit_ok = False
                 break
+        if not audit_ok:
+            emit_error(f"[!] プロジェクト監査に失敗しました: audited={audited}")
+        return audit_ok
 
     def build_action_executor() -> ActionExecutor:
         log_manager = LogManager(config_manager=config)
@@ -547,8 +570,7 @@ def main() -> int:
 
     if args.project_audit_only:
         project_spec = ps_parser.parse_file(args.design)
-        audit_project_methods(project_spec)
-        return 0
+        return 0 if audit_project_methods(project_spec) else 1
 
     if args.project:
         project_spec = ps_parser.parse_file(args.design)
@@ -568,8 +590,16 @@ def main() -> int:
             output_root = os.path.splitext(args.output)[0]
         generator = ProjectGenerator()
         generator.generate(project_spec, output_root)
+        generated_contract_issues = validate_generated_project_contract(project_spec, output_root)
+        if generated_contract_issues:
+            emit_error("[!] 生成物の層間リンク検証に失敗しました:")
+            for issue in format_contract_issues(generated_contract_issues):
+                emit_error(f"    - {issue}")
+            if any(issue.blocking for issue in generated_contract_issues):
+                return 1
         if not args.no_project_audit:
-            audit_project_methods(project_spec)
+            if not audit_project_methods(project_spec):
+                return 1
         run_post_generation_checks(output_root, project_name)
         build_result = verifier.verify_project(output_root, project_name=project_name)
         if not build_result.get("valid", False):

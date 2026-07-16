@@ -15,4 +15,4 @@
 3. 商品一覧を表示する
 ### Test Cases
 - **Scenario**: Default
-- **Expected**: true
+- **Expected**: {"runtime_oracle":{"await":true,"http_responses":[{"status_code":200,"body":"[{\"Id\":1,\"Name\":\"Alpha\",\"Price\":100}]"}],"return":true,"stdout":{"contains":["Alpha"]},"http_requests":[{"method":"GET","url":"https://api.example.com/products"}]}}
