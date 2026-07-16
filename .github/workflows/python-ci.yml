@@ -192,7 +192,7 @@ jobs:
         run: dotnet build tools/csharp/CodeBuilder/CodeBuilder.csproj --nologo
 
       - name: Run generated code quality regression
-        run: python scripts/design/run_design_generation_regression.py --profile quality --fail-on-maintainability --run-runtime-oracles --summary-only
+        run: python scripts/design/run_design_generation_regression.py --profile quality --fail-on-maintainability --run-runtime-oracles --require-runtime-oracles --summary-only
 
       - name: Run generated code runtime behavior regression
         run: python -m unittest tests.integration.test_runtime_execution -v

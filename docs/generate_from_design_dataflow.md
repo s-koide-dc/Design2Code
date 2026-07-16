@@ -233,6 +233,7 @@ Notes:
 2. Use `--profile smoke` for the representative JSON/LINQ, HTTP, SQLite update, and configuration-branch scenarios. `--profile quality` is the default full set.
 3. Use repeated `--design` flags to replace the selected profile with a narrower or experimental set.
 4. The regression runner aggregates `inference_status`, `verification_valid`, `spec_issue_count`, and the full per-scenario snapshot payload into one JSON result.
+5. Combine `--require-runtime-oracles` with `--run-runtime-oracles` to fail the quality profile when a design test case has no executable explicit oracle, an invalid oracle, or an unexecuted/failed oracle.
 
 ## Current Assist Coverage Snapshot (2026-06-18)
 The current scenario inventory from `scripts/design/audit_literal_tag_assist_coverage.py` is:
