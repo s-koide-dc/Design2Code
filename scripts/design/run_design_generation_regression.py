@@ -16,7 +16,7 @@ if str(WORKSPACE_ROOT) not in sys.path:
 from scripts.design.review_design_generation_snapshot import build_review_snapshot
 from src.utils.cli_output import emit_error, emit_json_stdout
 
-DEFAULT_DESIGNS = [
+QUALITY_DESIGNS = [
     "scenarios/ComplexLinqSearch.design.md",
     "scenarios/CsvSalesAggregation.design.md",
     "scenarios/ProductApiFilteredCatalog.design.md",
@@ -25,7 +25,26 @@ DEFAULT_DESIGNS = [
     "scenarios/SecureOrderProcessing.design.md",
     "scenarios/StateUpdatePersist.design.md",
     "scenarios/AppModeEchoMinimal.design.md",
+    "scenarios/RobustConfigLoader.design.md",
+    "scenarios/StdinToStdoutTransform.design.md",
+    "scenarios/AggregationSummary.design.md",
+    "scenarios/SyncExternalData.design.md",
 ]
+
+# One representative scenario per major boundary keeps the PR smoke check fast.
+SMOKE_DESIGNS = [
+    "scenarios/ComplexLinqSearch.design.md",
+    "scenarios/ProductApiFilteredCatalog.design.md",
+    "scenarios/StateUpdatePersist.design.md",
+    "scenarios/RobustConfigLoader.design.md",
+]
+
+# Preserve the existing no-option behavior for local callers and CI integrations.
+DEFAULT_DESIGNS = QUALITY_DESIGNS
+PROFILE_DESIGNS = {
+    "smoke": SMOKE_DESIGNS,
+    "quality": QUALITY_DESIGNS,
+}
 
 
 def _parse_args() -> argparse.Namespace:
@@ -36,7 +55,13 @@ def _parse_args() -> argparse.Namespace:
         "--design",
         action="append",
         dest="designs",
-        help="Input .design.md path. Can be specified multiple times. Defaults to curated regression scenarios.",
+        help="Input .design.md path. Can be specified multiple times and overrides --profile.",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=sorted(PROFILE_DESIGNS),
+        default="quality",
+        help="Curated regression profile used when --design is not specified (default: quality).",
     )
     parser.add_argument("--output-dir", help="Optional root output directory for per-scenario snapshots")
     parser.add_argument("--retry", action="store_true", help="Enable replanner retry loop")
@@ -70,7 +95,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _resolve_designs(args: argparse.Namespace) -> List[Path]:
-    raw_designs = args.designs or DEFAULT_DESIGNS
+    raw_designs = args.designs or PROFILE_DESIGNS[args.profile]
     return [Path(item) for item in raw_designs]
 
 

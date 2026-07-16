@@ -1,10 +1,36 @@
 # -*- coding: utf-8 -*-
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 
-from scripts.design.run_design_generation_regression import summarize_runtime_oracle_failures
+from scripts.design.run_design_generation_regression import (
+    QUALITY_DESIGNS,
+    SMOKE_DESIGNS,
+    _resolve_designs,
+    summarize_runtime_oracle_failures,
+)
 
 
 class TestDesignGenerationRegressionSummary(unittest.TestCase):
+
+    def test_smoke_profile_is_a_representative_subset_of_quality_profile(self):
+        self.assertEqual(4, len(SMOKE_DESIGNS))
+        self.assertTrue(set(SMOKE_DESIGNS).issubset(QUALITY_DESIGNS))
+
+    def test_explicit_designs_override_selected_profile(self):
+        resolved = _resolve_designs(
+            SimpleNamespace(
+                designs=["scenarios/AggregationSummary.design.md"],
+                profile="smoke",
+            )
+        )
+
+        self.assertEqual([Path("scenarios/AggregationSummary.design.md")], resolved)
+
+    def test_quality_profile_is_selected_when_no_design_is_specified(self):
+        resolved = _resolve_designs(SimpleNamespace(designs=None, profile="quality"))
+
+        self.assertEqual([Path(item) for item in QUALITY_DESIGNS], resolved)
     def test_summarizes_failed_runtime_oracle_assertions(self):
         summary = summarize_runtime_oracle_failures({
             "results": [{
