@@ -229,9 +229,10 @@ python scripts/design/run_design_generation_regression.py
 ```
 
 Notes:
-1. The current default regression set is `ComplexLinqSearch`, `CsvSalesAggregation`, `DailyInventorySync`, `SecureOrderProcessing`, and `AppModeEchoMinimal`.
-2. Use repeated `--design` flags to replace the default set with a narrower or experimental set.
-3. The regression runner aggregates `inference_status`, `verification_valid`, `spec_issue_count`, and the full per-scenario snapshot payload into one JSON result.
+1. The current default regression set is `ComplexLinqSearch`, `CsvSalesAggregation`, `ProductApiFilteredCatalog`, `CustomerApiWithEntitySpec`, `DailyInventorySync`, `SecureOrderProcessing`, `StateUpdatePersist`, `AppModeEchoMinimal`, `RobustConfigLoader`, `StdinToStdoutTransform`, `AggregationSummary`, and `SyncExternalData`.
+2. Use `--profile smoke` for the representative JSON/LINQ, HTTP, SQLite update, and configuration-branch scenarios. `--profile quality` is the default full set.
+3. Use repeated `--design` flags to replace the selected profile with a narrower or experimental set.
+4. The regression runner aggregates `inference_status`, `verification_valid`, `spec_issue_count`, and the full per-scenario snapshot payload into one JSON result.
 
 ## Current Assist Coverage Snapshot (2026-06-18)
 The current scenario inventory from `scripts/design/audit_literal_tag_assist_coverage.py` is:

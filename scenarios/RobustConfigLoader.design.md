@@ -17,5 +17,7 @@
 5. [ACTION|DISPLAY|string|void|NONE] [semantic_roles:{"message":"config.json not found","output_channel":"stdout"}] 「config.json not found」というメッセージを表示する
 6. [END|GENERAL] [refs:step_1]
 ### Test Cases
-- **Scenario**: Default
+- **Scenario**: ConfigExists
 - **Expected**: {"runtime_oracle":{"fixtures":[{"path":"config.json","content":"{\"mode\":\"test\"}"}],"return":true,"stdout":{"contains":["mode","test"]}}}
+- **Scenario**: ConfigMissing
+- **Expected**: {"runtime_oracle":{"return":true,"stdout":{"contains":["config.json not found"]}}}

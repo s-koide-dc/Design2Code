@@ -25,6 +25,10 @@
 | SQLite抽出からHTTP登録 | SQLite SELECT、LINQ、反復、HTTP POST payload | `SecureOrderProcessing` | SQLite schema/seed、HTTP要求body、戻り値 |
 | 単件状態更新 | SQLite SELECT、日時代入、SQLite UPDATE | `StateUpdatePersist` | SQLite schema/seed、DB assertion、戻り値 |
 | 環境変数の出力 | 環境変数取得、表示 | `AppModeEchoMinimal` | environment fixture、戻り値、標準出力 |
+| 安全な設定読込 | ファイル存在確認、if/else分岐、ファイル読込、表示 | `RobustConfigLoader` | fixtureあり／なし、戻り値、標準出力 |
+| 標準入力の変換 | 標準入力読込、文字列整形、標準出力 | `StdinToStdoutTransform` | stdin fixture、戻り値、標準出力 |
+| JSONの数値集計 | JSON読込、反復、decimal集計、表示 | `AggregationSummary` | JSON fixture、戻り値、標準出力 |
+| 外部データ同期 | HTTP GET、JSON復元、SQLite INSERT | `SyncExternalData` | HTTP response、SQLite schema、DB assertion、戻り値 |
 
 既定回帰セットの正本は [run_design_generation_regression.py](../scripts/design/run_design_generation_regression.py) とする。各シナリオの明示oracleが、この表より詳細な期待結果を定義する。
 

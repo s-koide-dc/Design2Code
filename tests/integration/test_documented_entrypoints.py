@@ -2673,6 +2673,10 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             "scripts/validate_design_authoring.py",
             "--design",
             "scenarios/AppModeEchoMinimal.design.md",
+            "--design",
+            "scenarios/RobustConfigLoader.design.md",
+            "--design",
+            "scenarios/StdinToStdoutTransform.design.md",
         ]
         completed = subprocess.run(
             command,
@@ -2698,6 +2702,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             "scripts/design/review_design_generation_snapshot.py",
             "--design",
             "scenarios/AppModeEchoMinimal.design.md",
+            "--design",
+            "scenarios/RobustConfigLoader.design.md",
         ]
         completed = subprocess.run(
             command,
@@ -2857,6 +2863,14 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             "scenarios/StateUpdatePersist.design.md",
             "--design",
             "scenarios/AppModeEchoMinimal.design.md",
+            "--design",
+            "scenarios/RobustConfigLoader.design.md",
+            "--design",
+            "scenarios/StdinToStdoutTransform.design.md",
+            "--design",
+            "scenarios/AggregationSummary.design.md",
+            "--design",
+            "scenarios/SyncExternalData.design.md",
         ]
         completed = subprocess.run(
             command,
@@ -2872,8 +2886,8 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
         )
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload["scenario_count"], 8)
-        self.assertEqual(payload["passed"], 8)
+        self.assertEqual(payload["scenario_count"], 12)
+        self.assertEqual(payload["passed"], 12)
         self.assertEqual(payload["failed"], 0)
         self.assertEqual(
             [item["module_name"] for item in payload["results"]],
@@ -2886,6 +2900,10 @@ class TestDocumentedEntrypoints(unittest.TestCase):
                 "SecureOrderProcessing",
                 "StateUpdatePersist",
                 "AppModeEchoMinimal",
+                "RobustConfigLoader",
+                "StdinToStdoutTransform",
+                "AggregationSummary",
+                "SyncExternalData",
             ],
         )
         self.assertTrue(all(item["verification_valid"] for item in payload["results"]))
@@ -2926,13 +2944,20 @@ class TestDocumentedEntrypoints(unittest.TestCase):
             msg=f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}",
         )
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload["scenario_count"], 8)
-        self.assertEqual(payload["passed"], 8)
+        self.assertEqual(payload["scenario_count"], 12)
+        self.assertEqual(payload["passed"], 12)
         self.assertEqual(payload["failed"], 0)
         self.assertTrue(all("payload" not in item for item in payload["results"]))
         self.assertTrue(all(item["quality_valid"] for item in payload["results"]))
         self.assertTrue(all(item["runtime_oracle_execution_valid"] for item in payload["results"]))
-        self.assertTrue(all(item["runtime_oracle_execution_passed"] == 1 for item in payload["results"]))
+        oracle_passes = {
+            item["module_name"]: item["runtime_oracle_execution_passed"]
+            for item in payload["results"]
+        }
+        self.assertEqual(2, oracle_passes["RobustConfigLoader"])
+        self.assertTrue(
+            all(count == 1 for name, count in oracle_passes.items() if name != "RobustConfigLoader")
+        )
         self.assertTrue(all(item["runtime_oracle_failure_count"] == 0 for item in payload["results"]))
         self.assertTrue(all(item["runtime_oracle_failures"] == [] for item in payload["results"]))
         self.assertTrue(all(item["maintainability"]["analysis_source"] == "roslyn" for item in payload["results"]))
