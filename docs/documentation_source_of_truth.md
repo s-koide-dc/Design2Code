@@ -6,7 +6,8 @@
 
 | 情報 | 正本 | 参照側の責務 |
 |---|---|---|
-| 公開入口・基本セットアップ | `README.md` | 実行例と概要を掲載し、詳細仕様を重複記載しない |
+| 公開入口・最短セットアップ | `README.md` | 設計書生成までの実行例と詳細ガイドへのリンクを掲載する |
+| 機能別のローカル資産準備 | `docs/local_setup.md` | chiVe、method-store、JMDictの用途・準備コマンド・検証方法を管理する |
 | 設定項目・設定ファイル | `config/README.md` と `config/*.json` | 設定値の説明と実ファイルを一致させる |
 | 全体アーキテクチャ | `docs/project_overview.md` | モジュール責務の要約に限定する |
 | 対話・リライト方針 | `docs/dialogue_integration_plan.md` と `config/response_rewriter_config.json` | READMEや設計書は方針を再定義しない |
