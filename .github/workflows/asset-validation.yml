@@ -1,0 +1,65 @@
+name: asset-validation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  validate-local-assets:
+    runs-on: [self-hosted, nlp-assets]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        capability: [semantic_method_search, dictionary_search]
+    env:
+      PYTHONUTF8: "1"
+      LOCAL_ASSET_MANIFEST_PATH: ${{ vars.NLP_ASSET_MANIFEST_PATH }}
+      LOCAL_ASSET_WORKSPACE_ROOT: ${{ vars.NLP_ASSET_WORKSPACE_ROOT }}
+    steps:
+      - name: Check runner manifest configuration
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:LOCAL_ASSET_MANIFEST_PATH) -or [string]::IsNullOrWhiteSpace($env:LOCAL_ASSET_WORKSPACE_ROOT)) {
+            throw "Repository variables NLP_ASSET_MANIFEST_PATH and NLP_ASSET_WORKSPACE_ROOT must point to the runner's pinned asset environment."
+          }
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.109"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Validate hash-pinned local assets
+        shell: pwsh
+        run: |
+          python scripts/validate/validate_local_asset_manifest.py `
+            --capability ${{ matrix.capability }} `
+            --manifest "$env:LOCAL_ASSET_MANIFEST_PATH" `
+            --workspace-root "$env:LOCAL_ASSET_WORKSPACE_ROOT"
+
+      - name: Validate real vector model and semantic search
+        if: matrix.capability == 'semantic_method_search'
+        shell: pwsh
+        run: |
+          $assetVectors = Join-Path $env:LOCAL_ASSET_WORKSPACE_ROOT "resources\vectors"
+          $checkoutVectors = Join-Path $PWD "resources\vectors"
+          if (-not (Test-Path -LiteralPath $assetVectors -PathType Container)) {
+            throw "The pinned asset workspace does not contain resources\\vectors."
+          }
+          if (Test-Path -LiteralPath $checkoutVectors) {
+            throw "Checkout unexpectedly contains resources\\vectors; refusing to replace it."
+          }
+          New-Item -ItemType Junction -Path $checkoutVectors -Target $assetVectors | Out-Null
+          python scripts/validate/validate_real_vector_model.py

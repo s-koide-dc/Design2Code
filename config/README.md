@@ -74,6 +74,10 @@
 - `coverage_config.json`  
   カバレッジ解析の設定。
 
+- `asset_requirements.json`
+  対話・意味検索・辞書検索で使うローカル資産の能力別一覧。実資産は追跡せず、`validate_local_asset_manifest.py` がローカルのSHA-256固定を検証する。
+  自己ホストrunnerでの手動CI検証は `docs/asset_validation.md` を参照する。
+
 - `refactoring_config.json`  
   リファクタリング分析の設定。
 

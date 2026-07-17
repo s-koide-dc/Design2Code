@@ -44,6 +44,14 @@ python scripts/validate/diagnose_local_environment.py --require semantic_pipelin
 
 実モデルを保持する環境では、続けて [実ベクトルモデル検証](real_vector_model_validation.md) を実行する。
 
+準備できた資産を固定するには、次を一度実行する。manifest はローカルの
+`logs/` 配下にだけ作られ、実資産や絶対パスはリポジトリへ追加されない。
+
+```powershell
+python scripts/validate/validate_local_asset_manifest.py --capability semantic_pipeline --write-manifest
+python scripts/validate/validate_local_asset_manifest.py --capability semantic_pipeline
+```
+
 ## 3. 意味的なmethod-store検索を有効にする
 
 chiVeの準備後、method-storeベクトルDBを作成する。
@@ -55,6 +63,13 @@ python scripts/validate/diagnose_local_environment.py --require semantic_method_
 
 必要な生成物は `resources/vectors/vector_db/method_store_meta.json` と `method_store_vectors.npy` である。
 
+method-store まで使う場合は、依存するchiVe資産も含めて固定する。
+
+```powershell
+python scripts/validate/validate_local_asset_manifest.py --capability semantic_method_search --write-manifest
+python scripts/validate/validate_local_asset_manifest.py --capability semantic_method_search
+```
+
 ## 4. JMDictの辞書検索を有効にする
 
 辞書検索・逆引き機能には、JMDictから作成する `resources/dictionary.db` が必要である。設計書生成やchiVeの意味検索だけでは不要である。
@@ -63,6 +78,7 @@ python scripts/validate/diagnose_local_environment.py --require semantic_method_
 python scripts/data/fetch_jmdict.py
 python scripts/data/parse_jmdict.py
 python scripts/validate/diagnose_local_environment.py --require dictionary_search
+python scripts/validate/validate_local_asset_manifest.py --capability dictionary_search --write-manifest
 ```
 
 ## 5. ローカル検証の選び方

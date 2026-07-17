@@ -11,7 +11,7 @@
   },
   "python": {
     "tool": "coverage",
-    "command_template": "coverage run -m pytest {test_path} && coverage json -o {output_path}",
+    "command_template": "python -m coverage run --branch -m unittest {test_path} && python -m coverage json -o {output_path}",
     "exclude_patterns": ["**/venv/**", "**/__pycache__/**", "**/test_*.py"],
     "thresholds": {
       "line": 85,

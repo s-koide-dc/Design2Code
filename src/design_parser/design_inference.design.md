@@ -4,6 +4,17 @@
 
 `DesignInferenceEngine` は明示 metadata が不足する `.design.md` に対して、固定資産と固定ルールに基づく決定的補完を一度だけ行い、その結果を `.inferred.design.md` として固定化する。
 
+推論結果の書戻し、推論metadataのupsert、資産ハッシュとfingerprintは
+`inference_metadata` に分離し、推論規則そのものから永続化・来歴記録の責務を分離する。
+data source の種類分解と source override 選択は `inference_source_resolution` に分離し、
+HTTP、file、stdin、environment の優先順を独立して検証できるようにする。
+番号付き行と JSON を含む角括弧の構文処理は `inference_line_syntax` に分離する。
+Core Logic からのdata source宣言の収集は `inference_data_sources` に分離する。
+明示entity role と直前出力型の優先規則は `inference_type_resolution` に分離する。
+
+各分割モジュールの入出力・決定性境界は、それぞれの `*.design.md` を正本とする。
+構造的フォールバックへ渡す行単位の状態は `inference_context` の不変contractで表現する。
+
 ## 2. Structured Specification
 
 ### Input

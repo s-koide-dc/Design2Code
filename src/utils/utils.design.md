@@ -26,6 +26,9 @@
 8. `control_intents` は `TIME` / `GENERAL` / `CANCEL_TASK` / `FEEDBACK_RECEIVED` など対話制御 intent と会話 intent 集合の共通定数を提供し、会話分岐の文字列直書きを避ける。
 9. `action_intents` は `FILE_CREATE` / `CMD_RUN` / `EXECUTE_GOAL_DRIVEN_TDD` に加え `SETUP_CICD` / `GENERATE_PIPELINE_CONFIG` / `RECOVERY_FROM_TEST_FAILURE` / `SET_METHOD_NAME` / `FILE_WRITE` など資産境界まで含めた主要 action intent と補助集合を提供し、実行系分岐の文字列直書きを避ける。
 10. `semantic_intents` は `GENERAL` / `FETCH` / `TRANSFORM` / `DISPLAY` など IR / code synthesis 内部 semantic intent、node kind、runtime role を提供し、内部語彙の文字列直書きを避ける。
+11. `asset_manifest` は任意ローカル資産を能力ごとに列挙し、サイズと SHA-256 による固定・検証を提供する。
+
+個別の入出力と安全境界は `asset_manifest.design.md` を正本とする。
 
 ### Test Cases
 - **Happy Path**:
@@ -37,7 +40,7 @@
 
 ## 3. Dependencies
 - **Internal**: `design_doc_parser`, `design_doc_refiner`, `logic_auditor`, `text_parser`, `retry_utils`
-- **External**: `os`, `re`, `json`
+- **External**: `os`, `re`, `json`, `hashlib`
 
 ## 4. Review Notes
 - 2026-04-14: normalize_path を含む補助機能の役割と依存関係を現行実装に合わせて再確認。

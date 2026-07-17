@@ -3,8 +3,8 @@
     "github_actions": {
       "enabled": true,
       "workflow_path": ".github/workflows",
-      "default_runner": "ubuntu-latest",
-      "supported_runners": ["ubuntu-latest", "windows-latest", "macos-latest"]
+      "default_runner": "windows-latest",
+      "supported_runners": ["windows-latest"]
     },
     "azure_devops": {
       "enabled": false,
@@ -25,6 +25,24 @@
     "max_low_priority_smells": 20,
     "timeout_seconds": 300,
     "retry_attempts": 2
+  },
+  "quality_measurement": {
+    "mode": "baseline",
+    "coverage_scope": [
+      "src/design_parser",
+      "src/ir_generator",
+      "src/code_synthesis",
+      "src/code_verification"
+    ],
+    "enforce_coverage_threshold": false,
+    "rationale": "Coverage is collected for the supported generation path before thresholds are admitted as CI gates."
+  },
+  "asset_validation": {
+    "trigger": "workflow_dispatch",
+    "runner_labels": ["self-hosted", "nlp-assets"],
+    "manifest_variable": "NLP_ASSET_MANIFEST_PATH",
+    "workspace_root_variable": "NLP_ASSET_WORKSPACE_ROOT",
+    "capabilities": ["semantic_method_search", "dictionary_search"]
   },
   "notifications": {
     "pr_comments": true,
@@ -47,12 +65,12 @@
     },
     "python": {
       "build_command": "python -m pip install -r requirements.txt",
-      "test_command": "python -m pytest --junitxml=test-results.xml --cov=src --cov-report=xml",
+      "test_command": "python scripts/validate/run_unit_by_file.py --verbosity 2",
       "coverage_tool": "coverage",
       "package_restore": "pip install -r requirements.txt",
-      "quality_tools": ["pylint", "flake8", "black", "mypy"],
-      "supported_versions": ["3.8", "3.9", "3.10", "3.11"],
-      "test_frameworks": ["pytest", "unittest"]
+      "quality_tools": [],
+      "supported_versions": ["3.13"],
+      "test_frameworks": ["unittest"]
     },
     "javascript": {
       "build_command": "npm run build",
@@ -98,10 +116,10 @@
     }
   },
   "security": {
-    "dependency_scanning": true,
-    "secret_scanning": true,
-    "code_scanning": true,
-    "vulnerability_alerts": true
+    "dependency_scanning": false,
+    "secret_scanning": false,
+    "code_scanning": false,
+    "vulnerability_alerts": false
   },
   "performance": {
     "parallel_jobs": true,
@@ -112,7 +130,7 @@
   "reporting": {
     "formats": ["json", "html", "junit", "cobertura"],
     "upload_artifacts": true,
-    "generate_badges": true,
-    "trend_analysis": true
+    "generate_badges": false,
+    "trend_analysis": false
   }
 }

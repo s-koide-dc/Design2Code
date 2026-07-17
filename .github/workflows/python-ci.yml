@@ -52,6 +52,48 @@ jobs:
             exit $code
           }
 
+  generation-coverage-baseline:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      SKIP_VECTOR_MODEL: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Measure supported generation-path coverage
+        shell: pwsh
+        run: |
+          python -m coverage erase
+          python -m coverage run --branch --source=src/design_parser,src/ir_generator,src/code_synthesis,src/code_verification -m unittest `
+            tests.unit.test_design_doc_parser `
+            tests.unit.test_ir_generator `
+            tests.unit.test_code_synthesizer_integration `
+            tests.unit.test_generation_quality -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m coverage json --pretty-print -o coverage-baseline.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m coverage report --precision=1
+
+      - name: Upload coverage baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: generation-coverage-baseline
+          path: coverage-baseline.json
+          if-no-files-found: error
+          retention-days: 30
+
   documented-entrypoints:
     runs-on: windows-latest
     timeout-minutes: 15

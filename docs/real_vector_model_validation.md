@@ -26,6 +26,12 @@ python scripts/validate/validate_real_vector_model.py
 python scripts/validate/validate_real_vector_model.py --timeout-seconds 600
 ```
 
+実モデルと派生キャッシュの同一性は、実行前にローカルmanifestでも確認できる。
+
+```powershell
+python scripts/validate/validate_local_asset_manifest.py --capability semantic_pipeline
+```
+
 ## 結果
 
 既定では `logs/real_vector_validation.json` に以下を記録する。

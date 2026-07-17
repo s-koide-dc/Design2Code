@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "capabilities": {
+    "semantic_pipeline": {
+      "assets": [
+        {"id": "chive_model", "path": "resources/vectors/chive-1.3-mc90.txt"},
+        {"id": "chive_vocab", "path": "resources/vectors/chive-1.3-mc90.txt.v0.vocab.npy"},
+        {"id": "chive_matrix", "path": "resources/vectors/chive-1.3-mc90.txt.v0.matrix.npy"}
+      ]
+    },
+    "semantic_method_search": {
+      "requires": ["semantic_pipeline"],
+      "assets": [
+        {"id": "method_store_metadata", "path": "resources/vectors/vector_db/method_store_meta.json"},
+        {"id": "method_store_vectors", "path": "resources/vectors/vector_db/method_store_vectors.npy"}
+      ]
+    },
+    "dictionary_search": {
+      "assets": [
+        {"id": "jmdict_database", "path": "resources/dictionary.db"}
+      ]
+    }
+  }
+}

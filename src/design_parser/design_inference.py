@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import shlex
@@ -14,6 +13,14 @@ from src.utils.design_doc_parser import DesignDocParser
 from src.code_generation.design_ops_resolver import DesignOpsResolver
 from src.morph_analyzer.morph_analyzer import MorphAnalyzer
 from src.design_parser.data_source_utils import parse_data_source_tag
+from src.design_parser import inference_metadata
+from src.design_parser import inference_source_resolution
+from src.design_parser import inference_line_syntax
+from src.design_parser import inference_data_sources
+from src.design_parser import inference_type_resolution
+from src.design_parser.inference_context import InferenceContext
+from src.design_parser import inference_structural_fallback
+from src.design_parser import inference_json_resolution
 from src.utils.entity_inference import infer_target_entity
 from src.utils.text_parser import extract_first_quoted_literal, extract_urls
 from src.utils.semantic_intents import (
@@ -350,13 +357,18 @@ class DesignInferenceEngine:
         step_token, score = self.resolver.infer_step_with_score(line, module_name)
         initial_entities = self.resolver.get_entities(line)
         command_literal = self._extract_command_literal(line, initial_entities)
-        env_sources, stdin_sources, http_sources, file_sources = self._collect_source_kinds()
-        db_sources = [s for s in getattr(self, "_current_data_sources", []) if s.get("kind") == "db"]
         fallback_line = self._strip_non_step_metadata_prefixes(line)
         existing_semantic_roles = self._extract_semantic_roles(line)
         explicit_ops = self._extract_ops_tag(line)
         if explicit_ops and "ops" not in existing_semantic_roles:
             existing_semantic_roles["ops"] = explicit_ops
+        context = InferenceContext(
+            step_idx, module_name, last_output_type, output_format, is_last_step,
+            last_persist_path, dict(existing_semantic_roles),
+            tuple(getattr(self, "_current_data_sources", []) or []),
+        )
+        env_sources, stdin_sources, http_sources, file_sources = inference_source_resolution.collect_source_kinds(list(context.data_sources))
+        db_sources = [source for source in context.data_sources if source.get("kind") == "db"]
         if self._extract_sql_literal(fallback_line) and not db_sources:
             return False, InferenceIssue(
                 step_idx,
@@ -370,6 +382,15 @@ class DesignInferenceEngine:
             return merged
 
         def _try_structural_fallback() -> Optional[Tuple[bool, Optional[InferenceIssue], str, List[str]]]:
+            source_meta, source_roles = inference_structural_fallback.resolve_source_fallback(
+                self, fallback_line, step_idx, env_sources, stdin_sources, http_sources, file_sources,
+            )
+            if source_meta:
+                tag = self._build_step_meta_tag(source_meta)
+                refs = self._build_refs_tag(step_idx)
+                semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(source_roles))
+                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
+                return True, None, new_line, []
             stdin_meta = self._infer_plain_stdin_fetch_meta(fallback_line, step_idx, stdin_sources)
             if stdin_meta:
                 tag = self._build_step_meta_tag(stdin_meta)
@@ -854,14 +875,9 @@ class DesignInferenceEngine:
         return True, None, new_line, data_sources
 
     def _collect_source_kinds(self) -> Tuple[List[Dict[str, str]], List[Dict[str, str]], List[Dict[str, str]], List[Dict[str, str]]]:
-        sources = []
-        if hasattr(self, "_current_data_sources"):
-            sources = self._current_data_sources or []
-        env_sources = [s for s in sources if s.get("kind") == "env"]
-        stdin_sources = [s for s in sources if s.get("kind") == "stdin"]
-        http_sources = [s for s in sources if s.get("kind") == "http"]
-        file_sources = [s for s in sources if s.get("kind") == "file"]
-        return env_sources, stdin_sources, http_sources, file_sources
+        return inference_source_resolution.collect_source_kinds(
+            getattr(self, "_current_data_sources", []),
+        )
 
     def _select_source_override(
         self,
@@ -872,27 +888,15 @@ class DesignInferenceEngine:
         http_sources: List[Dict[str, str]],
         file_sources: List[Dict[str, str]],
     ) -> Optional[Tuple[str, str, Optional[str]]]:
-        text = str(line)
-        for src in env_sources:
-            src_id = src.get("id")
-            if src_id and src_id in text:
-                return src_id, "env", INTENT_FETCH
-        if len(env_sources) == 1 and not http_sources and not file_sources and not stdin_sources:
-            src = env_sources[0]
-            return src.get("id", "env"), "env", INTENT_FETCH
-        if step_idx == 1 and len(stdin_sources) == 1 and not http_sources and not file_sources:
-            src = stdin_sources[0]
-            return src.get("id", "STDIN"), "stdin", INTENT_FETCH
-        for src in file_sources:
-            src_id = str(src.get("id") or "")
-            if src_id == "input_path" and "入力ファイルパス" in text:
-                return src_id, "file", INTENT_FETCH
-            if src_id == "output_path" and "出力ファイルパス" in text:
-                return src_id, "file", INTENT_FILE_IO
-        if len(http_sources) == 1 and self._extract_url_literal(text, {}):
-            src = http_sources[0]
-            return src.get("id", "http_main"), "http", INTENT_HTTP_REQUEST
-        return None
+        return inference_source_resolution.select_source_override(
+            line,
+            step_idx,
+            env_sources,
+            stdin_sources,
+            http_sources,
+            file_sources,
+            lambda text: self._extract_url_literal(text, {}),
+        )
 
     def _infer_plain_stdin_fetch_meta(
         self,
@@ -1031,11 +1035,9 @@ class DesignInferenceEngine:
         last_output_type: Optional[str],
         semantic_roles: Optional[Dict[str, Any]],
     ) -> Optional[str]:
-        roles = semantic_roles or {}
-        role_entity = roles.get("target_entity") or roles.get("entity")
-        if isinstance(role_entity, str) and role_entity.strip():
-            return role_entity.strip()
-        return self._infer_entity_from_output_type(last_output_type)
+        return inference_type_resolution.entity_from_structural_context(
+            last_output_type, semantic_roles, self._infer_entity_from_output_type,
+        )
 
     def _infer_plain_json_deserialize_meta(
         self,
@@ -1045,24 +1047,12 @@ class DesignInferenceEngine:
         semantic_roles: Optional[Dict[str, Any]] = None,
         allow_text_entity_inference: bool = True,
     ) -> Optional[Dict[str, str]]:
-        if not self._looks_like_plain_json_deserialize(line):
-            return None
-        inferred_entity = self._entity_from_structural_context(
-            last_output_type=last_output_type,
-            semantic_roles=semantic_roles,
+        return inference_json_resolution.infer_json_deserialize_meta(
+            line, last_output_type, semantic_roles, allow_text_entity_inference,
+            self._looks_like_plain_json_deserialize,
+            lambda output, roles: self._entity_from_structural_context(last_output_type=output, semantic_roles=roles),
+            lambda text: infer_target_entity(text, [], self.entity_schema, self.morph_analyzer),
         )
-        if not inferred_entity and allow_text_entity_inference:
-            inferred_entity = infer_target_entity(line, [], self.entity_schema, self.morph_analyzer)
-        if not inferred_entity:
-            return None
-        output_type = f"List<{inferred_entity}>"
-        return {
-            "kind": NODE_ACTION,
-            "intent": INTENT_JSON_DESERIALIZE,
-            "target_entity": inferred_entity,
-            "output_type": output_type,
-            "side_effect": "NONE",
-        }
 
     def _looks_like_plain_linq(self, line: str) -> bool:
         normalized = str(line).strip()
@@ -1541,12 +1531,7 @@ class DesignInferenceEngine:
         return prefix, stripped.strip()
 
     def _collect_data_sources(self, core_logic: List[str]) -> List[str]:
-        data_sources = []
-        for line in core_logic:
-            inferred = self._resolve_data_source_tag(line)
-            if inferred:
-                data_sources.append(inferred)
-        return data_sources
+        return inference_data_sources.collect_data_sources(core_logic, self._resolve_data_source_tag)
 
     def _resolve_data_source_tag(self, line: str) -> str:
         if self._is_data_source_line(line):
@@ -1555,41 +1540,13 @@ class DesignInferenceEngine:
 
     def _infer_plain_data_source_tag(self, line: str) -> str:
         normalized = self._strip_leading_numbering(str(line).strip())
-        for profile in self._PLAIN_SOURCE_DESCRIPTION_PROFILES:
-            if normalized == profile["text"]:
-                return f'[data_source|{profile["source_ref"]}|{profile["source_kind"]}]'
-        if self._is_likely_filename(normalized):
-            source_ref = self._build_file_source_ref(normalized)
-            if source_ref:
-                return f"[data_source|{source_ref}|file]"
-        io_inputs = getattr(self, "_current_io_inputs", []) or []
-        io_file_aliases = {
-            "入力CSV": "input_path",
-            "出力CSV": "output_path",
-        }
-        expected_name = io_file_aliases.get(normalized)
-        if expected_name:
-            for item in io_inputs:
-                name = str(item.get("name") or "").strip()
-                if name == expected_name:
-                    return f"[data_source|{expected_name}|file]"
-        return ""
+        return inference_data_sources.infer_plain_data_source_tag(
+            normalized, self._PLAIN_SOURCE_DESCRIPTION_PROFILES,
+            getattr(self, "_current_io_inputs", []) or [], self._is_likely_filename,
+        )
 
     def _build_file_source_ref(self, value: str) -> str:
-        leaf = str(value).strip().replace("\\", "/").rsplit("/", 1)[-1]
-        if not leaf:
-            return ""
-        chars = []
-        previous_was_separator = False
-        for ch in leaf:
-            if ch.isalnum():
-                chars.append(ch.lower())
-                previous_was_separator = False
-            elif not previous_was_separator:
-                chars.append("_")
-                previous_was_separator = True
-        source_ref = "".join(chars).strip("_")
-        return source_ref or "file_source"
+        return inference_data_sources.build_file_source_ref(value)
 
     def _extract_output_type_from_line(self, line: str) -> Optional[str]:
         s = self._strip_leading_numbering(str(line).strip())
@@ -1905,42 +1862,10 @@ class DesignInferenceEngine:
         return "|" in meta
 
     def _find_bracket_end(self, text: str) -> int:
-        in_string = False
-        escape = False
-        nested_square = 0
-        for idx in range(1, len(text)):
-            ch = text[idx]
-            if escape:
-                escape = False
-                continue
-            if ch == "\\":
-                escape = True
-                continue
-            if ch == '"':
-                in_string = not in_string
-                continue
-            if in_string:
-                continue
-            if ch == "[":
-                nested_square += 1
-                continue
-            if ch == "]":
-                if nested_square == 0:
-                    return idx
-                nested_square -= 1
-        return -1
+        return inference_line_syntax.find_bracket_end(text)
 
     def _strip_leading_numbering(self, text: str) -> str:
-        s = text.strip()
-        i = 0
-        while i < len(s) and s[i].isdigit():
-            i += 1
-        if i > 0 and i < len(s) and s[i] == ".":
-            if i + 1 < len(s) and s[i + 1].isspace():
-                return s[i + 2:].strip()
-        if s.startswith("- "):
-            return s[2:].strip()
-        return s
+        return inference_line_syntax.strip_leading_numbering(text)
 
     def _extract_sql_literal(self, text: str) -> str:
         if not isinstance(text, str):
@@ -1967,180 +1892,50 @@ class DesignInferenceEngine:
         return ""
 
     def _write_back_inference(self, content: str, updated_core_logic: List[str], data_sources: List[str]) -> str:
-        filtered_core = []
-        for line in updated_core_logic:
-            if self._is_data_source_line(line):
-                continue
-            filtered_core.append(line)
-        deduped_sources: List[str] = []
-        for ds in data_sources or []:
-            if ds and ds not in deduped_sources:
-                deduped_sources.append(ds)
-        lines = content.splitlines()
-        out_lines: List[str] = []
-        in_core = False
-        logic_lines_consumed = 0
-        inserted_data_sources = False
-
-        for line in lines:
-            lower = line.strip().lower()
-            if lower.startswith("##") or lower.startswith("###"):
-                if in_core:
-                    in_core = False
-                if "core logic" in lower:
-                    in_core = True
-                    out_lines.append(line)
-                    continue
-
-            if in_core:
-                if not inserted_data_sources and deduped_sources:
-                    for ds in deduped_sources:
-                        out_lines.append(f"- {ds}")
-                    inserted_data_sources = True
-                if logic_lines_consumed < len(filtered_core):
-                    out_lines.append(filtered_core[logic_lines_consumed])
-                    logic_lines_consumed += 1
-                continue
-
-            out_lines.append(line)
-
-        return "\n".join(out_lines) + ("\n" if content.endswith("\n") else "")
+        return inference_metadata.write_back_inference(
+            content,
+            updated_core_logic,
+            data_sources,
+            self._is_data_source_line,
+        )
 
     def _upsert_inference_metadata(self, content: str) -> str:
-        metadata_block = self._build_inference_metadata_block(content)
-        if "### Inference Metadata" in content:
-            return self._replace_inference_block(content, metadata_block)
-        return self._insert_inference_block(content, metadata_block)
+        return inference_metadata.upsert_inference_metadata(
+            content,
+            self._build_inference_metadata_block(content),
+        )
 
     def _replace_inference_block(self, content: str, block: str) -> str:
-        lines = content.splitlines()
-        out = []
-        in_block = False
-        for line in lines:
-            if line.strip() == "### Inference Metadata":
-                in_block = True
-                out.append(block.strip())
-                continue
-            if in_block:
-                if line.strip().startswith("## ") or line.strip().startswith("### "):
-                    in_block = False
-                    out.append(line)
-                else:
-                    continue
-            else:
-                out.append(line)
-        return "\n".join(out) + ("\n" if content.endswith("\n") else "")
+        return inference_metadata._replace_inference_block(content, block)
 
     def _insert_inference_block(self, content: str, block: str) -> str:
-        lines = content.splitlines()
-        out = []
-        inserted = False
-        in_purpose = False
-        for i, line in enumerate(lines):
-            lower = line.strip().lower()
-            if lower.startswith("## purpose"):
-                in_purpose = True
-                out.append(line)
-                continue
-            if in_purpose and (line.strip().startswith("## ") or line.strip().startswith("### ")):
-                out.append(block.strip())
-                inserted = True
-                in_purpose = False
-            out.append(line)
-        if not inserted:
-            out.append(block.strip())
-        return "\n".join(out) + ("\n" if content.endswith("\n") else "")
+        return inference_metadata._insert_inference_block(content, block)
 
     def _build_inference_metadata_block(self, content: str) -> str:
-        assets = self._collect_assets()
-        fingerprint = self._compute_fingerprint(content, assets)
-        lines = ["### Inference Metadata", "- inference_mode: infer_then_freeze", f"- inference_fingerprint: {fingerprint}", "- assets:"]
-        for asset in assets:
-            lines.append(f"  - {asset['path']}")
-        assist = getattr(self, "_assist_metadata", None) or {}
-        applied_steps = assist.get("applied_steps") or []
-        if applied_steps:
-            lines.append("- llm_literal_assist: true")
-            lines.append(f"- llm_literal_assist_mode: {assist.get('mode') or 'literal_roles_only'}")
-            if assist.get("provider"):
-                lines.append(f"- llm_literal_assist_provider: {assist.get('provider')}")
-            if assist.get("model_id"):
-                lines.append(f"- llm_literal_assist_model_id: {assist.get('model_id')}")
-            lines.append("- llm_literal_assist_applied_steps: " + ", ".join(str(step) for step in applied_steps))
-        return "\n".join(lines)
+        return inference_metadata.build_inference_metadata_block(
+            content,
+            self._collect_assets(),
+            self._INFERENCE_RULES_VERSION,
+            getattr(self, "_assist_metadata", None),
+        )
 
     def _collect_assets(self) -> List[Dict[str, Any]]:
-        cfg = self.config_manager
-        paths = [
-            cfg.vector_model_path,
-            cfg.dictionary_db_path,
-            os.path.join(cfg.workspace_root, "config", "scoring_rules.json"),
-            cfg.method_store_path,
-            os.path.join(cfg.workspace_root, "config", "config.json"),
-            os.path.join(cfg.workspace_root, "config", "safety_policy.json"),
-            os.path.join(cfg.workspace_root, "config", "project_rules.json"),
-            os.path.join(cfg.workspace_root, "config", "retry_rules.json"),
-        ]
-        assets = []
-        for p in sorted(set(paths)):
-            assets.append(self._hash_asset(p))
-        return assets
+        return inference_metadata.collect_assets(self.config_manager)
 
     def _hash_asset(self, path: str) -> Dict[str, Any]:
-        info = {"path": path, "size_bytes": 0, "sha256": ""}
-        if not path or not os.path.exists(path):
-            return info
-        try:
-            size = os.path.getsize(path)
-            sha = self._sha256_file(path)
-            info["size_bytes"] = size
-            info["sha256"] = sha
-        except Exception:
-            pass
-        return info
+        return inference_metadata.hash_asset(path)
 
     def _compute_fingerprint(self, content: str, assets: List[Dict[str, Any]]) -> str:
-        normalized = self._normalize_design_text(content)
-        payload = {
-            "design_text_normalized": normalized,
-            "asset_versions": assets,
-            "inference_rules_version": self._INFERENCE_RULES_VERSION,
-        }
-        blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+        return inference_metadata.compute_fingerprint(content, assets, self._INFERENCE_RULES_VERSION)
 
     def _normalize_design_text(self, content: str) -> str:
-        text = content.replace("\r\n", "\n").replace("\r", "\n")
-        lines = [ln.rstrip() for ln in text.split("\n")]
-        normalized = "\n".join(lines)
-        return self._remove_inference_metadata_block(normalized)
+        return inference_metadata.normalize_design_text(content)
 
     def _remove_inference_metadata_block(self, content: str) -> str:
-        if "### Inference Metadata" not in content:
-            return content
-        lines = content.splitlines()
-        out = []
-        in_block = False
-        for line in lines:
-            if line.strip() == "### Inference Metadata":
-                in_block = True
-                continue
-            if in_block:
-                if line.strip().startswith("## ") or line.strip().startswith("### "):
-                    in_block = False
-                    out.append(line)
-                else:
-                    continue
-            else:
-                out.append(line)
-        return "\n".join(out)
+        return inference_metadata.remove_inference_metadata_block(content)
 
     def _sha256_file(self, path: str) -> str:
-        h = hashlib.sha256()
-        with open(path, "rb") as f:
-            for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                h.update(chunk)
-        return h.hexdigest()
+        return inference_metadata.sha256_file(path)
 
 
 def infer_then_freeze_if_needed(

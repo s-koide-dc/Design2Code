@@ -3,6 +3,9 @@
 日本語の設計書を解析して、C#コードを自動生成するローカルAIです。
 クラウド不要・LLM不要で動作し、設計書生成パイプラインは固定した辞書・ベクトル資産・設定の組み合わせを前提に再現可能な出力を目指します。
 
+プロダクトとして保証する範囲、実験機能との境界、昇格条件は
+[製品境界と成熟度](./docs/product_scope.md) を正本とします。
+
 このプロジェクトのコードと設計書は99%以上がAIで作成されており、各モジュールの設計書は日本語と英語が混在しています。  
 約3ヵ月程度で実装した実験的プロジェクトだということをご留意ください。
 
@@ -159,6 +162,7 @@ python scripts/generate/generate_from_design.py --design scenarios/AppModeEchoMi
 - セットアップ後の生成物一覧: [resources/README.md](./resources/README.md)
 - 機能別のローカル初回セットアップ: [docs/local_setup.md](./docs/local_setup.md)
 - ドキュメントの正本と更新ルール: [docs/documentation_source_of_truth.md](./docs/documentation_source_of_truth.md)
+- 製品として保証する範囲: [docs/product_scope.md](./docs/product_scope.md)
 - 実モデルを使うローカル検証: [docs/real_vector_model_validation.md](./docs/real_vector_model_validation.md)
 - 設計書生成の検証済み範囲: [docs/supported_generation_contract.md](./docs/supported_generation_contract.md)
 
