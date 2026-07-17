@@ -10,6 +10,8 @@ python scripts/validate/diagnose_local_environment.py
 
 このコマンドはファイルを変更しない。不足した資産ごとに、次の準備コマンドを表示する。
 
+GitHub Actions の `generation-smoke` は、モデル・ベクトルキャッシュ・`dictionary.db` を持たない新規runnerをセットアップ用サンドボックスとして使う。依存導入後に `--require design_generation` を通し、続く代表4件の生成回帰で実際のC#生成と静的品質を確認する。
+
 ## 1. 設計書からC#を生成する
 
 必要なものは Python 3.13以上、Python依存、.NET SDK 10.0系、設定JSON、CodeBuilderソースである。実モデルと辞書は不要である。
@@ -68,6 +70,7 @@ python scripts/validate/diagnose_local_environment.py --require dictionary_searc
 | 目的 | コマンド | 実モデルの要否 |
 |---|---|---|
 | 設定・依存・C#生成の前提確認 | `python scripts/validate/diagnose_local_environment.py --require design_generation` | 不要 |
+| 資産なしサンドボックスでの初回セットアップ確認 | GitHub Actions の `generation-smoke` | 不要 |
 | 軽量な単体確認 | `python scripts/validate/run_unit_smoke.py --profile core --verbosity 2` | 不要 |
 | chiVe実モデルの読込・意味検索確認 | `python scripts/validate/validate_real_vector_model.py` | 必要 |
 | 生成品質とruntime oracleの確認 | `python scripts/design/run_design_generation_regression.py --profile quality --fail-on-maintainability --run-runtime-oracles --require-runtime-oracles --summary-only` | 不要 |
