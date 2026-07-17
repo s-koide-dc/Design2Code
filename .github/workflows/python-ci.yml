@@ -157,6 +157,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Verify asset-free local setup
+        run: python scripts/validate/diagnose_local_environment.py --require design_generation
+
       - name: Build CodeBuilder
         run: dotnet build tools/csharp/CodeBuilder/CodeBuilder.csproj --nologo
 
