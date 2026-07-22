@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import List
+from typing import Any, Dict, List
 
 class BlueprintAssembler:
     """
@@ -7,6 +7,43 @@ class BlueprintAssembler:
     合成されたステートメント、型定義、フィールド、using を統合し、
     CodeBuilder が解釈可能な最終的な設計図を構築する。
     """
+
+    @staticmethod
+    def _collect_input_provenance(ir_tree: Dict[str, Any] | None) -> Dict[str, List[str]]:
+        """Extract explicit IR input links without deriving dependencies from code text."""
+        by_node_id: Dict[str, List[str]] = {}
+
+        def visit(nodes: Any) -> None:
+            if not isinstance(nodes, list):
+                return
+            for node in nodes:
+                if not isinstance(node, dict):
+                    continue
+                node_id = node.get("id")
+                input_link = node.get("input_link")
+                if isinstance(node_id, str) and node_id and isinstance(input_link, str) and input_link:
+                    by_node_id[node_id] = [input_link]
+                visit(node.get("body"))
+                visit(node.get("children"))
+                visit(node.get("else_children"))
+
+        if isinstance(ir_tree, dict):
+            visit(ir_tree.get("logic_tree"))
+        return by_node_id
+
+    @staticmethod
+    def _attach_input_provenance(statements: List[Dict[str, Any]], by_node_id: Dict[str, List[str]]) -> None:
+        for statement in statements:
+            if not isinstance(statement, dict):
+                continue
+            node_id = statement.get("node_id")
+            if isinstance(node_id, str) and node_id in by_node_id:
+                statement["input_node_ids"] = list(by_node_id[node_id])
+            for key in ("body", "else_body", "catch_body"):
+                nested = statement.get(key)
+                if isinstance(nested, list):
+                    BlueprintAssembler._attach_input_provenance(nested, by_node_id)
+
     def create_blueprint(self, method_name, path, inputs=None, ir_tree=None):
         usings = set(path.get("all_usings", []))
 
@@ -93,6 +130,11 @@ class BlueprintAssembler:
                     path["completed_nodes"] = path.get("completed_nodes", 0) + 1
             for stmt in deferred:
                 final_body.append(stmt)
+
+        # Preserve the dependency graph selected by IR generation on the emitted
+        # blueprint statements.  Consumers can now validate data flow by stable
+        # node IDs rather than by rendering-dependent local-variable text.
+        self._attach_input_provenance(final_body, self._collect_input_provenance(ir_tree))
 
         def _normalize_call_args(stmts):
             for s in stmts:

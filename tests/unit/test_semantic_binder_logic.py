@@ -152,6 +152,53 @@ class TestSemanticBinderLogic(unittest.TestCase):
         self.assertIn("x.Points > input_1", expr)
         self.assertNotIn("StartsWith", expr)
 
+    def test_structured_string_and_numeric_predicates_preserve_literal_values(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [
+                {"type": "string", "operator": "StartsWith", "expected_value": "A", "variable_hint": "Name"},
+                {"type": "conjunction", "value": "AND"},
+                {"type": "numeric", "operator": "Greater", "expected_value": 500, "variable_hint": "Price"},
+            ]
+        }
+        path = {
+            "type_to_vars": {},
+            "poco_defs": {"User": {"Name": "string", "Price": "decimal"}},
+            "active_scope_item": "item",
+            "in_loop": True,
+        }
+
+        expr = binder.generate_logic_expression(semantic_map, "User", path, node={"id": "step_2"})
+
+        self.assertEqual('item.Name != null && item.Name.StartsWith("A") && item.Price > 500m', expr)
+
+    def test_structured_logic_bypasses_exists_fallback_and_preserves_all_predicates(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "structured_logic": True,
+            "spec_role": "CHECK",
+            "check_kind": "exists_check",
+            "semantic_roles": {"path": "orders.json"},
+            "logic": [
+                {"type": "numeric", "operator": "Greater", "expected_value": 5000, "variable_hint": "Total"},
+                {"type": "conjunction", "value": "AND"},
+                {"type": "string", "operator": "Equal", "expected_value": "Premium", "variable_hint": "CustomerType"},
+            ],
+        }
+        path = {
+            "type_to_vars": {},
+            "poco_defs": {"Order": {"Total": "decimal", "CustomerType": "string?"}},
+            "active_scope_item": "item",
+            "in_loop": True,
+            "last_literal_map": {},
+            "all_usings": set(),
+        }
+
+        expr = binder.generate_logic_expression(semantic_map, "Order", path, node={"intent": "EXISTS"})
+
+        self.assertEqual('item.Total > 5000m && item.CustomerType == "Premium"', expr)
+        self.assertNotIn("File.Exists", expr)
+
     def test_sql_param_role_binds_input_variable(self):
         binder = SemanticBinder(TypeSystem())
         method = {

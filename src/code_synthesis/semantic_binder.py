@@ -322,11 +322,12 @@ class SemanticBinder:
         logic_goals = semantic_map.get("logic", [])
         path.setdefault("last_literal_map", {})
 
-        check_expr = self._build_check_expression(semantic_map, target_entity, path, node=node)
-        if check_expr:
-            return check_expr
+        if not semantic_map.get("structured_logic"):
+            check_expr = self._build_check_expression(semantic_map, target_entity, path, node=node)
+            if check_expr:
+                return check_expr
 
-        if node and node.get("intent") == INTENT_EXISTS:
+        if node and node.get("intent") == INTENT_EXISTS and not semantic_map.get("structured_logic"):
             s_roles = semantic_map.get("semantic_roles", {})
             if "path" in s_roles:
                 path_val = s_roles["path"]
@@ -430,7 +431,11 @@ class SemanticBinder:
                         if resolved_val == "{input}": resolved_val = input_vars[0]["var_name"]
                         val = resolved_val
                     else: val = "0"
-                numeric_literal = isinstance(val, str) and self._is_numeric_literal(str(val))
+                numeric_literal = (
+                    isinstance(val, (int, float)) and not isinstance(val, bool)
+                ) or (
+                    isinstance(val, str) and self._is_numeric_literal(val)
+                )
                 is_identifier = isinstance(val, str) and self._is_identifier(str(val))
                 p_type_lower = str(p_type).lower()
                 if p_type_lower == "string":

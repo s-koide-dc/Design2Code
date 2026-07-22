@@ -20,7 +20,7 @@
 2. `path`, `url`, `sql` は literal continuity を保つが、誤 bleed は抑止する。
 3. `_resolve_source_var` は型・role・recency に基づいて source 変数を解決する。
 4. `generate_logic_expression` は `logic` を走査して条件式を組み立てる。
-5. `spec_role=CHECK` の場合は `_build_check_expression` を優先し、`check_kind`, `check_subject`, `check_operator`, `check_value`, `source_kind`, `subject_resolution` から直接式を組み立てる。
+5. `spec_role=CHECK` の場合は `_build_check_expression` を優先し、`check_kind`, `check_subject`, `check_operator`, `check_value`, `source_kind`, `subject_resolution` から直接式を組み立てる。ただし IR が `structured_logic=true` を明示した場合は、その `logic` 配列を正とし、CHECK/EXISTS の便宜的な fallback を適用しない。
 6. weak provenance の場合は schema/property reverse lookup を抑止する。
 7. `history_subject` のような middle-strength provenance は exact target scope に閉じた解決だけを許可する。
 8. `HTTP_REQUEST` で `semantic_roles.payload` または `semantic_roles.content` が明示され、値が `{context}` の場合は、current context item を優先解決して `new StringContent(JsonSerializer.Serialize(contextVar))` を組み立てる。
@@ -34,6 +34,8 @@
 - **Edge Cases**:
   - **Scenario**: weak `subject_resolution` で property reverse lookup が必要になる。
   - **Expected Output / Behavior**: 過剰具体化せず generic path に留まる。
+  - **Scenario**: `intent=EXISTS` に分類された条件ノードに、`Total > 5000 AND CustomerType == Premium` の構造化 `logic` がある。
+  - **Expected Output / Behavior**: `File.Exists(...)` へ退避せず、すべての predicate を C# 条件式として生成する。
 
 ## 3. Dependencies
 - **Internal**:
@@ -45,3 +47,4 @@
 - 2026-06-04: `DATABASE_QUERY` / `FETCH` / `PERSIST` / `HTTP_REQUEST` / `EXISTS` と READ/WRITE/PERSIST/FETCH/TRANSFORM の高頻度比較を `src.utils.semantic_intents` の共通語彙へ寄せた。
 - 2026-06-24: `HTTP_REQUEST + payload:{context}` のとき current context item を `StringContent(JsonSerializer.Serialize(...))` へ変換する現在の binding 境界を反映。
 - 2026-07-09: schema string property に対する string method 条件式で null guard を出し、生成コードの nullable warning を品質ゲートで検出可能な状態へ同期。
+- 2026-07-22: 明示された `structured_logic` は intent 分類より優先する。これにより CONDITION が `EXISTS` と正規化されていても、構造化された複合 predicate をファイル存在チェックへ置換しない。

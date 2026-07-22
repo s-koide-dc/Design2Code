@@ -904,7 +904,7 @@ class ActionSynthesizer:
         new_path.setdefault("all_usings", set()).add("System.Linq")
         out_var = self.stmt_builder.get_semantic_var_name(node, coll_type, "filtered", new_path, role="data")
         terminal = "ToArray()" if str(coll_type).endswith("[]") else "ToList()"
-        new_path["statements"].append({"type": "raw", "code": f"var {out_var} = {coll_var}.Where({item_name} => {logic_expr}).{terminal};", "node_id": node.get("id"), "out_var": out_var, "var_type": coll_type, "intent": intent})
+        new_path["statements"].append({"type": "raw", "code": f"var {out_var} = {coll_var}.Where({item_name} => {logic_expr}).{terminal};", "node_id": node.get("id"), "out_var": out_var, "var_type": coll_type, "intent": intent, "predicate_goals": copy.deepcopy(all_child_goals)})
         new_path.setdefault("type_to_vars", {}).setdefault(coll_type, []).append({"var_name": out_var, "node_id": node.get("id"), "intent": INTENT_LINQ, "target_entity": item_type})
         new_path["active_scope_item"] = out_var
         new_path.setdefault("consumed_ids", set()).add(node.get("id"))

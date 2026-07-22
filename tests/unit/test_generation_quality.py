@@ -41,6 +41,8 @@ class TestGenerationQuality(unittest.TestCase):
         code = result.get("code", "")
         self.assertIn("CustomerType == \"Premium\"", code)
         self.assertNotIn("Id == \"Premium\"", code)
+        self.assertIn("JsonSerializer.Serialize(items)", code)
+        self.assertIn('WriteGeneratedTextFile("orders.json", json)', code)
 
     def test_logic_auditor_uses_ukb_operator_direct_map(self):
         kb = DummyKnowledgeBase({

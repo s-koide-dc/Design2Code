@@ -335,6 +335,13 @@
             "output_name": "csv",
             "usings": ["System", "System.Linq"],
             "code": "{out} = string.Join(Environment.NewLine, {src}.Select(kv => $\"{{kv.Key}},{{kv.Value}}\"));"
+        },
+        "json_serialize": {
+            "input_role": "content",
+            "output_type": "string",
+            "output_name": "json",
+            "usings": ["System.Text.Json"],
+            "code": "{out} = JsonSerializer.Serialize({src});"
         }
     },
     "structural_keywords": {

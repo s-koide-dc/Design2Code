@@ -6,6 +6,9 @@ def extract_entity_property_definitions(entity_def: Dict[str, Any]) -> List[Tupl
     property_defs: List[Tuple[str, List[str]]] = []
     if not isinstance(entity_def, dict):
         return property_defs
+    aliases_by_property = entity_def.get("property_aliases", {})
+    if not isinstance(aliases_by_property, dict):
+        aliases_by_property = {}
     for raw_prop in entity_def.get("properties", []) or []:
         prop_name = None
         aliases: List[str] = []
@@ -15,7 +18,10 @@ def extract_entity_property_definitions(entity_def: Dict[str, Any]) -> List[Tupl
             prop_name = raw_prop.get("name")
             aliases = [str(alias).strip() for alias in (raw_prop.get("aliases") or []) if str(alias).strip()]
         if prop_name:
-            property_defs.append((str(prop_name), aliases))
+            declared_aliases = aliases_by_property.get(str(prop_name), [])
+            if isinstance(declared_aliases, list):
+                aliases.extend(str(alias).strip() for alias in declared_aliases if str(alias).strip())
+            property_defs.append((str(prop_name), list(dict.fromkeys(aliases))))
     return property_defs
 
 

@@ -1466,8 +1466,10 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         statements = results[0].get("statements", [])
         foreach_statements = [s for s in statements if s.get("type") == "foreach"]
         self.assertTrue(foreach_statements)
-        body_json = json.dumps(foreach_statements[0].get("body", []), ensure_ascii=False)
+        loop_stmt = foreach_statements[0]
+        body_json = json.dumps(loop_stmt.get("body", []), ensure_ascii=False)
         self.assertIn("Console.WriteLine(item.Name)", body_json)
+        self.assertEqual("Name", loop_stmt["body"][0].get("display_property"))
 
     def test_iterate_explicit_item_var_is_used_as_foreach_alias_and_branch_context(self):
         from src.ir_generator.ir_generator import IRGenerator

@@ -317,7 +317,7 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
 
     percent_value = semantic_roles.get("percentage")
     if percent_value is not None and not rate_rules:
-        hint_source = target_hint or explicit_prop
+        hint_source = semantic_roles.get("source_prop") or target_hint or explicit_prop
         if not hint_source:
             for g in calc_goals + logic_goals:
                 candidate_hint = g.get("target_hint") or g.get("variable_hint")
@@ -389,6 +389,20 @@ def process_calc_node(action_synthesizer, node: Dict[str, Any], path: Dict[str, 
                 "intent": node.get("intent"),
             }
             new_path["statements"].append(loop_stmt)
+            collection_outputs = new_path.setdefault("type_to_vars", {}).setdefault(collection_type, [])
+            if not any(
+                entry.get("var_name") == collection_var
+                and entry.get("node_id") == node.get("id")
+                for entry in collection_outputs
+                if isinstance(entry, dict)
+            ):
+                collection_outputs.append({
+                    "var_name": collection_var,
+                    "node_id": node.get("id"),
+                    "semantic_role": "data",
+                    "target_entity": loop_item_type or target_entity,
+                    "role": "data",
+                })
             new_path["active_scope_item"] = collection_var
         else:
             code = f"{var_name}.{assignment_target} = {actual_expr};"

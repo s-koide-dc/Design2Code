@@ -7,7 +7,7 @@ The `SemanticAssertions` module [Phase 23.4] provides a rule-based verification 
 
 ### 2.1 Inputs
 - **blueprint** (`Dict[str, Any]`): The synthesized code structure (methods, body, statements).
-- **contract** (`Dict[str, Any]`): A dictionary defining the verification rules (e.g., `require_call_methods`, `disallow_placeholder_fetch`).
+- **contract** (`Dict[str, Any]`): A dictionary defining the verification rules. New contracts use structured blueprint evidence (`require_intents`, `require_node_intents`); legacy text-oriented rules are retained only for existing callers during migration.
 
 ### 2.2 Output
 - **Issues** (`List[str]`): A list of violation messages.
@@ -19,6 +19,18 @@ The `SemanticAssertions` module [Phase 23.4] provides a rule-based verification 
 -   Recursively traverses the statement tree (handling `if`, `foreach`, `while`, `try`, `try_catch`, and `catch_body`) to produce a flat list of all statements for easier analysis.
 
 #### 2.3.2 Contract Validation (`evaluate_blueprint_contract`)
+1.  **Structured provenance checks** (`require_intents`, `require_node_intents`):
+    - Verifies exact intent and node-id evidence attached to synthesized blueprint statements.
+    - Does not inspect generated C# text, method-name fragments, or local variable spellings.
+    - New scenario contracts must use these checks. Legacy rules below are transitional.
+2.  **Structured data-flow checks** (`require_dataflow`):
+    - Verifies an exact `source_node_id` → `consumer_node_id` edge retained from the IR `input_link` on emitted blueprint statements.
+    - Both endpoints must be emitted; this prevents a contract from passing solely because an IR edge exists before synthesis.
+3.  **Structured display-property checks** (`require_display_properties`):
+    - Verifies the exact display property explicitly selected by semantic binding on an emitted display statement.
+    - Does not inspect the rendered C# expression for property-name fragments.
+4.  **Structured predicate checks** (`require_predicate_goals`):
+    - Verifies the exact canonical predicate goals retained on the emitted LINQ statement, including conjunctions and literal values.
 1.  **Placeholder Check** (`disallow_placeholder_fetch`):
     -   Scans for method calls to `Enumerable.Empty`. If found, reports error.
 2.  **Required Calls** (`require_call_methods`):

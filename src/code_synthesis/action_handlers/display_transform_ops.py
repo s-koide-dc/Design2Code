@@ -4,6 +4,13 @@ from src.code_synthesis.action_handlers.action_utils import to_csharp_string_lit
 from src.utils.semantic_intents import INTENT_DISPLAY, INTENT_TRANSFORM
 
 
+def _with_display_property(statement: Dict[str, Any], property_name: str | None) -> Dict[str, Any]:
+    """Attach the property selected by semantic binding to a display statement."""
+    if property_name:
+        statement["display_property"] = property_name
+    return statement
+
+
 def process_transform_ops(action_synthesizer, node: Dict[str, Any], path: Dict[str, Any], ops: List[str]) -> List[Dict[str, Any]] | None:
     new_p = action_synthesizer.synthesizer._copy_path(path)
     intent = node.get("intent")
@@ -131,7 +138,10 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
         new_p = action_synthesizer.synthesizer._copy_path(path)
         active_item = path.get("active_scope_item")
         if path.get("in_loop") and active_item:
-            stmt = {"type": "raw", "code": f"Console.WriteLine({active_item}.Name);", "node_id": node.get("id"), "intent": intent}
+            stmt = _with_display_property(
+                {"type": "raw", "code": f"Console.WriteLine({active_item}.Name);", "node_id": node.get("id"), "intent": intent},
+                "Name",
+            )
             if display_after_loop and new_p.get("in_loop"):
                 stmt = dict(stmt)
                 stmt["deferred_from"] = node.get("id")
@@ -157,7 +167,10 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
             collection_var = "items"
         item_name = action_synthesizer.stmt_builder.get_semantic_var_name(node, entity, "item", new_p, prefix="item", role="item")
         report_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "string", "report", new_p, role="content")
-        new_p["statements"].append({"type": "raw", "code": f"var {report_var} = string.Join(Environment.NewLine, {collection_var}.Select({item_name} => {item_name}.Name));", "node_id": node.get("id"), "intent": intent})
+        new_p["statements"].append(_with_display_property(
+            {"type": "raw", "code": f"var {report_var} = string.Join(Environment.NewLine, {collection_var}.Select({item_name} => {item_name}.Name));", "node_id": node.get("id"), "intent": intent},
+            "Name",
+        ))
         stmt = {"type": "raw", "code": f"Console.WriteLine({report_var});", "node_id": node.get("id"), "intent": intent}
         if display_after_loop and new_p.get("in_loop"):
             stmt = dict(stmt)
@@ -231,7 +244,10 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
             else:
                 display_expr = item_name
             report_var = action_synthesizer.stmt_builder.get_semantic_var_name(node, "string", "report", new_p, role="content")
-            new_p["statements"].append({"type": "raw", "code": f"var {report_var} = string.Join(Environment.NewLine, {var_to_display}.Select({item_name} => {display_expr}));", "node_id": node.get("id"), "intent": intent})
+            new_p["statements"].append(_with_display_property(
+                {"type": "raw", "code": f"var {report_var} = string.Join(Environment.NewLine, {var_to_display}.Select({item_name} => {display_expr}));", "node_id": node.get("id"), "intent": intent},
+                resolved_display_prop,
+            ))
             new_p.setdefault("type_to_vars", {}).setdefault("string", []).append({"var_name": report_var, "node_id": node.get("id"), "role": "content", "target_entity": "string"})
             new_p["active_scope_item"] = report_var
             new_p["active_scope_item_role"] = "report_content"
@@ -253,10 +269,14 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
             "source": var_to_display,
             "item_name": item_name,
             "var_type": item_type,
-            "body": [{"type": "raw", "code": f"Console.WriteLine({display_expr});", "node_id": node.get("id"), "intent": intent}],
+            "body": [_with_display_property(
+                {"type": "raw", "code": f"Console.WriteLine({display_expr});", "node_id": node.get("id"), "intent": intent},
+                resolved_display_prop,
+            )],
             "node_id": node.get("id"),
             "intent": intent,
         }
+        _with_display_property(loop_stmt, resolved_display_prop)
         if display_after_loop and new_p.get("in_loop"):
             loop_stmt = dict(loop_stmt)
             loop_stmt["deferred_from"] = node.get("id")
@@ -270,7 +290,10 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
     if intent == INTENT_DISPLAY and var_to_display and output_type == "string":
         new_p = action_synthesizer.synthesizer._copy_path(path)
         if resolved_display_prop:
-            stmt = {"type": "raw", "code": f"Console.WriteLine({var_to_display}.{resolved_display_prop});", "node_id": node.get("id"), "intent": intent}
+            stmt = _with_display_property(
+                {"type": "raw", "code": f"Console.WriteLine({var_to_display}.{resolved_display_prop});", "node_id": node.get("id"), "intent": intent},
+                resolved_display_prop,
+            )
         else:
             stmt = {"type": "raw", "code": f"Console.WriteLine({var_to_display});", "node_id": node.get("id"), "intent": intent}
         if display_after_loop and new_p.get("in_loop"):
@@ -285,7 +308,10 @@ def process_display_transform_specialized(action_synthesizer, node: Dict[str, An
     if intent == INTENT_DISPLAY and var_to_display:
         new_p = action_synthesizer.synthesizer._copy_path(path)
         if resolved_display_prop:
-            stmt = {"type": "raw", "code": f"Console.WriteLine({var_to_display}.{resolved_display_prop});", "node_id": node.get("id"), "intent": intent}
+            stmt = _with_display_property(
+                {"type": "raw", "code": f"Console.WriteLine({var_to_display}.{resolved_display_prop});", "node_id": node.get("id"), "intent": intent},
+                resolved_display_prop,
+            )
         else:
             stmt = {"type": "raw", "code": f"Console.WriteLine({var_to_display});", "node_id": node.get("id"), "intent": intent}
         if display_after_loop and new_p.get("in_loop"):

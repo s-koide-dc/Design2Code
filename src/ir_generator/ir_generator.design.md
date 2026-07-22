@@ -32,7 +32,7 @@ runtime 向けの `intent` / `role` だけでなく、`spec_role`, `CHECK` metad
 2. `steps` を順に走査し、data source 行と入力説明行を除外する。
 3. 必要なら hierarchical clause を抽出し、1 ステップを複数 clause に分割する。
 4. 各 clause に対して `_analyze_step_integrated` を実行し、coarse な `intent`, `role`, `cardinality`, `target_entity`, `logic`, `semantic_roles` を得る。
-5. 明示 metadata を `semantic_map` に統合し、`source_ref` / `source_kind` の補完を行う。
+5. 明示 metadata を `semantic_map` に統合し、`source_ref` / `source_kind` の補完を行う。StructuredSpec にcanonicalな `logic` 配列がある場合は、その比較条件・値・論理結合をtext解析で置き換えず保持する。
 6. `_resolve_role_specific_semantics` で role-specific enrichment を行う。
    - `spec_role` を付与する。
    - `WRAP/retry` には `wrapper_kind`, `max_attempts`, `exception_type`, `max_attempts_resolution`, `exception_type_resolution`, `retry_delay_policy_resolution` を補完する。

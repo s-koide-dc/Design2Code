@@ -317,6 +317,11 @@ def _normalize_db_assertions(value: Any) -> Tuple[List[Dict[str, Any]], List[str
                 assertion["equals"] = item["equals"]
             else:
                 issues.append(f"{path}.equals must be a string, number, boolean, or null")
+        if "not_equals" in item:
+            if item["not_equals"] is None or isinstance(item["not_equals"], SUPPORTED_LITERAL_TYPES):
+                assertion["not_equals"] = item["not_equals"]
+            else:
+                issues.append(f"{path}.not_equals must be a string, number, boolean, or null")
         if "not_null" in item:
             if isinstance(item["not_null"], bool):
                 assertion["not_null"] = item["not_null"]
@@ -328,10 +333,10 @@ def _normalize_db_assertions(value: Any) -> Tuple[List[Dict[str, Any]], List[str
             else:
                 issues.append(f"{path}.contains must be a string")
         if len(assertion) == 1:
-            issues.append(f"{path} must include equals, not_null, or contains")
+            issues.append(f"{path} must include equals, not_equals, not_null, or contains")
             continue
         assertions.append(assertion)
-        unknown = sorted(k for k in item if k not in {"query", "equals", "not_null", "contains"})
+        unknown = sorted(k for k in item if k not in {"query", "equals", "not_equals", "not_null", "contains"})
         for key in unknown:
             issues.append(f"{path}.{key} is not supported")
     return assertions, issues

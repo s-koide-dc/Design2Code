@@ -19,6 +19,8 @@ The `BlueprintAssembler` acts as the final assembly stage [Phase 23.2] in the Co
     - `fields`: List of dependency-injected fields (e.g., `_httpClient`, `_dbConnection`).
     - `methods`: List of method definitions (only one primary method currently).
     - `extra_classes`: List of POCO class definitions.
+    - `input_node_ids`: On emitted statements, the exact upstream IR node IDs declared by `input_link`.
+    - `display_property`: On display statements, the property selected by semantic binding when a property-specific display is requested.
 
 ### 2.3 Core Logic
 
@@ -46,6 +48,10 @@ The `BlueprintAssembler` acts as the final assembly stage [Phase 23.2] in the Co
     -   If not, and the method is non-void, attempt to find a variable matching the return type in `type_to_vars`.
     -   If found, return that variable.
     -   Otherwise, return a default value (`0`, `false`, `null`) to ensure compilation.
+4.  **Input Provenance**:
+    - Extract explicit `input_link` edges from the IR tree, including nested branches.
+    - Attach the upstream node IDs to emitted statements as `input_node_ids`.
+    - Do not infer dependencies from generated source text or local variable names.
 
 #### 2.3.5 Dependency Injection (DI) Resolution
 1.  **Resource Audit**: Check `ir_tree` for data sources (DB, HTTP) and add corresponding fields (`_dbConnection`, `_httpClient`).
@@ -71,6 +77,9 @@ The `BlueprintAssembler` acts as the final assembly stage [Phase 23.2] in the Co
 3.  **POCO Generation**:
     -   Input: `poco_defs={"User": {"user_id": "int"}}`
     -   Result: Class `User` with property `UserId` and attribute `[JsonPropertyName("user_id")]`.
+4.  **Input Provenance**:
+    - Input: IR node `step_2` with `input_link="step_1"`, and an emitted statement for `step_2`.
+    - Result: The statement carries `input_node_ids=["step_1"]`.
 
 #### Edge Cases
 1.  **Missing Return**:
@@ -86,4 +95,3 @@ The `BlueprintAssembler` acts as the final assembly stage [Phase 23.2] in the Co
 ## 4. Review Notes
 - 2026-03-31: Reviewed against current implementation; specification remains valid.
 - 2026-06-24: schema-derived POCO string properties are now emitted as nullable (`string?`) to align with nullable-enabled verification and avoid `CS8618` noise in snapshot audits.
-

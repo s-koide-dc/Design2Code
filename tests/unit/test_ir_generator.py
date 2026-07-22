@@ -15,6 +15,69 @@ class TestIRGenerator(unittest.TestCase):
         self.config = self.__class__.config
         self.generator = self.__class__.generator
 
+    def test_display_property_uses_declared_alias_for_mapping_schema(self):
+        generator = IRGenerator(
+            self.config,
+            entity_schema={
+                "entities": [
+                    {
+                        "name": "Item",
+                        "properties": {"Id": "int", "Name": "string"},
+                        "property_aliases": {"Name": ["名前"]},
+                    }
+                ]
+            },
+        )
+        steps = [
+            {
+                "text": "アイテム一覧を取得する。",
+                "intent": "FETCH",
+                "explicit_intent": True,
+                "target_entity": "Item",
+                "output_type": "IEnumerable<Item>",
+            },
+            {
+                "text": "アイテムの名前を表示する。",
+                "intent": "DISPLAY",
+                "explicit_intent": True,
+                "target_entity": "Item",
+                "input_refs": ["step_1"],
+            },
+        ]
+
+        ir = generator.generate(steps)
+        roles = ir["logic_tree"][1]["semantic_map"]["semantic_roles"]
+
+        self.assertEqual("Name", roles.get("property"))
+        self.assertEqual("schema_property", roles.get("display_property_resolution"))
+
+    def test_structured_logic_goals_are_retained_without_text_inference(self):
+        goals = [
+            {"type": "string", "variable_hint": "Name", "operator": "StartsWith", "expected_value": "A"},
+            {"type": "conjunction", "value": "AND"},
+            {"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 500},
+        ]
+        structured_spec = {
+            "steps": [
+                {
+                    "id": "step_1",
+                    "text": "ユーザーを抽出する。",
+                    "kind": "ACTION",
+                    "intent": "LINQ",
+                    "target_entity": "User",
+                    "output_type": "IEnumerable<User>",
+                    "logic": goals,
+                }
+            ],
+            "inputs": [],
+            "outputs": [],
+            "data_sources": [],
+        }
+
+        ir = self.generator.from_structured_spec(structured_spec)
+
+        self.assertEqual(goals, ir["logic_tree"][0]["semantic_map"]["logic"])
+
     def test_generate_simple_chain(self):
         steps = [
             "Data.Repo.GetUsersで全ユーザーを取得する",

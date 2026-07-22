@@ -195,17 +195,24 @@ def run_demo():
             ],
             "data_sources": [{"id": "source_inventory_db", "kind": "db", "description": "Inventory DB"}],
             "contract": {
-                "disallow_placeholder_fetch": True,
-                "require_display_property": "Name",
+                "require_intents": ["DATABASE_QUERY", "DISPLAY"],
+                "require_node_intents": [
+                    {"node_id": "step_1", "intent": "DATABASE_QUERY"},
+                    {"node_id": "step_2", "intent": "DISPLAY"},
+                ],
+                "require_dataflow": [
+                    {"source_node_id": "step_1", "consumer_node_id": "step_2"},
+                ],
             },
         },
         {
             "name": "SyncExternalData",
             "desc": "HTTP + JSON: Web APIから情報を取得し、C#オブジェクトに変換します。",
             "steps": [
-                _step("URL からJSONを非同期で取得する", intent="HTTP_REQUEST", role="FETCH", target="Product", output_type="string", semantic_roles={"url": "https://api.example.com/products"}),
+                _step("URL からJSONを非同期で取得する", intent="HTTP_REQUEST", role="FETCH", target="Product", output_type="string", semantic_roles={"url": "https://api.example.com/products"}, source_ref="source_product_api"),
                 _step("取得した文字列をProductクラスのリストとしてデシリアライズする", intent="JSON_DESERIALIZE", role="TRANSFORM", target="Product", cardinality="COLLECTION", output_type="List<Product>"),
             ],
+            "data_sources": [{"id": "source_product_api", "kind": "http", "description": "Product API"}],
         },
         {
             "name": "RobustConfigLoader",
@@ -220,8 +227,16 @@ def run_demo():
                 _step("を終えて", kind="END", intent="CONDITION", role="CONDITION", input_refs=["step_2"]),
             ],
             "contract": {
-                "require_call_methods": ["File.Exists", "File.ReadAllText", "Console.WriteLine"],
-                "require_var_usage_from_methods": [{"method_suffix": "File.ReadAllText"}],
+                "require_intents": ["EXISTS", "FILE_IO", "DISPLAY"],
+                "require_node_intents": [
+                    {"node_id": "step_3", "intent": "FILE_IO"},
+                    {"node_id": "step_4", "intent": "DISPLAY"},
+                    {"node_id": "step_6", "intent": "DISPLAY"},
+                ],
+                "require_dataflow": [
+                    {"source_node_id": "step_3", "consumer_node_id": "step_4"},
+                    {"source_node_id": "step_2", "consumer_node_id": "step_6"},
+                ],
             },
         },
         {
@@ -234,8 +249,17 @@ def run_demo():
                 _step("を終えて", kind="END", intent="LOOP", role="LOOP", input_refs=["step_2"]),
             ],
             "contract": {
-                "disallow_placeholder_fetch": True,
-                "require_display_property": "Name",
+                "require_intents": ["FETCH", "DISPLAY"],
+                "require_node_intents": [
+                    {"node_id": "step_2", "intent": "GENERAL"},
+                    {"node_id": "step_3", "intent": "DISPLAY"},
+                ],
+                "require_dataflow": [
+                    {"source_node_id": "step_2", "consumer_node_id": "step_3"},
+                ],
+                "require_display_properties": [
+                    {"node_id": "step_3", "property": "Name"},
+                ],
             },
         },
         {
@@ -243,12 +267,19 @@ def run_demo():
             "desc": "LINQ: 'A'で始まる名前、かつ価格が500より大きいユーザーを抽出します。",
             "steps": [
                 _step("全ユーザーを取得する", intent="FETCH", role="FETCH", target="User", cardinality="COLLECTION", output_type="IEnumerable<User>", semantic_roles={"path": "users.json"}),
-                _step("名前が A で始まり、かつ価格が500より大きいユーザーを抽出する", intent="LINQ", role="TRANSFORM", target="User", cardinality="COLLECTION", output_type="IEnumerable<User>", logic=[{"type": "comparison", "variable_hint": "Name", "operator": "StartsWith", "value": "A"}, {"type": "comparison", "variable_hint": "Price", "operator": "Greater", "value": 500}]),
+                _step("名前が A で始まり、かつ価格が500より大きいユーザーを抽出する", intent="LINQ", role="TRANSFORM", target="User", cardinality="COLLECTION", output_type="IEnumerable<User>", logic=[{"type": "string", "variable_hint": "Name", "operator": "StartsWith", "expected_value": "A"}, {"type": "conjunction", "value": "AND"}, {"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 500}]),
                 _step("結果をコンソールに表示する", intent="DISPLAY", role="DISPLAY", target="User"),
             ],
             "contract": {
-                "disallow_placeholder_fetch": True,
-                "require_display_property": "Name",
+                "require_intents": ["FETCH", "LINQ", "DISPLAY"],
+                "require_node_intents": [
+                    {"node_id": "step_2", "intent": "LINQ"},
+                    {"node_id": "step_3", "intent": "DISPLAY"},
+                ],
+                "require_dataflow": [
+                    {"source_node_id": "step_2", "consumer_node_id": "step_3"},
+                ],
+                "require_predicate_goals": [{"node_id": "step_2", "goals": [{"type": "string", "variable_hint": "Name", "operator": "StartsWith", "expected_value": "A"}, {"type": "conjunction", "value": "AND"}, {"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 500}]}],
             },
         },
         {
@@ -257,10 +288,10 @@ def run_demo():
             "steps": [
                 _step("全ての注文を取得する", intent="FETCH", role="FETCH", target="Order", cardinality="COLLECTION", output_type="IEnumerable<Order>", semantic_roles={"path": "orders.json"}),
                 _step("取得した各アイテムに対して", kind="LOOP", intent="LOOP", role="LOOP", target="Order", input_refs=["step_1"]),
-                _step("もし合計が5000より大きく、かつ顧客タイプが Premium ならば", kind="CONDITION", intent="CONDITION", role="CONDITION", target="Order", input_refs=["step_2"]),
-                _step("金額を合計の15%として計算する", intent="CALC", role="CALC", target="Order", output_type="decimal", input_refs=["step_3"]),
+                _step("もし合計が5000より大きく、かつ顧客タイプが Premium ならば", kind="CONDITION", intent="CONDITION", role="CONDITION", target="Order", input_refs=["step_2"], logic=[{"type":"numeric","variable_hint":"Total","operator":"Greater","expected_value":5000},{"type":"conjunction","value":"AND"},{"type":"string","variable_hint":"CustomerType","operator":"Equal","expected_value":"Premium"}]),
+                _step("金額を合計の15%として計算する", intent="CALC", role="CALC", target="Order", output_type="decimal", input_refs=["step_3"], semantic_roles={"assignment_target":"Discount","percentage":15,"source_prop":"Total"}),
                 _step("そうでなければ", kind="ELSE", intent="CONDITION", role="CONDITION", input_refs=["step_3"]),
-                _step("金額を合計の5%として計算する", intent="CALC", role="CALC", target="Order", output_type="decimal", input_refs=["step_3"]),
+                _step("金額を合計の5%として計算する", intent="CALC", role="CALC", target="Order", output_type="decimal", input_refs=["step_3"], semantic_roles={"assignment_target":"Discount","percentage":5,"source_prop":"Total"}),
                 _step("を終えて", kind="END", intent="CONDITION", role="CONDITION", input_refs=["step_3"]),
                 _step("割引を保存する", intent="PERSIST", role="PERSIST", target="Order", input_refs=["step_2"]),
                 _step("を終えて", kind="END", intent="LOOP", role="LOOP", input_refs=["step_2"]),

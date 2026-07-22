@@ -55,6 +55,11 @@
             "properties": {
                 "Id": "int",
                 "Name": "string"
+            },
+            "property_aliases": {
+                "Name": [
+                    "名前"
+                ]
             }
         },
         {
@@ -71,6 +76,11 @@
                 "Status": "string",
                 "Discount": "decimal",
                 "Points": "int"
+            },
+            "property_aliases": {
+                "Total": ["合計"],
+                "CustomerType": ["顧客タイプ"],
+                "Discount": ["割引"]
             }
         },
         {

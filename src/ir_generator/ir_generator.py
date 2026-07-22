@@ -267,6 +267,14 @@ class IRGenerator:
                     weak_entities,
                 )
 
+                # A structured specification may provide canonical logic goals.
+                # They are authoritative semantic input, so retain them verbatim
+                # instead of replacing them with text-derived observations.
+                explicit_logic = step_entry.get("logic")
+                if isinstance(explicit_logic, list) and explicit_logic:
+                    final_semantic_map["logic"] = copy.deepcopy(explicit_logic)
+                    final_semantic_map["structured_logic"] = True
+
             # 27.162: STRICT INTENT LOCK.
             # Phase 4: Final intent/runtime-role coercion
             # This is the last place where coarse intent is normalized before

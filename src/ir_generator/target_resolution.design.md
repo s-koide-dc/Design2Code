@@ -15,7 +15,7 @@
 - **Type/Format**: `Tuple[...]`, `List[str]`
 
 ### Core Logic
-1. schema の property 定義から canonical property 名と alias 群を列挙する。
+1. schema の property 定義から canonical property 名と alias 群を列挙する。`properties` が型マップ形式の場合も、同じentityの `property_aliases` に宣言されたエイリアスをcanonical propertyへ結び付ける。
 2. `resolve_canonical_property_name` は exact match のみで canonical property と owner entity 群を返す。
 3. `find_property_owner_entities` は property owner entity 一覧を返す。
 4. `resolve_property_provenance` は unique owner なら `schema_property`、current entity が owner 集合内にある場合は `history_scope` を返す。
@@ -26,6 +26,8 @@
 - **Happy Path**:
   - **Scenario**: `Stock` が 1 entity にのみ存在する。
   - **Expected Output**: `unique_owner`。
+  - **Scenario**: `properties: {"Name": "string"}` と `property_aliases: {"Name": ["名前"]}`。
+  - **Expected Output**: `名前` は `Name` / `schema_property` に正規化される。
 - **Edge Cases**:
   - **Scenario**: `Total` が複数 entity に存在する。
   - **Expected Output / Behavior**: `ambiguous`。

@@ -26,8 +26,9 @@
 3. `DISPLAY` + `display_names` の場合、コレクションを `string.Join` + `Select` で連結し、単一の `Console.WriteLine` にまとめる。
 4. 通知系 DISPLAY はプリミティブ型なら値を出力し、そうでなければ定型文を出力する。
 5. コレクション出力では `string.Join` を優先し、逐次 `foreach` 出力は避ける。
-6. `TRANSFORM` は非文字列型を `ToString` で変換する。
+6. `TRANSFORM` は明示 `ops` の変換契約を優先する。`json_serialize` は `JsonSerializer.Serialize`、`csv_serialize` は CSV 文字列化を使う。明示操作がない非文字列型のみ `ToString` で変換する。
 7. loop item continuity と property-backed display が揃っている場合、`名前を表示する` のような child display は `Console.WriteLine(item.Name)` に落ちる。
+   - このとき、生成した表示ステートメントには解決済みの `display_property` を付与する。検証器はレンダリング済みコードを探索せず、この構造化証跡を使用する。
 8. `DISPLAY` / `TRANSFORM` の高頻度分岐は `src.utils.semantic_intents` の共通定数を使う。
 
 ### Test Cases
@@ -48,3 +49,4 @@
 
 ## 4. Review Notes
 - 2026-06-04: `DISPLAY` / `TRANSFORM` の specialized 分岐を `src.utils.semantic_intents` の共通語彙へ寄せた。
+- 2026-07-22: `json_serialize` を宣言的 transform operation として追加し、コレクションを `ToString()` ではなく有効なJSONテキストへ変換して file persist へ渡せるようにした。

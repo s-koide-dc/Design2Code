@@ -26,6 +26,7 @@
 5. `datetime` hint, `%`, quantity/price, rate rules, aggregation/update intent を考慮して式を組み立てる。
 6. 曖昧解決や weak target provenance で安全に target を決められない場合はproperty assignmentやgeneric numeric-property fallbackを作らず、対象nodeを構造化された解決エラーとして返す。
 7. 集計では accumulator 変数を生成し、path に登録する。
+8. collection を反復して property を更新する計算は、更新後も同じ collection を出力として path に登録する。後続の JSON 変換・保存はこの pass-through dataflow を消費する。
 
 ### Test Cases
 - **Happy Path**:

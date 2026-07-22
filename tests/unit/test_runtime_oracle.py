@@ -237,6 +237,7 @@ class TestRuntimeOracle(unittest.TestCase):
                 "db_assertions": [{
                     "query": "SELECT LastLoginAt FROM Users WHERE Id = 1",
                     "not_null": True,
+                    "not_equals": "2020-01-01T00:00:00",
                 }],
             },
         )
@@ -248,6 +249,7 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertIn("await new GeneratedProcessor(connection).StateUpdatePersist(1)", test_code)
         self.assertIn("await connection.QuerySingleOrDefaultAsync<object>", test_code)
         self.assertIn("Assert.NotNull(dbValue0)", test_code)
+        self.assertIn('Assert.NotEqual("2020-01-01T00:00:00", dbValue0?.ToString())', test_code)
 
     def test_structured_parser_preserves_explicit_oracle_json(self):
         markdown = """

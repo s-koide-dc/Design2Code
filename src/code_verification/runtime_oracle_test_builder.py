@@ -108,6 +108,12 @@ def _render_db_assertions(assertions: List[Dict[str, Any]]) -> List[str]:
             lines.append(f"            Assert.NotNull({value_var});")
         if "equals" in assertion:
             lines.append(f"            Assert.Equal({csharp_literal(assertion['equals'])}, {value_var});")
+        if "not_equals" in assertion:
+            expected = assertion["not_equals"]
+            if isinstance(expected, str):
+                lines.append(f"            Assert.NotEqual({csharp_literal(expected)}, {value_var}?.ToString());")
+            else:
+                lines.append(f"            Assert.NotEqual({csharp_literal(expected)}, {value_var});")
         if "contains" in assertion:
             lines.append(f"            Assert.Contains({csharp_string_literal(assertion['contains'])}, {value_var}?.ToString());")
     return lines
