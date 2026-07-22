@@ -9,6 +9,23 @@ class TestStructuredDesignParser(unittest.TestCase):
     def setUp(self):
         self.parser = StructuredDesignParser()
 
+    def test_parses_explicit_logic_tag_without_text_inference(self):
+        sample_md = """
+# ExplicitLogic
+## 1. Purpose
+明示 logic タグの解析。
+## 2. Structured Specification
+### Core Logic
+1. [CONDITION|EXISTS|User|bool|NONE] [logic:[{\"type\":\"numeric\",\"variable_hint\":\"Points\",\"operator\":\"Greater\",\"expected_value\":100}]] 条件を確認する
+"""
+
+        spec = self.parser.parse_markdown(sample_md)
+
+        self.assertEqual(
+            [{"type": "numeric", "variable_hint": "Points", "operator": "Greater", "expected_value": 100}],
+            spec["steps"][0]["logic"],
+        )
+
     def test_parse_markdown_to_structured_spec(self):
         sample_md = """
 # SampleModule

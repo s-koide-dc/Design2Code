@@ -291,7 +291,15 @@ class ActionSynthesizer:
             if coll_var:
                 cond_expr = f"{coll_var}.Any()"
                 path.setdefault("all_usings", set()).add("System.Linq")
-        stmt = {"type": "if", "condition": cond_expr, "body": [], "else_body": [], "node_id": node.get("id"), "intent": node.get("intent")}
+        stmt = {
+            "type": "if",
+            "condition": cond_expr,
+            "body": [],
+            "else_body": [],
+            "node_id": node.get("id"),
+            "intent": node.get("intent"),
+            "predicate_goals": copy.deepcopy(node.get("semantic_map", {}).get("logic", [])),
+        }
         consumed = (consumed_ids or set()).copy()
         consumed.add(node.get("id"))
         if_ir_tree = {"logic_tree": node.get("children", [])}

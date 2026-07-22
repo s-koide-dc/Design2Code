@@ -8,7 +8,7 @@ from src.code_verification.semantic_assertions import (
 
 
 class TestSemanticAssertions(unittest.TestCase):
-    def test_builds_predicate_contract_from_explicit_linq_logic_only(self):
+    def test_builds_predicate_contract_from_explicit_filter_and_condition_logic_only(self):
         spec = {
             "steps": [
                 {"id": "step_1", "intent": "LINQ", "logic": []},
@@ -17,14 +17,23 @@ class TestSemanticAssertions(unittest.TestCase):
                     "intent": "LINQ",
                     "logic": [{"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 100}],
                 },
-                {"id": "step_3", "intent": "DISPLAY", "logic": [{"type": "numeric"}]},
+                {
+                    "id": "step_3",
+                    "kind": "CONDITION",
+                    "intent": "EXISTS",
+                    "logic": [{"type": "string", "variable_hint": "Status", "operator": "Equal", "expected_value": "Active"}],
+                },
+                {"id": "step_4", "intent": "DISPLAY", "logic": [{"type": "numeric"}]},
             ]
         }
 
         contract = build_predicate_preservation_contract(spec)
 
         self.assertEqual(
-            [{"node_id": "step_2", "goals": [{"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 100}]}],
+            [
+                {"node_id": "step_2", "goals": [{"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 100}]},
+                {"node_id": "step_3", "goals": [{"type": "string", "variable_hint": "Status", "operator": "Equal", "expected_value": "Active"}]},
+            ],
             contract["require_predicate_goals"],
         )
 
@@ -45,6 +54,25 @@ class TestSemanticAssertions(unittest.TestCase):
         issues = evaluate_blueprint_contract(blueprint, contract)
 
         self.assertIn("required predicate goals are missing or changed for node: step_2", issues)
+
+    def test_predicate_contract_rejects_lost_condition_predicate_evidence(self):
+        contract = build_predicate_preservation_contract(
+            {
+                "steps": [
+                    {
+                        "id": "step_3",
+                        "kind": "CONDITION",
+                        "intent": "EXISTS",
+                        "logic": [{"type": "numeric", "variable_hint": "Points", "operator": "Greater", "expected_value": 100}],
+                    }
+                ]
+            }
+        )
+        blueprint = {"methods": [{"name": "Filter", "body": [{"type": "if", "node_id": "step_3", "intent": "EXISTS", "predicate_goals": []}]}]}
+
+        issues = evaluate_blueprint_contract(blueprint, contract)
+
+        self.assertIn("required predicate goals are missing or changed for node: step_3", issues)
 
     def test_validates_structured_intent_evidence_without_code_text(self):
         blueprint = {

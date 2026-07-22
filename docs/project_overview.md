@@ -20,8 +20,8 @@
 - 設計書生成フロー: Design Parser → IR Generator → Code Synthesis → CodeBuilder
   - 補足: 新規 `.design.md` の初稿では、通常生成の前に `scripts/validate_design_authoring.py` による authoring boundary check を通す。
   - 補足: 生成系の変更後は、単発確認に `scripts/design/review_design_generation_snapshot.py`、標準回帰に `scripts/design/run_design_generation_regression.py` を使う。
-  - 補足: 標準回帰の既定セットは `ComplexLinqSearch` / `CsvSalesAggregation` / `ProductApiFilteredCatalog` / `CustomerApiWithEntitySpec` / `DailyInventorySync` / `SecureOrderProcessing` / `StateUpdatePersist` / `AppModeEchoMinimal` / `RobustConfigLoader` / `StdinToStdoutTransform` / `AggregationSummary` / `SyncExternalData`。
-  - 補足: `smoke` プロファイルは JSON/LINQ、HTTP、SQLite更新、設定ファイル分岐の代表4件を短時間で確認し、`quality` プロファイルは全12件と明示runtime oracleを確認する。
+  - 補足: 標準回帰の既定セットは `ComplexLinqSearch` / `ExplicitConditionBranch` / `CsvSalesAggregation` / `ProductApiFilteredCatalog` / `CustomerApiWithEntitySpec` / `DailyInventorySync` / `SecureOrderProcessing` / `StateUpdatePersist` / `AppModeEchoMinimal` / `RobustConfigLoader` / `StdinToStdoutTransform` / `AggregationSummary` / `SyncExternalData`。
+  - 補足: `smoke` プロファイルは JSON/LINQ、HTTP、SQLite更新、設定ファイル分岐の代表4件を短時間で確認し、`quality` プロファイルは全13件と明示runtime oracleを確認する。
 - 対話フロー: Language Analysis → Intent Detection → Semantic Analysis → Task Management → Execution → Response
 - TDD支援フロー: Failure Analysis → Fix Suggestion → (Optional) Refactoring Analysis
   - 補足: Code Generation の前に標準 CRUD 仕様の `method_specs` が内部補完される。
