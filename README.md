@@ -312,7 +312,7 @@ python scripts/design/audit_literal_tag_assist_coverage.py
   - `scripts/tools/prune_backups.py`
   - `scripts/tools/suggest_method_capabilities.py`
 - 詳細な分類基準は [docs/stdout_output_policy.md](./docs/stdout_output_policy.md) を参照してください。
-- `scripts/generate/demo_synthesis.py` のようなデモ用スクリプトは、この契約の保証対象外です。
+- `scripts/generate/demo_synthesis.py` のようなデモ用スクリプトは、このCLI出力契約の保証対象外です。ただし、全デモシナリオの生成・コンパイル・宣言済みsemantic contractは統合テストで検証します。
 - docs 監視対象の切り替えは `config/doc_reference_policy.json` で管理します。
 
 ## 1.4 docs 監視モード

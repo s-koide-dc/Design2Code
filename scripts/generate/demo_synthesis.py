@@ -164,7 +164,8 @@ def _build_structured_spec(name, purpose, raw_steps, data_sources=None):
     }
 
 
-def run_demo():
+def run_demo(output_dir=None):
+    """Synthesize every demo scenario and optionally write artifacts outside the workspace."""
     print("=== AI Code Synthesis Demo (Strict StructuredSpec) ===\n")
 
     print("[Init] Loading configuration and Method Store...")
@@ -179,12 +180,23 @@ def run_demo():
     scenarios = [
         {
             "name": "ProcessActiveUsers",
-            "desc": "LINQ + File IO: ユーザーを取得し、条件で絞り込んでファイルに保存します。",
+            "desc": "LINQ + Console: ユーザーを取得し、価格条件で絞り込んだ名前一覧を表示します。",
             "steps": [
                 _step("全ユーザーを取得する", intent="FETCH", role="FETCH", target="User", cardinality="COLLECTION", output_type="IEnumerable<User>", semantic_roles={"path": "users.json"}),
-                _step("価格が100より大きいアイテムで絞り込む", intent="LINQ", role="TRANSFORM", target="User", cardinality="COLLECTION", output_type="IEnumerable<User>", logic=[{"type": "comparison", "variable_hint": "Price", "operator": "Greater", "value": 100}]),
-                _step("結果を active_users.txt に保存する", intent="FILE_IO", role="PERSIST", target="User", semantic_roles={"path": "active_users.txt"}),
+                _step("価格が100より大きいユーザーで絞り込む", intent="LINQ", role="FILTER", target="User", cardinality="COLLECTION", output_type="IEnumerable<User>", input_refs=["step_1"], logic=[{"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 100}]),
+                _step("抽出されたユーザーの名前一覧をコンソールに表示する", intent="DISPLAY", role="DISPLAY", target="User", input_refs=["step_2"], semantic_roles={"ops": ["display_names"]}),
             ],
+            "contract": {
+                "require_intents": ["LINQ", "DISPLAY"],
+                "require_predicate_goals": [
+                    {
+                        "node_id": "step_2",
+                        "goals": [
+                            {"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 100},
+                        ],
+                    },
+                ],
+            },
         },
         {
             "name": "FetchProductInventory",
@@ -384,7 +396,7 @@ def run_demo():
                 print(f"   - {issue}")
             continue
 
-        out_path = f"demo_gen_{s['name']}.cs"
+        out_path = os.path.join(output_dir or os.getcwd(), f"demo_gen_{s['name']}.cs")
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(current_code)
         print(">> Status: FULLY SYNTHESIZED")

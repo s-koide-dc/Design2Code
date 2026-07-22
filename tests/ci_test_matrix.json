@@ -4,6 +4,7 @@
       "test_advanced_tdd_fixes.py",
       "test_advanced_tdd_support.py",
       "test_compound_task_scenarios.py",
+      "test_demo_synthesis.py",
       "test_dynamic_method_store.py",
       "test_generated_lambda_compilation.py",
       "test_impact_planning.py",
