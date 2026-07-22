@@ -18,6 +18,7 @@ from src.utils.cli_output import emit_error, emit_json_stdout
 
 QUALITY_DESIGNS = [
     "scenarios/ComplexLinqSearch.design.md",
+    "scenarios/ExplicitConditionBranch.design.md",
     "scenarios/CsvSalesAggregation.design.md",
     "scenarios/ProductApiFilteredCatalog.design.md",
     "scenarios/CustomerApiWithEntitySpec.design.md",

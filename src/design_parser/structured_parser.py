@@ -258,6 +258,7 @@ class StructuredDesignParser:
         refs: List[str] = []
         ops: List[str] = []
         extracted_roles: Dict[str, Any] = {}
+        explicit_logic: List[Dict[str, Any]] = []
         scan_text = normalized_text
         while True:
             meta_raw, remainder = self._extract_bracket_prefix(scan_text)
@@ -281,6 +282,17 @@ class StructuredDesignParser:
                         data = json.loads(raw)
                         if isinstance(data, dict):
                             extracted_roles.update(data)
+                    except Exception:
+                        pass
+                scan_text = remainder
+                continue
+            if lower.startswith("logic:"):
+                raw = meta_raw.split(":", 1)[1].strip()
+                if raw:
+                    try:
+                        data = json.loads(raw)
+                        if isinstance(data, list) and all(isinstance(goal, dict) for goal in data):
+                            explicit_logic = data
                     except Exception:
                         pass
                 scan_text = remainder
@@ -309,6 +321,7 @@ class StructuredDesignParser:
             "semantic_roles": semantic_roles,
             "explicit_intent": explicit_intent,
             "explicit_semantic_roles": bool(ops or extracted_roles),
+            **({"logic": explicit_logic} if explicit_logic else {}),
             "depends_on": list(input_refs),
             **({"source_ref": source_ref} if source_ref else {}),
             **({"source_kind": source_kind} if source_kind else {}),

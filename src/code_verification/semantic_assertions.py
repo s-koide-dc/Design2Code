@@ -53,7 +53,7 @@ def _normalize_intent(value: Any) -> str:
 
 
 def build_predicate_preservation_contract(structured_spec: Dict[str, Any]) -> Dict[str, Any]:
-    """Build structural predicate requirements from explicit LINQ step logic.
+    """Build structural predicate requirements from explicit filter and branch logic.
 
     The design contract is authoritative only when it supplies a non-empty
     structured ``logic`` list. Natural-language text is intentionally not used
@@ -62,7 +62,11 @@ def build_predicate_preservation_contract(structured_spec: Dict[str, Any]) -> Di
     requirements: List[Dict[str, Any]] = []
     steps = structured_spec.get("steps", []) if isinstance(structured_spec, dict) else []
     for step in steps:
-        if not isinstance(step, dict) or _normalize_intent(step.get("intent")) != "LINQ":
+        if not isinstance(step, dict):
+            continue
+        is_linq = _normalize_intent(step.get("intent")) == "LINQ"
+        is_condition = _normalize_intent(step.get("kind")) == "CONDITION"
+        if not (is_linq or is_condition):
             continue
         node_id = step.get("id")
         goals = step.get("logic")

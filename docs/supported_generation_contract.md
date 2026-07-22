@@ -9,7 +9,8 @@
 
 1. 設計書を構造化してC#を生成できる。
 2. CodeBuilder/Roslynによる保守性ゲートを通る。
-3. 設計書に明示した `runtime_oracle` がある場合、生成物をコンパイル・実行し、入出力・HTTP・SQLiteなどの期待結果を検証する。
+3. 設計書に明示した構造化 `logic` がある場合、対応する Blueprint の predicate evidence が同じ条件を保持していることを検証する。
+4. 設計書に明示した `runtime_oracle` がある場合、生成物をコンパイル・実行し、入出力・HTTP・SQLiteなどの期待結果を検証する。
 
 これは任意の自然言語、任意の外部サービス、任意のスキーマに対する成功保証ではない。明示情報が不足する、または契約外の組合せである場合は、推測で生成を継続せず、診断または `unverified` として扱う。
 
@@ -18,6 +19,7 @@
 | ゴールデンパス | 主な処理 | 根拠シナリオ | 実行時確認 |
 |---|---|---|---|
 | ファイルJSON検索 | ファイル読込、JSON復元、連続LINQフィルタ、表示 | `ComplexLinqSearch` | fixture、戻り値、標準出力 |
+| 明示条件分岐 | ファイルJSON読込、ループ、数値比較 if/else、表示 | `ExplicitConditionBranch` | true/false 分岐の標準出力 |
 | CSV集計・書出し | CSV読込、行処理、商品別集計、CSV化、ファイル保存、戻り値 | `CsvSalesAggregation` | fixture、戻り値、出力ファイル |
 | HTTPカタログ検索 | HTTP GET、JSON復元、数値・文字列フィルタ、表示 | `ProductApiFilteredCatalog` | HTTP要求／応答、戻り値、標準出力 |
 | 明示Entity付きHTTP検索 | Entity Specs、HTTP GET、JSON復元、連続LINQフィルタ、表示 | `CustomerApiWithEntitySpec` | HTTP要求／応答、戻り値、標準出力 |

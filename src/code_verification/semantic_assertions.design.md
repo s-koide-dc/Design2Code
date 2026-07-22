@@ -30,9 +30,9 @@ The `SemanticAssertions` module [Phase 23.4] provides a rule-based verification 
     - Verifies the exact display property explicitly selected by semantic binding on an emitted display statement.
     - Does not inspect the rendered C# expression for property-name fragments.
 4.  **Structured predicate checks** (`require_predicate_goals`):
-    - Verifies the exact canonical predicate goals retained on the emitted LINQ statement, including conjunctions and literal values.
+    - Verifies the exact canonical predicate goals retained on emitted LINQ and `if` statements, including conjunctions and literal values.
 5.  **Automatic predicate-preservation contract** (`build_predicate_preservation_contract`):
-    - Builds `require_predicate_goals` from a `StructuredSpec` only when a LINQ step explicitly provides a non-empty `logic` array.
+    - Builds `require_predicate_goals` only when a LINQ step or a `CONDITION` step explicitly provides a non-empty `logic` array.
     - The design-review quality gate evaluates this contract against the blueprint; it never infers a predicate from natural-language text.
 1.  **Placeholder Check** (`disallow_placeholder_fetch`):
     -   Scans for method calls to `Enumerable.Empty`. If found, reports error.
@@ -71,6 +71,6 @@ The `SemanticAssertions` module [Phase 23.4] provides a rule-based verification 
     -   Contract: `require_display_property="Id"`.
     -   Result: `["displayed value does not include property: Id"]`.
 4.  **Lost Explicit Predicate**:
-    -   StructuredSpec: a LINQ step explicitly declares `Price > 100`.
-    -   Blueprint: the emitted LINQ statement has no matching `predicate_goals`.
+    -   StructuredSpec: a LINQ step or `CONDITION` step explicitly declares `Price > 100`.
+    -   Blueprint: the emitted LINQ or `if` statement has no matching `predicate_goals`.
     -   Result: the design-review quality gate fails.

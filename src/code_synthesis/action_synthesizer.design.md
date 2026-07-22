@@ -65,6 +65,7 @@
 - structured HTTP GET + API key + timeout + `return_default` は raw block ではなく `StatementBuilder.ensure_structured_http_get_string_helper()` の helper call として渡す。caller cancellation や payload 付き HTTP method は既存の raw structured block を維持する。
 - loop child path で helper が登録された場合、`extra_code` を親 path へ重複排除して戻す。loop body 内の file persist などが helper call を生成しても、最終 blueprint に helper 定義が残る必要がある。
 - condition node に `input_link` があり、その上流ノードが `bool` を生成している場合は、その変数を条件式として優先する。既定 subject を再推論して未定義変数を生成しない。
+- condition node は、明示された構造化 `logic` を `if` Blueprint statement の `predicate_goals` として保持する。設計レビューはこの provenance を使い、条件式のレンダリング文字列に依存せず分岐条件の変質を検出する。
 - 配列コレクションの filter は `ToArray()`、それ以外の collection filter は `ToList()` を使用し、メソッド戻り値型を保存する。
 
 ## 5. Review Notes
@@ -75,4 +76,5 @@
 - 2026-07-13: structured HTTP GET + API key + timeout + `return_default` を helper call に寄せ、複雑な HTTP block を operation method から外す契約を反映。
 - 2026-07-13: loop child path の `extra_code` を親 path に戻し、loop 内 helper call の定義欠落を防ぐ契約を反映。
 - 2026-07-16: condition の if/else child path でも `extra_code` を親 path へマージし、条件分岐内の file IO helper 定義を最終 blueprint へ保持する契約を反映。
+- 2026-07-22: 明示条件の `logic` を if statement の predicate provenance として保持し、設計レビューで構造的に検証する契約を反映。
 - 2026-07-16: stdin fetch / trim_upper の入力は `Console.ReadLine() ?? string.Empty` で正規化し、nullable warning を生成品質ゲートへ持ち込まない契約を反映。

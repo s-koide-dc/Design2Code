@@ -1366,7 +1366,7 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
                         "check_operator": ">",
                         "check_value": "100",
                         "semantic_roles": {"structure_kind": "condition"},
-                        "logic": [],
+                        "logic": [{"type": "numeric", "variable_hint": "Points", "operator": "Greater", "expected_value": 100}],
                     },
                     "children": [
                         {
@@ -1410,6 +1410,11 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         loop_stmt = foreach_statements[0]
         self.assertEqual(loop_stmt.get("var_type"), "User")
         self.assertEqual(loop_stmt.get("source"), "fetchedItems")
+        condition_statements = [statement for statement in loop_stmt.get("body", []) if statement.get("type") == "if"]
+        self.assertEqual(
+            [{"type": "numeric", "variable_hint": "Points", "operator": "Greater", "expected_value": 100}],
+            condition_statements[0].get("predicate_goals"),
+        )
         body_json = json.dumps(loop_stmt.get("body", []), ensure_ascii=False)
         self.assertIn("item.Points > 100", body_json)
 
