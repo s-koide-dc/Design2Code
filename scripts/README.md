@@ -54,7 +54,7 @@
   - `--skip-generate` を使うと inference 比較だけに絞れるため、JSON 契約確認や高速な境界観測に向く。
 - `scripts/design/review_design_generation_snapshot.py`
   - 1 本の `.design.md` について、元の設計書、`.inferred.design.md`、最終生成コード、`SpecAuditor` の issue、compile 検証結果を 1 回で JSON とファイル出力へまとめる。
-  - `quality` には compiler warning、spec issue、未解決 marker、blueprint placeholder fetch、生成コードの保守性メトリクスを見た生成品質ゲート結果を含む。
+  - `quality` には compiler warning、spec issue、未解決 marker、blueprint placeholder fetch、明示 LINQ predicate の Blueprint 保持、生成コードの保守性メトリクスを見た生成品質ゲート結果を含む。
   - 保守性メトリクスは通常 CodeBuilder/Roslyn の AST 解析を使い、`quality.maintainability.analysis_source` に `roslyn` を出力する。
   - `runtime_oracle` には Test Cases の `Expected` に書かれた明示 JSON oracle の集計を含む。自然文 expected は推測せず、`unverified` として残す。
   - `--run-runtime-oracles` を付けると、`runtime_oracle.ready` なケースを xUnit assertion に変換し、`ExecutionVerifier` で生成コードを実行する。現在は file fixture、environment fixture、HTTP response fixture、SQLite schema/seed、method args、async await、return、stdout、file output、HTTP method/url/header/body assertion、DB scalar assertion（equals / not_equals / not_null / contains）を扱う。

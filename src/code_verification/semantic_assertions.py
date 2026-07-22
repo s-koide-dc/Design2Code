@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import copy
 from typing import Any, Dict, List
 
 
@@ -49,6 +50,25 @@ def _collect_string_values(statement: Dict[str, Any]) -> List[str]:
 def _normalize_intent(value: Any) -> str:
     """Return a canonical intent value without inferring meaning from text."""
     return value.strip().upper() if isinstance(value, str) else ""
+
+
+def build_predicate_preservation_contract(structured_spec: Dict[str, Any]) -> Dict[str, Any]:
+    """Build structural predicate requirements from explicit LINQ step logic.
+
+    The design contract is authoritative only when it supplies a non-empty
+    structured ``logic`` list. Natural-language text is intentionally not used
+    to invent predicates here.
+    """
+    requirements: List[Dict[str, Any]] = []
+    steps = structured_spec.get("steps", []) if isinstance(structured_spec, dict) else []
+    for step in steps:
+        if not isinstance(step, dict) or _normalize_intent(step.get("intent")) != "LINQ":
+            continue
+        node_id = step.get("id")
+        goals = step.get("logic")
+        if isinstance(node_id, str) and node_id and isinstance(goals, list) and goals:
+            requirements.append({"node_id": node_id, "goals": copy.deepcopy(goals)})
+    return {"require_predicate_goals": requirements}
 
 
 def _validate_structured_contract(contract: Dict[str, Any]) -> List[str]:
