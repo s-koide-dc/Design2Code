@@ -1,10 +1,51 @@
 # -*- coding: utf-8 -*-
 import unittest
 
-from src.code_verification.semantic_assertions import evaluate_blueprint_contract
+from src.code_verification.semantic_assertions import (
+    build_predicate_preservation_contract,
+    evaluate_blueprint_contract,
+)
 
 
 class TestSemanticAssertions(unittest.TestCase):
+    def test_builds_predicate_contract_from_explicit_linq_logic_only(self):
+        spec = {
+            "steps": [
+                {"id": "step_1", "intent": "LINQ", "logic": []},
+                {
+                    "id": "step_2",
+                    "intent": "LINQ",
+                    "logic": [{"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 100}],
+                },
+                {"id": "step_3", "intent": "DISPLAY", "logic": [{"type": "numeric"}]},
+            ]
+        }
+
+        contract = build_predicate_preservation_contract(spec)
+
+        self.assertEqual(
+            [{"node_id": "step_2", "goals": [{"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 100}]}],
+            contract["require_predicate_goals"],
+        )
+
+    def test_predicate_contract_rejects_lost_linq_predicate_evidence(self):
+        contract = build_predicate_preservation_contract(
+            {
+                "steps": [
+                    {
+                        "id": "step_2",
+                        "intent": "LINQ",
+                        "logic": [{"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 100}],
+                    }
+                ]
+            }
+        )
+        blueprint = {"methods": [{"name": "Filter", "body": [{"type": "raw", "node_id": "step_2", "intent": "LINQ", "predicate_goals": []}]}]}
+
+        issues = evaluate_blueprint_contract(blueprint, contract)
+
+        self.assertIn("required predicate goals are missing or changed for node: step_2", issues)
+
     def test_validates_structured_intent_evidence_without_code_text(self):
         blueprint = {
             "methods": [

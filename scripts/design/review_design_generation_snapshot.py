@@ -21,6 +21,10 @@ from src.code_verification.compilation_verifier import CompilationVerifier
 from src.code_verification.execution_verifier import ExecutionVerifier
 from src.code_verification.generation_quality import evaluate_generation_quality
 from src.code_verification.runtime_oracle import execute_runtime_oracles, summarize_runtime_oracles
+from src.code_verification.semantic_assertions import (
+    build_predicate_preservation_contract,
+    evaluate_blueprint_contract,
+)
 from src.config.config_manager import ConfigManager
 from src.design_parser import StructuredDesignParser, infer_then_freeze_if_needed, validate_structured_spec_or_raise
 from src.replanner.replanner import Replanner
@@ -209,6 +213,10 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
     generated_code_path.write_text(generated_code, encoding="utf-8")
 
     trace = result.get("trace", {}) if isinstance(result.get("trace"), dict) else {}
+    blueprint = trace.get("blueprint", {}) if isinstance(trace.get("blueprint"), dict) else {}
+    predicate_contract = build_predicate_preservation_contract(spec)
+    semantic_assertion_issues = evaluate_blueprint_contract(blueprint, predicate_contract)
+    combined_spec_issues = list(result.get("spec_issues", [])) + semantic_assertion_issues
     source_metrics = CodeBuilderClient(config).analyze_source_metrics(generated_code)
     runtime_oracle = summarize_runtime_oracles(spec)
     runtime_oracle_execution = {
@@ -241,8 +249,8 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
     quality = evaluate_generation_quality(
         code=generated_code,
         verification=result.get("verification", {}),
-        blueprint=trace.get("blueprint", {}) if isinstance(trace.get("blueprint"), dict) else {},
-        spec_issues=result.get("spec_issues", []),
+        blueprint=blueprint,
+        spec_issues=combined_spec_issues,
         source_metrics=source_metrics,
         fail_on_warnings=True,
         fail_on_maintainability=bool(getattr(args, "fail_on_maintainability", False)),
@@ -260,7 +268,8 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
             "inferred_design_text": inferred_text,
             "generated_code_path": str(generated_code_path),
             "generated_code": generated_code,
-            "spec_issues": result.get("spec_issues", []),
+            "spec_issues": combined_spec_issues,
+            "semantic_assertion_issues": semantic_assertion_issues,
             "verification": result.get("verification", {}),
             "source_metrics": source_metrics,
             "quality": quality,
