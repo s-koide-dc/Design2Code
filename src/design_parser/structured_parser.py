@@ -259,6 +259,8 @@ class StructuredDesignParser:
         ops: List[str] = []
         extracted_roles: Dict[str, Any] = {}
         explicit_logic: List[Dict[str, Any]] = []
+        logic_tag_present = False
+        logic_parse_error = None
         scan_text = normalized_text
         while True:
             meta_raw, remainder = self._extract_bracket_prefix(scan_text)
@@ -287,14 +289,25 @@ class StructuredDesignParser:
                 scan_text = remainder
                 continue
             if lower.startswith("logic:"):
+                if logic_tag_present:
+                    logic_parse_error = "logic tag may appear only once per step"
+                    scan_text = remainder
+                    continue
+                logic_tag_present = True
                 raw = meta_raw.split(":", 1)[1].strip()
-                if raw:
+                if not raw:
+                    logic_parse_error = "logic tag requires a JSON array"
+                else:
                     try:
                         data = json.loads(raw)
-                        if isinstance(data, list) and all(isinstance(goal, dict) for goal in data):
+                        if not isinstance(data, list):
+                            logic_parse_error = "logic tag must contain a JSON array"
+                        elif not all(isinstance(goal, dict) for goal in data):
+                            logic_parse_error = "logic tag entries must be JSON objects"
+                        else:
                             explicit_logic = data
-                    except Exception:
-                        pass
+                    except json.JSONDecodeError:
+                        logic_parse_error = "logic tag must contain valid JSON"
                 scan_text = remainder
                 continue
             break
@@ -321,7 +334,8 @@ class StructuredDesignParser:
             "semantic_roles": semantic_roles,
             "explicit_intent": explicit_intent,
             "explicit_semantic_roles": bool(ops or extracted_roles),
-            **({"logic": explicit_logic} if explicit_logic else {}),
+            **({"logic": explicit_logic} if logic_tag_present else {}),
+            **({"logic_parse_error": logic_parse_error} if logic_parse_error else {}),
             "depends_on": list(input_refs),
             **({"source_ref": source_ref} if source_ref else {}),
             **({"source_kind": source_kind} if source_kind else {}),

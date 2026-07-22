@@ -41,7 +41,8 @@
 6. `intent=DATABASE_QUERY` の場合は `source_ref(kind=db)` と `semantic_roles.sql` が必須であることを検証する。
 7. `intent=HTTP_REQUEST` の場合は `source_ref(kind=http)` と `source_kind=http`、および `semantic_roles.url` が必須であることを検証する。
 8. `intent=PERSIST` のうち DB 保存として解釈されるものは、`source_kind=db` と `semantic_roles.sql` が必須であることを検証する。
-9. `test_cases` の ID 形式と必須キーを検証する。
+9. 明示 `logic` がある場合、`numeric` / `string` predicate の対象・演算子・期待値と、`AND` / `OR` の conjunction 配置を検証する。構文エラー、空配列、未対応 goal は fail-closed に扱う。
+10. `test_cases` の ID 形式と必須キーを検証する。
 
 ### Test Cases
 - **Happy Path**:
@@ -58,6 +59,8 @@
   - **Expected Output / Behavior**: `intent=HTTP_REQUEST requires semantic_roles.url` を含むエラー。
   - **Scenario**: DB 向け `PERSIST` で `semantic_roles.sql` が欠落。
   - **Expected Output / Behavior**: `intent=PERSIST source_ref(kind=db) requires semantic_roles.sql` を含むエラー。
+  - **Scenario**: `logic` に比較値のない numeric predicate を指定。
+  - **Expected Output / Behavior**: `numeric expected_value` を含むエラー。
 
 ## 3. Dependencies
 - **Internal**: なし（標準ライブラリのみ）
