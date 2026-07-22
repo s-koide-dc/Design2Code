@@ -2,7 +2,7 @@
 import unittest
 
 from src.design_parser.structured_parser import StructuredDesignParser
-from src.design_parser.validator import validate_structured_spec
+from src.design_parser.validator import StructuredSpecValidationError, validate_structured_spec
 
 
 class TestStructuredDesignParser(unittest.TestCase):
@@ -25,6 +25,55 @@ class TestStructuredDesignParser(unittest.TestCase):
             [{"type": "numeric", "variable_hint": "Points", "operator": "Greater", "expected_value": 100}],
             spec["steps"][0]["logic"],
         )
+
+    def test_rejects_malformed_explicit_logic_tag(self):
+        sample_md = """
+# InvalidLogic
+## 1. Purpose
+不正な logic タグを拒否する。
+## 2. Structured Specification
+### Core Logic
+1. [CONDITION|EXISTS|User|bool|NONE] [logic:[{"type":"numeric"]] 条件を確認する
+"""
+
+        with self.assertRaisesRegex(StructuredSpecValidationError, "logic tag must contain valid JSON"):
+            self.parser.parse_markdown(sample_md)
+
+    def test_rejects_incomplete_explicit_predicate_goal(self):
+        sample_md = """
+# InvalidPredicate
+## 1. Purpose
+不完全な predicate goal を拒否する。
+## 2. Structured Specification
+### Core Logic
+1. [CONDITION|EXISTS|User|bool|NONE] [logic:[{"type":"numeric","variable_hint":"Points","operator":"Greater"}]] 条件を確認する
+"""
+
+        with self.assertRaisesRegex(StructuredSpecValidationError, "numeric expected_value"):
+            self.parser.parse_markdown(sample_md)
+
+    def test_rejects_empty_or_unsupported_explicit_logic_goals(self):
+        empty_logic = """
+# EmptyLogic
+## 1. Purpose
+空の logic を拒否する。
+## 2. Structured Specification
+### Core Logic
+1. [CONDITION|EXISTS|User|bool|NONE] [logic:[]] 条件を確認する
+"""
+        unsupported_goal = """
+# UnsupportedLogic
+## 1. Purpose
+未対応 goal を拒否する。
+## 2. Structured Specification
+### Core Logic
+1. [CONDITION|EXISTS|User|bool|NONE] [logic:[{"type":"calculation","variable_hint":"Points"}]] 条件を確認する
+"""
+
+        with self.assertRaisesRegex(StructuredSpecValidationError, "non-empty list"):
+            self.parser.parse_markdown(empty_logic)
+        with self.assertRaisesRegex(StructuredSpecValidationError, "type must be one of"):
+            self.parser.parse_markdown(unsupported_goal)
 
     def test_parse_markdown_to_structured_spec(self):
         sample_md = """

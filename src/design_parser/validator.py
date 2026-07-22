@@ -29,6 +29,60 @@ _REQUIRED_TOP_LEVEL = [
 _ALLOWED_KINDS = {NODE_ACTION, NODE_CONDITION, NODE_LOOP, NODE_ELSE, NODE_END}
 _ALLOWED_EFFECTS = {"NONE", "IO", "NETWORK", "DB"}
 _ALLOWED_SOURCE_KINDS = {"db", "http", "file", "memory", "env", "stdin"}
+_PREDICATE_OPERATORS = {
+    "numeric": {"Greater", "Less", "GreaterEqual", "LessEqual", "Equal", "NotEqual"},
+    "string": {"Equal", "NotEqual", "Contains", "StartsWith"},
+}
+
+
+def _validate_explicit_logic(step: Dict[str, Any], step_index: int, errors: List[str]) -> None:
+    parse_error = step.get("logic_parse_error")
+    if parse_error is not None:
+        errors.append(f"steps[{step_index}] {parse_error}")
+        return
+
+    if "logic" not in step:
+        return
+
+    goals = step.get("logic")
+    if not isinstance(goals, list) or not goals:
+        errors.append(f"steps[{step_index}] logic must be a non-empty list of predicate goals")
+        return
+
+    expects_predicate = True
+    for goal_index, goal in enumerate(goals, start=1):
+        prefix = f"steps[{step_index}] logic[{goal_index}]"
+        if not isinstance(goal, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        goal_type = goal.get("type")
+        if goal_type == "conjunction":
+            if expects_predicate or goal.get("value") not in {"AND", "OR"}:
+                errors.append(f"{prefix} must be AND or OR between predicate goals")
+            expects_predicate = True
+            continue
+        if goal_type not in _PREDICATE_OPERATORS:
+            errors.append(f"{prefix} type must be one of numeric, string, conjunction")
+            expects_predicate = False
+            continue
+        hint = goal.get("variable_hint") or goal.get("target_hint")
+        if not isinstance(hint, str) or not hint.strip():
+            errors.append(f"{prefix} requires variable_hint or target_hint")
+        operator = goal.get("operator")
+        if operator not in _PREDICATE_OPERATORS[goal_type]:
+            errors.append(f"{prefix} has unsupported {goal_type} operator: {operator}")
+        value = goal.get("expected_value")
+        if goal_type == "numeric":
+            if not (isinstance(value, (int, float)) and not isinstance(value, bool)) and value != "{input}":
+                errors.append(f"{prefix} numeric expected_value must be a number or {{input}}")
+        elif not isinstance(value, str) or not value:
+            errors.append(f"{prefix} string expected_value must be a non-empty string")
+        if not expects_predicate:
+            errors.append(f"{prefix} predicate goals require a conjunction before the next predicate")
+        expects_predicate = False
+
+    if expects_predicate:
+        errors.append(f"steps[{step_index}] logic must end with a predicate goal")
 def _is_step_id(val: str) -> bool:
     if not isinstance(val, str):
         return False
@@ -131,6 +185,8 @@ def validate_structured_spec(spec: Dict[str, Any]) -> List[str]:
             if kind not in [NODE_ELSE, NODE_END]:
                 if not isinstance(step.get("text"), str) or not step["text"].strip():
                     errors.append(f"steps[{i}] text must be a non-empty string")
+
+            _validate_explicit_logic(step, i, errors)
 
             input_refs = step.get("input_refs")
             if not isinstance(input_refs, list) or any(not isinstance(x, str) for x in input_refs):
