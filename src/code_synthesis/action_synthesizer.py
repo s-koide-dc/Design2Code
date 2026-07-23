@@ -291,6 +291,12 @@ class ActionSynthesizer:
             if coll_var:
                 cond_expr = f"{coll_var}.Any()"
                 path.setdefault("all_usings", set()).add("System.Linq")
+        if not cond_expr:
+            return self._unresolved_path(
+                path,
+                node,
+                "predicate_property_not_resolved",
+            )
         stmt = {
             "type": "if",
             "condition": cond_expr,
@@ -908,6 +914,12 @@ class ActionSynthesizer:
         temp_path["active_scope_item"] = item_name
         self.stmt_builder.register_entity(item_type, temp_path)
         logic_expr = self.semantic_binder.generate_logic_expression({"logic": all_child_goals}, item_type, temp_path, node=node)
+        if not logic_expr:
+            return self._unresolved_path(
+                path,
+                node,
+                "predicate_property_not_resolved",
+            )
         new_path = self.synthesizer._copy_path(path)
         new_path.setdefault("all_usings", set()).add("System.Linq")
         out_var = self.stmt_builder.get_semantic_var_name(node, coll_type, "filtered", new_path, role="data")

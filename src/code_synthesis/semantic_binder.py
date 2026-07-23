@@ -318,7 +318,7 @@ class SemanticBinder:
 
         return None
 
-    def generate_logic_expression(self, semantic_map: Dict[str, Any], target_entity: str, path: Dict[str, Any], node: Dict[str, Any] = None) -> str:
+    def generate_logic_expression(self, semantic_map: Dict[str, Any], target_entity: str, path: Dict[str, Any], node: Dict[str, Any] = None) -> Optional[str]:
         logic_goals = semantic_map.get("logic", [])
         path.setdefault("last_literal_map", {})
 
@@ -417,7 +417,7 @@ class SemanticBinder:
                 continue
             prop_name = self._resolve_prop(hint, g_type, props, node, target_hint=target_hint)
             if not prop_name:
-                if not prop_name: prop_name = list(props.keys())[0] if props else "Unknown"
+                return None
 
             p_type = props.get(prop_name, "object")
             # 27.124: Dynamic loop variable access

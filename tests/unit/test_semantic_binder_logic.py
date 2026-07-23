@@ -189,6 +189,22 @@ class TestSemanticBinderLogic(unittest.TestCase):
 
         self.assertEqual("item.Price > 100m", expr)
 
+    def test_unresolved_predicate_property_does_not_fall_back_to_first_schema_field(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [{"type": "numeric", "operator": "Greater", "expected_value": 100, "variable_hint": "Unknown"}],
+        }
+        path = {
+            "type_to_vars": {},
+            "poco_defs": {"User": {"Id": "int", "Price": "decimal"}},
+            "active_scope_item": "item",
+            "in_loop": True,
+        }
+
+        expr = binder.generate_logic_expression(semantic_map, "User", path, node={"id": "step_2", "semantic_map": semantic_map})
+
+        self.assertIsNone(expr)
+
     def test_explicit_negation_wraps_the_predicate_expression(self):
         binder = SemanticBinder(TypeSystem())
         semantic_map = {
