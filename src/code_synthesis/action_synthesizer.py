@@ -883,12 +883,11 @@ class ActionSynthesizer:
                 if target_prop:
                     break
             if not target_prop:
-                if "Name" in props:
-                    target_prop = "Name"
-                elif props:
-                    target_prop = sorted(props.keys())[0]
-            if not target_prop:
-                return []
+                return self._unresolved_path(
+                    path,
+                    node,
+                    "selection_property_not_resolved",
+                )
             prop_type = props.get(target_prop) if props else "object"
             out_type = f"List<{prop_type}>" if prop_type else "List<object>"
             new_path.setdefault("all_usings", set()).add("System.Linq")

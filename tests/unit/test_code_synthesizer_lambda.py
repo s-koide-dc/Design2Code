@@ -198,15 +198,32 @@ class TestReproLambda(unittest.TestCase):
         """
         design_steps = [
             {"text": "GetUsers"},
-            "Selectで各ユーザーの名前に変換する"
+            {
+                "text": "Selectで各ユーザーの名前に変換する",
+                "semantic_roles": {"property": "Name"},
+            },
         ]
 
         # '変換' が Select にマッピングされることを期待
         result = self.synthesizer.synthesize("GetNames", design_steps)
         code = result["code"]
 
-        # Select またはプロパティ名、あるいは Deserialize が含まれているか（変換ロジックの存在確認）
-        self.assertTrue(any(kw in code for kw in [".Select", ".Name", "Deserialize"]))
+        self.assertIn(".Select", code)
+        self.assertIn("item.Name", code)
+
+    def test_select_without_a_resolved_property_is_rejected(self):
+        result = self.synthesizer.synthesize(
+            "RejectUnresolvedSelection",
+            [
+                {"text": "GetUsers"},
+                {"text": "Selectで各ユーザーの項目に変換する", "semantic_roles": {"property": "Unknown"}},
+            ],
+        )
+
+        self.assertEqual("error", result.get("status"))
+        self.assertEqual("", result.get("code"))
+        unresolved = result.get("error", {}).get("unresolved_nodes", [])
+        self.assertEqual(["selection_property_not_resolved"], [item.get("reason") for item in unresolved])
 
     def test_synthesize_if_else(self):
         """
