@@ -450,6 +450,8 @@ class SemanticBinder:
                 _append_predicate(f"{prop_access} {csharp_op} {val}{suffix}", goal)
 
             elif g_type == "string":
+                if str(p_type).lower() != "string" and not str(p_type).lower().startswith("string?"):
+                    return None
                 if op == "Equal": _append_predicate(f"{prop_access} == \"{val}\"", goal)
                 elif op == "NotEqual": _append_predicate(f"{prop_access} != \"{val}\"", goal)
                 else:

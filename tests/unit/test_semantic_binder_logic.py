@@ -169,6 +169,22 @@ class TestSemanticBinderLogic(unittest.TestCase):
 
         self.assertIsNone(expr)
 
+    def test_string_predicate_with_numeric_property_is_rejected_without_instance_method_call(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [{"type": "string", "operator": "StartsWith", "expected_value": "1", "variable_hint": "Id"}],
+        }
+        path = {
+            "type_to_vars": {},
+            "poco_defs": {"User": {"Id": "int", "Name": "string"}},
+            "active_scope_item": "item",
+            "in_loop": True,
+        }
+
+        expr = binder.generate_logic_expression(semantic_map, "User", path, node={"id": "step_2", "semantic_map": semantic_map})
+
+        self.assertIsNone(expr)
+
     def test_structured_string_and_numeric_predicates_preserve_literal_values(self):
         binder = SemanticBinder(TypeSystem())
         semantic_map = {
