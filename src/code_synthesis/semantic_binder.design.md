@@ -21,6 +21,7 @@
 3. `_resolve_source_var` は型・role・recency に基づいて source 変数を解決する。
 4. `generate_logic_expression` は `logic` を走査して条件式を組み立てる。predicate の property を schema と明示 semantic role から一意に解決できない場合は、任意の先頭 property を選ばず `None` を返して上流の synthesis path を棄却する。
    - calculation の対象も同じ契約に従い、`Total` や先頭 property への補完は行わない。
+   - numeric predicate は明示的な数値リテラルまたは束縛済み数値変数だけを受け付け、未束縛の `{input}` や不正な値を `0` に置換しない。logic が一つも生成できない場合も `true` を返さず `None` とする。
    - numeric predicate の対象が string property の場合、`StartsWith` や equality へ意味を変換せず `None` を返す。
    - string predicate の対象が string property 以外の場合も、instance method 呼び出しを生成せず `None` を返す。
    - predicate の `negated=true` は個々の生成式全体を否定し、nullable string guard を含む場合も括弧で意味を保持する。

@@ -249,6 +249,70 @@ class TestSemanticBinderLogic(unittest.TestCase):
 
         self.assertIsNone(expr)
 
+    def test_numeric_predicate_with_unbound_input_is_rejected_instead_of_using_zero(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [{"type": "numeric", "operator": "Greater", "expected_value": "{input}", "variable_hint": "Price"}],
+        }
+        path = {
+            "type_to_vars": {},
+            "poco_defs": {"Product": {"Price": "decimal"}},
+            "active_scope_item": "item",
+            "in_loop": True,
+        }
+
+        expr = binder.generate_logic_expression(semantic_map, "Product", path, node={"id": "step_2"})
+
+        self.assertIsNone(expr)
+
+    def test_invalid_numeric_literal_is_rejected_instead_of_using_zero(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [{"type": "numeric", "operator": "Greater", "expected_value": "not-a-number", "variable_hint": "Price"}],
+        }
+        path = {
+            "type_to_vars": {},
+            "poco_defs": {"Product": {"Price": "decimal"}},
+            "active_scope_item": "item",
+            "in_loop": True,
+        }
+
+        expr = binder.generate_logic_expression(semantic_map, "Product", path, node={"id": "step_2"})
+
+        self.assertIsNone(expr)
+
+    def test_unbound_numeric_identifier_is_rejected(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [{"type": "numeric", "operator": "Greater", "expected_value": "requestedPrice", "variable_hint": "Price"}],
+        }
+        path = {
+            "type_to_vars": {},
+            "poco_defs": {"Product": {"Price": "decimal"}},
+            "active_scope_item": "item",
+            "in_loop": True,
+        }
+
+        expr = binder.generate_logic_expression(semantic_map, "Product", path, node={"id": "step_2"})
+
+        self.assertIsNone(expr)
+
+    def test_unrenderable_calculation_does_not_become_an_unconditional_true_expression(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [{"type": "calculation", "expected_value": "not-a-number", "variable_hint": "Total"}],
+        }
+        path = {
+            "type_to_vars": {},
+            "poco_defs": {"Order": {"Total": "decimal"}},
+            "active_scope_item": "item",
+            "in_loop": True,
+        }
+
+        expr = binder.generate_logic_expression(semantic_map, "Order", path, node={"id": "step_2"})
+
+        self.assertIsNone(expr)
+
     def test_explicit_negation_wraps_the_predicate_expression(self):
         binder = SemanticBinder(TypeSystem())
         semantic_map = {

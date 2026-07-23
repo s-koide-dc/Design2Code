@@ -433,18 +433,30 @@ class SemanticBinder:
                             if v.get("node_id") == "input": resolved_val = v["var_name"]; break
                         if resolved_val == "{input}": resolved_val = input_vars[0]["var_name"]
                         val = resolved_val
-                    else: val = "0"
+                    else:
+                        # A missing numeric input must not silently change the
+                        # requested predicate into a comparison with zero.
+                        return None
                 numeric_literal = (
                     isinstance(val, (int, float)) and not isinstance(val, bool)
                 ) or (
                     isinstance(val, str) and self._is_numeric_literal(val)
                 )
-                is_identifier = isinstance(val, str) and self._is_identifier(str(val))
+                bound_numeric_vars = {
+                    entry.get("var_name")
+                    for value_type in ("int", "decimal", "double", "float", "long", "short")
+                    for entry in path.get("type_to_vars", {}).get(value_type, [])
+                    if entry.get("var_name")
+                }
+                is_bound_numeric_variable = isinstance(val, str) and str(val) in bound_numeric_vars
                 p_type_lower = str(p_type).lower()
                 if p_type_lower == "string":
                     return None
-                if not numeric_literal and not is_identifier:
-                    val = "0"
+                if not numeric_literal and not is_bound_numeric_variable:
+                    # Only an explicit numeric literal or a bound variable can
+                    # be used in a numeric predicate.  Substituting a default
+                    # value would alter the intent of the specification.
+                    return None
 
                 suffix = "m" if "decimal" in p_type.lower() or "decimal" in str(val) else ""
                 _append_predicate(f"{prop_access} {csharp_op} {val}{suffix}", goal)
@@ -461,9 +473,13 @@ class SemanticBinder:
 
             elif g_type == "calculation":
                 expr = self._build_arithmetic_expr(goal, props, path)
-                if expr: expressions.append(expr)
+                if not expr:
+                    return None
+                expressions.append(expr)
 
-        return current_conjunction.join(expressions) if expressions else "true"
+        # A non-empty logic specification that produced no predicate is not an
+        # unconditional success.  Let the caller surface it as unresolved.
+        return current_conjunction.join(expressions) if expressions else None
 
     def _resolve_source_var(self, node: Dict[str, Any], path: Dict[str, Any], target_type: str, role_hint: str = None) -> Optional[Tuple[str, Optional[str]]]:
         preferred_vars = node.get("semantic_map", {}).get("semantic_roles", {}).get("preferred_vars")
