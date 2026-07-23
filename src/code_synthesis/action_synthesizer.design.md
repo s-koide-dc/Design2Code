@@ -38,7 +38,7 @@
   - `Environment.GetEnvironmentVariable(...)` は BCL 上 nullable を返すため、生成される non-null string 変数へ代入する場合は `?? string.Empty` で正規化する。
 6. collection 入力で loop 展開が必要な場合は synthetic loop を生成する。
 7. 一般アクションは candidate gathering -> 単一メソッド合成で処理する。
-8. 候補が無い場合は fallback を試し、それでも無ければ `NotImplementedException` を生成する。
+8. 候補または構造化述語の property を一意に解決できない場合は、任意の実装や別 property を生成せず、`resolution_errors` を持つ未解決 path として返す。
 9. `CHECK` / `FILTER` / `CALCULATE` の詳細式や conservatism は binder/handler 側に委譲する。
 10. debug 出力は通常経路では行わず、`NLP_DEBUG_STDOUT` が有効な場合のみ candidate gather や unresolved path の補助情報を出す。
 

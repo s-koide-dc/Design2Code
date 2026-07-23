@@ -152,6 +152,24 @@ class TestReproLambda(unittest.TestCase):
 
         self.assertIn("item.Price > 100", code)
 
+    def test_unknown_predicate_property_is_rejected_by_public_synthesis(self):
+        result = self.synthesizer.synthesize(
+            "RejectUnknownPredicate",
+            [
+                {"text": "GetUsers"},
+                {
+                    "text": "価格が100より大きいアイテムで絞り込む",
+                    "semantic_roles": {"property": "Unknown"},
+                },
+            ],
+        )
+
+        self.assertEqual("error", result.get("status"))
+        self.assertEqual("", result.get("code"))
+        unresolved = result.get("error", {}).get("unresolved_nodes", [])
+        self.assertTrue(any(item.get("reason") == "predicate_property_not_resolved" for item in unresolved))
+        self.assertNotIn("item.Id", result.get("code", ""))
+
     def test_synthesize_contains_lambda(self):
         """
         Containsを含むラムダ式の合成テスト。
