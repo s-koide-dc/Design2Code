@@ -540,22 +540,12 @@ class SemanticBinder:
         return None
 
     def _build_arithmetic_expr(self, goal: Dict[str, Any], props: Dict[str, str], path: Dict[str, Any]) -> Optional[str]:
-        text = goal.get("original_step", "").lower()
         hint = goal.get("variable_hint", "")
         target_hint = goal.get("target_hint")
         target_prop = self._resolve_prop(hint, "numeric", props, None, target_hint=target_hint)
 
-        if not target_prop:
+        if not target_prop or target_prop not in props:
             return None
-        if props and target_prop not in props:
-            if target_prop.endswith("Amount"):
-                base = target_prop[:-6]
-                if base in props:
-                    target_prop = base
-            if target_prop not in props and "Total" in props:
-                target_prop = "Total"
-            if target_prop not in props:
-                target_prop = list(props.keys())[0] if props else "TotalAmount"
 
         var_name = path.get("active_scope_item", "x")
         prop_access = f"{var_name}.{target_prop}" if path.get("in_loop") else target_prop

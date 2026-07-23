@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
+from unittest.mock import patch
 
 from src.code_synthesis.semantic_binder import SemanticBinder
 from src.code_synthesis.type_system import TypeSystem
@@ -202,6 +203,17 @@ class TestSemanticBinderLogic(unittest.TestCase):
         }
 
         expr = binder.generate_logic_expression(semantic_map, "User", path, node={"id": "step_2", "semantic_map": semantic_map})
+
+        self.assertIsNone(expr)
+
+    def test_calculation_does_not_replace_an_invalid_property_with_total_or_first_field(self):
+        binder = SemanticBinder(TypeSystem())
+        goal = {"type": "calculation", "expected_value": 2, "variable_hint": "Unknown"}
+        props = {"Id": "int", "Total": "decimal"}
+        path = {"active_scope_item": "item", "in_loop": True}
+
+        with patch.object(binder, "_resolve_prop", return_value="Unknown"):
+            expr = binder._build_arithmetic_expr(goal, props, path)
 
         self.assertIsNone(expr)
 
