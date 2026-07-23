@@ -7,10 +7,6 @@ jobs:
   validate-local-assets:
     runs-on: [self-hosted, nlp-assets]
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        capability: [semantic_method_search, dictionary_search]
     env:
       PYTHONUTF8: "1"
       LOCAL_ASSET_MANIFEST_PATH: ${{ vars.NLP_ASSET_MANIFEST_PATH }}
@@ -45,34 +41,35 @@ jobs:
         shell: pwsh
         run: |
           python scripts/validate/validate_local_asset_manifest.py `
-            --capability ${{ matrix.capability }} `
+            --capability semantic_method_search `
+            --capability dictionary_search `
             --manifest "$env:LOCAL_ASSET_MANIFEST_PATH" `
             --workspace-root "$env:LOCAL_ASSET_WORKSPACE_ROOT"
 
-      - name: Validate real vector model and semantic search
-        if: matrix.capability == 'semantic_method_search'
+      - name: Connect pinned semantic assets to checkout
         shell: pwsh
         run: |
           $assetVectors = Join-Path $env:LOCAL_ASSET_WORKSPACE_ROOT "resources\vectors"
           $checkoutVectors = Join-Path $PWD "resources\vectors"
           if (-not (Test-Path -LiteralPath $assetVectors -PathType Container)) {
-            throw "The pinned asset workspace does not contain resources\\vectors."
+            throw "The pinned asset workspace does not contain resources\vectors."
           }
           if (Test-Path -LiteralPath $checkoutVectors) {
-            throw "Checkout unexpectedly contains resources\\vectors; refusing to replace it."
+            throw "Checkout unexpectedly contains resources\vectors; refusing to replace it."
           }
           New-Item -ItemType Junction -Path $checkoutVectors -Target $assetVectors | Out-Null
-          python scripts/validate/validate_real_vector_model.py
-          python -m unittest tests.integration.test_natural_numeric_predicate_assets -v
-
-      - name: Validate real JMDict lookup
-        if: matrix.capability == 'dictionary_search'
-        shell: pwsh
-        run: |
           $assetDictionary = Join-Path $env:LOCAL_ASSET_WORKSPACE_ROOT "resources\dictionary.db"
           $checkoutDictionary = Join-Path $PWD "resources\dictionary.db"
           if (-not (Test-Path -LiteralPath $assetDictionary -PathType Leaf)) {
             throw "The pinned asset workspace does not contain resources\dictionary.db."
           }
           Copy-Item -LiteralPath $assetDictionary -Destination $checkoutDictionary
-          python -m unittest tests.unit.test_semantic_analyzer_search -v
+
+      - name: Run local semantic quality gate
+        shell: pwsh
+        run: |
+          $reportPath = Join-Path $env:RUNNER_TEMP "local_semantic_quality_gate.json"
+          python scripts/validate/run_local_semantic_quality_gate.py `
+            --workspace-root "$env:LOCAL_ASSET_WORKSPACE_ROOT" `
+            --manifest "$env:LOCAL_ASSET_MANIFEST_PATH" `
+            --output $reportPath

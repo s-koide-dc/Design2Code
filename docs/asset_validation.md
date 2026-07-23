@@ -30,16 +30,16 @@ absolute asset paths.
 
 ## Running the workflow
 
-Run `asset-validation` manually from GitHub Actions. It performs two isolated
-checks:
+Run `asset-validation` manually from GitHub Actions. It validates both
+`semantic_method_search` and `dictionary_search` against the pinned manifest,
+then creates a Windows junction for the ignored `resources/vectors` directory
+and copies the dictionary database into the isolated checkout. The workflow
+refuses to replace a checkout vector directory if it already exists.
 
-1. `semantic_method_search`: validates the chiVe and method-store hashes, then
-   creates a Windows junction from the checkout's ignored `resources/vectors`
-   directory to the pinned asset root, then runs real-vector and semantic-search
-   tests. The workflow refuses to replace a checkout directory if it already
-   exists.
-2. `dictionary_search`: validates the dictionary hash, copies the pinned database
-   into the isolated checkout, then runs the real FTS reverse-lookup tests.
+It then runs `run_local_semantic_quality_gate.py` as one gate. The report is
+written to the runner's temporary directory and covers real-vector loading,
+semantic method search, JMDict lookup, and asset-backed natural-language
+numeric predicate generation. No report or asset is uploaded to GitHub.
 
 The workflow is deliberately not triggered by push or pull request. A
 GitHub-hosted runner does not have these optional local assets, and no asset is
