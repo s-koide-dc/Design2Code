@@ -11,6 +11,7 @@
 3.  **後処理**: `_finalize_code` により、インデントの調整、Usings の整理、必要な POCO クラス定義の付加を行う。
 4.  **未完成コードの禁止**: 構造化仕様を実装できない場合、設計ステップをTODOコメントだけに変換したコードは生成しない。
 5.  **解決不能nodeの報告**: Action/Return/Filter/Calculate nodeを構造的に解決できない場合は空のコードと `synthesis_resolution_failed` を返し、`unresolved_nodes` にnode ID・intent・対象・理由を格納する。
+    - 同一 node に具体的な `resolution_errors` がある場合は、汎用の `node_not_synthesized` を重複して追加しない。
 6.  **後追い補完の制限**: `IREmitter` 後に未完了 node が残る場合でも、UKB 補完は intent / role / source_kind / target_entity / return_type の構造制約を満たす候補に限定する。引数不足を `null`、空文字、空 SQL で埋める補完は行わず、解決不能 node として報告する。
 7.  **設計書内 entity schema**: `StructuredSpec.entity_specs` がある場合は合成中だけ既存 `entity_schema` へ一時マージし、IR 生成と POCO 生成に使う。
 8.  **CodeBuilder依存性注入**: `builder_client` が渡された場合はそれを使用し、指定がない場合だけ標準の外部.NET `CodeBuilderClient` を生成する。設計解決の高速テストはインプロセス実装を注入でき、外部プロセス連携は専用テストで検証する。

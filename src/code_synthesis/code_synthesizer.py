@@ -395,6 +395,7 @@ class CodeSynthesizer:
 
         unresolved_errors = []
         seen_resolution_errors = set()
+        nodes_with_resolution_errors = set()
         for error in best_path.get("resolution_errors", []):
             identity = (
                 error.get("node_id"),
@@ -404,10 +405,12 @@ class CodeSynthesizer:
                 continue
             seen_resolution_errors.add(identity)
             unresolved_errors.append(error)
+            if error.get("node_id"):
+                nodes_with_resolution_errors.add(error["node_id"])
         consumed_ids = best_path.get("consumed_ids", set())
         for node in ir_tree.get("logic_tree", []):
             node_id = node.get("id")
-            if node_id in consumed_ids:
+            if node_id in consumed_ids or node_id in nodes_with_resolution_errors:
                 continue
             identity = (node_id, "node_not_synthesized")
             if identity in seen_resolution_errors:

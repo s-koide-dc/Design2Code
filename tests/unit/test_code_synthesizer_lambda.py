@@ -167,7 +167,7 @@ class TestReproLambda(unittest.TestCase):
         self.assertEqual("error", result.get("status"))
         self.assertEqual("", result.get("code"))
         unresolved = result.get("error", {}).get("unresolved_nodes", [])
-        self.assertTrue(any(item.get("reason") == "predicate_property_not_resolved" for item in unresolved))
+        self.assertEqual(["predicate_property_not_resolved"], [item.get("reason") for item in unresolved])
         self.assertNotIn("item.Id", result.get("code", ""))
 
     def test_synthesize_contains_lambda(self):
