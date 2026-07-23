@@ -11,7 +11,7 @@
   - `resources/` 配下の主要 JSON 資産について、intent / capability / role 語彙が共通定数境界に収まっているかも検証する。
 - `scripts/validate/validate_documentation_consistency.py`
   - 正本文書の存在、Markdownのローカルリンク、マシン依存パスを検証する。
-  - `cache/` と生成済み `*.inferred.design.md` は検証対象外とする。
+  - `cache/`、`logs/`、生成済み `*.inferred.design.md` は検証対象外とする。
 - `scripts/validate_design_authoring.py`
   - 新規 `.design.md` の初稿が現在の authoring 境界に収まっているかを 1 コマンドで判定する。
   - 既定では `original`, `drop_step_meta`, `drop_step_meta_refs`, `drop_step_meta_refs_ops` が deterministic に通ることと、`strip_tags_drop_literals` が `NO_CANDIDATE` で止まることを検証する。

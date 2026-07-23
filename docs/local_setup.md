@@ -89,6 +89,7 @@ python scripts/validate/validate_local_asset_manifest.py --capability dictionary
 | 資産なしサンドボックスでの初回セットアップ確認 | GitHub Actions の `generation-smoke` | 不要 |
 | 軽量な単体確認 | `python scripts/validate/run_unit_smoke.py --profile core --verbosity 2` | 不要 |
 | chiVe実モデルの読込・意味検索確認 | `python scripts/validate/validate_real_vector_model.py` | 必要 |
+| ローカル意味資産の統合品質ゲート | `python scripts/validate/run_local_semantic_quality_gate.py` | 必要 |
 | 生成品質とruntime oracleの確認 | `python scripts/design/run_design_generation_regression.py --profile quality --fail-on-maintainability --run-runtime-oracles --require-runtime-oracles --summary-only` | 不要 |
 
 資産と生成物の一覧は [resources/README.md](../resources/README.md) を参照する。

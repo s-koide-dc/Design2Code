@@ -25,7 +25,7 @@ def validate() -> list[str]:
 
     for document in ROOT.glob("**/*.md"):
         if (
-            any(part in {".git", "__pycache__", "bin", "obj", "node_modules", "cache"} for part in document.parts)
+            any(part in {".git", "__pycache__", "bin", "obj", "node_modules", "cache", "logs"} for part in document.parts)
             or document.name.endswith(".inferred.design.md")
         ):
             continue
