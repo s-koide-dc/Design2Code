@@ -22,6 +22,8 @@ class DesignOpsResolver:
             "morph": 0,
             "syntactic": 0,
             "semantic": 0,
+            "dictionary_terms": 0,
+            "semantic_candidate_searches": 0,
             "ukb_search": 0,
             "ukb_hits": 0,
         }
@@ -154,6 +156,7 @@ class DesignOpsResolver:
     def _semantic_candidate_search(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         if not self.vector_engine:
             return []
+        self._last_stats["semantic_candidate_searches"] += 1
         self._ensure_semantic_candidates()
         if not self._semantic_candidates:
             return []
@@ -327,9 +330,20 @@ class DesignOpsResolver:
     def _build_query_from_context(self, context: Dict[str, Any], line: str) -> str:
         topics = context.get("analysis", {}).get("topics", [])
         topic_text = " ".join([t.get("text", "") for t in topics if t.get("text")])
+        # JMDict's glosses bridge Japanese design prose and the mixed Japanese /
+        # English descriptions in the method store.  They only expand retrieval
+        # context; intent, type and structural constraints still decide whether a
+        # retrieved candidate may be used.
+        dictionary_terms = []
+        for topic in topics:
+            meaning = topic.get("meaning") if isinstance(topic, dict) else None
+            if isinstance(meaning, str) and meaning.strip():
+                dictionary_terms.append(meaning.strip())
+        self._last_stats["dictionary_terms"] += len(dictionary_terms)
+        dictionary_text = " ".join(dictionary_terms)
         syntax_terms = self._extract_syntax_terms(context)
         syntax_text = " ".join(syntax_terms)
-        return " ".join([t for t in [topic_text, syntax_text, line] if t]).strip()
+        return " ".join([t for t in [topic_text, dictionary_text, syntax_text, line] if t]).strip()
 
     def _search_ukb_candidates(self, query: str, *, limit: int) -> List[Dict[str, Any]]:
         self._last_stats["ukb_search"] += 1

@@ -68,6 +68,8 @@ def _validate_explicit_logic(step: Dict[str, Any], step_index: int, errors: List
         hint = goal.get("variable_hint") or goal.get("target_hint")
         if not isinstance(hint, str) or not hint.strip():
             errors.append(f"{prefix} requires variable_hint or target_hint")
+        if "negated" in goal and not isinstance(goal.get("negated"), bool):
+            errors.append(f"{prefix} negated must be boolean")
         operator = goal.get("operator")
         if operator not in _PREDICATE_OPERATORS[goal_type]:
             errors.append(f"{prefix} has unsupported {goal_type} operator: {operator}")

@@ -53,6 +53,19 @@ class TestStructuredDesignParser(unittest.TestCase):
             spec["steps"][2]["logic"],
         )
 
+    def test_disjunctive_linq_scenario_declares_ordered_predicate_contract(self):
+        scenario_path = Path(__file__).resolve().parents[2] / "scenarios" / "DisjunctiveLinqSearch.design.md"
+        spec = self.parser.parse_design_file(str(scenario_path))
+
+        self.assertEqual(
+            [
+                {"type": "string", "variable_hint": "Name", "operator": "StartsWith", "expected_value": "A"},
+                {"type": "conjunction", "value": "OR"},
+                {"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 500},
+            ],
+            spec["steps"][2]["logic"],
+        )
+
     def test_rejects_malformed_explicit_logic_tag(self):
         sample_md = """
 # InvalidLogic

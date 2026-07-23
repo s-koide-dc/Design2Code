@@ -20,6 +20,7 @@
 |---|---|---|---|
 | ファイルJSON検索 | ファイル読込、JSON復元、連続LINQフィルタ、表示 | `ComplexLinqSearch` | fixture、戻り値、標準出力 |
 | 複合LINQ検索 | ファイルJSON読込、文字列・数値 predicate、AND 結合、表示 | `ConjunctiveLinqSearch` | fixture、戻り値、標準出力 |
+| 選択的LINQ検索 | ファイルJSON読込、文字列・数値 predicate、OR 結合、表示 | `DisjunctiveLinqSearch` | fixture、戻り値、標準出力 |
 | 明示条件分岐 | ファイルJSON読込、ループ、数値比較 if/else、表示 | `ExplicitConditionBranch` | true/false 分岐の標準出力 |
 | CSV集計・書出し | CSV読込、行処理、商品別集計、CSV化、ファイル保存、戻り値 | `CsvSalesAggregation` | fixture、戻り値、出力ファイル |
 | HTTPカタログ検索 | HTTP GET、JSON復元、数値・文字列フィルタ、表示 | `ProductApiFilteredCatalog` | HTTP要求／応答、戻り値、標準出力 |

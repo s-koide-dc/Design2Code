@@ -97,6 +97,17 @@ namespace Common.Serialization {
         self.assertTrue(payload["quality"]["valid"], payload)
         return payload
 
+    def test_runtime_snapshot_keeps_audit_evidence(self):
+        payload = self._build_review_snapshot_for_runtime(
+            "scenarios/DisjunctiveLinqSearch.design.md",
+            run_runtime_oracles=True,
+        )
+        self.assertIn("predicate_preservation_contract", payload)
+        result = payload["runtime_oracle_execution"]["results"][0]
+        self.assertIn("stdout", result)
+        self.assertIn("oracle_contract", result)
+        self.assertIn("fixture_manifest", result)
+
     def test_csv_sales_aggregation_runtime_oracle_executes(self):
         payload = self._build_review_snapshot_for_runtime(
             "scenarios/CsvSalesAggregation.design.md",

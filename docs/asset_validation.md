@@ -38,7 +38,8 @@ checks:
    directory to the pinned asset root, then runs real-vector and semantic-search
    tests. The workflow refuses to replace a checkout directory if it already
    exists.
-2. `dictionary_search`: validates the dictionary hash.
+2. `dictionary_search`: validates the dictionary hash, copies the pinned database
+   into the isolated checkout, then runs the real FTS reverse-lookup tests.
 
 The workflow is deliberately not triggered by push or pull request. A
 GitHub-hosted runner does not have these optional local assets, and no asset is

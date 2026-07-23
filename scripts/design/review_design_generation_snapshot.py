@@ -270,6 +270,7 @@ def build_review_snapshot(args: argparse.Namespace) -> Dict[str, Any]:
             "generated_code": generated_code,
             "spec_issues": combined_spec_issues,
             "semantic_assertion_issues": semantic_assertion_issues,
+            "predicate_preservation_contract": predicate_contract,
             "verification": result.get("verification", {}),
             "source_metrics": source_metrics,
             "quality": quality,

@@ -28,7 +28,7 @@ python scripts/generate/generate_from_design.py --design scenarios/AppModeEchoMi
 
 ## 2. chiVeを使う対話・意味検索を有効にする
 
-対話パイプラインや意味検索には、chiVe実モデルと2つのキャッシュが必要である。
+対話パイプラインや意味検索には、chiVe実モデルと2つのキャッシュが必要である。資産がある環境では、設計書の自然言語行からmethod-store・定石パターンを探索する候補拡張にも自動で使われる。候補の最終採否は設計書の構造・型・data source制約で行うため、モデルが無いCIでも同じ検証境界を保つ。
 
 ```powershell
 python scripts/data/fetch_vectors.py
@@ -72,7 +72,7 @@ python scripts/validate/validate_local_asset_manifest.py --capability semantic_m
 
 ## 4. JMDictの辞書検索を有効にする
 
-辞書検索・逆引き機能には、JMDictから作成する `resources/dictionary.db` が必要である。設計書生成やchiVeの意味検索だけでは不要である。
+辞書検索・逆引き機能には、JMDictから作成する `resources/dictionary.db` が必要である。設計書生成の必須資産ではないが、ローカル資産プロファイルでは設計書の名詞に対応する語義を候補検索の文脈へ加え、日本語の設計文と既存ナレッジ内の英語混在記述を橋渡しする。
 
 ```powershell
 python scripts/data/fetch_jmdict.py

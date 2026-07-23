@@ -382,6 +382,9 @@ class SemanticBinder:
                 return f"{prop_access} != null && {expr}"
             return expr
 
+        def _append_predicate(expression: str, goal: Dict[str, Any]) -> None:
+            expressions.append(f"!({expression})" if goal.get("negated") is True else expression)
+
         # 27.123: Use actual loop variable name instead of hardcoded 'x'
         var_name = path.get("active_scope_item", "x")
 
@@ -398,15 +401,15 @@ class SemanticBinder:
                 prop_access = var_name
                 if g_type == "string":
                     if op == "Equal":
-                        expressions.append(f"{prop_access} == \"{val}\"")
+                        _append_predicate(f"{prop_access} == \"{val}\"", goal)
                     elif op == "NotEqual":
-                        expressions.append(f"{prop_access} != \"{val}\"")
+                        _append_predicate(f"{prop_access} != \"{val}\"", goal)
                     else:
                         method = op_map.get(op, ".Contains")
-                        expressions.append(f"{prop_access}{method}(\"{val}\")")
+                        _append_predicate(f"{prop_access}{method}(\"{val}\")", goal)
                 elif g_type == "numeric":
                     csharp_op = op_map.get(op, "==")
-                    expressions.append(f"{prop_access}.Length {csharp_op} {val}")
+                    _append_predicate(f"{prop_access}.Length {csharp_op} {val}", goal)
                 elif g_type == "calculation":
                     expr = self._build_arithmetic_expr(goal, props, path)
                     if expr:
@@ -441,25 +444,25 @@ class SemanticBinder:
                 if p_type_lower == "string":
                     if op in ["Greater", "GreaterEqual"]:
                         is_nullable = str(p_type).strip().endswith("?") or str(p_type).strip() == "string"
-                        expressions.append(_string_method_expression(prop_access, ".StartsWith", val, is_nullable))
+                        _append_predicate(_string_method_expression(prop_access, ".StartsWith", val, is_nullable), goal)
                     elif op == "NotEqual":
-                        expressions.append(f"{prop_access} != \"{val}\"")
+                        _append_predicate(f"{prop_access} != \"{val}\"", goal)
                     else:
-                        expressions.append(f"{prop_access} == \"{val}\"")
+                        _append_predicate(f"{prop_access} == \"{val}\"", goal)
                     continue
                 if not numeric_literal and not is_identifier:
                     val = "0"
 
                 suffix = "m" if "decimal" in p_type.lower() or "decimal" in str(val) else ""
-                expressions.append(f"{prop_access} {csharp_op} {val}{suffix}")
+                _append_predicate(f"{prop_access} {csharp_op} {val}{suffix}", goal)
 
             elif g_type == "string":
-                if op == "Equal": expressions.append(f"{prop_access} == \"{val}\"")
-                elif op == "NotEqual": expressions.append(f"{prop_access} != \"{val}\"")
+                if op == "Equal": _append_predicate(f"{prop_access} == \"{val}\"", goal)
+                elif op == "NotEqual": _append_predicate(f"{prop_access} != \"{val}\"", goal)
                 else:
                     method = op_map.get(op, ".Contains")
                     is_nullable = str(p_type).strip().endswith("?") or str(p_type).strip() == "string"
-                    expressions.append(_string_method_expression(prop_access, method, val, is_nullable))
+                    _append_predicate(_string_method_expression(prop_access, method, val, is_nullable), goal)
 
             elif g_type == "calculation":
                 expr = self._build_arithmetic_expr(goal, props, path)
@@ -509,15 +512,6 @@ class SemanticBinder:
         if not props:
             return None
 
-        if node:
-            semantic_roles = node.get("semantic_map", {}).get("semantic_roles", {}) if isinstance(node, dict) else {}
-            explicit_prop = semantic_roles.get("property") or semantic_roles.get("field") or semantic_roles.get("target_property")
-            if explicit_prop:
-                explicit_lower = str(explicit_prop).lower()
-                for p in props.keys():
-                    if p.lower() == explicit_lower:
-                        return p
-
         def _try_match(text: str) -> Optional[str]:
             text_clean = (text or "").strip("\"' ")
             if not text_clean:
@@ -542,6 +536,12 @@ class SemanticBinder:
             if matched:
                 return matched
             return None
+
+        if node:
+            semantic_roles = node.get("semantic_map", {}).get("semantic_roles", {}) if isinstance(node, dict) else {}
+            explicit_prop = semantic_roles.get("property") or semantic_roles.get("field") or semantic_roles.get("target_property")
+            if explicit_prop:
+                return _try_match(str(explicit_prop))
 
         return None
 

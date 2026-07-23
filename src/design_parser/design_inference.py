@@ -12,6 +12,8 @@ from src.utils.action_intents import INTENT_CMD_RUN
 from src.utils.design_doc_parser import DesignDocParser
 from src.code_generation.design_ops_resolver import DesignOpsResolver
 from src.morph_analyzer.morph_analyzer import MorphAnalyzer
+from src.vector_engine.vector_engine import VectorEngine
+from src.design_parser.predicate_pattern_store import PredicatePatternStore, PropertySemanticStore
 from src.design_parser.data_source_utils import parse_data_source_tag
 from src.design_parser import inference_metadata
 from src.design_parser import inference_source_resolution
@@ -96,11 +98,16 @@ class DesignInferenceEngine:
 
     def __init__(self, config_manager: Optional[ConfigManager] = None, vector_engine=None, morph_analyzer=None):
         self.config_manager = config_manager or ConfigManager()
-        self.vector_engine = vector_engine
+        # A real local vector model is an optional candidate-expansion asset.  Do
+        # not construct a missing-model engine: CI and portable checkouts must
+        # retain the structural-only inference path without warnings or I/O.
+        self.vector_engine = vector_engine or self._load_local_vector_engine()
         self.morph_analyzer = morph_analyzer or MorphAnalyzer(config_manager=self.config_manager)
         self.parser = DesignDocParser()
         self.resolver = DesignOpsResolver(config=self.config_manager, vector_engine=self.vector_engine)
         self.entity_schema = self._load_entity_schema()
+        self.predicate_patterns = PredicatePatternStore(self.config_manager, self.vector_engine, self.morph_analyzer)
+        self.property_semantics = PropertySemanticStore(self.entity_schema, self.vector_engine, self.morph_analyzer)
 
         cfg = self.config_manager.get_section("design_inference") if self.config_manager else {}
         self.thresholds = {
@@ -109,6 +116,15 @@ class DesignInferenceEngine:
             "data_source_threshold": float(cfg.get("data_source_threshold", 0.85)),
             "refs_threshold": float(cfg.get("refs_threshold", 0.75)),
         }
+
+    def _load_local_vector_engine(self):
+        model_path = getattr(self.config_manager, "vector_model_path", None)
+        if not isinstance(model_path, str) or not os.path.isfile(model_path):
+            return None
+        engine = VectorEngine(model_path=model_path)
+        # ``SKIP_VECTOR_MODEL`` deliberately creates a ready, model-free engine.
+        # It must not be presented to inference as a semantic asset.
+        return engine if getattr(engine, "store", None) is not None else None
 
     def infer_then_freeze(self, design_path: str, suggestion_payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         if not os.path.exists(design_path):
@@ -446,16 +462,32 @@ class DesignInferenceEngine:
             )
             if linq_meta:
                 linq_roles: Dict[str, Any] = {}
-                filter_prop = self._infer_filter_property(
-                    fallback_line,
-                    entity=linq_meta.get("target_entity"),
-                )
+                target_entity = str(linq_meta.get("target_entity") or "")
+                filter_prop = self.property_semantics.resolve(target_entity, fallback_line, numeric_only=True)
+                if not filter_prop:
+                    filter_prop = self._infer_filter_property(fallback_line, entity=target_entity)
                 if filter_prop:
                     linq_roles["property"] = filter_prop
+                logic = self._infer_unique_numeric_predicate(
+                    fallback_line,
+                    str(linq_meta.get("target_entity") or ""),
+                    str(_merged_semantic_roles(linq_roles).get("property") or ""),
+                )
+                if not logic:
+                    logic = self._infer_unique_string_predicate(
+                        fallback_line, str(linq_meta.get("target_entity") or "")
+                    )
+                    if logic:
+                        linq_roles["property"] = logic[0]["variable_hint"]
+                compound_logic = self._infer_compound_predicate(fallback_line, str(linq_meta.get("target_entity") or ""))
+                if compound_logic:
+                    logic = compound_logic
                 tag = self._build_step_meta_tag(linq_meta)
                 refs = self._build_refs_tag(step_idx)
                 semantic_roles_tag = self._build_semantic_roles_tag(_merged_semantic_roles(linq_roles))
-                new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
+                new_line = self._prefix_inferred_tags(
+                    fallback_line, tag, refs, semantic_roles_tag, self._build_logic_tag(logic)
+                )
                 return True, None, new_line, []
             db_query_meta, db_query_roles = self._infer_plain_db_query_meta(
                 fallback_line,
@@ -865,10 +897,23 @@ class DesignInferenceEngine:
         if "return_value" not in semantic_roles and is_last_step and output_format and output_format not in ["void", "none"] and last_persist_path:
             if meta.get("intent") in [INTENT_TRANSFORM, INTENT_GENERAL, INTENT_DISPLAY]:
                 semantic_roles["return_value"] = str(last_persist_path)
+        inferred_logic = None
+        if meta.get("intent") == INTENT_LINQ:
+            compound_logic = self._infer_compound_predicate(line, str(meta.get("target_entity") or ""))
+            if compound_logic:
+                inferred_logic = compound_logic
+            property_name = str(semantic_roles.get("property") or self._infer_filter_property(line, meta.get("target_entity")) or "")
+            if property_name and not inferred_logic:
+                semantic_roles["property"] = property_name
+                inferred_logic = self._infer_unique_numeric_predicate(line, str(meta.get("target_entity") or ""), property_name)
+            if not inferred_logic:
+                inferred_logic = self._infer_unique_string_predicate(line, str(meta.get("target_entity") or ""))
+                if inferred_logic:
+                    semantic_roles["property"] = inferred_logic[0]["variable_hint"]
         semantic_roles_tag = self._build_semantic_roles_tag(semantic_roles)
         tag = self._build_step_meta_tag(meta)
         refs = self._build_refs_tag(step_idx)
-        new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag)
+        new_line = self._prefix_inferred_tags(fallback_line, tag, refs, semantic_roles_tag, self._build_logic_tag(inferred_logic))
         data_sources = []
         if meta.get("source_ref") == "db_main":
             data_sources.append("[data_source|db_main|db]")
@@ -1486,13 +1531,15 @@ class DesignInferenceEngine:
             return ""
         return f"[refs:step_{step_idx-1}]"
 
-    def _prefix_inferred_tags(self, line: str, meta_tag: str, refs_tag: str, semantic_roles_tag: str) -> str:
+    def _prefix_inferred_tags(self, line: str, meta_tag: str, refs_tag: str, semantic_roles_tag: str, logic_tag: str = "") -> str:
         prefix, remainder = self._split_line_prefix(line)
         tags = meta_tag
         if refs_tag:
             tags = f"{tags} {refs_tag}"
         if semantic_roles_tag:
             tags = f"{tags} {semantic_roles_tag}"
+        if logic_tag:
+            tags = f"{tags} {logic_tag}"
         if remainder.startswith("["):
             return f"{prefix}{tags} {remainder}"
         return f"{prefix}{tags} {remainder}".rstrip()
@@ -1536,6 +1583,8 @@ class DesignInferenceEngine:
     def _resolve_data_source_tag(self, line: str) -> str:
         if self._is_data_source_line(line):
             return self._strip_leading_numbering(str(line).strip())
+        if self._has_explicit_step_meta(line):
+            return ""
         return self._infer_plain_data_source_tag(line)
 
     def _infer_plain_data_source_tag(self, line: str) -> str:
@@ -1657,6 +1706,72 @@ class DesignInferenceEngine:
         if not semantic_roles:
             return ""
         return f"[semantic_roles:{json.dumps(semantic_roles, ensure_ascii=False, separators=(',', ':'))}]"
+
+    @staticmethod
+    def _build_logic_tag(logic: Optional[List[Dict[str, Any]]]) -> str:
+        if not logic:
+            return ""
+        return f"[logic:{json.dumps(logic, ensure_ascii=False, separators=(',', ':'))}]"
+
+    def _infer_unique_numeric_predicate(self, line: str, entity: str, property_name: str) -> Optional[List[Dict[str, Any]]]:
+        properties = self._get_entity_properties(entity)
+        property_type = str(properties.get(property_name) or "").lower()
+        if not property_name or not any(marker in property_type for marker in ("int", "decimal", "double", "float", "long")):
+            return None
+        predicate_text = self._strip_leading_numbering(str(line))
+        tokens = self.morph_analyzer.tokenize(predicate_text) if hasattr(self.morph_analyzer, "tokenize") else []
+        values = [int(str(token.get("surface"))) for token in tokens if isinstance(token, dict) and str(token.get("surface") or "").isdecimal()]
+        if len(values) != 1:
+            return None
+        pattern = self.predicate_patterns.resolve_unique(predicate_text, property_type="numeric", value_kind="number")
+        if not pattern:
+            return None
+        goal = dict(pattern.get("goal") or {})
+        goal.update({"variable_hint": property_name, "expected_value": values[0]})
+        return [goal]
+
+    def _infer_unique_string_predicate(self, line: str, entity: str) -> Optional[List[Dict[str, Any]]]:
+        value = extract_first_quoted_literal(self._strip_leading_numbering(str(line)))
+        if not value:
+            return None
+        tokens = self.morph_analyzer.tokenize(line) if hasattr(self.morph_analyzer, "tokenize") else []
+        operator = "Equal" if any(
+            str(token.get("base") or token.get("surface") or "") == "等しい"
+            and str(token.get("pos") or "").startswith("形容詞")
+            for token in tokens if isinstance(token, dict)
+        ) else "StartsWith"
+        property_name = self.property_semantics.resolve(entity, line, required_operator=operator)
+        if not property_name:
+            return None
+        polarity = "negative" if any(
+            str(token.get("base") or token.get("surface") or "") == "ない"
+            and str(token.get("pos") or "").startswith("助動詞")
+            for token in tokens if isinstance(token, dict)
+        ) else "affirmative"
+        pattern = self.predicate_patterns.resolve_unique(
+            line, property_type="string", value_kind="quoted_string", polarity=polarity, operator=operator
+        )
+        if not pattern:
+            return None
+        goal = dict(pattern.get("goal") or {})
+        goal.update({"variable_hint": property_name, "expected_value": value})
+        return [goal]
+
+    def _infer_compound_predicate(self, line: str, entity: str) -> Optional[List[Dict[str, Any]]]:
+        tokens = self.morph_analyzer.tokenize(line) if hasattr(self.morph_analyzer, "tokenize") else []
+        connectors = {"かつ": "AND", "または": "OR"}
+        for index, token in enumerate(tokens):
+            connector = connectors.get(str(token.get("surface") or "")) if isinstance(token, dict) else None
+            if not connector:
+                continue
+            left = "".join(str(item.get("surface") or "") for item in tokens[:index] if isinstance(item, dict))
+            right = "".join(str(item.get("surface") or "") for item in tokens[index + 1:] if isinstance(item, dict))
+            left_goal = self._infer_unique_string_predicate(left, entity)
+            right_property = self._infer_filter_property(right, entity)
+            right_goal = self._infer_unique_numeric_predicate(right, entity, str(right_property or ""))
+            if left_goal and right_goal:
+                return left_goal + [{"type": "conjunction", "value": connector}] + right_goal
+        return None
 
     def _infer_explicit_ops(self, line: str, intent: str, *, allow_natural: bool = True) -> List[str]:
         if not intent:

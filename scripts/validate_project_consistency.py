@@ -568,6 +568,37 @@ def validate_resource_vocab(project_root: Path) -> list[str]:
 
     return errors
 
+def validate_predicate_assets(project_root: Path) -> list[str]:
+    errors = []
+    schema_path = project_root / "resources" / "entity_schema.json"
+    patterns_path = project_root / "resources" / "predicate_patterns.json"
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        patterns = json.loads(patterns_path.read_text(encoding="utf-8")).get("patterns", [])
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"[predicate-assets]: unable to load assets: {exc}"]
+    allowed = {"StartsWith", "Contains", "Equal", "NotEqual", "Greater", "GreaterEqual", "Less", "LessEqual"}
+    for entity in schema.get("entities", []):
+        properties = entity.get("properties", {}) if isinstance(entity, dict) else {}
+        for property_name, operators in (entity.get("predicate_capabilities", {}) or {}).items():
+            if property_name not in properties:
+                errors.append(f"[predicate-assets]: unknown property '{property_name}' in {entity.get('name')}")
+            for operator in operators if isinstance(operators, list) else []:
+                if operator not in allowed:
+                    errors.append(f"[predicate-assets]: unsupported operator '{operator}'")
+    for pattern in patterns if isinstance(patterns, list) else []:
+        goal = pattern.get("goal", {}) if isinstance(pattern, dict) else {}
+        if goal.get("type") == "conjunction":
+            valid_goal = goal.get("value") in {"AND", "OR"}
+        else:
+            valid_goal = goal.get("operator") in allowed
+        if not valid_goal:
+            errors.append(f"[predicate-assets]: invalid pattern operator in {pattern.get('id')}")
+        for provenance in pattern.get("provenance", []) if isinstance(pattern, dict) else []:
+            if not (project_root / str(provenance)).is_file():
+                errors.append(f"[predicate-assets]: missing provenance '{provenance}'")
+    return errors
+
 def main():
     """
     Main function to validate project consistency.
@@ -587,6 +618,7 @@ def main():
     required_docs, existence_only_docs, optional_reference_docs, generated_reference_paths, policy_errors = load_document_reference_policy(project_root)
     errors.extend(policy_errors)
     errors.extend(validate_resource_vocab(project_root))
+    errors.extend(validate_predicate_assets(project_root))
 
     # 1. Load project map
     try:

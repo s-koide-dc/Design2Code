@@ -63,3 +63,16 @@ jobs:
           }
           New-Item -ItemType Junction -Path $checkoutVectors -Target $assetVectors | Out-Null
           python scripts/validate/validate_real_vector_model.py
+          python -m unittest tests.integration.test_natural_numeric_predicate_assets -v
+
+      - name: Validate real JMDict lookup
+        if: matrix.capability == 'dictionary_search'
+        shell: pwsh
+        run: |
+          $assetDictionary = Join-Path $env:LOCAL_ASSET_WORKSPACE_ROOT "resources\dictionary.db"
+          $checkoutDictionary = Join-Path $PWD "resources\dictionary.db"
+          if (-not (Test-Path -LiteralPath $assetDictionary -PathType Leaf)) {
+            throw "The pinned asset workspace does not contain resources\dictionary.db."
+          }
+          Copy-Item -LiteralPath $assetDictionary -Destination $checkoutDictionary
+          python -m unittest tests.unit.test_semantic_analyzer_search -v

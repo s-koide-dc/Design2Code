@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Dict, List
 
 from src.code_verification.runtime_oracle_test_builder import build_runtime_oracle_test_code
@@ -40,6 +41,7 @@ def execute_runtime_oracles(
             test_code,
             dependencies=merge_runtime_oracle_dependencies(dependencies or [], contract),
         )
+        fixtures = contract.get("fixtures", []) if isinstance(contract.get("fixtures"), list) else []
         results.append({
             "id": case.get("id"),
             "scenario": case.get("scenario"),
@@ -48,6 +50,12 @@ def execute_runtime_oracles(
             "failures": runtime_result.get("failures", []),
             "error_type": runtime_result.get("error_type"),
             "message": runtime_result.get("message") or runtime_result.get("error"),
+            "stdout": runtime_result.get("stdout", ""),
+            "oracle_contract": {key: value for key, value in contract.items() if key != "fixtures"},
+            "fixture_manifest": [
+                {"path": item.get("path"), "sha256": hashlib.sha256(str(item.get("content") or "").encode("utf-8")).hexdigest()}
+                for item in fixtures if isinstance(item, dict)
+            ],
         })
 
     failed = [result for result in results if not result.get("success")]

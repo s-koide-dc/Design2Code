@@ -172,6 +172,17 @@ class TestSemanticBinderLogic(unittest.TestCase):
 
         self.assertEqual('item.Name != null && item.Name.StartsWith("A") && item.Price > 500m', expr)
 
+    def test_explicit_negation_wraps_the_predicate_expression(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [{"type": "string", "operator": "StartsWith", "expected_value": "A", "variable_hint": "Name", "negated": True}],
+        }
+        path = {"type_to_vars": {}, "poco_defs": {"User": {"Name": "string"}}, "active_scope_item": "item", "in_loop": True}
+
+        expr = binder.generate_logic_expression(semantic_map, "User", path, node={"id": "step_2"})
+
+        self.assertEqual('!(item.Name != null && item.Name.StartsWith("A"))', expr)
+
     def test_structured_logic_bypasses_exists_fallback_and_preserves_all_predicates(self):
         binder = SemanticBinder(TypeSystem())
         semantic_map = {

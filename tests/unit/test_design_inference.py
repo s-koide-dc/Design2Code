@@ -3,7 +3,7 @@ import tempfile
 import unittest
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from src.config.config_manager import ConfigManager
 from src.design_parser.design_inference import DesignInferenceEngine
@@ -136,6 +136,49 @@ class TestDesignInferenceEngine(unittest.TestCase):
         self.assertIn("### Inference Metadata", inferred_text)
         self.assertIn("[ACTION|TRANSFORM|Item|void|NONE]", inferred_text)
         self.assertEqual(self.design_path.read_text(encoding="utf-8"), original)
+
+    def test_uses_local_vector_asset_for_candidate_expansion(self):
+        vector_path = self.workspace_root / "resources" / "vectors" / "chive-1.3-mc90.txt"
+        vector_path.parent.mkdir(parents=True)
+        vector_path.write_text("local asset marker", encoding="utf-8")
+        config = ConfigManager(workspace_root=str(self.workspace_root))
+        loaded_engine = MagicMock()
+        loaded_engine.store = object()
+
+        with patch("src.design_parser.design_inference.MorphAnalyzer", return_value=object()):
+            with patch("src.design_parser.design_inference.DesignOpsResolver") as resolver:
+                with patch("src.design_parser.design_inference.VectorEngine") as vector_engine:
+                    vector_engine.return_value = loaded_engine
+                    DesignInferenceEngine(config_manager=config, morph_analyzer=object())
+
+        vector_engine.assert_called_once_with(model_path=config.vector_model_path)
+        resolver.assert_called_once()
+        self.assertIs(resolver.call_args.kwargs["vector_engine"], loaded_engine)
+
+    def test_infers_numeric_logic_only_from_unique_asset_pattern_and_schema_property(self):
+        engine = self._build_engine()
+        engine.morph_analyzer = MagicMock()
+        engine.morph_analyzer.tokenize.return_value = [{"surface": "500"}]
+        engine.predicate_patterns = MagicMock()
+        engine.predicate_patterns.resolve_unique.return_value = {
+            "goal": {"type": "numeric", "operator": "Greater"}
+        }
+
+        logic = engine._infer_unique_numeric_predicate("価格が500より大きい", "User", "Price")
+
+        self.assertEqual(
+            [{"type": "numeric", "operator": "Greater", "variable_hint": "Price", "expected_value": 500}],
+            logic,
+        )
+
+    def test_does_not_infer_numeric_logic_when_pattern_is_not_unique(self):
+        engine = self._build_engine()
+        engine.morph_analyzer = MagicMock()
+        engine.morph_analyzer.tokenize.return_value = [{"surface": "500"}]
+        engine.predicate_patterns = MagicMock()
+        engine.predicate_patterns.resolve_unique.return_value = None
+
+        self.assertIsNone(engine._infer_unique_numeric_predicate("価格が500より大きい", "User", "Price"))
 
     def test_infer_then_freeze_returns_blocked_when_inference_reports_issue(self):
         original = """# Sample

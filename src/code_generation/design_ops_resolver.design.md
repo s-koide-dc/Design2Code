@@ -1,58 +1,39 @@
-# design_ops_resolver Design Document
+# DesignOpsResolver Design Document
 
 ## 1. Purpose
 
-`design_ops_resolver` は Core Logic の自然言語記述から、サービス/リポジトリ用のステップキーを推定する補助モジュール。
-
-### 1.1 Implementation Sync Notes (2026-07-08)
-- 候補探索は `UnifiedKnowledgeBase` を優先し、vector engine が利用可能な場合だけ action patterns / canonical templates の semantic candidate search を補助的に使う。
-- candidate score は候補の安定ソートと呼び出し元への metadata に使い、score だけで不適合な intent を採用しない。
-- `filename` / `url` / JSON topic など、解析済み entity と topic から intent hint を作り、allowed / preferred / disallowed intent で候補を絞る。
-- `infer_step_with_score_excluding_intents` は呼び出し元が除外した intent を再導入しない。
-- メソッド名から create/update/delete/list をキーワード推定しない。`_map_execute_by_method` は明示された fallback を保持するだけにする。
+`DesignOpsResolver` は、設計書の自然言語ステップを既存のmethod-store、定石パターン、canonical knowledgeの候補へ結び付ける。候補探索と採否を分け、採否はintent、型、data source、明示的な構造制約を満たす候補に限定する。
 
 ## 2. Structured Specification
 
 ### Input
-- **Description**: Core Logic の行配列とメソッド名（サービス系では fallback 操作を任意指定）。
-- **Type/Format**: `List[str]`, `str`, `Optional[str]`
-- **Example**: `["DBから一覧取得", "結果を返す"], "GetOrders"`
+- **Description**: 設計書の自然言語ステップと、必要に応じてローカルのchiVe・JMDict資産。
+- **Type/Format**: `str`, `ConfigManager`, optional `VectorEngine`
 
 ### Output
-- **Description**: 推定されたステップキー配列（例: `repo.fetch_all` / `service.list`）。
-- **Type/Format**: `List[str]`
-- **Example**: `["service.list", "repo.fetch_all"]`
+- **Description**: 構造制約を満たすstep token、または候補なし。
+- **Type/Format**: `tuple[str | None, float]`
 
 ### Core Logic
-1. 各行に対して `MorphAnalyzer → SyntacticAnalyzer → SemanticAnalyzer` の順で解析する。
-2. topic と構文項からクエリ文字列を作成し、`UnifiedKnowledgeBase` で候補検索する。曖昧候補例外が返った場合は候補 ID から実体を取得する。
-3. vector engine がある場合、action patterns と canonical templates を vectorize し、semantic candidate search を補助探索として使う。
-4. entity / topic から intent hints を導出し、候補を allowed / preferred / disallowed intent で絞る。preferred がある探索では、preferred を満たさない候補を採用しない。
-5. 候補の `id/intent/return_type/capabilities` からステップキーにマッピングする。
-6. `infer_steps` はリポジトリ向け、`infer_service_steps` はサービス向けのマッピングを行う。
-7. 解析回数/検索回数などの統計を `get_stats` で取得できる。
+1. Janomeで文を解析し、構文上の主要語と名詞topicを取得する。
+2. `dictionary.db` が利用可能なら、topicのJMDict語義を候補検索の文脈として追加する。
+3. method-store、structural memory、canonical knowledgeから候補を取得する。
+4. chiVe実モデルが利用可能なら、同じ文脈で意味的候補を補助的に取得する。
+5. URL、ファイル、intent、型、data source、除外intentなどの構造ヒントで候補を絞り、対応するstep tokenへ写像する。
+6. 決定的な構造条件を満たす候補がなければ候補なしを返し、上位層の構造的fallbackまたは明示化要求へ委ねる。
 
 ### Test Cases
 - **Happy Path**:
-  - **Scenario**: DB系の Core Logic を入力。
-  - **Expected Output**: `repo.fetch_all` または `repo.update` が返る。
+  - **Scenario**: JMDictの語義とchiVeがある日本語設計文。
+  - **Expected Output**: 語義を含む文脈で候補を拡張し、構造条件を満たす候補だけを返す。
 - **Edge Cases**:
-  - **Scenario**: 解析結果に候補が無い。
-  - **Expected Output / Behavior**: 空配列が返る。
-  - **Scenario**: URL entity がある。
-  - **Expected Output / Behavior**: `HTTP_REQUEST` 以外の候補を採用しない。
-  - **Scenario**: filename entity がある。
-  - **Expected Output / Behavior**: `HTTP_REQUEST` を除外し、`FILE_IO` / `FETCH` を優先する。
-  - **Scenario**: 呼び出し元が除外 intent を指定する。
-  - **Expected Output / Behavior**: fallback 探索でも除外 intent は返さない。
+  - **Scenario**: 資産なしのCI環境。
+  - **Expected Output / Behavior**: 意味候補拡張を行わず、method-storeと構造的fallbackだけで処理する。
 
 ## 3. Dependencies
-- **Internal**:
-  - `config_manager`
-  - `morph_analyzer`
-  - `syntactic_analyzer`
-  - `semantic_analyzer`
-  - `method_store`
-  - `unified_knowledge_base`
-  - `structural_memory`
-  - `vector_engine`
+- **Internal**: `morph_analyzer`, `syntactic_analyzer`, `semantic_analyzer`, `method_store`, `unified_knowledge_base`, `structural_memory`
+- **Optional local assets**: chiVe cache, JMDict `dictionary.db`
+
+## 4. Notes
+- chiVeとJMDictは候補の再現範囲を広げる補助資産であり、タグ、型、source、条件論理を推測だけで確定するためには使わない。
+- 資産が無い場合は警告や失敗にせず、同じ構造検証境界の軽量経路を維持する。

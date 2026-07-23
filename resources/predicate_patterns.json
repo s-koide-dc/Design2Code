@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "patterns": [
+    {
+      "id": "logical-and",
+      "utterances": ["両方の条件を満たす", "すべての条件に合う", "both conditions are true"],
+      "goal": {"type": "conjunction", "value": "AND"},
+      "value_kind": "none",
+      "property_type": "none",
+      "polarity": "affirmative",
+      "provenance": ["scenarios/ConjunctiveLinqSearch.design.md"]
+    },
+    {
+      "id": "logical-or",
+      "utterances": ["いずれかの条件を満たす", "または条件に合う", "either condition is true"],
+      "goal": {"type": "conjunction", "value": "OR"},
+      "value_kind": "none",
+      "property_type": "none",
+      "polarity": "affirmative",
+      "provenance": ["scenarios/DisjunctiveLinqSearch.design.md"]
+    },
+    {
+      "id": "string-equal",
+      "utterances": ["文字列が指定した値と等しい", "a string equals a value"],
+      "goal": {"type": "string", "operator": "Equal"},
+      "value_kind": "quoted_string",
+      "property_type": "string",
+      "polarity": "affirmative",
+      "provenance": ["scenarios/ExplicitConditionBranch.design.md"]
+    },
+    {
+      "id": "string-prefix",
+      "utterances": ["名前が指定した文字で始まる", "a name begins with a value"],
+      "goal": {"type": "string", "operator": "StartsWith"},
+      "value_kind": "quoted_string",
+      "property_type": "string",
+      "polarity": "affirmative",
+      "provenance": ["scenarios/ComplexLinqSearch.design.md", "scenarios/DisjunctiveLinqSearch.design.md"]
+    },
+    {
+      "id": "numeric-greater-than",
+      "utterances": ["数値が指定した値より大きい", "a number is greater than a value"],
+      "goal": {"type": "numeric", "operator": "Greater"},
+      "value_kind": "number",
+      "property_type": "numeric",
+      "polarity": "affirmative",
+      "provenance": ["scenarios/ComplexLinqSearch.design.md", "scenarios/DisjunctiveLinqSearch.design.md"]
+    },
+    {
+      "id": "negated-string-prefix",
+      "utterances": ["名前が指定した文字で始まらない", "a name does not begin with a value"],
+      "goal": {"type": "string", "operator": "StartsWith", "negated": true},
+      "value_kind": "quoted_string",
+      "property_type": "string",
+      "polarity": "negative",
+      "provenance": ["scenarios/NegatedLinqSearch.design.md"]
+    }
+  ]
+}

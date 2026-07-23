@@ -14,6 +14,22 @@
                 "Points": "int",
                 "Price": "decimal",
                 "LastLoginAt": "DateTime"
+            },
+            "property_semantics": {
+                "Id": {"description": "ユーザーを一意に識別する番号", "examples": ["ユーザーID", "識別子"]},
+                "Name": {"description": "ユーザーの表示名または氏名", "examples": ["名前", "氏名"], "predicate_forms": {"Equal": ["名前が値である"], "StartsWith": ["名前が値で始まる"]}},
+                "Age": {"description": "ユーザーの年齢", "examples": ["年齢"]},
+                "Email": {"description": "ユーザーの電子メールアドレス", "examples": ["メールアドレス", "email"]},
+                "Points": {"description": "ユーザーが保有するポイント数", "examples": ["ポイント", "得点"]},
+                "Price": {"description": "ユーザーに関連付けられた価格または金額", "examples": ["価格", "金額"]},
+                "LastLoginAt": {"description": "最後にログインした日時", "examples": ["最終ログイン", "ログイン日時"]}
+            },
+            "predicate_capabilities": {
+                "Name": ["StartsWith", "Equal", "Contains"],
+                "Email": ["Equal", "Contains"],
+                "Age": ["Greater", "GreaterEqual", "Less", "LessEqual", "Equal"],
+                "Points": ["Greater", "GreaterEqual", "Less", "LessEqual", "Equal"],
+                "Price": ["Greater", "GreaterEqual", "Less", "LessEqual", "Equal"]
             }
         },
         {
@@ -32,6 +48,15 @@
                 "Stock": "int",
                 "Category": "string",
                 "DiscountPrice": "decimal"
+            },
+            "property_semantics": {
+                "Id": {"description": "商品を一意に識別する番号", "examples": ["商品ID", "識別子"]},
+                "Name": {"description": "商品の名称", "examples": ["商品名", "名前"]},
+                "Price": {"description": "商品の通常価格", "examples": ["価格", "金額"]},
+                "Quantity": {"description": "商品の数量", "examples": ["数量", "個数"]},
+                "Stock": {"description": "在庫として保有する数量", "examples": ["在庫", "在庫数"]},
+                "Category": {"description": "商品の分類", "examples": ["カテゴリ", "分類"]},
+                "DiscountPrice": {"description": "値引き後の商品価格", "examples": ["割引価格", "セール価格"]}
             }
         },
         {
@@ -76,6 +101,14 @@
                 "Status": "string",
                 "Discount": "decimal",
                 "Points": "int"
+            },
+            "property_semantics": {
+                "Id": {"description": "注文を一意に識別する番号", "examples": ["注文ID", "識別子"]},
+                "Total": {"description": "注文の合計金額", "examples": ["合計", "合計金額"]},
+                "CustomerType": {"description": "注文者の顧客区分", "examples": ["顧客タイプ", "会員種別"]},
+                "Status": {"description": "注文の処理状態", "examples": ["状態", "ステータス"]},
+                "Discount": {"description": "注文に適用された割引額", "examples": ["割引", "値引き"]},
+                "Points": {"description": "注文に付与されるポイント数", "examples": ["ポイント", "得点"]}
             },
             "property_aliases": {
                 "Total": ["合計"],

@@ -43,6 +43,7 @@
   - `canonical_knowledge.json`
   - `method_capability_map.json`
   - `method_store_policy.json`
+  - `predicate_patterns.json`
 
 ## 2. JMDict
 

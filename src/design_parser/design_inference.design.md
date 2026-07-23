@@ -34,6 +34,7 @@ Core Logic からのdata source宣言の収集は `inference_data_sources` に�
    - 既定実装では `標準入力`、`Product API Endpoint`、`Local SQL Database`、裸のファイル名行、および `input_path/output_path` に結び付く `入力CSV` / `出力CSV` を補完対象とする。
 3. 各 Core Logic 行について、明示タグがある行はそのまま保持し、無い行のみ補完対象にする。
 4. `DesignOpsResolver` と entity 推定を使って、`intent`, `target_entity`, `output_type`, `refs`, `semantic_roles`, `data_source` を決定的に推論する。
+   - ローカルにchiVe実モデルがある場合だけ候補探索を有効化する。JMDictの語義は候補検索の文脈拡張に使うが、候補の採否はintent・型・data source・構造制約で決める。
    - stripped design のように resolver が `DISPLAY` を返した経路でも、直前 `output_type` が `List<User>` / `IEnumerable<Product>` のような collection なら表示対象 entity は `User` / `Product` に補正する。
    - plain line に URL literal と単一 HTTP data source が残っていれば、resolver が `HTTP_REQUEST` を返した場合も含めて、`API 'https://...' からJSON文字列を取得する` のような行は `HTTP_REQUEST + semantic_roles.url + source_ref=http source` へ補完する。
    - plain line に `環境変数` と `取得/読み` が残り、対応する `env` data source がある場合は `FETCH + source_kind=env + source_ref=that env source` へ補完する。
@@ -85,6 +86,7 @@ Core Logic からのdata source宣言の収集は `inference_data_sources` に�
 - resolver が別 intent に寄った後で `TRANSFORM` / `CALC` / `DISPLAY` に補正された場合でも、最終 intent に対して `ops` 推論を再評価する。
 - resolver が低信頼候補を返した場合でも、構造的 fallback が成立するなら fallback を優先する。これにより method store の pruning や vector DB 再構築で候補集合が変わっても、明示 literal / data source / refs を保持する authoring reduction variant は決定的に復元される。
 - vector model が無い CI 環境でも、`semantic_roles` と data source が残る authoring reduction variant は構造的 fallback だけで復元できる必要がある。
+- chiVe と JMDict はローカル資産プロファイルで自然言語候補を広げるための補助であり、資産の有無によって明示タグ・型・source の検証契約を緩めない。
 - 低信頼 resolver の fallback は、自然文 keyword から欠落 entity を補うための経路ではない。entity が構造的に不足する場合は `NO_CANDIDATE` として停止する。
 - HTTP request の `target_entity` が空 / `Item` / `string` の場合、まず本文から構造的 entity を試し、補えない場合だけ `source_ref` の snake/kebab case から schema 上に存在する entity 名へ正規化する。schema に存在しない candidate は採用しない。
 

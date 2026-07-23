@@ -20,6 +20,7 @@
 2. `path`, `url`, `sql` は literal continuity を保つが、誤 bleed は抑止する。
 3. `_resolve_source_var` は型・role・recency に基づいて source 変数を解決する。
 4. `generate_logic_expression` は `logic` を走査して条件式を組み立てる。
+   - predicate の `negated=true` は個々の生成式全体を否定し、nullable string guard を含む場合も括弧で意味を保持する。
 5. `spec_role=CHECK` の場合は `_build_check_expression` を優先し、`check_kind`, `check_subject`, `check_operator`, `check_value`, `source_kind`, `subject_resolution` から直接式を組み立てる。ただし IR が `structured_logic=true` を明示した場合は、その `logic` 配列を正とし、CHECK/EXISTS の便宜的な fallback を適用しない。
 6. weak provenance の場合は schema/property reverse lookup を抑止する。
 7. `history_subject` のような middle-strength provenance は exact target scope に閉じた解決だけを許可する。
@@ -48,3 +49,4 @@
 - 2026-06-24: `HTTP_REQUEST + payload:{context}` のとき current context item を `StringContent(JsonSerializer.Serialize(...))` へ変換する現在の binding 境界を反映。
 - 2026-07-09: schema string property に対する string method 条件式で null guard を出し、生成コードの nullable warning を品質ゲートで検出可能な状態へ同期。
 - 2026-07-22: 明示された `structured_logic` は intent 分類より優先する。これにより CONDITION が `EXISTS` と正規化されていても、構造化された複合 predicate をファイル存在チェックへ置換しない。
+- 2026-07-23: 明示 predicate の `negated=true` を条件式単位で保持する契約を反映。
