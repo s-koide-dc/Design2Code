@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
+from pathlib import Path
 
 from src.design_parser.structured_parser import StructuredDesignParser
 from src.design_parser.validator import StructuredSpecValidationError, validate_structured_spec
@@ -24,6 +25,32 @@ class TestStructuredDesignParser(unittest.TestCase):
         self.assertEqual(
             [{"type": "numeric", "variable_hint": "Points", "operator": "Greater", "expected_value": 100}],
             spec["steps"][0]["logic"],
+        )
+
+    def test_complex_linq_scenario_declares_predicate_contracts(self):
+        scenario_path = Path(__file__).resolve().parents[2] / "scenarios" / "ComplexLinqSearch.design.md"
+        spec = self.parser.parse_design_file(str(scenario_path))
+
+        self.assertEqual(
+            [{"type": "string", "variable_hint": "Name", "operator": "StartsWith", "expected_value": "A"}],
+            spec["steps"][2]["logic"],
+        )
+        self.assertEqual(
+            [{"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 500}],
+            spec["steps"][3]["logic"],
+        )
+
+    def test_conjunctive_linq_scenario_declares_ordered_predicate_contract(self):
+        scenario_path = Path(__file__).resolve().parents[2] / "scenarios" / "ConjunctiveLinqSearch.design.md"
+        spec = self.parser.parse_design_file(str(scenario_path))
+
+        self.assertEqual(
+            [
+                {"type": "string", "variable_hint": "Name", "operator": "StartsWith", "expected_value": "A"},
+                {"type": "conjunction", "value": "AND"},
+                {"type": "numeric", "variable_hint": "Price", "operator": "Greater", "expected_value": 500},
+            ],
+            spec["steps"][2]["logic"],
         )
 
     def test_rejects_malformed_explicit_logic_tag(self):

@@ -63,8 +63,8 @@
   - `--assist-endpoint-url` を付けると `literal_roles_only` assist を含めたレビューもできる。
 - `scripts/design/run_design_generation_regression.py`
   - 複数の `.design.md` をまとめて `review_design_generation_snapshot` と同じ基準で回帰確認する。
-  - 既定では `ComplexLinqSearch`, `ExplicitConditionBranch`, `CsvSalesAggregation`, `ProductApiFilteredCatalog`, `CustomerApiWithEntitySpec`, `DailyInventorySync`, `SecureOrderProcessing`, `StateUpdatePersist`, `AppModeEchoMinimal`, `RobustConfigLoader`, `StdinToStdoutTransform`, `AggregationSummary`, `SyncExternalData` を対象にし、`--design` を複数指定すると任意の組み合わせに差し替えられる。
-  - `--profile smoke` は JSON/LINQ、HTTP、SQLite更新、設定ファイル分岐を代表する4件を生成・静的品質確認する。`--profile quality`（既定）は全13件を対象とし、`--run-runtime-oracles` と組み合わせて実行時挙動も確認する。
+  - 既定では `ComplexLinqSearch`, `ConjunctiveLinqSearch`, `ExplicitConditionBranch`, `CsvSalesAggregation`, `ProductApiFilteredCatalog`, `CustomerApiWithEntitySpec`, `DailyInventorySync`, `SecureOrderProcessing`, `StateUpdatePersist`, `AppModeEchoMinimal`, `RobustConfigLoader`, `StdinToStdoutTransform`, `AggregationSummary`, `SyncExternalData` を対象にし、`--design` を複数指定すると任意の組み合わせに差し替えられる。
+  - `--profile smoke` は JSON/LINQ、HTTP、SQLite更新、設定ファイル分岐を代表する4件を生成・静的品質確認する。`--profile quality`（既定）は全14件を対象とし、`--run-runtime-oracles` と組み合わせて実行時挙動も確認する。
   - `--require-runtime-oracles` は `--run-runtime-oracles` と併用する。各シナリオの全Test Caseがreadyな明示oracleであり、実行済み・成功済みであることを必須にする。
   - 各ケースの `inference_status`, `verification_valid`, `quality_valid`, `quality_issue_count`, `spec_issue_count` と、元の詳細 payload を 1 つの JSON に集約する。
   - `--summary-only` を付けると各ケースの詳細 `payload` を省き、CI や一覧確認向けの軽量 JSON だけを出力する。
