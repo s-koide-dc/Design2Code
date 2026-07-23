@@ -12,8 +12,8 @@
 - [data_source|users_json|file] users.json
 1. [ACTION|FETCH|User|string|IO|users_json|file] [semantic_roles:{"path":"users.json"}] 'users.json' を読み込む
 2. [ACTION|JSON_DESERIALIZE|User|List<User>|NONE] データをユーザーリストに変換する
-3. [ACTION|LINQ|User|List<User>|NONE] [refs:step_2] [semantic_roles:{"property":"Name"}] 名前が 'A' で始まるユーザーを抽出する
-4. [ACTION|LINQ|User|List<User>|NONE] [refs:step_3] [semantic_roles:{"property":"Price"}] 価格が 500 より大きいユーザーを抽出する
+3. [ACTION|LINQ|User|List<User>|NONE] [refs:step_2] [semantic_roles:{"property":"Name"}] [logic:[{"type":"string","variable_hint":"Name","operator":"StartsWith","expected_value":"A"}]] 名前が 'A' で始まるユーザーを抽出する
+4. [ACTION|LINQ|User|List<User>|NONE] [refs:step_3] [semantic_roles:{"property":"Price"}] [logic:[{"type":"numeric","variable_hint":"Price","operator":"Greater","expected_value":500}]] 価格が 500 より大きいユーザーを抽出する
 5. [ACTION|DISPLAY|User|void|NONE] [refs:step_4] 条件に合致したユーザー一覧を表示する
 ### Test Cases
 - **Scenario**: Default
