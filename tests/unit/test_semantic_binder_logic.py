@@ -153,6 +153,22 @@ class TestSemanticBinderLogic(unittest.TestCase):
         self.assertIn("x.Points > input_1", expr)
         self.assertNotIn("StartsWith", expr)
 
+    def test_numeric_predicate_with_string_property_is_rejected_without_coercion(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [{"type": "numeric", "operator": "Greater", "expected_value": 100, "variable_hint": "Name"}],
+        }
+        path = {
+            "type_to_vars": {},
+            "poco_defs": {"User": {"Name": "string", "Points": "int"}},
+            "active_scope_item": "item",
+            "in_loop": True,
+        }
+
+        expr = binder.generate_logic_expression(semantic_map, "User", path, node={"id": "step_2", "semantic_map": semantic_map})
+
+        self.assertIsNone(expr)
+
     def test_structured_string_and_numeric_predicates_preserve_literal_values(self):
         binder = SemanticBinder(TypeSystem())
         semantic_map = {

@@ -442,14 +442,7 @@ class SemanticBinder:
                 is_identifier = isinstance(val, str) and self._is_identifier(str(val))
                 p_type_lower = str(p_type).lower()
                 if p_type_lower == "string":
-                    if op in ["Greater", "GreaterEqual"]:
-                        is_nullable = str(p_type).strip().endswith("?") or str(p_type).strip() == "string"
-                        _append_predicate(_string_method_expression(prop_access, ".StartsWith", val, is_nullable), goal)
-                    elif op == "NotEqual":
-                        _append_predicate(f"{prop_access} != \"{val}\"", goal)
-                    else:
-                        _append_predicate(f"{prop_access} == \"{val}\"", goal)
-                    continue
+                    return None
                 if not numeric_literal and not is_identifier:
                     val = "0"
 
