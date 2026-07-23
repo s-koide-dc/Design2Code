@@ -313,6 +313,28 @@ class TestSemanticBinderLogic(unittest.TestCase):
 
         self.assertIsNone(expr)
 
+    def test_numeric_predicate_on_a_string_target_requires_explicit_length_measure(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [{"type": "numeric", "operator": "Greater", "expected_value": 10}],
+        }
+        path = {"type_to_vars": {}, "poco_defs": {}, "active_scope_item": "text"}
+
+        expr = binder.generate_logic_expression(semantic_map, "string", path, node={"id": "step_2"})
+
+        self.assertIsNone(expr)
+
+    def test_explicit_string_length_measure_generates_a_length_comparison(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "logic": [{"type": "numeric", "operator": "Greater", "expected_value": 10, "measure": "string_length"}],
+        }
+        path = {"type_to_vars": {}, "poco_defs": {}, "active_scope_item": "text"}
+
+        expr = binder.generate_logic_expression(semantic_map, "string", path, node={"id": "step_2"})
+
+        self.assertEqual("text.Length > 10", expr)
+
     def test_explicit_negation_wraps_the_predicate_expression(self):
         binder = SemanticBinder(TypeSystem())
         semantic_map = {

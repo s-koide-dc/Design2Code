@@ -408,8 +408,13 @@ class SemanticBinder:
                         method = op_map.get(op, ".Contains")
                         _append_predicate(f"{prop_access}{method}(\"{val}\")", goal)
                 elif g_type == "numeric":
+                    if goal.get("measure") != "string_length":
+                        return None
+                    numeric_value = self._resolve_numeric_predicate_value(val, path)
+                    if numeric_value is None:
+                        return None
                     csharp_op = op_map.get(op, "==")
-                    _append_predicate(f"{prop_access}.Length {csharp_op} {val}", goal)
+                    _append_predicate(f"{prop_access}.Length {csharp_op} {numeric_value}", goal)
                 elif g_type == "calculation":
                     expr = self._build_arithmetic_expr(goal, props, path)
                     if expr:
@@ -425,41 +430,15 @@ class SemanticBinder:
 
             if g_type == "numeric":
                 csharp_op = op_map.get(op, "==")
-                if val == "{input}":
-                    input_vars = path.get("type_to_vars", {}).get("int", []) + path.get("type_to_vars", {}).get("decimal", [])
-                    if input_vars:
-                        resolved_val = "{input}"
-                        for v in input_vars:
-                            if v.get("node_id") == "input": resolved_val = v["var_name"]; break
-                        if resolved_val == "{input}": resolved_val = input_vars[0]["var_name"]
-                        val = resolved_val
-                    else:
-                        # A missing numeric input must not silently change the
-                        # requested predicate into a comparison with zero.
-                        return None
-                numeric_literal = (
-                    isinstance(val, (int, float)) and not isinstance(val, bool)
-                ) or (
-                    isinstance(val, str) and self._is_numeric_literal(val)
-                )
-                bound_numeric_vars = {
-                    entry.get("var_name")
-                    for value_type in ("int", "decimal", "double", "float", "long", "short")
-                    for entry in path.get("type_to_vars", {}).get(value_type, [])
-                    if entry.get("var_name")
-                }
-                is_bound_numeric_variable = isinstance(val, str) and str(val) in bound_numeric_vars
+                numeric_value = self._resolve_numeric_predicate_value(val, path)
                 p_type_lower = str(p_type).lower()
                 if p_type_lower == "string":
                     return None
-                if not numeric_literal and not is_bound_numeric_variable:
-                    # Only an explicit numeric literal or a bound variable can
-                    # be used in a numeric predicate.  Substituting a default
-                    # value would alter the intent of the specification.
+                if numeric_value is None:
                     return None
 
-                suffix = "m" if "decimal" in p_type.lower() or "decimal" in str(val) else ""
-                _append_predicate(f"{prop_access} {csharp_op} {val}{suffix}", goal)
+                suffix = "m" if "decimal" in p_type.lower() or "decimal" in str(numeric_value) else ""
+                _append_predicate(f"{prop_access} {csharp_op} {numeric_value}{suffix}", goal)
 
             elif g_type == "string":
                 if str(p_type).lower() != "string" and not str(p_type).lower().startswith("string?"):
@@ -480,6 +459,26 @@ class SemanticBinder:
         # A non-empty logic specification that produced no predicate is not an
         # unconditional success.  Let the caller surface it as unresolved.
         return current_conjunction.join(expressions) if expressions else None
+
+    def _resolve_numeric_predicate_value(self, value: Any, path: Dict[str, Any]) -> Optional[str]:
+        """Return an explicit numeric literal or a registered numeric variable."""
+        numeric_types = ("int", "decimal", "double", "float", "long", "short")
+        numeric_vars = [
+            entry
+            for value_type in numeric_types
+            for entry in path.get("type_to_vars", {}).get(value_type, [])
+            if entry.get("var_name")
+        ]
+        if value == "{input}":
+            input_var = next((entry.get("var_name") for entry in numeric_vars if entry.get("node_id") == "input"), None)
+            return input_var or (numeric_vars[0].get("var_name") if numeric_vars else None)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return str(value)
+        if isinstance(value, str) and self._is_numeric_literal(value):
+            return value
+        if isinstance(value, str) and value in {entry.get("var_name") for entry in numeric_vars}:
+            return value
+        return None
 
     def _resolve_source_var(self, node: Dict[str, Any], path: Dict[str, Any], target_type: str, role_hint: str = None) -> Optional[Tuple[str, Optional[str]]]:
         preferred_vars = node.get("semantic_map", {}).get("semantic_roles", {}).get("preferred_vars")
