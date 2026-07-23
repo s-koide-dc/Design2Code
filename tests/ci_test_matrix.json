@@ -8,6 +8,7 @@
       "test_dynamic_method_store.py",
       "test_generated_lambda_compilation.py",
       "test_impact_planning.py",
+      "test_natural_numeric_predicate_assets.py",
       "test_phase6_multi_turn.py",
       "test_pipeline_core.py",
       "test_quality_management_scenarios.py",

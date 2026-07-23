@@ -526,16 +526,10 @@ class SemanticBinder:
             matched = _try_match(hint_clean)
             if matched:
                 return matched
-            if target_hint:
-                matched = _try_match(target_hint)
-                if matched:
-                    return matched
-            return None
         if target_hint:
             matched = _try_match(target_hint)
             if matched:
                 return matched
-            return None
 
         if node:
             semantic_roles = node.get("semantic_map", {}).get("semantic_roles", {}) if isinstance(node, dict) else {}

@@ -172,6 +172,23 @@ class TestSemanticBinderLogic(unittest.TestCase):
 
         self.assertEqual('item.Name != null && item.Name.StartsWith("A") && item.Price > 500m', expr)
 
+    def test_explicit_property_is_used_when_goal_hint_is_not_a_schema_property(self):
+        binder = SemanticBinder(TypeSystem())
+        semantic_map = {
+            "semantic_roles": {"property": "Price"},
+            "logic": [{"type": "numeric", "operator": "Greater", "expected_value": 100, "variable_hint": "100"}],
+        }
+        path = {
+            "type_to_vars": {},
+            "poco_defs": {"User": {"Id": "int", "Price": "decimal"}},
+            "active_scope_item": "item",
+            "in_loop": True,
+        }
+
+        expr = binder.generate_logic_expression(semantic_map, "User", path, node={"id": "step_2", "semantic_map": semantic_map})
+
+        self.assertEqual("item.Price > 100m", expr)
+
     def test_explicit_negation_wraps_the_predicate_expression(self):
         binder = SemanticBinder(TypeSystem())
         semantic_map = {
