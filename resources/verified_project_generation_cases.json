@@ -7,7 +7,7 @@
       "design_sha256": "bc9faa7dd7bb7accaf102a8dc66c9f6e0a880a9445a05de0157322f30f44d8ab",
       "project_name": "OrdersProject",
       "generator_commit": "64992ea32d480da24e3bc17b93a501678369a1b5",
-      "project_generation_fingerprint": "373f3ad47f7a12a2d7f99c824f6b7792b9d1674824286fd1a9016ef2a47bec2f",
+      "project_generation_fingerprint": "112b91564ca5a7286a4de89d2d9c707880428129bc71404a9ba08842ca30d863",
       "verified_at": "2026-07-28T01:47:58Z",
       "evidence": {
         "project_build": "passed",
@@ -23,7 +23,7 @@
       "design_sha256": "87e67a3f26076918e2535635790ceeed238eb08831f8a9648c49da9ab7857b19",
       "project_name": "MinimalCrudProject",
       "generator_commit": "64992ea32d480da24e3bc17b93a501678369a1b5",
-      "project_generation_fingerprint": "373f3ad47f7a12a2d7f99c824f6b7792b9d1674824286fd1a9016ef2a47bec2f",
+      "project_generation_fingerprint": "112b91564ca5a7286a4de89d2d9c707880428129bc71404a9ba08842ca30d863",
       "verified_at": "2026-07-30T00:59:40Z",
       "evidence": {
         "project_build": "passed",
@@ -39,7 +39,7 @@
       "design_sha256": "600b2e128baee3f20f4bbe56280d95a7baea8232ead4fcf544f0316862ed7a5a",
       "project_name": "NotesProject",
       "generator_commit": "64992ea32d480da24e3bc17b93a501678369a1b5",
-      "project_generation_fingerprint": "373f3ad47f7a12a2d7f99c824f6b7792b9d1674824286fd1a9016ef2a47bec2f",
+      "project_generation_fingerprint": "112b91564ca5a7286a4de89d2d9c707880428129bc71404a9ba08842ca30d863",
       "verified_at": "2026-07-30T00:59:40Z",
       "evidence": {
         "project_build": "passed",
@@ -55,7 +55,7 @@
       "design_sha256": "689f4d4d0046c7422eb4437448b918d58bb6c9f22f96ed0171f0044c68e69775",
       "project_name": "SampleProject",
       "generator_commit": "64992ea32d480da24e3bc17b93a501678369a1b5",
-      "project_generation_fingerprint": "373f3ad47f7a12a2d7f99c824f6b7792b9d1674824286fd1a9016ef2a47bec2f",
+      "project_generation_fingerprint": "112b91564ca5a7286a4de89d2d9c707880428129bc71404a9ba08842ca30d863",
       "verified_at": "2026-07-28T01:27:42Z",
       "evidence": {
         "project_build": "passed",

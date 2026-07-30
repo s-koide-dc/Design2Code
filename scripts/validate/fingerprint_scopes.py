@@ -16,6 +16,19 @@ _CONFIG_INPUTS = (
 )
 
 
+def _source_files(root: Path, pattern: str) -> list[Path]:
+    """Return source inputs while excluding compiler outputs.
+
+    Build directories are intentionally omitted: their contents are not source
+    evidence and can vary between clean and incremental builds.
+    """
+    return [
+        path
+        for path in root.rglob(pattern)
+        if "bin" not in path.parts and "obj" not in path.parts
+    ]
+
+
 def _fingerprint(paths: list[Path]) -> str:
     digest = hashlib.sha256()
     for path in sorted(paths, key=lambda candidate: candidate.relative_to(ROOT).as_posix()):
@@ -35,7 +48,7 @@ def generation_fingerprint() -> str:
         *sorted((ROOT / "src" / "design_parser").rglob("*.py")),
         *sorted((ROOT / "src" / "ir_generator").rglob("*.py")),
         *sorted((ROOT / "src" / "code_synthesis").rglob("*.py")),
-        *sorted((ROOT / "tools" / "csharp" / "CodeBuilder").rglob("*.cs")),
+        *_source_files(ROOT / "tools" / "csharp" / "CodeBuilder", "*.cs"),
         ROOT / "scripts" / "generate" / "generate_from_design.py",
         ROOT / "scripts" / "design" / "review_design_generation_snapshot.py",
     ])
@@ -76,6 +89,6 @@ def project_generation_fingerprint() -> str:
         *sorted((ROOT / "src" / "test_generator").rglob("*.py")),
         *sorted((ROOT / "src" / "ir_generator").rglob("*.py")),
         *sorted((ROOT / "src" / "code_synthesis").rglob("*.py")),
-        *sorted((ROOT / "tools" / "csharp" / "CodeBuilder").rglob("*.cs")),
+        *_source_files(ROOT / "tools" / "csharp" / "CodeBuilder", "*.cs"),
         ROOT / "scripts" / "validate" / "validate_generated_sqlserver.py",
     ])
