@@ -10,9 +10,9 @@
 - **Type/Format**: bool
 ### Core Logic
 - [data_source|orders_file|file] orders.json
-1. [ACTION|FETCH|Order|List<Order>|IO|orders_file|file] [semantic_roles:{"path":"orders.json","error_policy":"return_default"}] 'orders.json' から全ての注文を読み込む
+1. [step|FETCH|Order|List<Order>|source=orders_file|source_kind=file] [semantic_roles:{"path":"orders.json","error_policy":"return_default"}] 'orders.json' から全ての注文を読み込む
 2. [ACTION|CALC|decimal|decimal|NONE] [refs:step_1] [semantic_roles:{"aggregation":true,"variable_hint":"total","value_prop":"Total"}] Order の Total を総計に加算する（合計金額を累積する）
-3. [ACTION|DISPLAY|decimal|void|NONE] [semantic_roles:{"display_scope":"after_loop","display_var":"total"}] 最終的な総計を最後に1回だけ表示する
+3. [step|DISPLAY|decimal|void] [semantic_roles:{"display_scope":"after_loop","display_var":"total"}] 最終的な総計を最後に1回だけ表示する
 ### Test Cases
 - **Scenario**: Default
 - **Expected**: {"runtime_oracle":{"fixtures":[{"path":"orders.json","content":"[{\"Id\":1,\"Total\":10.5},{\"Id\":2,\"Total\":5.0}]"}],"return":true,"stdout":{"contains":["15.5"]}}}

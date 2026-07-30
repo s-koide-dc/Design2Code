@@ -18,7 +18,7 @@ class TestNaturalNumericPredicateAssets(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             design = Path(temp_dir) / "NaturalNumericPredicate.design.md"
             shutil.copy2(root / "scenarios" / "NaturalNumericPredicate.design.md", design)
-            result = DesignInferenceEngine().infer_then_freeze(str(design))
+            result = DesignInferenceEngine(allow_legacy_inference=True).infer_then_freeze(str(design))
             text = Path(result["output_path"]).read_text(encoding="utf-8")
         self.assertIn('"variable_hint":"Price"', text)
         self.assertIn('"operator":"Greater"', text)
@@ -38,7 +38,7 @@ class TestNaturalNumericPredicateAssets(unittest.TestCase):
             for name, expected in cases.items():
                 design = Path(temp_dir) / f"{name}.design.md"
                 shutil.copy2(root / "scenarios" / f"{name}.design.md", design)
-                result = DesignInferenceEngine().infer_then_freeze(str(design))
+                result = DesignInferenceEngine(allow_legacy_inference=True).infer_then_freeze(str(design))
                 text = Path(result["output_path"]).read_text(encoding="utf-8")
                 self.assertIn(expected, text, name)
 
@@ -51,7 +51,7 @@ class TestNaturalNumericPredicateAssets(unittest.TestCase):
             source = root / "scenarios" / "NaturalDisjunctivePredicate.design.md"
             design = work / "NaturalDisjunctivePredicate.design.md"
             shutil.copy2(source, design)
-            inferred = Path(DesignInferenceEngine().infer_then_freeze(str(design))["output_path"])
+            inferred = Path(DesignInferenceEngine(allow_legacy_inference=True).infer_then_freeze(str(design))["output_path"])
             runtime_design = work / "runtime" / "NaturalDisjunctivePredicate.design.md"
             runtime_design.parent.mkdir()
             shutil.copy2(inferred, runtime_design)
@@ -70,7 +70,7 @@ class TestNaturalNumericPredicateAssets(unittest.TestCase):
             work = Path(temp_dir)
             design = work / "NaturalConjunctivePredicate.design.md"
             shutil.copy2(root / "scenarios" / design.name, design)
-            inferred = Path(DesignInferenceEngine().infer_then_freeze(str(design))["output_path"])
+            inferred = Path(DesignInferenceEngine(allow_legacy_inference=True).infer_then_freeze(str(design))["output_path"])
             runtime_design = work / "runtime" / design.name
             runtime_design.parent.mkdir()
             shutil.copy2(inferred, runtime_design)
@@ -89,7 +89,7 @@ class TestNaturalNumericPredicateAssets(unittest.TestCase):
             work = Path(temp_dir)
             design = work / "NaturalNegatedPrefixPredicate.design.md"
             shutil.copy2(root / "scenarios" / design.name, design)
-            inferred = Path(DesignInferenceEngine().infer_then_freeze(str(design))["output_path"])
+            inferred = Path(DesignInferenceEngine(allow_legacy_inference=True).infer_then_freeze(str(design))["output_path"])
             runtime_design = work / "runtime" / design.name
             runtime_design.parent.mkdir()
             shutil.copy2(inferred, runtime_design)

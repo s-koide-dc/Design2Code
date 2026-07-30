@@ -14,34 +14,11 @@ if str(WORKSPACE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_ROOT))
 
 from scripts.design.review_design_generation_snapshot import build_review_snapshot
+from scripts.validate.validate_supported_generation_manifest import load_supported_designs
 from src.utils.cli_output import emit_error, emit_json_stdout
 
-QUALITY_DESIGNS = [
-    "scenarios/ComplexLinqSearch.design.md",
-    "scenarios/ConjunctiveLinqSearch.design.md",
-    "scenarios/DisjunctiveLinqSearch.design.md",
-    "scenarios/NegatedLinqSearch.design.md",
-    "scenarios/ExplicitConditionBranch.design.md",
-    "scenarios/CsvSalesAggregation.design.md",
-    "scenarios/ProductApiFilteredCatalog.design.md",
-    "scenarios/CustomerApiWithEntitySpec.design.md",
-    "scenarios/DailyInventorySync.design.md",
-    "scenarios/SecureOrderProcessing.design.md",
-    "scenarios/StateUpdatePersist.design.md",
-    "scenarios/AppModeEchoMinimal.design.md",
-    "scenarios/RobustConfigLoader.design.md",
-    "scenarios/StdinToStdoutTransform.design.md",
-    "scenarios/AggregationSummary.design.md",
-    "scenarios/SyncExternalData.design.md",
-]
-
-# One representative scenario per major boundary keeps the PR smoke check fast.
-SMOKE_DESIGNS = [
-    "scenarios/ComplexLinqSearch.design.md",
-    "scenarios/ProductApiFilteredCatalog.design.md",
-    "scenarios/StateUpdatePersist.design.md",
-    "scenarios/RobustConfigLoader.design.md",
-]
+QUALITY_DESIGNS = load_supported_designs("quality")
+SMOKE_DESIGNS = load_supported_designs("smoke")
 
 # Preserve the existing no-option behavior for local callers and CI integrations.
 DEFAULT_DESIGNS = QUALITY_DESIGNS

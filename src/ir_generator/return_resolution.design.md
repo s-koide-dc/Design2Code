@@ -22,7 +22,7 @@ explicit metadata、quoted literal、token 上の `true/false/null`、
 
 ### Core Logic
 1. explicit `source_var` がある場合はそれを `return_value` に正規化し、`source_var` resolution を付与する。
-2. explicit `return_value` がある場合はそれを優先し、`return_value_resolution` を正規化する。
+2. explicit `return_value` がある場合はそれを優先し、`return_value_resolution` を正規化する。JSON boolean は C# literal と同じ lowercase の `true` / `false`、JSON null は `null` に canonicalize して保持する。
 3. quoted literal があれば `quoted_literal` として保持する。
 4. token 上に `null` があれば `literal_null` とする。
 5. token 上に `true/false` があれば `literal_boolean` とする。

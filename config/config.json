@@ -18,7 +18,10 @@
         "max_recovery_attempts": 3
     },
     "generation": {
-        "strict_semantics": false
+        "strict_semantics": true
+    },
+    "design_inference": {
+        "require_explicit_step_metadata": true
     },
     "logging": {
         "sensitive_fields": [

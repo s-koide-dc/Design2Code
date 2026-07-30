@@ -23,6 +23,7 @@ from src.design_parser import inference_type_resolution
 from src.design_parser.inference_context import InferenceContext
 from src.design_parser import inference_structural_fallback
 from src.design_parser import inference_json_resolution
+from src.design_parser.compact_step_expander import expand_compact_steps
 from src.utils.entity_inference import infer_target_entity
 from src.utils.text_parser import extract_first_quoted_literal, extract_urls
 from src.utils.semantic_intents import (
@@ -96,7 +97,14 @@ class DesignInferenceEngine:
         },
     }
 
-    def __init__(self, config_manager: Optional[ConfigManager] = None, vector_engine=None, morph_analyzer=None):
+    def __init__(
+        self,
+        config_manager: Optional[ConfigManager] = None,
+        vector_engine=None,
+        morph_analyzer=None,
+        *,
+        allow_legacy_inference: bool = False,
+    ):
         self.config_manager = config_manager or ConfigManager()
         # A real local vector model is an optional candidate-expansion asset.  Do
         # not construct a missing-model engine: CI and portable checkouts must
@@ -116,6 +124,9 @@ class DesignInferenceEngine:
             "data_source_threshold": float(cfg.get("data_source_threshold", 0.85)),
             "refs_threshold": float(cfg.get("refs_threshold", 0.75)),
         }
+        self.require_explicit_step_metadata = bool(
+            cfg.get("require_explicit_step_metadata", False)
+        ) and not allow_legacy_inference
 
     def _load_local_vector_engine(self):
         model_path = getattr(self.config_manager, "vector_model_path", None)
@@ -132,6 +143,16 @@ class DesignInferenceEngine:
 
         with open(design_path, "r", encoding="utf-8") as f:
             original = f.read()
+        original, compact_errors = expand_compact_steps(original)
+        if compact_errors:
+            return {
+                "status": "blocked",
+                "message": "Compact step expansion failed.",
+                "issues": [
+                    {"step_index": error.line_number, "reason": "COMPACT_STEP_INVALID", "detail": error.detail}
+                    for error in compact_errors
+                ],
+            }
         self._assist_metadata = None
         if suggestion_payload:
             original, applied_steps = self._apply_literal_suggestions_to_content(original, suggestion_payload)
@@ -193,6 +214,15 @@ class DesignInferenceEngine:
                         source_ref = self._extract_source_ref_from_line(line)
                         if source_ref:
                             last_persist_path = source_ref
+                continue
+
+            if self.require_explicit_step_metadata:
+                issues.append(InferenceIssue(
+                    step_idx,
+                    "MISSING_EXPLICIT_STEP_METADATA",
+                    "Supported generation requires an explicit [KIND|INTENT|TARGET|OUTPUT|EFFECT] tag.",
+                ))
+                updated_lines.append(line)
                 continue
 
             inferred, issue, new_line, ds_updates = self._infer_line(
@@ -2059,10 +2089,12 @@ def infer_then_freeze_if_needed(
     vector_engine=None,
     morph_analyzer=None,
     suggestion_payload: Optional[Dict[str, Any]] = None,
+    allow_legacy_inference: bool = False,
 ) -> Dict[str, Any]:
     engine = DesignInferenceEngine(
         config_manager=config_manager,
         vector_engine=vector_engine,
         morph_analyzer=morph_analyzer,
+        allow_legacy_inference=allow_legacy_inference,
     )
     return engine.infer_then_freeze(design_path, suggestion_payload=suggestion_payload)

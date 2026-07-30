@@ -6,7 +6,7 @@ on:
 jobs:
   validate-local-assets:
     runs-on: [self-hosted, nlp-assets]
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       PYTHONUTF8: "1"
       LOCAL_ASSET_MANIFEST_PATH: ${{ vars.NLP_ASSET_MANIFEST_PATH }}
@@ -73,3 +73,22 @@ jobs:
             --workspace-root "$env:LOCAL_ASSET_WORKSPACE_ROOT" `
             --manifest "$env:LOCAL_ASSET_MANIFEST_PATH" `
             --output $reportPath
+
+      - name: Run asset-dependent integration regressions
+        shell: pwsh
+        run: |
+          Remove-Item Env:SKIP_VECTOR_MODEL -ErrorAction SilentlyContinue
+          python scripts/validate/validate_ci_test_matrix.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $matrix = Get-Content tests/ci_test_matrix.json -Raw | ConvertFrom-Json
+          $failed = @()
+          foreach ($entry in @($matrix.integration.ci_excluded)) {
+            $module = "tests.integration.$([System.IO.Path]::GetFileNameWithoutExtension($entry.file))"
+            python -m unittest $module -v
+            if ($LASTEXITCODE -ne 0) {
+              $failed += $module
+            }
+          }
+          if ($failed.Count -gt 0) {
+            throw "Asset-dependent integration failures: $($failed -join ', ')"
+          }

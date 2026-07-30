@@ -36,7 +36,11 @@ then creates a Windows junction for the ignored `resources/vectors` directory
 and copies the dictionary database into the isolated checkout. The workflow
 refuses to replace a checkout vector directory if it already exists.
 
-It then runs `run_local_semantic_quality_gate.py` as one gate. The report is
+It then runs `run_local_semantic_quality_gate.py` and every integration test
+listed in `tests/ci_test_matrix.json` under `integration.ci_excluded`. This
+keeps the GitHub-hosted job asset-free while making the otherwise-excluded
+documented-entrypoint, semantic-search, vector, conversation, end-to-end, and
+reverse-lookup paths mandatory on the controlled asset runner. The report is
 written to the runner's temporary directory and covers real-vector loading,
 semantic method search, JMDict lookup, and asset-backed natural-language
 numeric predicate generation. No report or asset is uploaded to GitHub.

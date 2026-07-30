@@ -55,6 +55,14 @@ class TestSemanticAssertions(unittest.TestCase):
 
         self.assertIn("required predicate goals are missing or changed for node: step_2", issues)
 
+    def test_predicate_contract_rejects_node_targeted_goal_mutation(self):
+        contract = build_predicate_preservation_contract({"steps": [{"id": "step_4", "intent": "LINQ", "logic": [{"type": "numeric", "operator": "Greater", "expected_value": 100}]}]})
+        blueprint = {"methods": [{"body": [{"type": "raw", "node_id": "step_4", "intent": "LINQ", "predicate_goals": [{"type": "numeric", "operator": "GreaterEqual", "expected_value": 100}]}]}]}
+
+        issues = evaluate_blueprint_contract(blueprint, contract)
+
+        self.assertEqual(["required predicate goals are missing or changed for node: step_4"], issues)
+
     def test_predicate_contract_rejects_lost_condition_predicate_evidence(self):
         contract = build_predicate_preservation_contract(
             {

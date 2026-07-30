@@ -20,12 +20,32 @@ from src.utils.asset_manifest import AssetManifestError, load_requirements, vali
 
 
 CAPABILITIES = ("semantic_method_search", "dictionary_search")
-TEST_MODULES = (
+CI_TEST_MATRIX = ROOT / "tests" / "ci_test_matrix.json"
+SEMANTIC_TEST_MODULES = (
     "tests.integration.test_vector_engine_real_model",
     "tests.integration.test_semantic_method_search",
     "tests.unit.test_semantic_analyzer_search",
     "tests.integration.test_natural_numeric_predicate_assets",
 )
+
+
+def asset_dependent_integration_modules(matrix_path: Path = CI_TEST_MATRIX) -> tuple[str, ...]:
+    """Read the explicit CI exclusion boundary; do not discover tests heuristically."""
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    excluded = matrix["integration"]["ci_excluded"]
+    modules = tuple(
+        f"tests.integration.{Path(entry['file']).stem}"
+        for entry in excluded
+    )
+    if len(modules) != len(set(modules)):
+        raise ValueError("CI exclusion matrix contains duplicate asset-dependent integration modules")
+    return modules
+
+
+def test_modules(matrix_path: Path = CI_TEST_MATRIX) -> tuple[str, ...]:
+    """Return the complete asset-dependent quality suite in stable order."""
+    combined = (*SEMANTIC_TEST_MODULES, *asset_dependent_integration_modules(matrix_path))
+    return tuple(dict.fromkeys(combined))
 
 
 def _run_module(module: str, timeout_seconds: int) -> dict[str, Any]:
@@ -109,7 +129,7 @@ def main() -> int:
         print(f"Local semantic quality gate: blocked ({args.output})", file=sys.stderr)
         return 2
 
-    report["tests"] = [_run_module(module, args.timeout_seconds) for module in TEST_MODULES]
+    report["tests"] = [_run_module(module, args.timeout_seconds) for module in test_modules()]
     report["status"] = "passed" if all(test["status"] == "passed" for test in report["tests"]) else "failed"
     _write_report(args.output, report)
     print(f"Local semantic quality gate: {report['status']} ({args.output})")

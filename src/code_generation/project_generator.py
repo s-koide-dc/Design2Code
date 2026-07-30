@@ -512,16 +512,20 @@ class ProjectGenerator:
             entity_plural = hints_entities.get("Entity Plural") or f"{entity_name}s"
             create_dto = hints_entities.get("Create Request DTO") or (dtos[0].get("name") if dtos else f"{entity_name}CreateRequest")
             response_dto = hints_entities.get("Response DTO") or (dtos[1].get("name") if len(dtos) > 1 else f"{entity_name}Response")
+            controller_module = next(
+                (module for module in modules if str(module.get("type", "")).lower() == "controller"),
+                {},
+            )
             entity_specs = [
                 {
                     "name": entity_name,
                     "plural": entity_plural,
                     "create_dto": create_dto,
                     "response_dto": response_dto,
-                    "controller": next((m.get("name") for m in modules if str(m.get("type", "")).lower() == "controller"), f"{entity_plural}Controller"),
+                    "controller": controller_module.get("name") or f"{entity_plural}Controller",
                     "service": next((m.get("name") for m in modules if str(m.get("type", "")).lower() == "service"), f"{entity_name}Service"),
                     "repository": next((m.get("name") for m in modules if str(m.get("type", "")).lower() == "repository"), f"{entity_name}Repository"),
-                    "routes": [],
+                    "routes": list(controller_module.get("routes") or []),
                     "create_mapping": generation_hints.get("dto_mapping", {}).get("create_to_entity", []),
                     "response_mapping": generation_hints.get("dto_mapping", {}).get("entity_to_response", []),
                 }

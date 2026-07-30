@@ -10,8 +10,8 @@
 - **Type/Format**: bool
 ### Core Logic
 - [data_source|APP_MODE|env] 環境変数 APP_MODE
-1. 環境変数 'APP_MODE' を取得する
-2. 取得したモードを表示する
+1. [step|FETCH|string|string|source=APP_MODE|source_kind=env] 環境変数 'APP_MODE' を取得する
+2. [step|DISPLAY|string|void] 取得したモードを表示する
 ### Test Cases
 - **Scenario**: Default
 - **Expected**: {"runtime_oracle":{"environment":{"APP_MODE":"runtime-test"},"return":true,"stdout":{"contains":["runtime-test"]}}}

@@ -1,34 +1,23 @@
-# -*- coding: utf-8 -*-
-import json
-import subprocess
-import tempfile
-import unittest
-from pathlib import Path
-from unittest.mock import patch
+from __future__ import annotations
 
-from scripts.validate import run_local_semantic_quality_gate
+import unittest
+
+from scripts.validate.run_local_semantic_quality_gate import (
+    SEMANTIC_TEST_MODULES,
+    asset_dependent_integration_modules,
+    test_modules,
+)
 
 
 class TestLocalSemanticQualityGate(unittest.TestCase):
-    def test_module_timeout_is_recorded(self):
-        with patch.object(
-            run_local_semantic_quality_gate.subprocess,
-            "run",
-            side_effect=subprocess.TimeoutExpired("python", 1),
-        ):
-            result = run_local_semantic_quality_gate._run_module("tests.example", 1)
+    def test_runs_every_explicitly_asset_dependent_integration_test(self):
+        excluded = asset_dependent_integration_modules()
+        self.assertEqual(7, len(excluded))
+        self.assertIn("tests.integration.test_documented_entrypoints", excluded)
+        self.assertIn("tests.integration.test_vector_engine_real_model", excluded)
 
-        self.assertEqual("timeout", result["status"])
-        self.assertIsNone(result["return_code"])
-
-    def test_report_is_written_atomically(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            output = Path(temp_dir) / "report.json"
-            run_local_semantic_quality_gate._write_report(output, {"status": "passed"})
-
-            self.assertEqual({"status": "passed"}, json.loads(output.read_text(encoding="utf-8")))
-            self.assertFalse(output.with_suffix(".json.tmp").exists())
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_combined_suite_preserves_each_module_once(self):
+        modules = test_modules()
+        self.assertEqual(len(modules), len(set(modules)))
+        self.assertTrue(set(SEMANTIC_TEST_MODULES).issubset(modules))
+        self.assertTrue(set(asset_dependent_integration_modules()).issubset(modules))

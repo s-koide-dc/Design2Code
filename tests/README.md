@@ -42,4 +42,5 @@ python -m unittest discover -s tests -p "test_*.py" -t .
 - `test_response_rewriter.py` のsubprocess／persistent subprocess／HTTPバックエンドテストは `RUN_RESPONSE_REWRITER_BACKENDS=1` のときだけ有効です。通常のユニット実行ではスキップされ、生成品質ジョブで明示的に実行されます。
 - `test_execution_verifier.py` のRoslyn構造解析テストは `RUN_EXECUTION_VERIFIER_TESTS=1` のときだけ有効です。通常のユニット実行ではスキップされ、生成品質ジョブで明示的に実行されます。
 - 実モデルを保持するローカル環境では [`docs/real_vector_model_validation.md`](../docs/real_vector_model_validation.md) の検証手順を実行します。
+- 実モデル・辞書・method-store資産を保持する環境では `python scripts/validate/run_local_semantic_quality_gate.py` を実行します。このゲートはCIマトリクスで除外した統合テストをすべて実行します。
 - モデル非依存のテストを明示的に実行する場合は `SKIP_VECTOR_MODEL=1` を設定します。

@@ -2508,6 +2508,34 @@ class TestCodeSynthesizerIntegration(unittest.TestCase):
         self.assertTrue(any("return true;" in c for c in raw_codes))
         self.assertFalse(any("return isValid;" in c for c in raw_codes))
 
+    def test_json_boolean_return_value_emits_lowercase_csharp_literal(self):
+        node = {
+            "id": "step_return_json_true",
+            "type": "ACTION",
+            "intent": "RETURN",
+            "role": "RETURN",
+            "target_entity": "bool",
+            "cardinality": "SINGLE",
+            "output_type": "bool",
+            "semantic_map": {
+                "spec_role": "RETURN",
+                "semantic_roles": {
+                    "return_value": True,
+                    "return_value_resolution": "literal_boolean",
+                },
+                "logic": [],
+            },
+        }
+        path = self._base_path()
+        path["method_return_type"] = "bool"
+
+        results = self.synthesizer.action_synthesizer.process_node(node, path)
+
+        self.assertTrue(results)
+        raw_codes = self._collect_all_raw_codes(results[0])
+        self.assertTrue(any("return true;" in code for code in raw_codes))
+        self.assertFalse(any("return True;" in code for code in raw_codes))
+
     def test_return_null_metadata_overrides_latest_object_variable(self):
         node = {
             "id": "step_return_null",

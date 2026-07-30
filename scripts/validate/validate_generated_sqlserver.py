@@ -16,6 +16,13 @@ if str(WORKSPACE_ROOT) not in sys.path:
 from src.code_generation.project_generator import ProjectGenerator
 from src.design_parser import ProjectSpecParser
 
+REQUIRED_GENERATED_TEST_FILES = (
+    "ProjectWiringTests.cs",
+    "ProjectEndpointTests.cs",
+    "ProjectSqliteEndpointTests.cs",
+    "ProjectSqlServerEndpointTests.cs",
+)
+
 
 def _run(command: list[str], *, cwd: Path | None = None) -> int:
     print(f"[sqlserver-ci] {' '.join(command)}", flush=True)
@@ -46,6 +53,10 @@ def _parse_args() -> argparse.Namespace:
         default="scenarios/SampleProject.design.md",
         help="Design document used to generate the representative project.",
     )
+    parser.add_argument(
+        "--test-filter",
+        help="Optional dotnet test filter for targeted diagnostics. The default runs every generated test.",
+    )
     return parser.parse_args()
 
 
@@ -67,20 +78,28 @@ def main() -> int:
         if not test_project.is_file():
             print(f"Generated test project not found: {test_project}", file=sys.stderr)
             return 1
+        missing_test_files = [
+            name for name in REQUIRED_GENERATED_TEST_FILES
+            if not (test_project.parent / name).is_file()
+        ]
+        if missing_test_files:
+            print(
+                "Generated project is missing required test families: " + ", ".join(missing_test_files),
+                file=sys.stderr,
+            )
+            return 1
 
-        return _run(
-            [
-                "dotnet",
-                "test",
-                str(test_project),
-                "--configuration",
-                "Release",
-                "--nologo",
-                "--filter",
-                "FullyQualifiedName~ProjectSqlServerEndpointTests",
-            ],
-            cwd=WORKSPACE_ROOT,
-        )
+        command = [
+            "dotnet",
+            "test",
+            str(test_project),
+            "--configuration",
+            "Release",
+            "--nologo",
+        ]
+        if args.test_filter:
+            command.extend(["--filter", args.test_filter])
+        return _run(command, cwd=WORKSPACE_ROOT)
 
 
 if __name__ == "__main__":

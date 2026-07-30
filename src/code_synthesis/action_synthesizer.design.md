@@ -24,7 +24,7 @@
 2. `audit_only` や project ops を先に処理する。
 3. action node に明示メソッド ID/名前がある場合は、推定 intent の専用 handler より先にそのメソッドを合成し、非 void 戻り値を後続ノードへ伝播する。
 4. `LOOP`, `CONDITION`, `RETURN`, `LINQ`, `CALC`, `DISPLAY/TRANSFORM` は専用 handler へ dispatch する。
-  - `RETURN` は `return_value_resolution` がある場合、latest var fallback より前に literal return、explicit `source_var`、または `input_link` 由来の exact upstream var を優先する。
+  - `RETURN` は `return_value_resolution` がある場合、latest var fallback より前に literal return、explicit `source_var`、または `input_link` 由来の exact upstream var を優先する。boolean literal は JSON/Python bool でも lowercase C# literal (`true` / `false`) として出力し、null は `null` として出力する。
   - `CALCULATE` は `calculate_source_resolution` がある場合、`active_scope_item` や latest var fallback より前に explicit `source_var` または `input_link` 由来の exact upstream var を優先する。
   - `calculate_source_resolution=default_scope_var` は weak retention として扱い、exact upstream node を捏造せず current `active_scope_item` に留める。
   - `TRANSFORM` は `transform_source_resolution` がある場合、`active_scope_item` より前に explicit `source_var` または `input_link` 由来の exact upstream var を優先する。

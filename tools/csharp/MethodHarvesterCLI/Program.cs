@@ -72,7 +72,7 @@ namespace MethodHarvesterCLI
                     }
 
                     Console.Error.WriteLine($"Harvesting from: {asm.FullName}");
-                    methods.AddRange(HarvestAssembly(asm));
+                    methods.AddRange(HarvestAssembly(asm, map));
                 }
                 catch (Exception ex)
                 {
@@ -84,16 +84,11 @@ namespace MethodHarvesterCLI
             Console.WriteLine(JsonSerializer.Serialize(result, options));
         }
 
-        static List<MethodInfoData> HarvestAssembly(Assembly asm)
+        static List<MethodInfoData> HarvestAssembly(Assembly asm, CapabilityMap? map)
         {
             var results = new List<MethodInfoData>();
-            // 修正: 'Repo' や 'Data' を含む不適切な名前空間を最初から排除する
             var types = asm.GetTypes()
-                .Where(t => t.IsPublic && !t.IsObsolete())
-                .Where(t => {
-                    string fn = t.FullName ?? "";
-                    return !fn.Contains("Repo") && !fn.Contains("Data.Repo") && !fn.Contains("Order") && !fn.Contains("Product");
-                });
+                .Where(t => t.IsPublic && !t.IsObsolete());
 
             foreach (var type in types)
             {
