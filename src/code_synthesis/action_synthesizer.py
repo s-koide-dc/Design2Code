@@ -688,7 +688,14 @@ class ActionSynthesizer:
             if return_value in all_vars:
                 return str(return_value)
             return None
-        if resolution in ["literal_boolean", "literal_null", "literal_numeric"]:
+        if resolution == "literal_boolean":
+            if isinstance(return_value, bool):
+                return "true" if return_value else "false"
+            normalized = str(return_value).strip().lower()
+            return normalized if normalized in {"true", "false"} else None
+        if resolution == "literal_null":
+            return "null"
+        if resolution == "literal_numeric":
             return str(return_value)
         if resolution in ["quoted_literal", "explicit_literal"]:
             return to_csharp_string_literal(str(return_value))

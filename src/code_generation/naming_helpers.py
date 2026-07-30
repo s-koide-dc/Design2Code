@@ -53,6 +53,10 @@ class NamingHelpers:
         entity_fields = self.parse_props(entity_props)
         if not create_mapping:
             create_mapping = self.build_default_mapping(create_dto_fields, entity_fields)
+            mapped_targets = {item["to"] for item in create_mapping}
+            for name, value_type in entity_fields:
+                if name == "CreatedAt" and name not in mapped_targets and str(value_type).lower() in {"datetime", "datetimeoffset"}:
+                    create_mapping.append({"from": "utcnow", "to": name})
         if not response_mapping:
             response_mapping = self.build_default_mapping(entity_fields, response_dto_fields)
         return {

@@ -34,12 +34,13 @@
 ### Core Logic
 1. `spec` から `tech/data_access/modules/entities/dtos/method_specs/validation/generation_hints` を抽出する。
 2. テンプレート `steps.json` と `validation.json` を読み込む。
-3. `entity_specs` が空の場合は `generation_hints` と `modules` から既定値を構成する。
+3. `entity_specs` が空の場合は `generation_hints` と `modules` から既定値を構成する。このとき Controller に明示された `routes` を補完した entity spec にそのまま引き継ぐ。
 4. `method_specs` が不足している場合は、CRUD テンプレートとエンティティ定義に基づいて内部的に補完する。  
    - サービス: `steps` / `core_logic` / `test_cases` を標準 CRUD で生成する。  
    - リポジトリ: SQL を含む `core_logic` と `steps` を標準 CRUD で生成する。
-5. DTO マッピングが未指定の場合は、同名プロパティのみを自動対応付けする。  
+5. DTO マッピングが未指定の場合は、同名プロパティを自動対応付けする。
    - `CreateRequest` → `Entity`、`Entity` → `Response` の順で補完する。
+   - 作成DTOに含まれない `CreatedAt: DateTime` / `DateTimeOffset` は `DateTime.UtcNow` を明示的に対応付ける。
 6. `method_specs` に既存の CRUD 指定がある場合は、同一種別のデフォルト補完を行わない。  
    - 例: `InventoryService.GetInventoryItems` が `service.list` を持つなら `GetInventory` は補完しない。
 7. Modules のメソッドシグネチャに `?` が含まれる場合は、サービス/リポジトリの戻り値型に反映する。  
@@ -53,7 +54,7 @@
 11. サービス/リポジトリのインターフェイスと実装をレンダリングし保存する。
 12. ルート定義があれば、コントローラをレンダリングする。`USE_CODE_SYNTH_PROJECT_ALL` が有効なら合成器でアクション本体を生成する。
    - `routes` からベースパスを推定し、二重パス（例: `catalogitems/catalog`）にならないようにする。
-13. `Program.cs` / `appsettings.json` / `<Project>.csproj` / テストプロジェクトを生成する。
+13. `Program.cs` / `appsettings.json` / `<Project>.csproj` / テストプロジェクトを生成する。route がある CRUD entity では、DI配線、HTTP endpoint、SQLite endpoint、SQL Server LocalDB endpoint のテスト群も生成する。
 14. `LogicAuditor` と `DesignDocRefiner` でロジック/設計書監査を行い、必要な警告は logger 経由で記録する。
 
 ### Test Cases
@@ -62,7 +63,9 @@
   - **Expected Output**: `Models/DTO/Services/Repositories/Controllers/Program.cs` が生成される。
 - **Edge Cases**:
   - **Scenario**: `entity_specs` が空。
-  - **Expected Output / Behavior**: `generation_hints` と `modules` から既定値を構築する。
+  - **Expected Output / Behavior**: `generation_hints` と `modules` から既定値を構築し、Controllerのrouteを引き継いだ endpoint テスト群を生成する。
+  - **Scenario**: Entity に `CreatedAt: datetime` があり、CreateRequest に同プロパティがない。
+  - **Expected Output / Behavior**: 作成DTOの `ToEntity()` は `CreatedAt = DateTime.UtcNow` を設定し、SQL Serverへの既定日時書込みを回避する。
   - **Scenario**: `modules` に宣言されていない Controller/Service/Repository がある。
   - **Expected Output / Behavior**: 警告が logger 経由で記録される。
 

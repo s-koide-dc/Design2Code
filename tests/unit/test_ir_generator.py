@@ -1207,6 +1207,18 @@ class TestIRGenerator(unittest.TestCase):
         self.assertEqual(roles.get("return_value_resolution"), "literal_boolean")
         self.assertIsNone(return_node.get("input_link"))
 
+    def test_explicit_json_boolean_return_value_is_normalized_for_csharp(self):
+        from src.ir_generator.return_resolution import infer_return_metadata
+
+        roles = infer_return_metadata(
+            "true を返す。",
+            [],
+            {"return_value": True},
+        )
+
+        self.assertEqual("true", roles.get("return_value"))
+        self.assertEqual("literal_boolean", roles.get("return_value_resolution"))
+
     def test_return_null_literal_metadata_is_preserved(self):
         steps = [
             "ユーザーを取得する。",

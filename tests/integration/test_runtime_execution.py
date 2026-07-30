@@ -1,6 +1,8 @@
 import unittest
 import os
 import tempfile
+import copy
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -128,6 +130,49 @@ namespace Common.Serialization {
         )
         self.assertTrue(manual_result["valid"], manual_result)
         self.assertEqual(1, manual_result["passed"])
+
+    def test_long_product_synchronization_rejects_price_boundary_mutation(self):
+        payload = self._build_review_snapshot_for_runtime(
+            "scenarios/LongProductSynchronization.design.md",
+            run_runtime_oracles=True,
+        )
+        self.assertEqual(6, payload["runtime_oracle"]["ready_count"], payload["runtime_oracle"])
+        self.assertEqual(6, payload["runtime_oracle_execution"]["passed"], payload["runtime_oracle_execution"])
+
+        mutation_cases = json.loads(Path("resources/semantic_mutation_cases.json").read_text(encoding="utf-8"))["cases"]
+        mutation_cases = [
+            item for item in mutation_cases
+            if item["design_path"] == "scenarios/LongProductSynchronization.design.md"
+            and item["case_id"] != "long_product_http_url_mutation"
+            and "target_node_id" in item
+        ]
+        self.assertEqual(3, len(mutation_cases))
+        parser = StructuredDesignParser(knowledge_base=self.synthesizer.ukb)
+        for mutation in mutation_cases:
+            mutated_spec = copy.deepcopy(parser.parse_design_file(payload["inferred_design_path"]))
+            target_step = next(step for step in mutated_spec["steps"] if step["id"] == mutation["target_node_id"])
+            target = target_step
+            for key in mutation["field_path"][:-1]:
+                target = target[key]
+            target[mutation["field_path"][-1]] = mutation["replacement"]
+            structural_result = self.synthesizer.synthesize_from_structured_spec(method_name=payload["module_name"], structured_spec=mutated_spec, return_trace=True, allow_fallback=False)
+            self.assertEqual("success", structural_result["status"], structural_result)
+            mutation_result = execute_runtime_oracles(source_code=structural_result["code"], module_name=payload["module_name"], oracle_summary={"cases": [next(case for case in payload["runtime_oracle"]["cases"] if case["scenario"] == mutation["runtime_oracle_scenario"])]}, verifier=self.verifier, dependencies=payload.get("resolved_dependencies", []))
+            self.assertFalse(mutation_result["valid"], mutation_result)
+            self.assertEqual(1, mutation_result["failed"], mutation_result)
+
+    def test_long_product_synchronization_rejects_http_url_mutation(self):
+        payload = self._build_review_snapshot_for_runtime("scenarios/LongProductSynchronization.design.md", run_runtime_oracles=True)
+        mutation = next(item for item in json.loads(Path("resources/semantic_mutation_cases.json").read_text(encoding="utf-8"))["cases"] if item["case_id"] == "long_product_http_url_mutation")
+        parser = StructuredDesignParser(knowledge_base=self.synthesizer.ukb)
+        mutated_spec = copy.deepcopy(parser.parse_design_file(payload["inferred_design_path"]))
+        target_step = next(step for step in mutated_spec["steps"] if step["id"] == mutation["target_node_id"])
+        target_step[mutation["field_path"][0]][mutation["field_path"][1]] = mutation["replacement"]
+        result = self.synthesizer.synthesize_from_structured_spec(method_name=payload["module_name"], structured_spec=mutated_spec, return_trace=True, allow_fallback=False)
+        self.assertEqual("success", result["status"], result)
+        runtime_result = execute_runtime_oracles(source_code=result["code"], module_name=payload["module_name"], oracle_summary={"cases": [next(case for case in payload["runtime_oracle"]["cases"] if case["scenario"] == mutation["runtime_oracle_scenario"])]}, verifier=self.verifier, dependencies=payload.get("resolved_dependencies", []))
+        self.assertFalse(runtime_result["valid"], runtime_result)
+        self.assertEqual(1, runtime_result["failed"], runtime_result)
 
     def test_app_mode_echo_generated_code_runtime_behavior(self):
         payload = self._build_review_snapshot_for_runtime(
@@ -560,6 +605,82 @@ public class SideEffectTest {
             "SIDE_EFFECT_EXECUTION_BLOCKED",
             runtime_result.get("error_type"),
         )
+
+    def test_runtime_oracle_accepts_expected_exception_and_preserves_database_state(self):
+        source_code = """
+using System;
+using Microsoft.Data.Sqlite;
+
+public class GeneratedProcessor
+{
+    public GeneratedProcessor(SqliteConnection connection) { }
+
+    public void FailingOperation()
+    {
+        throw new InvalidOperationException("upstream unavailable");
+    }
+}
+"""
+        contract = {
+            "sqlite": {"schema": ["CREATE TABLE Events (Id INTEGER PRIMARY KEY)"]},
+            "exception": {
+                "type": "InvalidOperationException",
+                "message": {"contains": ["upstream"], "not_contains": ["secret"]},
+            },
+            "db_assertions": [{
+                "query": "SELECT COUNT(*) FROM Events",
+                "scalar_type": "long",
+                "equals": 0,
+            }],
+        }
+        result = execute_runtime_oracles(
+            source_code=source_code,
+            module_name="FailingOperation",
+            oracle_summary={"cases": [{"status": "ready", "contract": contract}]},
+            verifier=self.verifier,
+        )
+
+        self.assertTrue(result["valid"], result)
+        self.assertEqual(1, result["passed"])
+
+    def test_runtime_oracle_accepts_http_failure_as_expected_exception(self):
+        source_code = """
+using System;
+using System.Net.Http;
+using System.Threading.Tasks;
+
+public class GeneratedProcessor
+{
+    private readonly HttpClient _httpClient;
+
+    public GeneratedProcessor(HttpClient httpClient) { _httpClient = httpClient; }
+
+    public async Task FailingOperation()
+    {
+        var response = await _httpClient.GetAsync("https://upstream.example.test/items");
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException("upstream request failed");
+    }
+}
+"""
+        contract = {
+            "await": True,
+            "http_responses": [{"status_code": 503, "body": "temporarily unavailable"}],
+            "http_requests": [{"method": "GET", "url": "https://upstream.example.test/items"}],
+            "exception": {
+                "type": "HttpRequestException",
+                "message": {"contains": ["upstream request failed"]},
+            },
+        }
+        result = execute_runtime_oracles(
+            source_code=source_code,
+            module_name="FailingOperation",
+            oracle_summary={"cases": [{"status": "ready", "contract": contract}]},
+            verifier=self.verifier,
+        )
+
+        self.assertTrue(result["valid"], result)
+        self.assertEqual(1, result["passed"])
 
     def test_return_default_uses_hoisted_result_runtime_semantics(self):
         spec = {

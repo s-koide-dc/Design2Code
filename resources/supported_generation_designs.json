@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "designs": [
+    {"design_path": "scenarios/AggregationSummary.design.md", "status": "verified", "verified_case_id": "aggregation_summary"},
+    {"design_path": "scenarios/AppModeEchoMinimal.design.md", "status": "verified", "verified_case_id": "app_mode_echo_minimal"},
+    {"design_path": "scenarios/BooleanReturnLiteral.design.md", "status": "verified", "verified_case_id": "boolean_return_literal"},
+    {"design_path": "scenarios/ComplexLinqSearch.design.md", "status": "verified", "verified_case_id": "complex_linq_search", "smoke": true},
+    {"design_path": "scenarios/ConjunctiveLinqSearch.design.md", "status": "verified", "verified_case_id": "conjunctive_linq_search"},
+    {"design_path": "scenarios/CsvSalesAggregation.design.md", "status": "verified", "verified_case_id": "csv_sales_aggregation"},
+    {"design_path": "scenarios/CustomerApiWithEntitySpec.design.md", "status": "verified", "verified_case_id": "customer_api_with_entity_spec"},
+    {"design_path": "scenarios/DailyInventorySync.design.md", "status": "verified", "verified_case_id": "daily_inventory_sync"},
+    {"design_path": "scenarios/DisjunctiveLinqSearch.design.md", "status": "verified", "verified_case_id": "disjunctive_linq_search"},
+    {"design_path": "scenarios/ExplicitConditionBranch.design.md", "status": "verified", "verified_case_id": "explicit_condition_branch"},
+    {"design_path": "scenarios/LongProductSynchronization.design.md", "status": "verified", "verified_case_id": "long_product_synchronization"},
+    {"design_path": "scenarios/NegatedLinqSearch.design.md", "status": "verified", "verified_case_id": "negated_linq_search"},
+    {"design_path": "scenarios/ProductApiFilteredCatalog.design.md", "status": "verified", "verified_case_id": "product_api_filtered_catalog", "smoke": true},
+    {"design_path": "scenarios/ProductApiLookupMinimal.design.md", "status": "verified", "verified_case_id": "product_api_lookup_minimal"},
+    {"design_path": "scenarios/RobustConfigLoader.design.md", "status": "verified", "verified_case_id": "robust_config_loader", "smoke": true},
+    {"design_path": "scenarios/SecureOrderProcessing.design.md", "status": "verified", "verified_case_id": "secure_order_processing"},
+    {"design_path": "scenarios/StateUpdatePersist.design.md", "status": "verified", "verified_case_id": "state_update_persist", "smoke": true},
+    {"design_path": "scenarios/StdinToStdoutTransform.design.md", "status": "verified", "verified_case_id": "stdin_to_stdout_transform"},
+    {"design_path": "scenarios/SyncExternalData.design.md", "status": "verified", "verified_case_id": "sync_external_data"}
+  ]
+}

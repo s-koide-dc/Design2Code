@@ -84,6 +84,11 @@ def infer_return_metadata(
         return roles
 
     if "return_value" in roles:
+        raw_return_value = roles.get("return_value")
+        if isinstance(raw_return_value, bool):
+            roles["return_value"] = "true" if raw_return_value else "false"
+        elif raw_return_value is None:
+            roles["return_value"] = "null"
         resolution = _infer_explicit_return_resolution(
             roles.get("return_value"),
             roles.get("return_value_resolution"),

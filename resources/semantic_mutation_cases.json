@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "long_product_price_inclusive_boundary",
+      "design_path": "scenarios/LongProductSynchronization.design.md",
+      "target_node_id": "step_4",
+      "field_path": ["logic", 0, "operator"],
+      "replacement": "GreaterEqual",
+      "runtime_oracle_scenario": "PriceBoundaryIsExcluded"
+    },
+    {
+      "case_id": "long_product_name_prefix_mutation",
+      "design_path": "scenarios/LongProductSynchronization.design.md",
+      "target_node_id": "step_3",
+      "field_path": ["logic", 0, "expected_value"],
+      "replacement": "B",
+      "runtime_oracle_scenario": "FilterSynchronizeAndDisplay"
+    },
+    {
+      "case_id": "long_product_persisted_price_mutation",
+      "design_path": "scenarios/LongProductSynchronization.design.md",
+      "target_node_id": "step_6",
+      "field_path": ["semantic_roles", "sql"],
+      "replacement": "INSERT INTO Products (Name, Price) VALUES (@Name, 0)",
+      "runtime_oracle_scenario": "FilterSynchronizeAndDisplay"
+    },
+    {
+      "case_id": "long_product_http_url_mutation",
+      "design_path": "scenarios/LongProductSynchronization.design.md",
+      "target_node_id": "step_1",
+      "field_path": ["semantic_roles", "url"],
+      "replacement": "https://api.example.com/products-preview",
+      "runtime_oracle_scenario": "FilterSynchronizeAndDisplay"
+    },
+    {
+      "case_id": "long_product_consistent_filter_shift_mutation",
+      "design_path": "scenarios/LongProductSynchronization.design.md",
+      "mutations": [
+        {
+          "target_node_id": "step_3",
+          "field_path": ["logic", 0, "expected_value"],
+          "replacement": "B"
+        },
+        {
+          "target_node_id": "step_9",
+          "field_path": ["logic", 0, "expected_value"],
+          "replacement": "B"
+        }
+      ],
+      "runtime_oracle_scenario": "FilterSynchronizeAndDisplay"
+    }
+  ]
+}

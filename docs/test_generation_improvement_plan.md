@@ -2,6 +2,8 @@
 
 本書は計画・履歴の記録であり、現行仕様の正本ではありません。現行の責務・契約は各モジュール設計書、公開導線は [documentation_source_of_truth.md](./documentation_source_of_truth.md) を参照してください。
 
+> 2026-07 時点の補足: 本書にある正規表現ベースの判定・修復案は歴史的背景であり、現行の設計書→コード生成経路には採用しない。現在の保証対象、runtime oracle、成功・失敗証跡は [supported_generation_contract.md](./supported_generation_contract.md) を正本とする。
+
 ## 1. 現状の課題分析 (Updated 2026-01-27)
 現在のテスト生成機能および自己修復サイクルには、以下の課題が特定されました。
 

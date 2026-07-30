@@ -12,6 +12,24 @@
 - `scripts/validate/validate_documentation_consistency.py`
   - 正本文書の存在、Markdownのローカルリンク、マシン依存パスを検証する。
   - `cache/`、`logs/`、生成済み `*.inferred.design.md` は検証対象外とする。
+- `scripts/validate/validate_verified_generation_cases.py`
+  - `resources/verified_generation_cases.json` の設計書hash・generation / compilation / generation quality / runtime oracle の証跡指紋・形式を検証する。
+  - `--execute` を付けると、登録済み成功例を生成・品質・runtime oracleまで再実行する。
+- `scripts/tools/register_verified_generation_case.py`
+  - 指定設計書を全品質ゲートで検証し、成功時だけ検証済み成功例台帳へ登録する。
+- `scripts/validate/fingerprint_scopes.py`
+  - 生成、コンパイル、生成品質、runtime oracle、プロジェクト生成の実装・直接読込設定依存を別々にSHA-256化する。証跡と無関係な変更では再検証を要求しない。
+- `scripts/validate/validate_semantic_mutation_cases.py`
+  - 構造化された設計ステップの単一または複数箇所の意味変異を再合成し、指定runtime oracleが必ず失敗することを検証する。
+  - runtime oracle はHTTP応答、SQLite状態に加えて、期待例外の型・メッセージと例外後のDB状態も検証できる。
+- `scripts/validate/validate_generation_failure_cases.py`
+  - 構造化された生成失敗台帳の設計書hash・generation fingerprint・停止段階・理由コードを検証する。
+- `scripts/validate/review_design_readiness.py`
+  - 生成前に明示ステップメタデータとStructuredSpecを確認し、openの失敗台帳にある同一理由コードの修正指針を返す。
+- `scripts/tools/register_generation_failure_case.py`
+  - 指定設計書の完全レビューが失敗した場合だけ、停止段階・理由コード・修正指針を失敗台帳へ登録する。
+- `scripts/tools/resolve_generation_failure_case.py`
+  - open の失敗ケースを、検証済み成功例のケースIDにリンクして resolved へ遷移させる。
 - `scripts/validate_design_authoring.py`
   - 新規 `.design.md` の初稿が現在の authoring 境界に収まっているかを 1 コマンドで判定する。
   - 既定では `original`, `drop_step_meta`, `drop_step_meta_refs`, `drop_step_meta_refs_ops` が deterministic に通ることと、`strip_tags_drop_literals` が `NO_CANDIDATE` で止まることを検証する。
@@ -57,14 +75,14 @@
   - `quality` には compiler warning、spec issue、未解決 marker、blueprint placeholder fetch、明示 LINQ predicate の Blueprint 保持、生成コードの保守性メトリクスを見た生成品質ゲート結果を含む。
   - 保守性メトリクスは通常 CodeBuilder/Roslyn の AST 解析を使い、`quality.maintainability.analysis_source` に `roslyn` を出力する。
   - `runtime_oracle` には Test Cases の `Expected` に書かれた明示 JSON oracle の集計を含む。自然文 expected は推測せず、`unverified` として残す。
-  - `--run-runtime-oracles` を付けると、`runtime_oracle.ready` なケースを xUnit assertion に変換し、`ExecutionVerifier` で生成コードを実行する。現在は file fixture、environment fixture、HTTP response fixture、SQLite schema/seed、method args、async await、return、stdout、file output、HTTP method/url/header/body assertion、DB scalar assertion（equals / not_equals / not_null / contains）を扱う。
+  - `--run-runtime-oracles` を付けると、`runtime_oracle.ready` なケースを xUnit assertion に変換し、`ExecutionVerifier` で生成コードを実行する。現在は file fixture、environment fixture、HTTP response fixture、SQLite schema/seed、method args、async await、return、stdout、file output、HTTP method/url/header/body assertion、DB scalar assertion（equals / not_equals / not_null / contains）を扱う。DB scalar assertion は `scalar_type` に `string` / `int` / `long` / `decimal` / `bool` を明示すると、文字列表現ではなく対応する C# 型で厳密比較する。
   - `--fail-on-maintainability` を付けると、保守性しきい値の finding も snapshot の失敗条件にする。
   - 中間表現だけでなく、実際の `.cs` を見て authoring 削減の妥当性を確認したいときのレビュー入口。
   - `--assist-endpoint-url` を付けると `literal_roles_only` assist を含めたレビューもできる。
 - `scripts/design/run_design_generation_regression.py`
   - 複数の `.design.md` をまとめて `review_design_generation_snapshot` と同じ基準で回帰確認する。
-  - 既定では `ComplexLinqSearch`, `ConjunctiveLinqSearch`, `DisjunctiveLinqSearch`, `ExplicitConditionBranch`, `CsvSalesAggregation`, `ProductApiFilteredCatalog`, `CustomerApiWithEntitySpec`, `DailyInventorySync`, `SecureOrderProcessing`, `StateUpdatePersist`, `AppModeEchoMinimal`, `RobustConfigLoader`, `StdinToStdoutTransform`, `AggregationSummary`, `SyncExternalData` を対象にし、`--design` を複数指定すると任意の組み合わせに差し替えられる。
-  - `--profile smoke` は JSON/LINQ、HTTP、SQLite更新、設定ファイル分岐を代表する4件を生成・静的品質確認する。`--profile quality`（既定）は全15件を対象とし、`--run-runtime-oracles` と組み合わせて実行時挙動も確認する。
+  - `--profile quality` の対象は `resources/supported_generation_designs.json` にある検証済み単一モジュール設計書、`--profile smoke` の対象は同マニフェストで `smoke: true` の設計書である。`--design` を複数指定すると任意の組み合わせに差し替えられる。
+  - `--profile smoke` は代表境界を短時間で確認し、`--profile quality`（既定）は正式サポート対象全件を確認する。`--run-runtime-oracles` と組み合わせて実行時挙動も検証する。
   - `--require-runtime-oracles` は `--run-runtime-oracles` と併用する。各シナリオの全Test Caseがreadyな明示oracleであり、実行済み・成功済みであることを必須にする。
   - 各ケースの `inference_status`, `verification_valid`, `quality_valid`, `quality_issue_count`, `spec_issue_count` と、元の詳細 payload を 1 つの JSON に集約する。
   - `--summary-only` を付けると各ケースの詳細 `payload` を省き、CI や一覧確認向けの軽量 JSON だけを出力する。
@@ -72,12 +90,14 @@
   - `--run-runtime-oracles` 付きでは `runtime_oracle_execution_valid`, `runtime_oracle_execution_passed`, `runtime_oracle_execution_failed` も出力し、明示 oracle の失敗をシナリオ失敗として扱う。
   - `runtime_oracle_failures` には失敗した oracle case の id / scenario / test 名 / assertion message の要約を出す。`--summary-only` でも残るため CI ログから原因を追いやすい。
   - `maintainability` には method 数、class 数、constructor 数、helper method 数、operation method 数、総行数、最大 method 行数、最大 try 数、最大 catch 数、最大 operation method 行数、最大 operation method try 数、最大 operation method catch 数、blueprint statement 数、analysis source、finding 一覧を観測値として出力する。
-  - CI の generation-quality job は `--fail-on-maintainability --run-runtime-oracles --summary-only` 付きで実行し、既定しきい値超過と明示 oracle 失敗を失敗扱いにする。
+  - CI の generation-quality job は成功台帳を再生し、各登録ケースを `--fail-on-maintainability --run-runtime-oracles --require-runtime-oracles --summary-only` 相当で実行する。品質しきい値超過、明示 oracle 不足、または oracle 失敗は CI 失敗となる。
   - `maintainability_finding_count` は保守性 finding の件数を示す。`--fail-on-maintainability` 付きの CI 実行では、1 件以上なら品質 NG として扱う。
   - GitHub Actions の `generation-quality` ジョブで必須実行し、品質ゲート失敗時は CI を失敗させる。
 - `scripts/validate/validate_generated_sqlserver.py`
-  - Windows上のLocalDBを事前確認・起動し、`SampleProject.design.md` から生成したプロジェクトのSQL Server実動作テストを実行する。
-  - GitHub Actionsでは `sqlserver-generation` ジョブから呼び出し、生成コードのビルドだけでなくLocalDBへのCRUD接続も検証する。
+  - Windows上のLocalDBを事前確認・起動し、指定Project Specから生成したプロジェクトの全テストを実行する。`--test-filter` は障害調査時だけに使う。
+- `scripts/validate/validate_verified_project_generation_cases.py`
+  - `resources/verified_project_generation_cases.json` の設計書hash・project generation fingerprint・プロジェクト検証証跡を確認する。
+  - `--execute` を付けると、登録済みプロジェクトを再生成し、DI配線・HTTP endpoint・SQLite・SQL Server LocalDBを含む生成テスト全件を実行する。
 - `scripts/design/audit_literal_tag_assist_coverage.py`
   - `scenarios/` 配下の `.design.md` を strip して `infer_then_freeze` に流し、`NO_CANDIDATE` で止まるケースと literal assist 推奨ケースを JSON で返す。
   - `assist_recommended` は、blocked 理由が `NO_CANDIDATE` で、かつ explicit literal-bearing candidate が残っているケースだけを示す。

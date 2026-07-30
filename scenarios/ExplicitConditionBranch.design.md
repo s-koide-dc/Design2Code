@@ -19,12 +19,12 @@
 ### Core Logic
 
 - [data_source|users_file|file] users.json
-1. [ACTION|FETCH|User|List<User>|IO|users_file|file] [semantic_roles:{"path":"users.json"}] ユーザー一覧を JSON ファイルから読み込む
+1. [step|FETCH|User|List<User>|source=users_file|source_kind=file] [semantic_roles:{"path":"users.json"}] ユーザー一覧を JSON ファイルから読み込む
 2. [LOOP|GENERAL|User|void|NONE] [refs:step_1] 各ユーザーに対して以下を繰り返す
 3. [CONDITION|EXISTS|User|bool|NONE] [refs:step_2] [logic:[{"type":"numeric","variable_hint":"Points","operator":"Greater","expected_value":100}]] Points が 100 より大きい場合
-4. [ACTION|DISPLAY|User|void|NONE] [refs:step_3] [semantic_roles:{"property":"Name"}] ユーザー名を表示する
+4. [step|DISPLAY|User|void] [refs:step_3] [semantic_roles:{"property":"Name"}] ユーザー名を表示する
 5. [ELSE|GENERAL] [refs:step_3] Points が 100 以下の場合
-6. [ACTION|DISPLAY|string|void|NONE] [semantic_roles:{"message":"inactive","output_channel":"stdout"}] inactive を表示する
+6. [step|DISPLAY|string|void] [semantic_roles:{"message":"inactive","output_channel":"stdout"}] inactive を表示する
 7. [END|GENERAL] [refs:step_3]
 8. [END|GENERAL] [refs:step_2]
 

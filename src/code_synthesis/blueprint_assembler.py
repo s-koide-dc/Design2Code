@@ -48,7 +48,10 @@ class BlueprintAssembler:
         usings = set(path.get("all_usings", []))
 
         # A-3. Async Signature Correction (Strict Enforcement)
-        is_async = path.get("is_async_needed", False)
+        raw_ret = path.get("method_return_type") or "void"
+        is_async = path.get("is_async_needed", False) or (
+            isinstance(raw_ret, str) and (raw_ret == "Task" or raw_ret.startswith("Task<"))
+        )
         if not is_async:
             for stmt in path.get("statements", []):
                 if stmt.get("is_async"):
@@ -74,7 +77,6 @@ class BlueprintAssembler:
                 if "ILogger" in p_type: usings.add("Microsoft.Extensions.Logging")
 
         # Determine the final return type of the method
-        raw_ret = path.get("method_return_type") or "void"
         # ... (return type detection logic) ...
         if raw_ret == "void" and path.get("statements"):
             last_stmt = path["statements"][-1]

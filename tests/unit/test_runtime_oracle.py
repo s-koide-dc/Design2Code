@@ -121,6 +121,18 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertEqual(1, summary["invalid_count"])
         self.assertIn("tc_1: db_assertions[0].query must be a non-empty string", summary["issues"])
 
+    def test_typed_db_assertion_rejects_mismatched_expected_value(self):
+        contract, issues = normalize_runtime_oracle_contract({
+            "db_assertions": [{
+                "query": "SELECT COUNT(*) FROM Products",
+                "scalar_type": "long",
+                "equals": "1",
+            }],
+        })
+
+        self.assertEqual("long", contract["db_assertions"][0]["scalar_type"])
+        self.assertIn("db_assertions[0].equals must match scalar_type=long", issues)
+
     def test_invalid_http_response_contract_is_reported(self):
         spec = {
             "test_cases": [{
@@ -149,6 +161,31 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertEqual({"return": True, "stdout": {"contains": ["ok"]}}, contract)
         self.assertIn("stdout.count is not a supported assertion", issues)
         self.assertIn("database is not a supported runtime_oracle assertion", issues)
+
+    def test_normalizes_expected_exception_contract(self):
+        contract, issues = normalize_runtime_oracle_contract({
+            "exception": {
+                "type": "InvalidOperationException",
+                "message": {"contains": ["upstream"], "not_contains": ["secret"]},
+            },
+        })
+
+        self.assertEqual([], issues)
+        self.assertEqual("InvalidOperationException", contract["exception"]["type"])
+        self.assertEqual(["upstream"], contract["exception"]["message"]["contains"])
+
+    def test_rejects_invalid_expected_exception_contract(self):
+        _, issues = normalize_runtime_oracle_contract({"exception": {"type": ""}})
+
+        self.assertIn("exception.type must be a non-empty string", issues)
+
+    def test_rejects_ambiguous_return_and_expected_exception(self):
+        _, issues = normalize_runtime_oracle_contract({
+            "return": True,
+            "exception": {"type": "InvalidOperationException"},
+        })
+
+        self.assertIn("exception cannot be combined with return", issues)
 
     def test_build_runtime_oracle_test_code_renders_explicit_contract(self):
         test_code = build_runtime_oracle_test_code(
@@ -193,6 +230,24 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertIn('Assert.Equal("https://api.example.com/products", handler.Requests[0].RequestUri?.ToString())', test_code)
         self.assertIn('Headers.TryGetValues("X-API-Key", out var headerValues0_0)', test_code)
         self.assertIn('Assert.Contains("secret", headerValues0_0)', test_code)
+
+    def test_build_runtime_oracle_test_code_renders_expected_exception(self):
+        test_code = build_runtime_oracle_test_code(
+            "FailingOperation",
+            {
+                "exception": {
+                    "type": "InvalidOperationException",
+                    "message": {"contains": ["upstream"]},
+                },
+                "sqlite": {"schema": ["CREATE TABLE Events (Id INTEGER PRIMARY KEY)"]},
+                "db_assertions": [{"query": "SELECT COUNT(*) FROM Events", "scalar_type": "long", "equals": 0}],
+            },
+        )
+
+        self.assertIn("Exception? capturedException = null", test_code)
+        self.assertIn('Assert.Equal("InvalidOperationException", capturedException!.GetType().Name)', test_code)
+        self.assertIn('Assert.Contains("upstream", exceptionMessage)', test_code)
+        self.assertIn("QuerySingleOrDefaultAsync<long>", test_code)
 
     def test_build_runtime_oracle_test_code_renders_environment_contract(self):
         test_code = build_runtime_oracle_test_code(
@@ -250,6 +305,50 @@ class TestRuntimeOracle(unittest.TestCase):
         self.assertIn("await connection.QuerySingleOrDefaultAsync<object>", test_code)
         self.assertIn("Assert.NotNull(dbValue0)", test_code)
         self.assertIn('Assert.NotEqual("2020-01-01T00:00:00", dbValue0?.ToString())', test_code)
+
+    def test_build_runtime_oracle_test_code_renders_typed_db_scalar_assertions(self):
+        test_code = build_runtime_oracle_test_code(
+            "LongProductSynchronization",
+            {
+                "await": True,
+                "sqlite": {"schema": ["CREATE TABLE Products (Name TEXT)"]},
+                "db_assertions": [
+                    {
+                        "query": "SELECT COUNT(*) FROM Products",
+                        "scalar_type": "long",
+                        "equals": 1,
+                    },
+                    {
+                        "query": "SELECT Name FROM Products",
+                        "scalar_type": "string",
+                        "equals": "Alpha",
+                    },
+                ],
+            },
+        )
+
+        self.assertIn("QuerySingleOrDefaultAsync<long>", test_code)
+        self.assertIn("Assert.Equal(1L, dbValue0)", test_code)
+        self.assertIn("QuerySingleOrDefaultAsync<string>", test_code)
+        self.assertIn('Assert.Equal("Alpha", dbValue1)', test_code)
+
+    def test_build_runtime_oracle_test_code_renders_typed_db_rows(self):
+        test_code = build_runtime_oracle_test_code("Rows", {"sqlite": {"schema": ["CREATE TABLE Products (Name TEXT, Price INTEGER)"]}, "db_rows": [{"query": "SELECT Name, Price FROM Products ORDER BY Price", "columns": [{"name": "Name", "scalar_type": "string"}, {"name": "Price", "scalar_type": "int"}], "rows": [["Alpha", 120]]}]})
+        self.assertIn("QueryAsync", test_code)
+        self.assertIn("Assert.Equal(1, dbRows0.Count)", test_code)
+        self.assertIn('Convert.ToInt32(dbRow0_0["Price"]', test_code)
+
+    def test_build_runtime_oracle_test_code_renders_null_db_row_cell(self):
+        test_code = build_runtime_oracle_test_code("Rows", {"sqlite": {"schema": ["CREATE TABLE Products (Name TEXT)"]}, "db_rows": [{"query": "SELECT Name FROM Products", "columns": [{"name": "Name", "scalar_type": "string"}], "rows": [[None]]}]})
+        self.assertIn('Assert.Null(dbRow0_0["Name"])', test_code)
+
+    def test_build_runtime_oracle_test_code_matches_unordered_db_rows_once(self):
+        contract, issues = normalize_runtime_oracle_contract({"db_rows": [{"query": "SELECT Name FROM Products", "order": "any", "columns": [{"name": "Name", "scalar_type": "string"}], "rows": [["Alpha"], ["Alpha"]]}]})
+        self.assertEqual([], issues)
+        test_code = build_runtime_oracle_test_code("Rows", contract)
+        self.assertIn("var dbMatched0 = new bool[dbRows0.Count]", test_code)
+        self.assertIn("if (dbMatched0[dbActual0_0Index]) continue", test_code)
+        self.assertIn("dbMatched0[dbActual0_0Index] = true", test_code)
 
     def test_structured_parser_preserves_explicit_oracle_json(self):
         markdown = """

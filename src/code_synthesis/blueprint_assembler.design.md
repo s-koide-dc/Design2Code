@@ -32,7 +32,7 @@ The `BlueprintAssembler` acts as the final assembly stage [Phase 23.2] in the Co
     -   Add `Microsoft.Extensions.Logging` if logging is active.
 
 #### 2.3.2 Async/Await Detection
-1.  **Flag Check**: Check `path.get("is_async_needed")`.
+1.  **Flag Check**: Check `path.get("is_async_needed")`; an explicit `Task` or `Task<T>` method return type also makes the signature async, even when no awaited operation exists.
 2.  **Code Scan**: Iterate through all statements. If any statement contains the substring `await `, force `is_async = True`.
 3.  **Return Type Adjustment**: If async, wrap the return type in `Task<T>` (or `Task` if void).
 

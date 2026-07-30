@@ -170,6 +170,7 @@ src/
 ├── refactoring_operations/ # リファクタリング操作
 ├── replanner/              # 再計画
 ├── response_generator/     # 応答生成
+├── response_rewriter/      # 応答の自然化（実験機能）
 ├── safety/                 # 安全性検証
 ├── semantic_analyzer/      # 意味解析
 ├── semantic_search/        # ベクトル検索

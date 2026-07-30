@@ -44,7 +44,7 @@
 ### Core Logic
 1. `--map <path>` または `METHOD_CAPABILITY_MAP` 環境変数、同梱 `method_capability_map.json` を探索して capability map を読み込む。
 2. 引数で与えられたアセンブリを順にロードする（ファイルパス、名前、実行中アセンブリ、System の dll 既定パス）。
-3. 公開型のうち Obsolete を除外し、名前空間に `Repo` / `Data.Repo` / `Order` / `Product` を含む型は除外する。
+3. 公開型のうち Obsolete を除外する。型名・名前空間のキーワードで収集対象を恣意的に除外しない。
 4. 各型の公開メソッドから `MethodInfoData` を生成し、以下を採取する:
    - `Id`, `Name`, `Class`, `ReturnType`, `Params`, `IsStatic`, `Definition`, `Tier`
    - 属性または capability map により `Intent`, `Capabilities`, `ParamRoles` を補完
@@ -63,3 +63,6 @@
 - **Internal**: なし
 - **External**: `.NET Reflection`, `System.Text.Json`, `System.IO`, `System.Linq`
 
+## 4. Review Notes
+
+- 2026-07-27: capability map をアセンブリ収集処理へ明示的に渡すよう修正し、map による intent / capability / parameter role の補完を実行可能にした。再発防止としてCIでビルドと `System.Private.CoreLib` の収集スモークを行う。

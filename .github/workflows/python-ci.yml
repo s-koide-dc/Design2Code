@@ -206,8 +206,26 @@ jobs:
       - name: Verify asset-free local setup
         run: python scripts/validate/diagnose_local_environment.py --require design_generation
 
-      - name: Build CodeBuilder
-        run: dotnet build tools/csharp/CodeBuilder/CodeBuilder.csproj --nologo
+      - name: Build C# tools
+        shell: pwsh
+        run: |
+          $projects = @(
+            "tools/csharp/CodeBuilder/CodeBuilder.csproj",
+            "tools/csharp/MethodHarvesterCLI/MethodHarvesterCLI.csproj",
+            "tools/csharp/MyRoslynAnalyzer/MyRoslynAnalyzer.csproj"
+          )
+          foreach ($project in $projects) {
+            dotnet build $project --nologo
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Smoke test MethodHarvesterCLI
+        shell: pwsh
+        run: |
+          $result = dotnet run --project tools/csharp/MethodHarvesterCLI/MethodHarvesterCLI.csproj -- System.Private.CoreLib 2> $null | ConvertFrom-Json
+          if (-not $result.methods -or $result.methods.Count -eq 0) {
+            throw "MethodHarvesterCLI returned no methods for System.Private.CoreLib."
+          }
 
       - name: Run generated code smoke regression
         run: python scripts/design/run_design_generation_regression.py --profile smoke --fail-on-maintainability --summary-only
@@ -240,8 +258,8 @@ jobs:
       - name: Build CodeBuilder
         run: dotnet build tools/csharp/CodeBuilder/CodeBuilder.csproj --nologo
 
-      - name: Run generated code quality regression
-        run: python scripts/design/run_design_generation_regression.py --profile quality --fail-on-maintainability --run-runtime-oracles --require-runtime-oracles --summary-only
+      - name: Replay registered generation-quality cases
+        run: python scripts/validate/validate_verified_generation_cases.py --execute
 
       - name: Run generated code runtime behavior regression
         run: python -m unittest tests.integration.test_runtime_execution -v
@@ -288,9 +306,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
-      - name: Run generated SQL Server integration tests
+      - name: Replay verified project generation cases
         shell: pwsh
-        run: python scripts/validate/validate_generated_sqlserver.py
+        run: python scripts/validate/validate_verified_project_generation_cases.py --execute
 
   security:
     runs-on: windows-latest
@@ -348,6 +366,30 @@ jobs:
 
       - name: Validate documentation consistency
         run: python scripts/validate/validate_documentation_consistency.py
+
+      - name: Validate verified generation-case registry
+        run: python scripts/validate/validate_verified_generation_cases.py
+
+      - name: Validate generation failure-case registry
+        run: python scripts/validate/validate_generation_failure_cases.py --execute
+
+      - name: Validate semantic mutation-case registry
+        run: python scripts/validate/validate_semantic_mutation_cases.py --execute
+
+      - name: Validate supported generation design manifest
+        run: python scripts/validate/validate_supported_generation_manifest.py
+
+      - name: Review representative supported design readiness
+        shell: pwsh
+        run: |
+          $designs = Get-Content resources/supported_generation_designs.json -Raw | ConvertFrom-Json |
+            ForEach-Object { $_.designs } |
+            Where-Object { $_.status -eq "verified" } |
+            ForEach-Object { $_.design_path }
+          foreach ($design in $designs) {
+            python scripts/validate/review_design_readiness.py --design $design
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
       - name: Validate configuration files
         run: python -c "from src.config.config_manager import ConfigManager; ConfigManager(strict=True)"

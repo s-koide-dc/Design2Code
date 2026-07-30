@@ -23,6 +23,14 @@ def csharp_literal(value: Any) -> str:
     raise TypeError(f"Unsupported oracle literal type: {type(value).__name__}")
 
 
+def _csharp_db_scalar_literal(value: Any, scalar_type: str) -> str:
+    if scalar_type == "long":
+        return f"{int(value)}L"
+    if scalar_type == "decimal":
+        return f"{value}m"
+    return csharp_literal(value)
+
+
 def _render_text_assertions(expression: str, assertion: Dict[str, Any]) -> List[str]:
     lines: List[str] = []
     for expected in assertion.get("contains", []) or []:
@@ -103,19 +111,78 @@ def _render_db_assertions(assertions: List[Dict[str, Any]]) -> List[str]:
     for index, assertion in enumerate(assertions):
         value_var = f"dbValue{index}"
         query_literal = csharp_string_literal(assertion["query"])
-        lines.append(f"            var {value_var} = await connection.QuerySingleOrDefaultAsync<object>({query_literal});")
+        scalar_type = assertion.get("scalar_type")
+        csharp_type = scalar_type or "object"
+        lines.append(
+            f"            var {value_var} = await connection.QuerySingleOrDefaultAsync<{csharp_type}>({query_literal});"
+        )
         if assertion.get("not_null"):
             lines.append(f"            Assert.NotNull({value_var});")
         if "equals" in assertion:
-            lines.append(f"            Assert.Equal({csharp_literal(assertion['equals'])}, {value_var});")
+            expected = _csharp_db_scalar_literal(assertion["equals"], scalar_type) if scalar_type else csharp_literal(assertion["equals"])
+            lines.append(f"            Assert.Equal({expected}, {value_var});")
         if "not_equals" in assertion:
             expected = assertion["not_equals"]
-            if isinstance(expected, str):
+            if scalar_type:
+                lines.append(
+                    f"            Assert.NotEqual({_csharp_db_scalar_literal(expected, scalar_type)}, {value_var});"
+                )
+            elif isinstance(expected, str):
                 lines.append(f"            Assert.NotEqual({csharp_literal(expected)}, {value_var}?.ToString());")
             else:
                 lines.append(f"            Assert.NotEqual({csharp_literal(expected)}, {value_var});")
         if "contains" in assertion:
             lines.append(f"            Assert.Contains({csharp_string_literal(assertion['contains'])}, {value_var}?.ToString());")
+    return lines
+
+
+def _render_db_rows(assertions: List[Dict[str, Any]]) -> List[str]:
+    lines: List[str] = []
+    for index, assertion in enumerate(assertions):
+        rows_var = f"dbRows{index}"
+        lines.append(f"            var {rows_var} = (await connection.QueryAsync({csharp_string_literal(assertion['query'])})).ToList();")
+        lines.append(f"            Assert.Equal({len(assertion['rows'])}, {rows_var}.Count);")
+        if assertion.get("order") == "any":
+            lines.append(f"            var dbMatched{index} = new bool[{rows_var}.Count];")
+        for row_index, expected_row in enumerate(assertion["rows"]):
+            if assertion.get("order") == "any":
+                found_var = f"dbExpected{index}_{row_index}Found"
+                actual_index = f"dbActual{index}_{row_index}Index"
+                row_var = f"dbRow{index}_{row_index}"
+                conditions = []
+                for column, expected in zip(assertion["columns"], expected_row):
+                    cell = f"{row_var}[{csharp_string_literal(column['name'])}]"
+                    if expected is None:
+                        conditions.append(f"{cell} == null")
+                    else:
+                        value = _csharp_db_scalar_literal(expected, column["scalar_type"])
+                        conversion = {"string": "ToString", "int": "ToInt32", "long": "ToInt64", "decimal": "ToDecimal", "bool": "ToBoolean"}[column["scalar_type"]]
+                        conditions.append(f"Convert.{conversion}({cell}, CultureInfo.InvariantCulture) == {value}")
+                lines.extend([
+                    f"            var {found_var} = false;",
+                    f"            for (var {actual_index} = 0; {actual_index} < {rows_var}.Count; {actual_index}++)",
+                    "            {",
+                    f"                if (dbMatched{index}[{actual_index}]) continue;",
+                    f"                var {row_var} = (IDictionary<string, object>){rows_var}[{actual_index}];",
+                    f"                if ({' && '.join(conditions)})",
+                    "                {",
+                    f"                    dbMatched{index}[{actual_index}] = true;",
+                    f"                    {found_var} = true;",
+                    "                    break;",
+                    "                }",
+                    "            }",
+                    f"            Assert.True({found_var}, \"Expected unordered database row was not found.\");",
+                ])
+                continue
+            row_var = f"dbRow{index}_{row_index}"
+            lines.append(f"            var {row_var} = (IDictionary<string, object>){rows_var}[{row_index}];")
+            for column, expected in zip(assertion["columns"], expected_row):
+                if expected is None:
+                    lines.append(f"            Assert.Null({row_var}[{csharp_string_literal(column['name'])}]);")
+                    continue
+                value = _csharp_db_scalar_literal(expected, column["scalar_type"])
+                conversion = {"string": "ToString", "int": "ToInt32", "long": "ToInt64", "decimal": "ToDecimal", "bool": "ToBoolean"}[column["scalar_type"]]
+                lines.append(f"            Assert.Equal({value}, Convert.{conversion}({row_var}[{csharp_string_literal(column['name'])}], CultureInfo.InvariantCulture));")
     return lines
 
 
@@ -129,9 +196,11 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
     uses_http = bool(http_responses or http_requests)
     sqlite = contract.get("sqlite", {}) or {}
     db_assertions = contract.get("db_assertions", []) or []
-    uses_sqlite = bool(sqlite or db_assertions)
+    db_rows = contract.get("db_rows", []) or []
+    uses_sqlite = bool(sqlite or db_assertions or db_rows)
     file_assertions = contract.get("files", []) or []
     has_stdout = bool(contract.get("stdout"))
+    exception_assertion = contract.get("exception") or {}
     awaits_call = bool(contract.get("await"))
     awaits_request_assertions = _has_http_body_assertions(http_requests)
     call_prefix = "var result = " if "return" in contract else ""
@@ -207,12 +276,29 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
         lines.append(f"            Console.SetIn(new StringReader({csharp_string_literal(stdin)}));")
     if has_stdout:
         lines.append("            Console.SetOut(capturedOut);")
-    lines.extend([
-        "",
-        f"            {call_prefix}{await_prefix}{processor_expr}.{module_name}({method_args});",
-    ])
-    if "return" in contract:
-        lines.append(f"            Assert.Equal({csharp_literal(contract['return'])}, result);")
+    if exception_assertion:
+        lines.extend([
+            "",
+            "            Exception? capturedException = null;",
+            "            try",
+            "            {",
+            f"                {call_prefix}{await_prefix}{processor_expr}.{module_name}({method_args});",
+            "            }",
+            "            catch (Exception exception)",
+            "            {",
+            "                capturedException = exception;",
+            "            }",
+            "            Assert.NotNull(capturedException);",
+            f"            Assert.Equal({csharp_string_literal(exception_assertion['type'])}, capturedException!.GetType().Name);",
+        ])
+        if exception_assertion.get("message"):
+            lines.append("            var exceptionMessage = capturedException!.Message;")
+            lines.extend(_render_text_assertions("exceptionMessage", exception_assertion["message"]))
+    else:
+        lines.append("")
+        lines.append(f"            {call_prefix}{await_prefix}{processor_expr}.{module_name}({method_args});")
+        if "return" in contract:
+            lines.append(f"            Assert.Equal({csharp_literal(contract['return'])}, result);")
     if has_stdout:
         lines.append("            var stdout = capturedOut.ToString();")
         lines.extend(_render_text_assertions("stdout", contract["stdout"]))
@@ -248,6 +334,8 @@ def build_runtime_oracle_test_code(module_name: str, contract: Dict[str, Any]) -
                 lines.extend(_render_text_assertions(body_var, request["body"]))
     if db_assertions:
         lines.extend(_render_db_assertions(db_assertions))
+    if db_rows:
+        lines.extend(_render_db_rows(db_rows))
     lines.extend([
         "        }",
         "        finally",

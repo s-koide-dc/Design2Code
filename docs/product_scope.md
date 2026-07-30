@@ -18,6 +18,11 @@ The product does not claim to accept arbitrary natural-language requirements,
 schemas, SQL, or external services.  Missing semantic information must produce
 a diagnostic or an `unverified` result rather than an invented implementation.
 
+Supported generation requires every Core Logic step to carry an explicit
+`[KIND|INTENT|TARGET|OUTPUT|EFFECT]` tag.  The legacy infer-then-freeze path
+can be enabled only by an explicit caller option for research and migration;
+it is not part of the supported product contract.
+
 ## Capability tiers
 
 | Tier | Capability | Release expectation |

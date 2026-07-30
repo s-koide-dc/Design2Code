@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "explicit_boolean_return_compilation_verification_failed",
+      "design_path": "tests/fixtures/designs/ExplicitBooleanReturn.design.md",
+      "design_sha256": "b30eb9cfddce723e64b51bc36e345753b4e114ab4e67138af3a8c687864636f8",
+      "generation_fingerprint": "2d3e3b72eb850f9a8b967158977580ac370878cc39afb1905abe0a6b7b4ea8be",
+      "observed_at": "2026-07-28T02:09:27Z",
+      "stage": "compilation",
+      "reason": "COMPILATION_VERIFICATION_FAILED",
+      "guidance": "Inspect the compiler diagnostics in the snapshot and correct the explicit IR or generator defect.",
+      "status": "resolved",
+      "resolution": {
+        "verified_case_id": "boolean_return_literal",
+        "resolved_at": "2026-07-28T02:12:15Z"
+      }
+    },
+    {
+      "case_id": "missing_step_metadata_missing_explicit_step_metadata",
+      "design_path": "tests/fixtures/designs/MissingStepMetadata.design.md",
+      "design_sha256": "04be3136ff28038541b8a51731677014cf15724fc92183d7bb82887c96ed8476",
+      "generation_fingerprint": "2d3e3b72eb850f9a8b967158977580ac370878cc39afb1905abe0a6b7b4ea8be",
+      "observed_at": "2026-07-28T00:18:50Z",
+      "stage": "design_inference",
+      "reason": "MISSING_EXPLICIT_STEP_METADATA",
+      "guidance": "Add an explicit [KIND|INTENT|TARGET|OUTPUT|EFFECT] tag to the blocked Core Logic step.",
+      "status": "open"
+    }
+  ]
+}

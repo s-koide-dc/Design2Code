@@ -1,126 +1,36 @@
-<!--
-NOTE: This document is the Human Spec template.
-Machine Spec details (steps/ops/SQL/test JSON) are auto-completed during generation.
-For non-standard behavior, explicitly document it here.
-Refer to /AIFiles/CONVENTIONS.md for mandatory rules.
--->
-
-# naming_helpers Design Document (Human Spec)
-
-*This document is a template. When creating a new module, replace `naming_helpers` and fill in each section.*
-
-## 1. Purpose
-
-A clear and concise description of the module's responsibility and its role within the project. What problem does it solve?
-
-## 2. Structured Specification
-
-This section is the **single source of truth** for the module's behavior, used to drive implementation and testing.
-
-### Input
-- **Description**: What data does this module receive?
-- **Type/Format**: e.g., `Array<Object>`, `JSON string`.
-- **Example**: (optional)
-
-### Output
-- **Description**: What data does this module return?
-- **Type/Format**: e.g., `Object`, `boolean`.
-- **Example**: (optional)
-  - **Nullable**: use `Type?` when the method can return null (e.g., `UserResponse?`).
-
-### Core Logic
-A concise, step-by-step description of how inputs are transformed into outputs.
-1.  Describe the minimal transformation steps.
-2.  Include non-standard rules or branches explicitly.
-
-### Test Cases
-- **Happy Path**:
-  - **Scenario**: One expected success path.
-  - **Expected Output**:
-- **Edge Cases**:
-  - **Scenario**: One or two failure/boundary cases.
-  - **Expected Output / Behavior**:
-
-## 3. Security & Boundary Rules (Optional)
-*Define strict security rules, such as path traversal prevention, command whitelisting, or input validation logic, if applicable.*
-
-## 4. Consumers (Optional)
-*List other modules that depend on this module. This helps in understanding the impact of changes.*
-- **Module A**: Uses this module for X.
-- **Module B**: Uses this module for Y.
-
-## 5. Dependencies
-- **Internal**: List other modules within this project that this module depends on (e.g., `product_database`).
-- **External**: List third-party libraries or packages required (e.g., `axios`).
-
-## 6. Notes (Optional)
-Any additional assumptions or clarifications that cannot be captured above.
-
----
-
-## Appendix: Minimal CRUD Example (Human Spec)
-
-# TaskItems Project (Example)
+# naming_helpers Design Document
 
 ## Purpose
-タスク管理の標準 CRUD を生成する。
 
-## Project Spec
+`naming_helpers` は、プロジェクト生成で使う型・名前・CRUDメソッド・DTOマッピングの決定論的な補助規則を提供する。自然文や候補順位から推測せず、Project Specの構造と明示されたプロパティだけを使う。
 
-### Tech
-- **Language**: C#
-- **Framework**: ASP.NET Core Web API
-- **Target**: .NET 10
+## Structured Specification
 
-### Architecture
-- **Style**: Layered (Controller -> Service -> Repository)
-- **DI**: Built-in ASP.NET Core DI
+### Input
 
-### Data Access
-- **Provider**: SqlServer
-- **Strategy**: Dapper
+- DTOとEntityのプロパティ定義、明示DTO mapping、modulesのメソッド宣言、generation hints。
 
-### Modules
-- **Controller**: TaskItemsController
-  - routes:
-  - GET /tasks
-  - GET /tasks/{id}
-  - POST /tasks
-  - PUT /tasks/{id}
-  - DELETE /tasks/{id}
-- **Service**: TaskItemService
-  - methods:
-  - GetTaskItems(): List<TaskItemResponse>
-  - GetTaskItemById(id:int): TaskItemResponse?
-  - CreateTaskItem(req:TaskItemCreateRequest): TaskItemResponse?
-  - UpdateTaskItem(id:int, req:TaskItemCreateRequest): TaskItemResponse?
-  - DeleteTaskItem(id:int): bool
-- **Repository**: TaskItemRepository
-  - methods:
-  - FetchAll(): List<TaskItem>
-  - FetchById(id:int): TaskItem?
-  - Insert(item:TaskItem): TaskItem
-  - Update(id:int, item:TaskItem): TaskItem?
-  - Delete(id:int): bool
+### Output
 
-### Entities / DTO
-- **Entity**: TaskItem
-  - Id:int
-  - Title:string
-  - IsDone:bool
-  - CreatedAt:datetime
-- **DTO**: TaskItemCreateRequest
-  - Title:string
-  - IsDone:bool
-- **DTO**: TaskItemResponse
-  - Id:int
-  - Title:string
-  - IsDone:bool
-  - CreatedAt:datetime
+- CRUD名、nullableを反映した戻り値型、ID型、CreateRequest→EntityとEntity→Responseのプロパティ対応。
 
-### Validation
-- **TaskItemCreateRequest.Title**: required, max_len=100
+### Core Logic
 
-## Method Specs
-（省略: 標準 CRUD は内部補完対象）
+1. 明示mappingがある場合はそのmappingを保持する。
+2. 明示mappingがない場合だけ、同名プロパティを対応付ける。
+3. Entityに正確に `CreatedAt` という `DateTime` または `DateTimeOffset` プロパティがあり、CreateRequestから対応付けられない場合は、`utcnow` から `CreatedAt` への生成時刻mappingを追加する。
+4. Entity→Responseの既定mappingは同名プロパティだけを対象にする。
+5. moduleメソッド宣言のnullable記号とIDプロパティ型を、生成するサービス・リポジトリ署名へ反映する。
 
+### Test Cases
+
+- **Happy Path**: CreateRequestとEntityに同名プロパティがある。
+  - **Expected**: 同名プロパティだけがCreateRequest→Entityに対応付く。
+- **Edge Case**: `CreatedAt: datetime` はEntityだけにある。
+  - **Expected**: `utcnow`→`CreatedAt` mappingが追加され、生成DTOは `DateTime.UtcNow` を代入する。
+- **Edge Case**: 明示mappingがある。
+  - **Expected**: 既定mappingや時刻mappingで上書きしない。
+
+## Dependencies
+
+- External dependencyなし。型名の変換はこのモジュール内の決定論的な規則で完結する。

@@ -220,6 +220,34 @@ class TestDesignInferenceEngine(unittest.TestCase):
         inferred_path = self.workspace_root / "Sample.inferred.design.md"
         self.assertFalse(inferred_path.exists())
 
+    def test_requires_explicit_step_metadata_when_configured(self):
+        self._write_design("""# Sample
+## Purpose
+明示メタデータの検証
+## Structured Specification
+### Input
+- **Description**: none
+- **Type/Format**: void
+### Output
+- **Description**: status
+- **Type/Format**: bool
+### Core Logic
+1. 入力を整形する
+### Test Cases
+- **Scenario**: Default
+- **Expected**: true
+""")
+        (self.workspace_root / "config" / "config.json").write_text(
+            json.dumps({"design_inference": {"require_explicit_step_metadata": True}}),
+            encoding="utf-8",
+        )
+        engine = self._build_engine()
+
+        result = engine.infer_then_freeze(str(self.design_path))
+
+        self.assertEqual("blocked", result["status"])
+        self.assertEqual("MISSING_EXPLICIT_STEP_METADATA", result["issues"][0]["reason"])
+
     def test_infer_then_freeze_applies_literal_suggestions_before_inference(self):
         original = """# Sample
 ## Purpose

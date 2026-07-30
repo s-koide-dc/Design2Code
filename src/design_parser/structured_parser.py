@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Tuple
 
 from src.design_parser.validator import validate_structured_spec_or_raise
 from src.design_parser.data_source_utils import parse_data_source_tag
+from src.design_parser.compact_step_expander import expand_compact_steps
 from src.utils.design_doc_parser import DesignDocParser
 from src.utils.semantic_intents import (
     INTENT_FETCH,
@@ -37,6 +38,12 @@ class StructuredDesignParser:
         return self.parse_markdown(content)
 
     def parse_markdown(self, content: str) -> Dict[str, Any]:
+        content, compact_errors = expand_compact_steps(content)
+        if compact_errors:
+            details = "; ".join(
+                f"line {error.line_number}: {error.detail}" for error in compact_errors
+            )
+            raise ValueError(f"Invalid compact step syntax: {details}")
         legacy = self._legacy_parser.parse_content(content)
 
         module_name = str(legacy.get("module_name") or "UnknownModule").strip() or "UnknownModule"

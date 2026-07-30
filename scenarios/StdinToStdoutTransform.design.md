@@ -10,9 +10,9 @@
 - **Type/Format**: bool
 ### Core Logic
 - [data_source|STDIN|stdin] 標準入力
-2. [ACTION|FETCH|string|string|IO|STDIN|stdin] 標準入力から1行取得する
-3. [ACTION|TRANSFORM|string|string|NONE] [ops:trim_upper] 取得した文字列をトリムし、大文字に変換する
-4. [ACTION|DISPLAY|string|void|NONE] 変換結果を表示する
+2. [step|FETCH|string|string|source=STDIN|source_kind=stdin] 標準入力から1行取得する
+3. [step|TRANSFORM|string|string] [ops:trim_upper] 取得した文字列をトリムし、大文字に変換する
+4. [step|DISPLAY|string|void] 変換結果を表示する
 ### Test Cases
 - **Scenario**: Default
 - **Expected**: {"runtime_oracle":{"stdin":" hello \\n","return":true,"stdout":{"contains":["HELLO"]}}}

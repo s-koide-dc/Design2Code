@@ -28,11 +28,11 @@ Core Logic からのdata source宣言の収集は `inference_data_sources` に�
 - **Example**: `{"status":"updated","output_path":"...sample.inferred.design.md"}`
 
 ### Core Logic
-1. 設計書本文を読み込む。必要なら accepted 済みの `semantic_roles.path/url/sql` suggestion を in-memory で差し込む。
+1. 設計書本文を読み込む。最初に `compact_step_expander` で限定的な `[step|...]` 記法を完全タグへ展開する。展開エラーは `COMPACT_STEP_INVALID` として停止し、推測による補完は行わない。必要なら accepted 済みの `semantic_roles.path/url/sql` suggestion を in-memory で差し込む。
 2. data source 行を先に収集し、後続ステップの source 解決候補として保持する。
    - 明示 `[data_source|...]` だけでなく、現時点では exact-match の plain source description 語彙も扱う。
    - 既定実装では `標準入力`、`Product API Endpoint`、`Local SQL Database`、裸のファイル名行、および `input_path/output_path` に結び付く `入力CSV` / `出力CSV` を補完対象とする。
-3. 各 Core Logic 行について、明示タグがある行はそのまま保持し、無い行のみ補完対象にする。
+3. 製品既定では各 Core Logic 行に明示タグを要求し、無い行は `MISSING_EXPLICIT_STEP_METADATA` として停止する。旧来の自然文補完は研究・移行時に明示 opt-in した呼び出しだけで利用する。
 4. `DesignOpsResolver` と entity 推定を使って、`intent`, `target_entity`, `output_type`, `refs`, `semantic_roles`, `data_source` を決定的に推論する。
    - ローカルにchiVe実モデルがある場合だけ候補探索を有効化する。JMDictの語義は候補検索の文脈拡張に使うが、候補の採否はintent・型・data source・構造制約で決める。
    - stripped design のように resolver が `DISPLAY` を返した経路でも、直前 `output_type` が `List<User>` / `IEnumerable<Product>` のような collection なら表示対象 entity は `User` / `Product` に補正する。
@@ -91,6 +91,8 @@ Core Logic からのdata source宣言の収集は `inference_data_sources` に�
 - HTTP request の `target_entity` が空 / `Item` / `string` の場合、まず本文から構造的 entity を試し、補えない場合だけ `source_ref` の snake/kebab case から schema 上に存在する entity 名へ正規化する。schema に存在しない candidate は採用しない。
 
 ## 5. Review Notes
+- 2026-07-27: supported generation の既定を explicit step metadata 必須へ変更し、キーワード・候補スコアに基づく自然文補完を通常の生成経路から分離した。
+- 2026-07-28: 定型 ACTION の記述量を減らすコンパクトステップ記法を、完全タグへ決定的に展開してから検証する経路を追加した。展開対象外または構文不正な入力は `COMPACT_STEP_INVALID` として停止する。
 - 2026-06-25: 低信頼 resolver 候補より構造的 fallback を優先し、採用可能な候補がない場合は `LOW_CONFIDENCE` ではなく `NO_CANDIDATE` として boundary/assist 判定へ渡す契約を反映。
 - 2026-06-26: DB query fallback は SQL literal だけでは成立させず、既存 db data source がある場合に限定する。source 不足の SQL literal は literal tag assist coverage の境界として `NO_CANDIDATE` に残す。
 - 2026-07-07: JSON deserialize / LINQ fallback で本文 keyword だけから entity を確定する経路を廃止。構造型または明示 semantic role が無い場合は `NO_CANDIDATE` にする。

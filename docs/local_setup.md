@@ -93,3 +93,5 @@ python scripts/validate/validate_local_asset_manifest.py --capability dictionary
 | 生成品質とruntime oracleの確認 | `python scripts/design/run_design_generation_regression.py --profile quality --fail-on-maintainability --run-runtime-oracles --require-runtime-oracles --summary-only` | 不要 |
 
 資産と生成物の一覧は [resources/README.md](../resources/README.md) を参照する。
+
+`run_local_semantic_quality_gate.py` は、実モデルの検索検証に加えて、`tests/ci_test_matrix.json` でCIから除外した全統合テストを実行する。対象の追加・除外はCIマトリクスだけで管理し、ローカルゲートが別の固定リストを持たない。
