@@ -20,7 +20,7 @@ def _fingerprint(paths: list[Path]) -> str:
     digest = hashlib.sha256()
     for path in sorted(paths):
         relative = path.relative_to(ROOT).as_posix().encode("utf-8")
-        content = path.read_bytes()
+        content = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
         digest.update(len(relative).to_bytes(4, "big"))
         digest.update(relative)
         digest.update(len(content).to_bytes(8, "big"))
